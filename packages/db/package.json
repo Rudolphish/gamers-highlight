@@ -1,0 +1,21 @@
+{
+  "name": "@gamers-highlight/db",
+  "version": "0.1.0",
+  "private": true,
+  "main": "generated/index.js",
+  "types": "generated/index.d.ts",
+  "scripts": {
+    "generate": "prisma generate",
+    "push": "prisma db push",
+    "migrate": "prisma migrate dev",
+    "studio": "prisma studio",
+    "seed:allowlist": "tsx seed-allowlist.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.18.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.18.0",
+    "tsx": "^4.16.0"
+  }
+}

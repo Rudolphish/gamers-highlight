@@ -1,0 +1,19 @@
+{
+  "name": "gamers-highlight",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:bot": "pnpm --filter bot dev",
+    "build:web": "pnpm --filter web build",
+    "build:bot": "pnpm --filter bot build",
+    "db:generate": "pnpm --filter @gamers-highlight/db generate",
+    "db:push": "pnpm --filter @gamers-highlight/db push",
+    "db:studio": "pnpm --filter @gamers-highlight/db studio",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}
