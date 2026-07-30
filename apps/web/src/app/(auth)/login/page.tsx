@@ -20,7 +20,9 @@ export default function LoginPage() {
 
 function LoginForm() {
   const params = useSearchParams();
-  const denied = params.get("error") === "AccessDenied";
+  const error = params.get("error");
+  const denied = error === "AccessDenied";
+  const otherError = error && !denied;
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-6">
@@ -34,6 +36,11 @@ function LoginForm() {
       {denied && (
         <p className="rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
           このアカウントはまだ招待されていません。管理者に許可リストへの追加を依頼してください。
+        </p>
+      )}
+      {otherError && (
+        <p className="rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
+          ログインでエラーが発生しました（{error}）。環境変数の設定を確認してください。
         </p>
       )}
 
