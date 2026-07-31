@@ -12,14 +12,6 @@
     "db:studio": "pnpm --filter @gamers-highlight/db studio",
     "lint": "pnpm -r lint"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@prisma/client",
-      "@prisma/engines",
-      "esbuild",
-      "prisma"
-    ]
-  },
   "devDependencies": {
     "typescript": "^5.5.0"
   },
