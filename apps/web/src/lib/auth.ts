@@ -8,20 +8,58 @@ if (!process.env.NEXTAUTH_URL && nextAuthUrl) {
   process.env.NEXTAUTH_URL = nextAuthUrl;
 }
 
-export const authOptions: NextAuthOptions = {
-  providers: [
+const providers = [];
+const discordClientId = process.env.DISCORD_CLIENT_ID;
+const discordClientSecret = process.env.DISCORD_CLIENT_SECRET;
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const nextAuthSecret = process.env.NEXTAUTH_SECRET;
+
+if (discordClientId && discordClientSecret) {
+  providers.push(
     DiscordProvider({
-      clientId: process.env.DISCORD_CLIENT_ID!,
-      clientSecret: process.env.DISCORD_CLIENT_SECRET!,
+      clientId: discordClientId,
+      clientSecret: discordClientSecret,
     }),
+  );
+}
+
+if (googleClientId && googleClientSecret) {
+  providers.push(
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
     }),
-  ],
+  );
+}
+
+if (!nextAuthSecret) {
+  throw new Error("NEXTAUTH_SECRET is required for NextAuth.");
+}
+
+if (providers.length === 0) {
+  throw new Error("NextAuth requires at least one OAuth provider to be configured. Set DISCORD_CLIENT_ID/SECRET or GOOGLE_CLIENT_ID/SECRET.");
+}
+
+export const authOptions: NextAuthOptions = {
+  providers,
+  secret: nextAuthSecret,
   pages: {
     signIn: "/login",
     error: "/login", // 許可リスト外の場合もここに戻す（?error=AccessDenied が付与される）
+  },
+  logger: {
+    error(code, metadata) {
+      console.error(`[next-auth] error: ${code}`, metadata);
+    },
+    warn(code) {
+      console.warn(`[next-auth] warn: ${code}`);
+    },
+    debug(code, metadata) {
+      if (process.env.NODE_ENV === "development") {
+        console.debug(`[next-auth] debug: ${code}`, metadata);
+      }
+    },
   },
   callbacks: {
     // クローズドな友人グループ運用のため、許可リストに無いアカウントはログイン自体を拒否する。

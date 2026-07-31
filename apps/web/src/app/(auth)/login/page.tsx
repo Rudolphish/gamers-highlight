@@ -23,7 +23,8 @@ function LoginForm() {
   const error = params.get("error");
   const denied = error === "AccessDenied";
   const configError = error === "Configuration";
-  const otherError = error && !denied && !configError;
+  const oauthCallbackError = error === "OAuthCallback";
+  const otherError = error && !denied && !configError && !oauthCallbackError;
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-6">
@@ -41,6 +42,12 @@ function LoginForm() {
         <p className="rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
           ログイン設定に不備があります。Vercel環境変数 `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
           `NEXTAUTH_SECRET` の設定を確認してください。
+        </p>
+      )}
+      {oauthCallbackError && (
+        <p className="rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
+          OAuth コールバックでエラーが発生しました。Vercel の `NEXTAUTH_URL` を `https://YOUR_DOMAIN` に設定し、 Discord/Google の OAuth リダイレクト
+          URI に `https://YOUR_DOMAIN/api/auth/callback/discord` または `https://YOUR_DOMAIN/api/auth/callback/google` を登録してください。
         </p>
       )}
       {otherError && (

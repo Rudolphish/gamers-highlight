@@ -10,6 +10,11 @@
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 
+OAuthリダイレクトURIの例:
+
+- Discord: `https://YOUR_DOMAIN/api/auth/callback/discord`
+- Google: `https://YOUR_DOMAIN/api/auth/callback/google`
+
 追加の運用向け変数:
 
 - `STORAGE_ENDPOINT`
