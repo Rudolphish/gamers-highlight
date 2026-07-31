@@ -22,20 +22,25 @@ function LoginForm() {
   const params = useSearchParams();
   const error = params.get("error");
   const denied = error === "AccessDenied";
-  const otherError = error && !denied;
+  const configError = error === "Configuration";
+  const otherError = error && !denied && !configError;
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-6">
       <div className="text-center">
         <h1 className="text-2xl font-bold">Gamer's Highlight にログイン</h1>
-        <p className="mt-2 text-sm text-gray-500">
-          招待されたメンバーのみアクセスできます
-        </p>
+        <p className="mt-2 text-sm text-gray-500">招待されたメンバーのみアクセスできます</p>
       </div>
 
       {denied && (
         <p className="rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
           このアカウントはまだ招待されていません。管理者に許可リストへの追加を依頼してください。
+        </p>
+      )}
+      {configError && (
+        <p className="rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
+          ログイン設定に不備があります。Vercel環境変数 `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+          `NEXTAUTH_SECRET` の設定を確認してください。
         </p>
       )}
       {otherError && (
@@ -51,10 +56,7 @@ function LoginForm() {
         >
           Discordでログイン
         </button>
-        <button
-          onClick={() => signIn("google", { callbackUrl: "/" })}
-          className="rounded-md border px-6 py-2.5 text-sm font-medium"
-        >
+        <button onClick={() => signIn("google", { callbackUrl: "/" })} className="rounded-md border px-6 py-2.5 text-sm font-medium">
           Googleでログイン
         </button>
       </div>

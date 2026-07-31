@@ -3,6 +3,11 @@ import DiscordProvider from "next-auth/providers/discord";
 import GoogleProvider from "next-auth/providers/google";
 import { db } from "./db";
 
+const nextAuthUrl = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+if (!process.env.NEXTAUTH_URL && nextAuthUrl) {
+  process.env.NEXTAUTH_URL = nextAuthUrl;
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     DiscordProvider({
@@ -22,15 +27,14 @@ export const authOptions: NextAuthOptions = {
     // クローズドな友人グループ運用のため、許可リストに無いアカウントはログイン自体を拒否する。
     // Discordでログインした場合は discordUserId、それ以外(Google等)はメールアドレスで照合する。
     async signIn({ user, account }) {
-      const discordUserId =
-        account?.provider === "discord" ? account.providerAccountId : undefined;
+      const discordUserId = account?.provider === "discord" ? account.providerAccountId : undefined;
 
       const allowed = await db.allowlistEntry.findFirst({
         where: {
-          OR: [
-            discordUserId ? { discordUserId } : undefined,
-            user.email ? { email: user.email } : undefined,
-          ].filter(Boolean) as { discordUserId?: string; email?: string }[],
+          OR: [discordUserId ? { discordUserId } : undefined, user.email ? { email: user.email } : undefined].filter(Boolean) as {
+            discordUserId?: string;
+            email?: string;
+          }[],
         },
       });
 
