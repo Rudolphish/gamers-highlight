@@ -44,6 +44,34 @@ if (providers.length === 0) {
 export const authOptions: NextAuthOptions = {
   providers,
   secret: nextAuthSecret,
+  cookies: {
+    csrfToken: {
+      name: "next-auth.csrf-token",
+      options: {
+        httpOnly: false,
+        sameSite: process.env.NEXT_PUBLIC_NEXTAUTH_COOKIE_SAMESITE || "none",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+    callbackUrl: {
+      name: "next-auth.callback-url",
+      options: {
+        sameSite: process.env.NEXT_PUBLIC_NEXTAUTH_COOKIE_SAMESITE || "none",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+    sessionToken: {
+      name: process.env.NODE_ENV === "production" ? "__Secure-next-auth.session-token" : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: process.env.NEXT_PUBLIC_NEXTAUTH_COOKIE_SAMESITE || "none",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
   pages: {
     signIn: "/login",
     error: "/login", // 許可リスト外の場合もここに戻す（?error=AccessDenied が付与される）
