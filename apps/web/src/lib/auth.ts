@@ -11,7 +11,7 @@ if (nextAuthUrl) {
   process.env.AUTH_URL = nextAuthUrl;
 }
 
-const cookieSameSite = process.env.NEXT_PUBLIC_NEXTAUTH_COOKIE_SAMESITE || "lax";
+const cookieSameSite = process.env.NEXT_PUBLIC_NEXTAUTH_COOKIE_SAMESITE || (isSecureEnv ? "none" : "lax");
 const cookieOptions = {
   path: "/",
   sameSite: cookieSameSite as "lax" | "none" | "strict",
