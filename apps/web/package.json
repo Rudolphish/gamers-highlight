@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "pnpm --filter @gamers-highlight/db generate",
+    "postbuild": "node ../../scripts/prepare-prisma-engine.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
