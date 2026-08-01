@@ -12,6 +12,11 @@ if (nextAuthUrl) {
 }
 
 const cookieSameSite = process.env.NEXT_PUBLIC_NEXTAUTH_COOKIE_SAMESITE || "lax";
+const cookieOptions = {
+  path: "/",
+  sameSite: cookieSameSite as "lax" | "none" | "strict",
+  secure: isSecureEnv,
+};
 const providers = [];
 const discordClientId = process.env.DISCORD_CLIENT_ID;
 const discordClientSecret = process.env.DISCORD_CLIENT_SECRET;
@@ -55,26 +60,34 @@ export const authOptions = {
       name: "next-auth.csrf-token",
       options: {
         httpOnly: false,
-        sameSite: cookieSameSite,
-        path: "/",
-        secure: isSecureEnv,
+        ...cookieOptions,
       },
     },
     callbackUrl: {
       name: "next-auth.callback-url",
       options: {
-        sameSite: cookieSameSite,
-        path: "/",
-        secure: isSecureEnv,
+        ...cookieOptions,
+      },
+    },
+    state: {
+      name: isSecureEnv ? "__Secure-next-auth.state" : "next-auth.state",
+      options: {
+        httpOnly: true,
+        ...cookieOptions,
+      },
+    },
+    pkceCodeVerifier: {
+      name: isSecureEnv ? "__Secure-next-auth.pkce.code_verifier" : "next-auth.pkce.code_verifier",
+      options: {
+        httpOnly: true,
+        ...cookieOptions,
       },
     },
     sessionToken: {
       name: isSecureEnv ? "__Secure-next-auth.session-token" : "next-auth.session-token",
       options: {
         httpOnly: true,
-        sameSite: cookieSameSite,
-        path: "/",
-        secure: isSecureEnv,
+        ...cookieOptions,
       },
     },
   },
