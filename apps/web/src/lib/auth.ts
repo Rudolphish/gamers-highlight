@@ -3,11 +3,15 @@ import DiscordProvider from "next-auth/providers/discord";
 import GoogleProvider from "next-auth/providers/google";
 import { db } from "./db";
 
-const nextAuthUrl = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
-if (!process.env.NEXTAUTH_URL && nextAuthUrl) {
+const isVercel = Boolean(process.env.VERCEL);
+const isSecureEnv = process.env.NODE_ENV === "production" || isVercel;
+const nextAuthUrl = process.env.NEXTAUTH_URL || process.env.AUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+if (nextAuthUrl) {
   process.env.NEXTAUTH_URL = nextAuthUrl;
+  process.env.AUTH_URL = nextAuthUrl;
 }
 
+const cookieSameSite = process.env.NEXT_PUBLIC_NEXTAUTH_COOKIE_SAMESITE || "lax";
 const providers = [];
 const discordClientId = process.env.DISCORD_CLIENT_ID;
 const discordClientSecret = process.env.DISCORD_CLIENT_SECRET;
@@ -41,7 +45,9 @@ if (providers.length === 0) {
   throw new Error("NextAuth requires at least one OAuth provider to be configured. Set DISCORD_CLIENT_ID/SECRET or GOOGLE_CLIENT_ID/SECRET.");
 }
 
-export const authOptions: NextAuthOptions = {
+export const authOptions = {
+  trustHost: true,
+  useSecureCookies: isSecureEnv,
   providers,
   secret: nextAuthSecret,
   cookies: {
@@ -49,26 +55,26 @@ export const authOptions: NextAuthOptions = {
       name: "next-auth.csrf-token",
       options: {
         httpOnly: false,
-        sameSite: process.env.NEXT_PUBLIC_NEXTAUTH_COOKIE_SAMESITE || "none",
+        sameSite: cookieSameSite,
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecureEnv,
       },
     },
     callbackUrl: {
       name: "next-auth.callback-url",
       options: {
-        sameSite: process.env.NEXT_PUBLIC_NEXTAUTH_COOKIE_SAMESITE || "none",
+        sameSite: cookieSameSite,
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecureEnv,
       },
     },
     sessionToken: {
-      name: process.env.NODE_ENV === "production" ? "__Secure-next-auth.session-token" : "next-auth.session-token",
+      name: isSecureEnv ? "__Secure-next-auth.session-token" : "next-auth.session-token",
       options: {
         httpOnly: true,
-        sameSite: process.env.NEXT_PUBLIC_NEXTAUTH_COOKIE_SAMESITE || "none",
+        sameSite: cookieSameSite,
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecureEnv,
       },
     },
   },
@@ -132,4 +138,7 @@ export const authOptions: NextAuthOptions = {
     },
   },
   session: { strategy: "jwt" },
+} as NextAuthOptions & {
+  trustHost: boolean;
+  useSecureCookies: boolean;
 };
