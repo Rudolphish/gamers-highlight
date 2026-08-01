@@ -55,42 +55,6 @@ export const authOptions = {
   useSecureCookies: isSecureEnv,
   providers,
   secret: nextAuthSecret,
-  cookies: {
-    csrfToken: {
-      name: "next-auth.csrf-token",
-      options: {
-        httpOnly: false,
-        ...cookieOptions,
-      },
-    },
-    callbackUrl: {
-      name: "next-auth.callback-url",
-      options: {
-        ...cookieOptions,
-      },
-    },
-    state: {
-      name: isSecureEnv ? "__Secure-next-auth.state" : "next-auth.state",
-      options: {
-        httpOnly: true,
-        ...cookieOptions,
-      },
-    },
-    pkceCodeVerifier: {
-      name: isSecureEnv ? "__Secure-next-auth.pkce.code_verifier" : "next-auth.pkce.code_verifier",
-      options: {
-        httpOnly: true,
-        ...cookieOptions,
-      },
-    },
-    sessionToken: {
-      name: isSecureEnv ? "__Secure-next-auth.session-token" : "next-auth.session-token",
-      options: {
-        httpOnly: true,
-        ...cookieOptions,
-      },
-    },
-  },
   pages: {
     signIn: "/login",
     error: "/login", // 許可リスト外の場合もここに戻す（?error=AccessDenied が付与される）
@@ -103,7 +67,7 @@ export const authOptions = {
       console.warn(`[next-auth] warn: ${code}`);
     },
     debug(code, metadata) {
-      if (process.env.NODE_ENV === "development") {
+      if (process.env.NODE_ENV === "development" || isVercel) {
         console.debug(`[next-auth] debug: ${code}`, metadata);
       }
     },
