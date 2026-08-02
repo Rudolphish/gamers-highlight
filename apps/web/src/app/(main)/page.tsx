@@ -38,14 +38,20 @@ export default async function HomePage() {
 
   const albumIds = albums.map((a) => a.id);
 
-  const recentPhotos = albumIds.length
-    ? await db.photo.findMany({
-        where: { albumId: { in: albumIds } },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-        include: { uploader: true, album: true },
-      })
-    : [];
+  // アルバムに属する投稿だけでなく、自分がアップロードした「未分類（albumIdなし）」の投稿も拾う。
+  // 未分類のままだとどのアルバムページにも表示されず埋もれてしまうため、
+  // 少なくともホーム画面だけは必ず見えるようにしておく。
+  const recentPhotos = await db.photo.findMany({
+    where: {
+      OR: [
+        { albumId: { in: albumIds } },
+        { albumId: null, uploaderId: user.id },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    include: { uploader: true, album: true },
+  });
 
   const albumCards = albums.map((album) => {
     const latestPhoto = album.photos[0];
