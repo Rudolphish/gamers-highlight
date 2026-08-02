@@ -14,7 +14,15 @@ if (!existsSync(sourceEnginePath)) {
 }
 
 const targetRoots = [repoRoot, webRoot];
-const targetSubdirs = [".next", ".next/server", ".next/server/app", ".next/server/chunks", ".next/standalone/server"];
+const targetSubdirs = [
+  ".next",
+  ".next/server",
+  ".next/server/app",
+  ".next/server/chunks",
+  ".next/standalone/server",
+  "generated",
+  "node_modules/@gamers-highlight/db/generated",
+];
 
 for (const root of targetRoots) {
   for (const subdir of targetSubdirs) {
