@@ -21,6 +21,13 @@ const nextConfig = {
     // バンドルされてchunkファイルに移動されると、Prisma内部の相対パス計算が壊れて
     // 「Could not open datamodel file」エラーの原因になるため。
     serverComponentsExternalPackages: ["@prisma/client", "@gamers-highlight/db"],
+    // Next.jsの自動file tracingが、packages/db/generated（Prismaのカスタム出力先）配下の
+    // クエリエンジンネイティブバイナリ(.so.node)を検知できず、Vercelのサーバーレス関数
+    // バンドルに含めてくれないための明示的な指定。
+    // 「Prisma Client could not locate the Query Engine」エラーの対策。
+    outputFileTracingIncludes: {
+      "/**/*": ["../../packages/db/generated/**/*"],
+    },
   },
 };
 
