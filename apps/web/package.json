@@ -10,7 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@gamers-highlight/db": "*",
+    "@gamers-highlight/db": "workspace:*",
     "next": "^14.2.0",
     "next-auth": "^4.24.0",
     "react": "^18.3.0",
