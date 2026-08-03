@@ -29,7 +29,7 @@ function LoginForm() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-6">
       <div className="text-center">
-        <h1 className="text-2xl font-bold">Gamer's Highlight にログイン</h1>
+        <h1 className="text-2xl font-bold">Gamer&apos;s Highlight にログイン</h1>
         <p className="mt-2 text-sm text-gray-500">招待されたメンバーのみアクセスできます</p>
       </div>
 
@@ -56,14 +56,20 @@ function LoginForm() {
         </p>
       )}
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 min-w-[240px]">
+        <button
+          onClick={() => signIn("credentials", { callbackUrl: "/", email: "demo@example.com" })}
+          className="rounded-md bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-emerald-500 transition"
+        >
+          ゲスト/デモログイン
+        </button>
         <button
           onClick={() => signIn("discord", { callbackUrl: "/" })}
-          className="rounded-md bg-[#5865F2] px-6 py-2.5 text-sm font-medium text-white"
+          className="rounded-md bg-[#5865F2] px-6 py-2.5 text-sm font-medium text-white hover:bg-[#4752C4] transition"
         >
           Discordでログイン
         </button>
-        <button onClick={() => signIn("google", { callbackUrl: "/" })} className="rounded-md border px-6 py-2.5 text-sm font-medium">
+        <button onClick={() => signIn("google", { callbackUrl: "/" })} className="rounded-md border border-steam-border bg-steam-surface px-6 py-2.5 text-sm font-medium hover:bg-steam-panel transition">
           Googleでログイン
         </button>
       </div>

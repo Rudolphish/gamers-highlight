@@ -18,6 +18,7 @@ const nextConfig = {
     ],
   },
   // pnpmモノレポ構成でNext.jsのfile tracingがモノレポのルートを正しく認識するための設定。
+  output: "standalone",
   outputFileTracingRoot: path.join(__dirname, "../../"),
   experimental: {
     // Prisma公式が推奨する設定：Prisma Clientをwebpackバンドル対象から除外し、

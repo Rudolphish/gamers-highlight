@@ -1,0 +1,8 @@
+{
+  "name": "Gamer's Highlight",
+  "description": "ゲームのスクショを、みんなで集めて残すWebアプリケーション",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,17 +1,22 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
 
-const s3 = new S3Client({
-  region: "auto",
-  endpoint: process.env.STORAGE_ENDPOINT,
-  credentials: {
-    accessKeyId: process.env.STORAGE_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.STORAGE_SECRET_ACCESS_KEY!,
-  },
-});
-
-const BUCKET = process.env.STORAGE_BUCKET!;
+function getS3Client() {
+  const accessKeyId = process.env.STORAGE_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.STORAGE_SECRET_ACCESS_KEY;
+  if (!accessKeyId || !secretAccessKey) {
+    return null;
+  }
+  return new S3Client({
+    region: "auto",
+    endpoint: process.env.STORAGE_ENDPOINT,
+    credentials: {
+      accessKeyId,
+      secretAccessKey,
+    },
+  });
+}
 
 /**
  * クライアントが直接ストレージへPUTするための署名付きURLを発行する。
@@ -21,13 +26,25 @@ const BUCKET = process.env.STORAGE_BUCKET!;
 export async function createUploadUrl(contentType: string, mediaType: "IMAGE" | "VIDEO") {
   const prefix = mediaType === "VIDEO" ? "videos" : "photos";
   const key = `${prefix}/${randomUUID()}`;
+  const bucket = process.env.STORAGE_BUCKET;
+  const s3 = getS3Client();
+
+  if (!s3 || !bucket) {
+    console.warn("[storage] STORAGE credentials not set — returning fallback mock URL");
+    return {
+      uploadUrl: `/api/photos`,
+      key,
+      publicUrl: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80",
+    };
+  }
+
   const command = new PutObjectCommand({
-    Bucket: BUCKET,
+    Bucket: bucket,
     Key: key,
     ContentType: contentType,
   });
   const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 }); // 5分で失効
-  const publicUrl = `${process.env.STORAGE_PUBLIC_URL}/${key}`;
+  const publicUrl = `${process.env.STORAGE_PUBLIC_URL || ""}/${key}`;
   return { uploadUrl, key, publicUrl };
 }
 
@@ -37,6 +54,14 @@ export async function createUploadUrl(contentType: string, mediaType: "IMAGE" | 
  * サイズ上限は呼び出し側（ingest route）でDiscordのContent-Lengthを見て事前チェックする想定。
  */
 export async function uploadFromUrlToStorage(sourceUrl: string, mediaType: "IMAGE" | "VIDEO") {
+  const bucket = process.env.STORAGE_BUCKET;
+  const s3 = getS3Client();
+
+  if (!s3 || !bucket) {
+    console.warn("[storage] STORAGE credentials not set — returning fallback source URL");
+    return { publicUrl: sourceUrl, key: randomUUID(), sizeBytes: 0 };
+  }
+
   const res = await fetch(sourceUrl);
   if (!res.ok) throw new Error(`failed to fetch source media: ${res.status}`);
   const contentType = res.headers.get("content-type") ?? (mediaType === "VIDEO" ? "video/mp4" : "image/png");
@@ -46,14 +71,14 @@ export async function uploadFromUrlToStorage(sourceUrl: string, mediaType: "IMAG
   const key = `${prefix}/discord/${randomUUID()}`;
   await s3.send(
     new PutObjectCommand({
-      Bucket: BUCKET,
+      Bucket: bucket,
       Key: key,
       Body: buffer,
       ContentType: contentType,
     })
   );
 
-  return { publicUrl: `${process.env.STORAGE_PUBLIC_URL}/${key}`, key, sizeBytes: buffer.byteLength };
+  return { publicUrl: `${process.env.STORAGE_PUBLIC_URL || ""}/${key}`, key, sizeBytes: buffer.byteLength };
 }
 
 // 動画のサムネイルはサーバー側で生成しない方針。
