@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { z } from "zod";
+
+const createAlbumSchema = z.object({
+  title: z.string().trim().min(1, "title is required").max(100),
+  description: z.string().trim().max(500).optional(),
+  gameTitle: z.string().trim().max(100).optional(),
+});
 
 // GET /api/albums … 自分が所有/参加しているアルバム一覧
 export async function GET() {
@@ -34,13 +41,16 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  // TODO: zodでtitle必須などのバリデーション
+  const parsed = createAlbumSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
 
   const album = await db.album.create({
     data: {
-      title: body.title,
-      description: body.description ?? null,
-      gameTitle: body.gameTitle ?? null,
+      title: parsed.data.title,
+      description: parsed.data.description ?? null,
+      gameTitle: parsed.data.gameTitle ?? null,
       ownerId: user.id,
     },
   });

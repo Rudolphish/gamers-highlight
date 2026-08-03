@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Inbox } from "lucide-react";
+import { Inbox, Plus } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -70,9 +70,17 @@ export default async function AlbumsPage() {
 
   return (
     <main className="p-4 sm:p-6">
-      <h1 className="font-display text-2xl font-bold tracking-wide text-steam-text sm:text-3xl">
-        アルバム一覧
-      </h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-2xl font-bold tracking-wide text-steam-text sm:text-3xl">
+          アルバム一覧
+        </h1>
+        <Link
+          href="/albums/new"
+          className="flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
+        >
+          <Plus size={14} /> 新規アルバム
+        </Link>
+      </div>
 
       {unclassifiedCount > 0 && (
         <Link

@@ -4,9 +4,16 @@ const path = require("path");
 const nextConfig = {
   images: {
     remotePatterns: [
+      // Cloudflare R2の公開ドメイン（pub-*.r2.dev）と、ストレージのエンドポイントのみ許可。
+      // ※現在のコードは<img>タグを直接使っておりこの設定は未使用だが、
+      // 将来next/imageに切り替える際のために先に絞り込んでおく。
       {
         protocol: "https",
-        hostname: "**", // TODO: R2/S3の公開ドメインに絞り込む
+        hostname: "pub-*.r2.dev",
+      },
+      {
+        protocol: "https",
+        hostname: "*.r2.cloudflarestorage.com",
       },
     ],
   },
