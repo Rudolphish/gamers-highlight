@@ -1,6 +1,6 @@
-# タスク一覧（Cline専用）
+# タスク一覧（Google AI Studio専用）
 
-このファイルはCline（ローカルLLM）への指示書として使う。各タスクには**完了条件**を明記しているので、実装後は完了条件を満たしているか自己確認し、[`change-log.md`](./change-log.md) に変更内容を記録すること。
+このファイルはGoogle AI Studioへの指示書として使う。各タスクには**完了条件**を明記しているので、実装後は完了条件を満たしているか自己確認し、[`change-log.md`](./change-log.md) に変更内容を記録すること。
 
 ## ⚠️ 厳守事項（すべてのタスク共通・最優先で守ること）
 
@@ -168,9 +168,7 @@ import { hasAlbumPermission } from "@/lib/permissions";
 // GET /api/photos/search?game=&uploader=&from=&to=
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = session?.user?.email ? await db.user.findUnique({ where: { email: session.user.email } }) : null;
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
@@ -220,18 +218,18 @@ export async function GET(req: Request) {
 
 ## ステータス一覧（Claudeがレビュー後に更新する）
 
-| タスク ID | 前提タスク | ステータス |
-|---|---|---|
-| T1 | なし | 差し戻し（再修正タスク: T1-fix1参照） |
-| T1-fix1 | なし | 完了（Claudeが直接修正、Clineの再修正は失敗） |
-| T2 | なし | 未着手 |
-| T3 | T2 | 未着手 |
-| T4 | なし | 完了（Claudeが直接実装） |
-| T5 | なし | 未着手 |
-| T6 | T5 | 未着手 |
-| T7 | なし | 未着手 |
-| T8 | T7 | 未着手 |
-| T9 | T8 | 未着手 |
-| T10 | T9 | 未着手 |
+| タスク ID | 前提タスク | ステータス                            |
+| --------- | ---------- | ------------------------------------- |
+| T1        | なし       | 差し戻し（再修正タスク: T1-fix1参照） |
+| T1-fix1   | なし       | 完了（Claudeが直接修正）              |
+| T2        | なし       | 未着手                                |
+| T3        | T2         | 未着手                                |
+| T4        | なし       | 完了（Claudeが直接実装）              |
+| T5        | なし       | 未着手                                |
+| T6        | T5         | 未着手                                |
+| T7        | なし       | 未着手                                |
+| T8        | T7         | 未着手                                |
+| T9        | T8         | 未着手                                |
+| T10       | T9         | 未着手                                |
 
 ステータスは `未着手` → `完了報告あり（レビュー待ち）` → `完了` または `差し戻し（再修正タスク: T-XX-fix1 参照）` の順で遷移する。**前提タスクが「完了」になるまで、後続タスクには着手しないこと。**

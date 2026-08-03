@@ -1,4 +1,4 @@
-# 変更ログ（Continue.dev / Cline 用）
+# 変更ログ（Google AI Studio 用）
 
 [`tasks.md`](./tasks.md) のタスクを実施したら、このファイルの**末尾に追記**する形で記録すること。既存の記録は書き換えない。
 
@@ -7,7 +7,7 @@
 ```
 ## [TASK-ID] タスク名
 - 日時: YYYY-MM-DD HH:MM
-- 担当ツール: Continue.dev / Cline
+- 担当ツール: Google AI Studio
 - 使用モデル: （例: Qwen3-Coder-Next / DeepSeek V3.2 など）
 - 変更ファイル:
   - path/to/file1.tsx（新規 or 変更）
