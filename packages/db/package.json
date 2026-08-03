@@ -2,8 +2,8 @@
   "name": "@gamers-highlight/db",
   "version": "0.1.0",
   "private": true,
-  "main": "generated/index.js",
-  "types": "generated/index.d.ts",
+  "main": "index.js",
+  "types": "index.d.ts",
   "scripts": {
     "generate": "prisma generate",
     "push": "prisma db push",

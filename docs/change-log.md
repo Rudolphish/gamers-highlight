@@ -139,3 +139,27 @@
   - [x] 前へ/次へボタンおよびキーボード矢印キーで一覧内の写真を移動できる
   - [x] 端（最初/最後）では該当ボタンが非活性になる
 
+## [Fix] Vercel環境におけるNextAuth (Discord OAuth) コールバックエラーの修正
+
+- 日時: 2026-08-04
+- 担当ツール: Google AI Studio
+- 変更ファイル:
+  - `apps/web/src/lib/auth.ts`（変更）
+- 変更内容の要約:
+  - Vercelなどの本番/ホスティング環境で発生する `OAuthCallbackError: State cookie was missing` を解消するため、NextAuth の `cookies` 設定（`sessionToken`, `callbackUrl`, `csrfToken`, `pkceCodeVerifier`, `state`）を明示的に定義
+  - Discord / Google プロバイダーに `checks: ["pkce", "state"]` を明示
+- 懸念点: なし
+
+## [Doc] アイデア・UIデザイン改善案ドキュメント (ideas.md) の新規作成
+
+- 日時: 2026-08-04
+- 担当ツール: Google AI Studio
+- 変更ファイル:
+  - `docs/ideas.md`（新規作成）
+  - `docs/change-log.md`（変更）
+- 変更内容の要約:
+  - 将来的なUIブラッシュアップ案（Steam風デザインの洗練、メタ情報付きライトボックス、D&D整理UIなど）と機能拡張アイデア（AI自動タグ付け/OCR、Discord Bot連携、ゲーミングヒストリー/Recap、Embedカード）を `docs/ideas.md` に作成・集約。
+- 懸念点: なし
+
+
+
