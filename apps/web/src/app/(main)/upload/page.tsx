@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Upload as UploadIcon, Image as ImageIcon, Film, X, Check, AlertCircle } from "lucide-react";
 import { extractFirstFrame } from "@/lib/video-thumbnail";
@@ -15,9 +15,6 @@ import { extractFirstFrame } from "@/lib/video-thumbnail";
 // 複数ファイルは「同時並列」ではなく「順番に1つずつ」処理する。
 // R2への署名付きURL発行APIを一度に大量に叩かないようにするための安全策で、
 // 代わりに各ファイルの進捗を1つずつUIに反映できる利点もある。
-//
-// アルバム未選択の場合はalbumId:nullの「未分類」として保存される
-// （ホーム画面の最近の投稿には表示されるが、どのアルバムページにも属さない）。
 
 type UploadItem = {
   file: File;
@@ -25,8 +22,6 @@ type UploadItem = {
   status: "idle" | "uploading" | "done" | "error";
   error?: string;
 };
-
-type AlbumOption = { id: string; title: string };
 
 async function uploadViaSignedUrl(file: File, extra: Record<string, unknown> = {}) {
   const res = await fetch("/api/photos", {
@@ -47,7 +42,7 @@ async function uploadViaSignedUrl(file: File, extra: Record<string, unknown> = {
   return photo;
 }
 
-async function uploadOne(item: UploadItem, gameTag: string, albumId: string) {
+async function uploadOne(item: UploadItem, gameTag: string) {
   let thumbnailUrl: string | undefined;
 
   if (item.mode === "video") {
@@ -61,7 +56,6 @@ async function uploadOne(item: UploadItem, gameTag: string, albumId: string) {
   await uploadViaSignedUrl(item.file, {
     thumbnailUrl,
     gameTitle: gameTag.trim() || undefined,
-    albumId: albumId || undefined,
   });
 }
 
@@ -71,15 +65,6 @@ export default function UploadPage() {
   const [items, setItems] = useState<UploadItem[]>([]);
   const [gameTag, setGameTag] = useState("");
   const [running, setRunning] = useState(false);
-  const [albums, setAlbums] = useState<AlbumOption[]>([]);
-  const [albumId, setAlbumId] = useState(""); // "" = 未分類のまま
-
-  useEffect(() => {
-    fetch("/api/albums")
-      .then((res) => (res.ok ? res.json() : { albums: [] }))
-      .then((data) => setAlbums(data.albums ?? []))
-      .catch(() => setAlbums([]));
-  }, []);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -107,7 +92,7 @@ export default function UploadPage() {
       if (items[i].status === "done") continue; // 既に完了したものは飛ばす（再試行時の重複防止）
       updateItem(i, { status: "uploading", error: undefined });
       try {
-        await uploadOne(items[i], gameTag, albumId);
+        await uploadOne(items[i], gameTag);
         updateItem(i, { status: "done" });
       } catch (err) {
         updateItem(i, {
@@ -201,23 +186,6 @@ export default function UploadPage() {
       )}
 
       <div className="mt-4">
-        <label className="font-mono text-[11px] text-steam-muted">追加先アルバム</label>
-        <select
-          value={albumId}
-          onChange={(e) => setAlbumId(e.target.value)}
-          disabled={running}
-          className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
-        >
-          <option value="">未分類のまま（後でアルバムに振り分ける）</option>
-          {albums.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.title}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="mt-3">
         <label className="font-mono text-[11px] text-steam-muted">
           ゲームタグ（任意・全ファイル共通）
         </label>

@@ -2,27 +2,18 @@
   "name": "gamers-highlight",
   "private": true,
   "version": "0.1.0",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
-    "dev": "npm run dev --workspace=apps/web",
-    "build": "npm run build --workspace=apps/web",
-    "dev:web": "npm run dev --workspace=apps/web",
-    "dev:bot": "npm run dev --workspace=apps/bot",
-    "build:web": "npm run build --workspace=apps/web",
-    "build:bot": "npm run build --workspace=apps/bot",
-    "db:generate": "npx prisma generate --schema=packages/db/schema.prisma",
-    "db:push": "npm run push --workspace=packages/db",
-    "db:studio": "npm run studio --workspace=packages/db",
-    "prepare:prisma-engine": "node scripts/prepare-prisma-engine.mjs",
-    "lint": "npm run lint --workspace=apps/web"
+    "dev:web": "pnpm --filter web dev",
+    "dev:bot": "pnpm --filter bot dev",
+    "build:web": "pnpm --filter web build",
+    "build:bot": "pnpm --filter bot build",
+    "db:generate": "pnpm --filter @gamers-highlight/db generate",
+    "db:push": "pnpm --filter @gamers-highlight/db push",
+    "db:studio": "pnpm --filter @gamers-highlight/db studio",
+    "lint": "pnpm -r lint"
   },
   "devDependencies": {
-    "eslint": "^8.57.0",
-    "eslint-config-next": "14.2.0",
-    "prisma": "^5.18.0",
     "typescript": "^5.5.0"
-  }
+  },
+  "packageManager": "pnpm@9.0.0"
 }
