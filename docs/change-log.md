@@ -161,5 +161,18 @@
   - 将来的なUIブラッシュアップ案（Steam風デザインの洗練、メタ情報付きライトボックス、D&D整理UIなど）と機能拡張アイデア（AI自動タグ付け/OCR、Discord Bot連携、ゲーミングヒストリー/Recap、Embedカード）を `docs/ideas.md` に作成・集約。
 - 懸念点: なし
 
+## [Fix] pnpm v10 における ERR_PNPM_IGNORED_BUILDS エラーの対策
+
+- 日時: 2026-08-04
+- 担当ツール: Google AI Studio
+- 変更ファイル:
+  - `package.json`（変更）
+  - `.npmrc`（新規作成）
+- 変更内容の要約:
+  - pnpm v10 のセキュリティ仕様変更（ビルドスクリプト自動ブロック）への対策を実施。
+  - `package.json` に `pnpm.onlyBuiltDependencies` を定義し、`.npmrc` に `only-built-dependencies` を設定（`@prisma/client`, `prisma`, `@prisma/engines`, `esbuild`, `unrs-resolver` を許可）。
+- 懸念点: なし
+
+
 
 

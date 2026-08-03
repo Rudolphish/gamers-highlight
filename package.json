@@ -24,5 +24,14 @@
     "eslint-config-next": "14.2.0",
     "prisma": "^5.18.0",
     "typescript": "^5.5.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "unrs-resolver"
+    ]
   }
 }
