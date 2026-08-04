@@ -22,8 +22,13 @@ export function Header() {
     <header className="sticky top-0 z-20 border-b border-steam-border bg-steam-bg/95 backdrop-blur-lg">
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-steam-blue to-[#a4d007] text-sm font-bold text-black shadow-lg shadow-steam-blue/10">
-            GH
+          <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-steam-border/50 bg-steam-panel shadow-lg shadow-steam-blue/10">
+            <img
+              src="/logo.png"
+              alt="Gamer's Highlight Logo"
+              referrerPolicy="no-referrer"
+              className="h-full w-full object-cover"
+            />
           </div>
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-steam-muted">Gamer&apos;s Highlight</p>

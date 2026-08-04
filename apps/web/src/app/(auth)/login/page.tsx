@@ -28,9 +28,17 @@ function LoginForm() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold">Gamer&apos;s Highlight にログイン</h1>
-        <p className="mt-2 text-sm text-gray-500">招待されたメンバーのみアクセスできます</p>
+      <div className="flex flex-col items-center text-center">
+        <div className="mb-4 h-20 w-20 overflow-hidden rounded-2xl border border-steam-border/60 bg-steam-panel p-1 shadow-2xl shadow-steam-blue/20">
+          <img
+            src="/logo.png"
+            alt="Gamer's Highlight Logo"
+            referrerPolicy="no-referrer"
+            className="h-full w-full rounded-xl object-cover"
+          />
+        </div>
+        <h1 className="text-2xl font-bold text-steam-text">Gamer&apos;s Highlight にログイン</h1>
+        <p className="mt-2 text-sm text-steam-muted">招待されたメンバーのみアクセスできます</p>
       </div>
 
       {denied && (
@@ -57,12 +65,6 @@ function LoginForm() {
       )}
 
       <div className="flex flex-col gap-3 min-w-[240px]">
-        <button
-          onClick={() => signIn("credentials", { callbackUrl: "/", email: "demo@example.com" })}
-          className="rounded-md bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-emerald-500 transition"
-        >
-          ゲスト/デモログイン
-        </button>
         <button
           onClick={() => signIn("discord", { callbackUrl: "/" })}
           className="rounded-md bg-[#5865F2] px-6 py-2.5 text-sm font-medium text-white hover:bg-[#4752C4] transition"

@@ -28,9 +28,14 @@ export function Sidebar() {
   return (
     <aside className="flex w-20 flex-shrink-0 flex-col border-r border-steam-border bg-steam-panel py-4">
       <div className="mb-6 flex items-center justify-center px-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-steam-blue to-[#a4d007] text-sm font-bold text-black shadow-lg shadow-steam-blue/10">
-          GH
-        </div>
+        <Link href="/" className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-steam-border/50 bg-steam-panel shadow-lg shadow-steam-blue/10 hover:border-steam-blue transition">
+          <img
+            src="/logo.png"
+            alt="Gamer's Highlight Logo"
+            referrerPolicy="no-referrer"
+            className="h-full w-full object-cover"
+          />
+        </Link>
       </div>
 
       <nav className="flex flex-1 flex-col gap-6 px-1">
