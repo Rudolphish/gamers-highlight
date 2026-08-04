@@ -223,14 +223,97 @@ export async function GET(req: Request) {
 | --------- | ---------- | ------------------------------------- |
 | T1        | なし       | 差し戻し（再修正タスク: T1-fix1参照） |
 | T1-fix1   | なし       | 完了（Claudeが直接修正）              |
-| T2        | なし       | 完了報告あり（レビュー待ち）          |
-| T3        | T2         | 完了報告あり（レビュー待ち）          |
-| T4        | なし       | 完了（Claudeが直接実装）              |
-| T5        | なし       | 完了報告あり（レビュー待ち）          |
-| T6        | T5         | 完了報告あり（レビュー待ち）          |
-| T7        | なし       | 完了報告あり（レビュー待ち）          |
-| T8        | T7         | 完了報告あり（レビュー待ち）          |
-| T9        | T8         | 完了報告あり（レビュー待ち）          |
-| T10       | T9         | 完了報告あり（レビュー待ち）          |
+| T2        | なし       | 完了 |
+| T3        | T2         | 完了 |
+| T4        | なし       | 完了（Claudeが直接実装） |
+| T5        | なし       | 完了 |
+| T6        | T5         | 完了 |
+| T7        | なし       | 完了 |
+| T8        | T7         | 完了 |
+| T9        | T8         | 完了 |
+| T10       | T9         | 完了 |
 
 ステータスは `未着手` → `完了報告あり（レビュー待ち）` → `完了` または `差し戻し（再修正タスク: T-XX-fix1 参照）` の順で遷移する。**前提タスクが「完了」になるまで、後続タスクには着手しないこと。**
+
+フェーズ1（T1〜T10）は全て完了。なお、T2〜T10の実施中に、タスク対象外の`apps/web/src/lib/auth.ts`、`.npmrc`、ルート`package.json`に重大な問題のある変更が**2回**加えられていたため、Claudeがその都度元の安全な状態に戻した（詳細は[`change-log.md`](./change-log.md)の「[Claudeレビュー]」項目を参照）。
+
+---
+
+## Phase 2：UIブラッシュアップ（`docs/ideas.md`より選定）
+
+`docs/ideas.md`のアイデアのうち、低リスク・小規模なものを選んでタスク化した。**ドラッグ＆ドロップ整理UIとライトボックスの編集機能は今回のスコープ外**（Phase 2の実運用フィードバック後に判断）。
+
+このセクションのタスクは、**すでに実装済みのコンポーネントへの差分追加**である。既存のロジック（クリックでライトボックスを開く、prev/next、close等）を絶対に壊さないこと。**これ以外のファイル（特に`auth.ts`やUI全体に関わるHeader/Sidebar等）は絶対に変更しないこと。**
+
+### T11：ホバー時のネオン発光エフェクト強化
+
+- **対象ファイル**：`apps/web/src/components/album/AlbumCard.tsx`、`apps/web/src/components/photo/PhotoGrid.tsx`（どちらも`className`のみ変更。ロジック・props・JSXの構造は一切変更しない）
+- **前提タスク**：なし
+- **内容**：
+  両ファイルとも既に`hover:border-steam-blue`（枠線色変化）とズーム（`group-hover:scale-105`等）が入っている。これに加えて、ホバー時に浅い発光（box-shadow）を追加する。
+  - 例: `hover:shadow-[0_0_16px_-2px_rgba(102,192,244,0.5)]` のようなクラスを、現在`hover:border-steam-blue`が付いている要素（`AlbumCard.tsx`の一番外側の`<div>`、`PhotoGrid.tsx`の各サムネイル`<div>`）に追加する
+  - 色はsteam-blue（`#66c0f4`）をベースにする。具体的な数値は調整してよいが、派手すぎないこと（予算はdiffとして小さく保つ）
+- **完了条件**：
+  - [ ] ホバー時に両コンポーネントで浅い発光が見える
+  - [ ] 既存のクリック動作・ズーム効果は壊れていない
+  - [ ] JSXの構造やpropsは変更していない（classNameのみの変更）
+
+### T12：動画サムネイルのホバープレビュー
+
+- **対象ファイル**：`apps/web/src/components/photo/PhotoGrid.tsx`（このファイルのみ）
+- **前提タスク**：なし（T11とは独立、どちらが先でもよい）
+- **内容**：
+  `mediaType === "VIDEO"` のサムネイル（`<video>`要素）に、マウスホバーで自動再生、離れたら停止して先頭に戻る動作を追加する。
+  - `<video>`要素に`ref`を付け、親の`<div>`に`onMouseEnter`（`video.play()`）と`onMouseLeave`（`video.pause(); video.currentTime = 0;`）を追加
+  - 既存の`muted`属性はそのまま（無音を維持）。`loop`属性も追加してループ再生させる
+  - **注意**：現在この`<div>`には既に`onClick`（ライトボックスを開く）が付いている。この`onClick`は**削除せず残す**こと（ホバープレビューは追加機能、クリックでの拡大表示は引き続き動く必要がある）
+  - `useRef`を使う場合、複数の動画ごとにrefが必要なので、`useRef<HTMLVideoElement>(null)`の配列や`Map`ではなく、各`<video>`要素の`onMouseEnter`ハンドラ側で`e.currentTarget`を使って直接操作する方法を推奨（refの配列管理より単純でバグりにくい）:
+    ```tsx
+    <video
+      onMouseEnter={(e) => e.currentTarget.play()}
+      onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+      ...
+    />
+    ```
+- **完了条件**：
+  - [ ] 動画サムネイルにマウスを乗せると自動再生される
+  - [ ] マウスを外すと停止して先頭フレームに戻る
+  - [ ] 音声は出ない（muted維持）
+  - [ ] サムネイルクリックでライトボックスが引き続き開く（既存のクリック動作を壊していない）
+  - [ ] 画像（IMAGE）のサムネイルには影響なし
+
+### T13：ライトボックスのメタ情報パネル（表示のみ、編集不可）
+
+- **対象ファイル**：`apps/web/src/components/photo/Lightbox.tsx`（props追加）、`apps/web/src/components/photo/PhotoGrid.tsx`（渡すデータ追加）、`apps/web/src/app/(main)/albums/[albumId]/page.tsx`（`PhotoGrid`に渡すpropsにメタ情報を追加）
+- **前提タスク**：T8（Lightbox統合、完了済み）
+- **スコープの限定**（重要）：
+  - **解像度は表示しない**（DBに保存されていないため）。表示するのは、既存の`Photo`モデルにある情報のみ：撮影日（`capturedAt`）、ゲーム名（`gameTitle`）、投稿者名（`uploader.name`）、アルバム名
+  - **編集機能は今回のスコープ外**。表示のみでよい
+  - **対象ページはアルバム詳細ページのみ**。検索ページ（`search/page.tsx`）やホームの最近の投稿は今回は対象外（別タスクとする）
+- **内容**：
+  1. `Lightbox.tsx`の`LightboxProps`に任意の`meta?: { capturedAt?: string | null; gameTitle?: string | null; uploaderName?: string | null; albumTitle?: string | null }` を追加
+  2. `meta`が渡された場合のみ、情報（`i`アイコン等）ボタンを右上に表示し、クリックでサイドパネルの開閉をトグル（`useState`で管理）
+  3. `apps/web/src/app/(main)/albums/[albumId]/page.tsx`で、`PhotoGrid`に渡す`photos`配列の各要素に`capturedAt`/`gameTitle`を含める（このページは既に`db.photo.findMany`で全フィールド取得しているはずなので、属性を追加で渡すだけでよい）。投稿者名・アルバム名は同ページで既に取得しているalbum/ownerの情報から補う
+  4. `PhotoGrid`自体の`Media`型に`capturedAt`/`gameTitle`を（どちらもオプショナルとして）追加し、`Lightbox`に渡す`meta`を組み立てる
+- **完了条件**：
+  - [ ] アルバム詳細ページでライトボックスを開くと、情報ボタンがある
+  - [ ] ボタンを押すと撮影日・ゲーム名・投稿者名・アルバム名が正しく表示される
+  - [ ] 情報がない項目（例: gameTitle未設定）は「-」などで自然に表示される（エラーにならない）
+  - [ ] 既存のPrev/Next/Close機能は引き続き動く
+  - [ ] 検索ページ・ホーム画面（`RecentActivity`）はこのタスクでは変更しない
+
+---
+
+## 保留中（Phase 2の実運用フィードバック後に判断）
+
+- `docs/ideas.md`の「③インタラクティブなドラッグ＆ドロップUI」（未分類→アルバムへのD&D整理）
+- ライトボックスメタ情報パネルの**編集機能**（T13は表示のみ）
+- 検索ページ・ホーム画面へのメタ情報パネル拡張
+
+## ステータス一覧（Phase 2分、Claudeがレビュー後に更新する）
+
+| タスク ID | 前提タスク | ステータス |
+|---|---|---|
+| T11 | なし | 未着手 |
+| T12 | なし | 未着手 |
+| T13 | T8（完了済み） | 未着手 |
