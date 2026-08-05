@@ -9,7 +9,7 @@
  * または、初回だけならPrisma Studio（`pnpm db:studio`）から
  * allowlist_entries テーブルに直接1行ずつ追加してもよい。
  */
-import { PrismaClient } from "./generated";
+import { PrismaClient } from "@prisma/client";
 
 const db = new PrismaClient();
 
