@@ -80,8 +80,8 @@ export default function NewGroupPage() {
           <p className="mt-1 font-mono text-[10px] text-steam-muted/70">
             指定すると、そのDiscordサーバーでのハッシュタグ投稿がこのグループに自動で取り込まれます。
             後から変更はできません。サーバーへのBot招待手順は
-            <Link href="/groups/new/guide" className="text-steam-blue hover:underline">
-              こちらのガイド
+            <Link href="/manual#discord-bot-invite" className="text-steam-blue hover:underline">
+              マニュアル
             </Link>
             を参照してください。
           </p>
