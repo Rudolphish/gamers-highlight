@@ -2,7 +2,7 @@ import "./globals.css";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 
 export const metadata = {
-  title: "Gamer's Highlight",
+  title: "ShareStaq",
   description: "ゲームのスクショを、みんなで集めて残す",
 };
 

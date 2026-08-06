@@ -36,7 +36,7 @@ export function Header() {
         <Link href="/" className="flex items-center gap-3">
           <img
             src="/logo.png"
-            alt="Gamer's Highlight"
+            alt="ShareStaq"
             referrerPolicy="no-referrer"
             className="h-9 w-auto object-contain sm:h-10"
           />

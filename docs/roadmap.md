@@ -1,4 +1,4 @@
-# Gamer's Highlight - ロードマップ
+# ShareStaq - ロードマップ
 
 方向性の背景は [`vision.md`](./vision.md)、各フェーズの技術詳細は [`spec.md`](./spec.md) を参照。
 

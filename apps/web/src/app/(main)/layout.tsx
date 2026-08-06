@@ -14,7 +14,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <Header />
         <main className="flex-1">{children}</main>
         <footer className="border-t border-steam-border px-4 py-3 text-center font-mono text-[10px] text-steam-muted/60 sm:px-6">
-          © {new Date().getFullYear()} Gamer&apos;s Highlight
+          © {new Date().getFullYear()} ShareStaq
         </footer>
       </div>
     </div>

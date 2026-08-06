@@ -39,7 +39,7 @@ function LoginForm() {
       <div className="flex flex-col items-center text-center">
         <img
           src="/logo.png"
-          alt="Gamer's Highlight"
+          alt="ShareStaq"
           referrerPolicy="no-referrer"
           className="mb-4 h-16 w-auto max-w-full object-contain drop-shadow-[0_0_24px_rgba(102,192,244,0.25)] sm:h-20"
         />
@@ -90,7 +90,7 @@ function LoginForm() {
       </div>
 
       <p className="mt-4 font-mono text-[10px] text-steam-muted/60">
-        © {new Date().getFullYear()} Gamer&apos;s Highlight
+        © {new Date().getFullYear()} ShareStaq
       </p>
     </main>
   );

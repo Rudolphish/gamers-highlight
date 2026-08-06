@@ -1,4 +1,4 @@
-# Gamer's Highlight
+# ShareStaq
 
 Discordに流れていくゲームのスクリーンショットを自動で拾い集め、ゲームごとに整理・共有できるWebアプリ。
 
