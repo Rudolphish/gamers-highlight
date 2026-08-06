@@ -34,11 +34,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const body = await req.json();
+  if (
+    body.steamAppId !== undefined &&
+    body.steamAppId !== null &&
+    typeof body.steamAppId !== "number"
+  ) {
+    return NextResponse.json({ error: "invalid steamAppId" }, { status: 400 });
+  }
+
   const album = await db.album.update({
     where: { id: params.id },
     data: {
       title: body.title,
       description: body.description,
+      steamAppId: body.steamAppId,
     },
   });
 

@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AlbumGrid } from "@/components/album/AlbumGrid";
+import { steamHeaderImageUrl } from "@/lib/steam";
 
 // アルバム一覧画面：自分のアルバム一覧＋未分類の投稿への導線
 export default async function AlbumsPage() {
@@ -61,11 +62,14 @@ export default async function AlbumsPage() {
         })),
     ].slice(0, 4);
 
+    const steamCoverUrl = album.steamAppId ? steamHeaderImageUrl(album.steamAppId) : null;
+
     return {
       id: album.id,
       title: album.title,
-      coverImageUrl: latestPhoto ? latestPhoto.thumbnailUrl ?? latestPhoto.mediaUrl : null,
-      coverIsVideo: latestPhoto?.mediaType === "VIDEO" && !latestPhoto.thumbnailUrl,
+      coverImageUrl:
+        steamCoverUrl ?? (latestPhoto ? latestPhoto.thumbnailUrl ?? latestPhoto.mediaUrl : null),
+      coverIsVideo: !steamCoverUrl && latestPhoto?.mediaType === "VIDEO" && !latestPhoto.thumbnailUrl,
       photoCount: album._count.photos,
       members: memberList,
       memberCount: album._count.members + 1,

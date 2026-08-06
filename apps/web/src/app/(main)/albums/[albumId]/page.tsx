@@ -6,6 +6,7 @@ import { PhotoGrid } from "@/components/photo/PhotoGrid";
 import { AlbumTagManager } from "@/components/discord/AlbumTagManager";
 import { ShareModal } from "@/components/album/ShareModal";
 import { DeleteAlbumButton } from "@/components/album/DeleteAlbumButton";
+import { SteamCoverPicker } from "@/components/album/SteamCoverPicker";
 
 // アルバム詳細画面：写真グリッド表示、メンバー一覧、タグ管理
 export default async function AlbumDetailPage({
@@ -84,6 +85,13 @@ export default async function AlbumDetailPage({
             members={shareMembers}
             candidates={inviteCandidates}
           />
+          {isOwner && (
+            <SteamCoverPicker
+              albumId={album.id}
+              initialQuery={album.gameTitle ?? album.title}
+              hasSteamCover={album.steamAppId !== null}
+            />
+          )}
           {isOwner && <DeleteAlbumButton albumId={album.id} groupId={album.groupId} />}
         </div>
       </div>

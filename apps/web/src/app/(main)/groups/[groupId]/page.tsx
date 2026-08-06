@@ -8,6 +8,7 @@ import { AlbumGrid } from "@/components/album/AlbumGrid";
 import { GroupShareModal } from "@/components/group/GroupShareModal";
 import { GroupNameEditor } from "@/components/group/GroupNameEditor";
 import { DeleteGroupButton } from "@/components/group/DeleteGroupButton";
+import { steamHeaderImageUrl } from "@/lib/steam";
 
 // グループ詳細画面：名前編集、メンバー管理、配下アルバム一覧
 export default async function GroupDetailPage({ params }: { params: { groupId: string } }) {
@@ -77,11 +78,14 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
         })),
     ].slice(0, 4);
 
+    const steamCoverUrl = album.steamAppId ? steamHeaderImageUrl(album.steamAppId) : null;
+
     return {
       id: album.id,
       title: album.title,
-      coverImageUrl: latestPhoto ? latestPhoto.thumbnailUrl ?? latestPhoto.mediaUrl : null,
-      coverIsVideo: latestPhoto?.mediaType === "VIDEO" && !latestPhoto.thumbnailUrl,
+      coverImageUrl:
+        steamCoverUrl ?? (latestPhoto ? latestPhoto.thumbnailUrl ?? latestPhoto.mediaUrl : null),
+      coverIsVideo: !steamCoverUrl && latestPhoto?.mediaType === "VIDEO" && !latestPhoto.thumbnailUrl,
       photoCount: album._count.photos,
       members: memberList,
       memberCount: album._count.members + 1,
