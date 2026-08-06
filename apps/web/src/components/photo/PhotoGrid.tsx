@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Play } from "lucide-react";
 import { Lightbox } from "@/components/photo/Lightbox";
 import { LoadingImage } from "@/components/ui/LoadingImage";
@@ -11,9 +12,11 @@ type Media = {
   mediaUrl: string;
   thumbnailUrl?: string | null;
   durationSeconds?: number | null;
+  canDelete?: boolean;
 };
 
 export function PhotoGrid({ photos }: { photos: Media[] }) {
+  const router = useRouter();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const selectedPhoto = selectedIndex !== null ? photos[selectedIndex] : null;
@@ -55,11 +58,17 @@ export function PhotoGrid({ photos }: { photos: Media[] }) {
 
       {selectedPhoto && selectedIndex !== null && (
         <Lightbox
+          photoId={selectedPhoto.id}
           mediaType={selectedPhoto.mediaType}
           mediaUrl={selectedPhoto.mediaUrl}
+          canDelete={selectedPhoto.canDelete}
           onClose={() => setSelectedIndex(null)}
           onPrev={() => setSelectedIndex((i) => (i !== null && i > 0 ? i - 1 : i))}
           onNext={() => setSelectedIndex((i) => (i !== null && i < photos.length - 1 ? i + 1 : i))}
+          onDeleted={() => {
+            setSelectedIndex(null);
+            router.refresh();
+          }}
           hasPrev={selectedIndex > 0}
           hasNext={selectedIndex < photos.length - 1}
         />

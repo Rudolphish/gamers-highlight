@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { AlbumGrid } from "@/components/album/AlbumGrid";
 import { GroupShareModal } from "@/components/group/GroupShareModal";
 import { GroupNameEditor } from "@/components/group/GroupNameEditor";
+import { DeleteGroupButton } from "@/components/group/DeleteGroupButton";
 
 // グループ詳細画面：名前編集、メンバー管理、配下アルバム一覧
 export default async function GroupDetailPage({ params }: { params: { groupId: string } }) {
@@ -92,12 +93,15 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
     <main className="p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <GroupNameEditor groupId={group.id} name={group.name} canEdit={isOwner} />
-        <GroupShareModal
-          groupId={group.id}
-          isOwner={isOwner}
-          members={shareMembers}
-          candidates={inviteCandidates}
-        />
+        <div className="flex items-center gap-2">
+          <GroupShareModal
+            groupId={group.id}
+            isOwner={isOwner}
+            members={shareMembers}
+            candidates={inviteCandidates}
+          />
+          {isOwner && <DeleteGroupButton groupId={group.id} />}
+        </div>
       </div>
 
       <div className="mt-6 flex items-center justify-between">

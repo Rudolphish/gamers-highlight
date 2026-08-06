@@ -1,30 +1,50 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 
 // メディア詳細（拡大表示）。IMAGE/VIDEO両対応。将来的にコメント機能もここに追加予定。
 type LightboxProps = {
+  photoId?: string;
   mediaType: "IMAGE" | "VIDEO";
   mediaUrl: string;
+  canDelete?: boolean;
   onClose?: () => void;
   onPrev?: () => void;
   onNext?: () => void;
+  onDeleted?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
 };
 
 export function Lightbox({
+  photoId,
   mediaType,
   mediaUrl,
+  canDelete = false,
   onClose,
   onPrev,
   onNext,
+  onDeleted,
   hasPrev = true,
   hasNext = true,
 }: LightboxProps) {
   const [loaded, setLoaded] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    if (!photoId) return;
+    if (!window.confirm("この写真/動画を削除しますか？元に戻せません")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/photos/${photoId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await res.text());
+      onDeleted?.();
+    } catch {
+      setDeleting(false);
+    }
+  }
 
   // 前へ/次へで写真を切り替えた際、直前の写真の読み込み完了状態を引きずらないようにリセットする
   useEffect(() => {
@@ -54,16 +74,28 @@ export function Lightbox({
         }
       }}
     >
-      {/* 閉じるボタン */}
-      {onClose && (
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 z-10 rounded-full bg-black/60 p-2 text-white/80 hover:bg-black hover:text-white transition"
-          aria-label="閉じる"
-        >
-          <X size={20} />
-        </button>
-      )}
+      {/* 閉じる・削除ボタン */}
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        {canDelete && photoId && (
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="rounded-full bg-black/60 p-2 text-white/80 transition hover:bg-[#eb4b4b] hover:text-white disabled:opacity-50"
+            aria-label="削除"
+          >
+            {deleting ? <Spinner size={20} /> : <Trash2 size={20} />}
+          </button>
+        )}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="rounded-full bg-black/60 p-2 text-white/80 hover:bg-black hover:text-white transition"
+            aria-label="閉じる"
+          >
+            <X size={20} />
+          </button>
+        )}
+      </div>
 
       {/* 前へボタン */}
       {onPrev && (

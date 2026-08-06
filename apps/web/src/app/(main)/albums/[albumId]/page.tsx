@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { PhotoGrid } from "@/components/photo/PhotoGrid";
 import { AlbumTagManager } from "@/components/discord/AlbumTagManager";
 import { ShareModal } from "@/components/album/ShareModal";
+import { DeleteAlbumButton } from "@/components/album/DeleteAlbumButton";
 
 // アルバム詳細画面：写真グリッド表示、メンバー一覧、タグ管理
 export default async function AlbumDetailPage({
@@ -76,12 +77,15 @@ export default async function AlbumDetailPage({
           </h1>
           <p className="mt-1 font-mono text-xs text-steam-muted">{memberNames.join(" / ")}</p>
         </div>
-        <ShareModal
-          albumId={album.id}
-          isOwner={isOwner}
-          members={shareMembers}
-          candidates={inviteCandidates}
-        />
+        <div className="flex items-center gap-2">
+          <ShareModal
+            albumId={album.id}
+            isOwner={isOwner}
+            members={shareMembers}
+            candidates={inviteCandidates}
+          />
+          {isOwner && <DeleteAlbumButton albumId={album.id} groupId={album.groupId} />}
+        </div>
       </div>
 
       <div className="mt-6">
@@ -104,6 +108,7 @@ export default async function AlbumDetailPage({
               mediaUrl: p.mediaUrl,
               thumbnailUrl: p.thumbnailUrl,
               durationSeconds: p.durationSeconds,
+              canDelete: isOwner || p.uploaderId === currentUser?.id,
             }))}
           />
         )}

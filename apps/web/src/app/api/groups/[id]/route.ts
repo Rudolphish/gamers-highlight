@@ -52,3 +52,26 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   return NextResponse.json({ group });
 }
+
+// DELETE /api/groups/:id … OWNERのみ削除可。配下にアルバムが残っている場合はブロックする
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+  const user = session?.user?.email
+    ? await db.user.findUnique({ where: { email: session.user.email } })
+    : null;
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const allowed = await hasGroupPermission(params.id, user.id, "OWNER");
+  if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+
+  const albumCount = await db.album.count({ where: { groupId: params.id } });
+  if (albumCount > 0) {
+    return NextResponse.json(
+      { error: "group has albums", albumCount },
+      { status: 400 }
+    );
+  }
+
+  await db.group.delete({ where: { id: params.id } });
+  return NextResponse.json({ ok: true });
+}
