@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Users, X, UserPlus } from "lucide-react";
+import { Spinner } from "@/components/ui/Spinner";
 
 type Member = {
   userId: string;
@@ -32,8 +33,13 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
   const [open, setOpen] = useState(false);
   const [inviteeId, setInviteeId] = useState("");
   const [inviteRole, setInviteRole] = useState<"EDITOR" | "VIEWER">("VIEWER");
-  const [pending, setPending] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [roleChangingUserId, setRoleChangingUserId] = useState<string | null>(null);
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // 同時に複数の操作を走らせないよう、いずれか進行中は全体の操作を止める
+  const pending = inviting || roleChangingUserId !== null || removingUserId !== null;
 
   async function handleInvite() {
     const candidate = candidates.find((c) => c.id === inviteeId);
@@ -41,7 +47,7 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
       setError("このユーザーはメールアドレス未登録のため招待できません");
       return;
     }
-    setPending(true);
+    setInviting(true);
     setError(null);
     try {
       const res = await fetch(`/api/albums/${albumId}/members`, {
@@ -55,12 +61,12 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
     } catch {
       setError("招待に失敗しました");
     } finally {
-      setPending(false);
+      setInviting(false);
     }
   }
 
   async function handleRoleChange(userId: string, role: "EDITOR" | "VIEWER") {
-    setPending(true);
+    setRoleChangingUserId(userId);
     setError(null);
     try {
       const res = await fetch(`/api/albums/${albumId}/members/${userId}`, {
@@ -73,12 +79,12 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
     } catch {
       setError("権限の変更に失敗しました");
     } finally {
-      setPending(false);
+      setRoleChangingUserId(null);
     }
   }
 
   async function handleRemove(userId: string) {
-    setPending(true);
+    setRemovingUserId(userId);
     setError(null);
     try {
       const res = await fetch(`/api/albums/${albumId}/members/${userId}`, {
@@ -89,7 +95,7 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
     } catch {
       setError("メンバーの削除に失敗しました");
     } finally {
-      setPending(false);
+      setRemovingUserId(null);
     }
   }
 
@@ -133,11 +139,12 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
 
                   {isOwner && !m.isOwner ? (
                     <>
+                      {roleChangingUserId === m.userId && <Spinner size={12} className="text-steam-muted" />}
                       <select
                         value={m.role}
                         onChange={(e) => handleRoleChange(m.userId, e.target.value as "EDITOR" | "VIEWER")}
                         disabled={pending}
-                        className="rounded-sm border border-steam-border bg-steam-bg px-1.5 py-1 font-mono text-[10px] text-steam-text"
+                        className="rounded-sm border border-steam-border bg-steam-bg px-1.5 py-1 font-mono text-[10px] text-steam-text disabled:opacity-50"
                       >
                         <option value="EDITOR">編集者</option>
                         <option value="VIEWER">閲覧者</option>
@@ -145,8 +152,9 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
                       <button
                         onClick={() => handleRemove(m.userId)}
                         disabled={pending}
-                        className="font-mono text-[10px] text-[#eb4b4b]"
+                        className="flex items-center gap-1 font-mono text-[10px] text-[#eb4b4b] disabled:opacity-50"
                       >
+                        {removingUserId === m.userId && <Spinner size={10} />}
                         削除
                       </button>
                     </>
@@ -188,7 +196,8 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
                     disabled={pending || !inviteeId}
                     className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
                   >
-                    <UserPlus size={12} /> 招待
+                    {inviting ? <Spinner size={12} /> : <UserPlus size={12} />}
+                    {inviting ? "招待中…" : "招待"}
                   </button>
                 </div>
                 {candidates.length === 0 && (

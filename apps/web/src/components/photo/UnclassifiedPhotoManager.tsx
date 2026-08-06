@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Play, Check, Plus } from "lucide-react";
+import { Spinner } from "@/components/ui/Spinner";
 
 type Media = {
   id: string;
@@ -25,8 +26,10 @@ export function UnclassifiedPhotoManager({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [targetAlbumId, setTargetAlbumId] = useState("");
   const [newAlbumTitle, setNewAlbumTitle] = useState("");
-  const [pending, setPending] = useState(false);
+  const [action, setAction] = useState<"move" | "create" | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const pending = action !== null;
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -47,7 +50,7 @@ export function UnclassifiedPhotoManager({
 
   async function moveToExistingAlbum() {
     if (selected.size === 0 || !targetAlbumId) return;
-    setPending(true);
+    setAction("move");
     setError(null);
     try {
       const res = await fetch("/api/photos/assign-album", {
@@ -62,14 +65,14 @@ export function UnclassifiedPhotoManager({
     } catch {
       setError("移動に失敗しました");
     } finally {
-      setPending(false);
+      setAction(null);
     }
   }
 
   async function createAlbumAndMove() {
     const title = newAlbumTitle.trim();
     if (selected.size === 0 || !title) return;
-    setPending(true);
+    setAction("create");
     setError(null);
     try {
       const createRes = await fetch("/api/albums", {
@@ -93,7 +96,7 @@ export function UnclassifiedPhotoManager({
     } catch {
       setError("新規アルバム作成 or 移動に失敗しました");
     } finally {
-      setPending(false);
+      setAction(null);
     }
   }
 
@@ -175,9 +178,10 @@ export function UnclassifiedPhotoManager({
             <button
               onClick={moveToExistingAlbum}
               disabled={pending || selected.size === 0 || !targetAlbumId}
-              className="flex-shrink-0 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+              className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
             >
-              追加
+              {action === "move" && <Spinner size={12} />}
+              {action === "move" ? "追加中…" : "追加"}
             </button>
           </div>
         </div>
@@ -197,7 +201,8 @@ export function UnclassifiedPhotoManager({
               disabled={pending || selected.size === 0 || !newAlbumTitle.trim()}
               className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
             >
-              <Plus size={12} /> 作成
+              {action === "create" ? <Spinner size={12} /> : <Plus size={12} />}
+              {action === "create" ? "作成中…" : "作成"}
             </button>
           </div>
         </div>

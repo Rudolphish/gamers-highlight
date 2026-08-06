@@ -4,10 +4,22 @@ import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { ChevronDown, ChevronUp, LogOut, User } from "lucide-react";
 import { useState } from "react";
+import { Spinner } from "@/components/ui/Spinner";
 
 export function Header() {
   const { data: session, status } = useSession();
   const [isOpen, setIsOpen] = useState(false);
+  const [authPending, setAuthPending] = useState(false);
+
+  function handleSignIn() {
+    setAuthPending(true);
+    signIn();
+  }
+
+  function handleSignOut() {
+    setAuthPending(true);
+    signOut({ callbackUrl: "/" });
+  }
 
   const displayName = session?.user?.name ?? session?.user?.email ?? "ゲスト";
   const initials = displayName
@@ -69,11 +81,12 @@ export function Header() {
                   </Link>
                   <button
                     type="button"
-                    onClick={() => signOut({ callbackUrl: "/" })}
-                    className="mt-1 flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm text-steam-text transition hover:bg-steam-surface"
+                    onClick={handleSignOut}
+                    disabled={authPending}
+                    className="mt-1 flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm text-steam-text transition hover:bg-steam-surface disabled:opacity-50"
                   >
-                    <LogOut size={16} />
-                    <span>サインアウト</span>
+                    {authPending ? <Spinner size={16} /> : <LogOut size={16} />}
+                    <span>{authPending ? "サインアウト中…" : "サインアウト"}</span>
                   </button>
                 </div>
               )}
@@ -81,10 +94,12 @@ export function Header() {
           ) : (
             <button
               type="button"
-              onClick={() => signIn()}
-              className="rounded-full border border-steam-border bg-steam-panel px-4 py-2 text-sm font-medium text-steam-text transition hover:border-steam-blue"
+              onClick={handleSignIn}
+              disabled={authPending}
+              className="flex items-center gap-2 rounded-full border border-steam-border bg-steam-panel px-4 py-2 text-sm font-medium text-steam-text transition hover:border-steam-blue disabled:opacity-50"
             >
-              サインイン
+              {authPending && <Spinner size={14} />}
+              {authPending ? "サインイン中…" : "サインイン"}
             </button>
           )}
         </div>

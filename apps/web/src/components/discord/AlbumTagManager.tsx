@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Hash, X, Plus } from "lucide-react";
+import { Spinner } from "@/components/ui/Spinner";
 
 // アルバムに紐付くハッシュタグ（別名）の一覧・追加・削除UI。
 // 「#eldenring」「#elden_ring」のような表記ゆれを、同じアルバムに複数タグとして
@@ -25,13 +26,16 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
   const router = useRouter();
   const [tags, setTags] = useState(initialTags);
   const [draft, setDraft] = useState("");
-  const [pending, setPending] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [removingTagId, setRemovingTagId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const pending = adding || removingTagId !== null;
 
   async function addTag() {
     const tag = draft.trim().toLowerCase();
     if (!tag) return;
-    setPending(true);
+    setAdding(true);
     setError(null);
     try {
       const res = await fetch(`/api/albums/${albumId}/tags`, {
@@ -47,12 +51,12 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
     } catch {
       setError("タグの追加に失敗しました");
     } finally {
-      setPending(false);
+      setAdding(false);
     }
   }
 
   async function removeTag(tagId: string) {
-    setPending(true);
+    setRemovingTagId(tagId);
     setError(null);
     try {
       const res = await fetch(`/api/albums/${albumId}/tags/${tagId}`, { method: "DELETE" });
@@ -61,7 +65,7 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
     } catch {
       setError("タグの削除に失敗しました");
     } finally {
-      setPending(false);
+      setRemovingTagId(null);
     }
   }
 
@@ -85,10 +89,10 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
             <button
               onClick={() => removeTag(t.id)}
               disabled={pending}
-              className="ml-1 text-steam-muted hover:text-[#eb4b4b]"
+              className="ml-1 text-steam-muted hover:text-[#eb4b4b] disabled:opacity-50"
               aria-label={`${t.tag}を削除`}
             >
-              <X size={10} />
+              {removingTagId === t.id ? <Spinner size={10} /> : <X size={10} />}
             </button>
           </li>
         ))}
@@ -113,7 +117,8 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
           disabled={pending || !draft.trim()}
           className="flex items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-1.5 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
         >
-          <Plus size={12} /> 追加
+          {adding ? <Spinner size={12} /> : <Plus size={12} />}
+          {adding ? "追加中…" : "追加"}
         </button>
       </div>
       {error && <p className="mt-2 font-mono text-xs text-[#eb4b4b]">{error}</p>}

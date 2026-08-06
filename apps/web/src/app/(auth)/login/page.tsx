@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import { Spinner } from "@/components/ui/Spinner";
 
 // ログイン画面：OAuth（Discord/Google）ログイン。
 // 許可リストに無いアカウントは lib/auth.ts の signIn コールバックで拒否され、
@@ -25,6 +26,13 @@ function LoginForm() {
   const configError = error === "Configuration";
   const oauthCallbackError = error === "OAuthCallback";
   const otherError = error && !denied && !configError && !oauthCallbackError;
+
+  const [provider, setProvider] = useState<"discord" | "google" | null>(null);
+
+  function handleSignIn(p: "discord" | "google") {
+    setProvider(p);
+    signIn(p, { callbackUrl: "/" });
+  }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-6">
@@ -66,13 +74,20 @@ function LoginForm() {
 
       <div className="flex flex-col gap-3 min-w-[240px]">
         <button
-          onClick={() => signIn("discord", { callbackUrl: "/" })}
-          className="rounded-md bg-[#5865F2] px-6 py-2.5 text-sm font-medium text-white hover:bg-[#4752C4] transition"
+          onClick={() => handleSignIn("discord")}
+          disabled={provider !== null}
+          className="flex items-center justify-center gap-2 rounded-md bg-[#5865F2] px-6 py-2.5 text-sm font-medium text-white transition hover:bg-[#4752C4] disabled:opacity-50"
         >
-          Discordでログイン
+          {provider === "discord" && <Spinner size={14} />}
+          {provider === "discord" ? "リダイレクト中…" : "Discordでログイン"}
         </button>
-        <button onClick={() => signIn("google", { callbackUrl: "/" })} className="rounded-md border border-steam-border bg-steam-surface px-6 py-2.5 text-sm font-medium hover:bg-steam-panel transition">
-          Googleでログイン
+        <button
+          onClick={() => handleSignIn("google")}
+          disabled={provider !== null}
+          className="flex items-center justify-center gap-2 rounded-md border border-steam-border bg-steam-surface px-6 py-2.5 text-sm font-medium transition hover:bg-steam-panel disabled:opacity-50"
+        >
+          {provider === "google" && <Spinner size={14} />}
+          {provider === "google" ? "リダイレクト中…" : "Googleでログイン"}
         </button>
       </div>
     </main>
