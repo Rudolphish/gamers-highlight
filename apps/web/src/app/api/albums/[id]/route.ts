@@ -56,6 +56,12 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   const allowed = await hasAlbumPermission(params.id, user.id, "OWNER");
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  await db.album.delete({ where: { id: params.id } });
+  // ハッシュタグ/チャンネルマッピングがこのアルバムをautoAlbumIdとして参照している場合、
+  // 外部キー制約で削除がブロックされるため、アルバムと一緒に紐付けも削除する
+  await db.$transaction([
+    db.discordGameTag.deleteMany({ where: { autoAlbumId: params.id } }),
+    db.discordChannelMapping.deleteMany({ where: { autoAlbumId: params.id } }),
+    db.album.delete({ where: { id: params.id } }),
+  ]);
   return NextResponse.json({ ok: true });
 }
