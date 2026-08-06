@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Play, Check, Plus } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { LoadingImage } from "@/components/ui/LoadingImage";
 
 type Media = {
   id: string;
@@ -132,7 +133,7 @@ export function UnclassifiedPhotoManager({
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <img
+                <LoadingImage
                   src={item.thumbnailUrl ?? item.mediaUrl}
                   alt=""
                   className="h-full w-full object-cover"

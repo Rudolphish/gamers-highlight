@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Play } from "lucide-react";
 import { Lightbox } from "@/components/photo/Lightbox";
+import { LoadingImage } from "@/components/ui/LoadingImage";
 
 type Media = {
   id: string;
@@ -37,7 +38,7 @@ export function PhotoGrid({ photos }: { photos: Media[] }) {
                 className="h-full w-full object-cover"
               />
             ) : (
-              <img
+              <LoadingImage
                 src={item.thumbnailUrl ?? item.mediaUrl}
                 alt=""
                 className="h-full w-full object-cover"

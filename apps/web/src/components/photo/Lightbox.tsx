@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Spinner } from "@/components/ui/Spinner";
 
 // メディア詳細（拡大表示）。IMAGE/VIDEO両対応。将来的にコメント機能もここに追加予定。
 type LightboxProps = {
@@ -23,6 +24,13 @@ export function Lightbox({
   hasPrev = true,
   hasNext = true,
 }: LightboxProps) {
+  const [loaded, setLoaded] = useState(false);
+
+  // 前へ/次へで写真を切り替えた際、直前の写真の読み込み完了状態を引きずらないようにリセットする
+  useEffect(() => {
+    setLoaded(false);
+  }, [mediaUrl]);
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -70,7 +78,7 @@ export function Lightbox({
       )}
 
       {/* メディアコンテンツ */}
-      <div className="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-sm">
+      <div className="relative flex max-h-[90vh] max-w-[90vw] items-center justify-center overflow-hidden rounded-sm">
         {mediaType === "VIDEO" ? (
           <video
             src={mediaUrl}
@@ -79,7 +87,20 @@ export function Lightbox({
             className="max-h-[90vh] max-w-[90vw] object-contain"
           />
         ) : (
-          <img src={mediaUrl} alt="" className="max-h-[90vh] max-w-[90vw] object-contain" />
+          <>
+            {/* 画像は読み込むまでサイズが分からないため、固定サイズの枠でスピナーを表示しておく */}
+            {!loaded && (
+              <div className="flex h-[50vh] w-[50vw] items-center justify-center">
+                <Spinner size={32} className="text-steam-muted" />
+              </div>
+            )}
+            <img
+              src={mediaUrl}
+              alt=""
+              onLoad={() => setLoaded(true)}
+              className={`max-h-[90vh] max-w-[90vw] object-contain ${loaded ? "" : "hidden"}`}
+            />
+          </>
         )}
       </div>
 

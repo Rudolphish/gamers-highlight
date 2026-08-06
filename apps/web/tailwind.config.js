@@ -18,6 +18,16 @@ module.exports = {
         display: ["Rajdhani", "Inter", "sans-serif"],
         mono: ["JetBrains Mono", "monospace"],
       },
+      keyframes: {
+        "route-progress": {
+          "0%": { transform: "translateX(-100%)" },
+          "50%": { transform: "translateX(20%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
+      },
+      animation: {
+        "route-progress": "route-progress 1s ease-in-out infinite",
+      },
     },
   },
   plugins: [],
