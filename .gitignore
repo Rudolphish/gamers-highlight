@@ -25,3 +25,4 @@ packages/db/generated/
 .turbo/
 .tmp*
 CLAUDE.md
+GOAL.txt
