@@ -15,11 +15,16 @@ export default async function AlbumsPage() {
 
   const albums = await db.album.findMany({
     where: {
-      OR: [{ ownerId: user.id }, { members: { some: { userId: user.id } } }],
+      OR: [
+        { ownerId: user.id },
+        { members: { some: { userId: user.id } } },
+        { group: { OR: [{ ownerId: user.id }, { members: { some: { userId: user.id } } }] } },
+      ],
     },
     orderBy: { updatedAt: "desc" },
     include: {
       owner: true,
+      group: { select: { name: true } },
       members: {
         orderBy: { invitedAt: "asc" },
         take: 4,
@@ -65,6 +70,7 @@ export default async function AlbumsPage() {
       members: memberList,
       memberCount: album._count.members + 1,
       updatedAt: album.updatedAt,
+      groupName: album.group.name,
     };
   });
 

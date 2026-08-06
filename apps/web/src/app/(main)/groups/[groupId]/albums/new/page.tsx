@@ -1,39 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useRouter, useParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
-type GroupOption = { id: string; name: string };
-
-// アルバム作成画面：所属グループ・タイトル・説明・ゲームタグ（任意）を入力してPOST /api/albums
-export default function NewAlbumPage() {
+// グループ内アルバム作成画面：タイトル・説明・ゲームタグ（任意）を入力してPOST /api/albums
+export default function NewGroupAlbumPage() {
   const router = useRouter();
-  const [groups, setGroups] = useState<GroupOption[]>([]);
-  const [groupId, setGroupId] = useState("");
+  const params = useParams<{ groupId: string }>();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [gameTitle, setGameTitle] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/groups")
-      .then((res) => res.json())
-      .then((data) => {
-        setGroups(data.groups ?? []);
-        if (data.groups?.length === 1) setGroupId(data.groups[0].id);
-      });
-  }, []);
-
   async function handleSubmit() {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       setError("タイトルを入力してください");
-      return;
-    }
-    if (!groupId) {
-      setError("グループを選択してください");
       return;
     }
     setPending(true);
@@ -46,7 +30,7 @@ export default function NewAlbumPage() {
           title: trimmedTitle,
           description: description.trim() || undefined,
           gameTitle: gameTitle.trim() || undefined,
-          groupId,
+          groupId: params.groupId,
         }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -72,25 +56,6 @@ export default function NewAlbumPage() {
       </h1>
 
       <div className="mt-6 flex max-w-md flex-col gap-4">
-        <div>
-          <label className="font-mono text-[11px] text-steam-muted">
-            グループ <span className="text-[#eb4b4b]">*</span>
-          </label>
-          <select
-            value={groupId}
-            onChange={(e) => setGroupId(e.target.value)}
-            disabled={pending}
-            className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
-          >
-            <option value="">グループを選択</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
         <div>
           <label className="font-mono text-[11px] text-steam-muted">
             タイトル <span className="text-[#eb4b4b]">*</span>
@@ -134,7 +99,7 @@ export default function NewAlbumPage() {
 
         <button
           onClick={handleSubmit}
-          disabled={pending || !title.trim() || !groupId}
+          disabled={pending || !title.trim()}
           className="rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] py-2.5 font-mono text-sm font-bold text-[#0e1b12] disabled:opacity-40"
         >
           {pending ? "作成中…" : "アルバムを作成"}

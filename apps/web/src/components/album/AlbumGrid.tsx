@@ -12,6 +12,7 @@ type Album = {
   members: Member[];
   memberCount: number;
   updatedAt: Date | string;
+  groupName?: string | null;
 };
 
 export function AlbumGrid({ albums }: { albums: Album[] }) {

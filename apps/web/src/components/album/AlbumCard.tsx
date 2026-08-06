@@ -10,6 +10,7 @@ type AlbumCardProps = {
   members: Member[]; // 表示用（最大4人程度に絞って渡す想定）
   memberCount: number; // 実際の総メンバー数（+N表示に使用）
   updatedAt: Date | string;
+  groupName?: string | null; // 指定時、どのグループ所属か分かるバッジを表示（フラットなアルバム一覧向け）
 };
 
 export function AlbumCard({
@@ -20,6 +21,7 @@ export function AlbumCard({
   members,
   memberCount,
   updatedAt,
+  groupName,
 }: AlbumCardProps) {
   const extraMembers = Math.max(memberCount - members.length, 0);
 
@@ -54,6 +56,11 @@ export function AlbumCard({
       </div>
 
       <div className="p-2">
+        {groupName && (
+          <p className="truncate font-mono text-[9px] uppercase tracking-wide text-steam-blue/80">
+            {groupName}
+          </p>
+        )}
         <p className="truncate font-display text-base font-semibold text-steam-text">{title}</p>
 
         <div className="mt-1.5 flex items-center justify-between">

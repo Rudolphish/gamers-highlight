@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Film, Home, Search, Settings, Upload } from "lucide-react";
+import { Film, Home, Search, Settings, Upload, Users } from "lucide-react";
 
 const NAV_GROUPS = [
   {
     label: "ナビゲーション",
     items: [
       { href: "/", label: "ホーム", icon: Home },
+      { href: "/groups", label: "グループ", icon: Users },
       { href: "/albums", label: "アルバム", icon: Film },
       { href: "/upload", label: "アップロード", icon: Upload },
     ],

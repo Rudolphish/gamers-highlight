@@ -25,6 +25,14 @@ export default async function UnclassifiedPage() {
     select: { id: true, title: true },
   });
 
+  const groups = await db.group.findMany({
+    where: {
+      OR: [{ ownerId: user.id }, { members: { some: { userId: user.id } } }],
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, name: true },
+  });
+
   return (
     <main className="p-4 sm:p-6">
       <h1 className="font-display text-2xl font-bold tracking-wide text-steam-text sm:text-3xl">
@@ -49,6 +57,7 @@ export default async function UnclassifiedPage() {
               durationSeconds: p.durationSeconds,
             }))}
             albums={albums}
+            groups={groups}
           />
         </div>
       )}

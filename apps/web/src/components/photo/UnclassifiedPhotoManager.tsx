@@ -15,18 +15,22 @@ type Media = {
 };
 
 type AlbumOption = { id: string; title: string };
+type GroupOption = { id: string; name: string };
 
 export function UnclassifiedPhotoManager({
   photos,
   albums,
+  groups,
 }: {
   photos: Media[];
   albums: AlbumOption[];
+  groups: GroupOption[];
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [targetAlbumId, setTargetAlbumId] = useState("");
   const [newAlbumTitle, setNewAlbumTitle] = useState("");
+  const [newAlbumGroupId, setNewAlbumGroupId] = useState(groups.length === 1 ? groups[0].id : "");
   const [action, setAction] = useState<"move" | "create" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,14 +76,14 @@ export function UnclassifiedPhotoManager({
 
   async function createAlbumAndMove() {
     const title = newAlbumTitle.trim();
-    if (selected.size === 0 || !title) return;
+    if (selected.size === 0 || !title || !newAlbumGroupId) return;
     setAction("create");
     setError(null);
     try {
       const createRes = await fetch("/api/albums", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ title, groupId: newAlbumGroupId }),
       });
       if (!createRes.ok) throw new Error(await createRes.text());
       const { album } = await createRes.json();
@@ -190,6 +194,19 @@ export function UnclassifiedPhotoManager({
         <div className="flex-1">
           <label className="font-mono text-[11px] text-steam-muted">新規アルバムを作って移動</label>
           <div className="mt-1 flex gap-2">
+            <select
+              value={newAlbumGroupId}
+              onChange={(e) => setNewAlbumGroupId(e.target.value)}
+              disabled={pending}
+              className="rounded-sm border border-steam-border bg-steam-bg px-2 py-2 font-mono text-xs text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+            >
+              <option value="">グループ</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
             <input
               value={newAlbumTitle}
               onChange={(e) => setNewAlbumTitle(e.target.value)}
@@ -199,7 +216,7 @@ export function UnclassifiedPhotoManager({
             />
             <button
               onClick={createAlbumAndMove}
-              disabled={pending || selected.size === 0 || !newAlbumTitle.trim()}
+              disabled={pending || selected.size === 0 || !newAlbumTitle.trim() || !newAlbumGroupId}
               className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
             >
               {action === "create" ? <Spinner size={12} /> : <Plus size={12} />}

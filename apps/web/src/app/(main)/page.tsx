@@ -1,10 +1,12 @@
+import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { AlbumGrid } from "@/components/album/AlbumGrid";
 import { RecentActivity } from "@/components/home/RecentActivity";
+import { formatRelativeTime } from "@/lib/relative-time";
+import { Film, Users } from "lucide-react";
 
-// ホーム：最近の投稿 + 自分と共有されたアルバムのダッシュボード
+// ホーム：最近の投稿 + 自分が所属するグループのダッシュボード
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
@@ -14,72 +16,31 @@ export default async function HomePage() {
   const user = await db.user.findUnique({ where: { email: session.user.email } });
   if (!user) return null;
 
-  const albums = await db.album.findMany({
+  const groups = await db.group.findMany({
     where: {
       OR: [{ ownerId: user.id }, { members: { some: { userId: user.id } } }],
     },
     orderBy: { updatedAt: "desc" },
     include: {
-      owner: true,
-      members: {
-        orderBy: { invitedAt: "asc" },
-        take: 4,
-        include: { user: true },
-      },
-      photos: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-      },
-      _count: {
-        select: { photos: true, members: true },
-      },
+      _count: { select: { albums: true, members: true } },
     },
   });
 
-  const albumIds = albums.map((a) => a.id);
+  const groupIds = groups.map((g) => g.id);
 
-  // アルバムに属する投稿だけでなく、自分がアップロードした「未分類（albumIdなし）」の投稿も拾う。
-  // 未分類のままだとどのアルバムページにも表示されず埋もれてしまうため、
-  // 少なくともホーム画面だけは必ず見えるようにしておく。
+  // 所属グループ配下の全アルバムの投稿だけでなく、自分がアップロードした
+  // 「未分類（albumIdなし）」の投稿も拾う。未分類のままだとどのアルバムページにも
+  // 表示されず埋もれてしまうため、少なくともホーム画面だけは必ず見えるようにしておく。
   const recentPhotos = await db.photo.findMany({
     where: {
       OR: [
-        { albumId: { in: albumIds } },
+        { album: { groupId: { in: groupIds } } },
         { albumId: null, uploaderId: user.id },
       ],
     },
     orderBy: { createdAt: "desc" },
     take: 10,
     include: { uploader: true, album: true },
-  });
-
-  const albumCards = albums.map((album) => {
-    const latestPhoto = album.photos[0];
-    const memberList = [
-      {
-        id: album.owner.id,
-        name: album.owner.name ?? album.owner.email,
-        avatarUrl: album.owner.avatarUrl,
-      },
-      ...album.members
-        .filter((m) => m.user.id !== album.owner.id)
-        .map((m) => ({
-          id: m.user.id,
-          name: m.user.name ?? m.user.email,
-          avatarUrl: m.user.avatarUrl,
-        })),
-    ].slice(0, 4);
-
-    return {
-      id: album.id,
-      title: album.title,
-      coverImageUrl: latestPhoto ? latestPhoto.thumbnailUrl ?? latestPhoto.mediaUrl : null,
-      coverIsVideo: latestPhoto?.mediaType === "VIDEO" && !latestPhoto.thumbnailUrl,
-      photoCount: album._count.photos,
-      members: memberList,
-      memberCount: album._count.members + 1, // +1: owner分（membersテーブルにはowner自身は入らないため）
-      updatedAt: album.updatedAt,
-    };
   });
 
   return (
@@ -113,15 +74,36 @@ export default async function HomePage() {
 
       <section className="mt-6">
         <h2 className="font-mono text-xs font-bold uppercase tracking-wide text-steam-muted">
-          マイアルバム
+          マイグループ
         </h2>
-        {albumCards.length === 0 ? (
+        {groups.length === 0 ? (
           <p className="mt-4 font-mono text-sm text-steam-muted">
-            まだアルバムがありません。作成するか、Discordに投稿してみましょう。
+            まだグループがありません。作成して仲間を招待しましょう。
           </p>
         ) : (
-          <div className="mt-2">
-            <AlbumGrid albums={albumCards} />
+          <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+            {groups.map((group) => (
+              <Link
+                key={group.id}
+                href={`/groups/${group.id}`}
+                className="rounded-sm border border-steam-border bg-steam-surface p-3 transition hover:border-steam-blue"
+              >
+                <p className="truncate font-display text-base font-semibold text-steam-text">
+                  {group.name}
+                </p>
+                <div className="mt-2 flex items-center gap-3 font-mono text-[10px] text-steam-muted">
+                  <span className="flex items-center gap-1">
+                    <Film size={11} /> {group._count.albums}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Users size={11} /> {group._count.members + 1}
+                  </span>
+                  <span className="ml-auto text-steam-muted/70">
+                    {formatRelativeTime(group.updatedAt)}
+                  </span>
+                </div>
+              </Link>
+            ))}
           </div>
         )}
       </section>
