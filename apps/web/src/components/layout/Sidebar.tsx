@@ -32,7 +32,7 @@ export function Sidebar() {
       <div className="mb-6 flex items-center justify-center px-2">
         <Link href="/" className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-steam-border/50 bg-steam-panel shadow-lg shadow-steam-blue/10 hover:border-steam-blue transition">
           <img
-            src="/logo.png"
+            src="/icon.png"
             alt="Gamer's Highlight Logo"
             referrerPolicy="no-referrer"
             className="h-full w-full object-cover"

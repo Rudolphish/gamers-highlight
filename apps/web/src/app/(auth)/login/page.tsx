@@ -37,15 +37,13 @@ function LoginForm() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-6">
       <div className="flex flex-col items-center text-center">
-        <div className="mb-4 h-20 w-20 overflow-hidden rounded-2xl border border-steam-border/60 bg-steam-panel p-1 shadow-2xl shadow-steam-blue/20">
-          <img
-            src="/logo.png"
-            alt="Gamer's Highlight Logo"
-            referrerPolicy="no-referrer"
-            className="h-full w-full rounded-xl object-cover"
-          />
-        </div>
-        <h1 className="text-2xl font-bold text-steam-text">Gamer&apos;s Highlight にログイン</h1>
+        <img
+          src="/logo.png"
+          alt="Gamer's Highlight"
+          referrerPolicy="no-referrer"
+          className="mb-4 h-16 w-auto max-w-full object-contain drop-shadow-[0_0_24px_rgba(102,192,244,0.25)] sm:h-20"
+        />
+        <h1 className="text-2xl font-bold text-steam-text">ログイン</h1>
         <p className="mt-2 text-sm text-steam-muted">招待されたメンバーのみアクセスできます</p>
       </div>
 
