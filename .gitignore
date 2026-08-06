@@ -9,6 +9,7 @@ out/
 # build
 dist/
 build/
+*.tsbuildinfo
 
 # env
 .env
@@ -23,3 +24,4 @@ packages/db/generated/
 *.log
 .turbo/
 .tmp*
+CLAUDE.md
