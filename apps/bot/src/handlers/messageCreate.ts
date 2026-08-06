@@ -15,12 +15,18 @@ export async function handleMessageCreate(message: Message) {
   if (!message.guildId) return; // DMは対象外
 
   const rawTag = extractGameTag(message.content);
+  console.log(
+    `[bot] message with ${message.attachments.size} attachment(s) from ${message.author.tag}`
+  );
 
   for (const attachment of message.attachments.values()) {
     const contentType = attachment.contentType ?? "";
     const isImage = contentType.startsWith("image/");
     const isVideo = contentType.startsWith("video/");
-    if (!isImage && !isVideo) continue;
+    if (!isImage && !isVideo) {
+      console.log(`[bot] skip unsupported contentType: ${contentType || "(empty)"}`);
+      continue;
+    }
 
     if (isVideo && attachment.size > 30 * 1024 * 1024) {
       console.log(`[bot] skip oversized video: ${attachment.size} bytes`);

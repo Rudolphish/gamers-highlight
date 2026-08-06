@@ -25,8 +25,39 @@ export async function ingestPhoto(payload: IngestPayload) {
     body: JSON.stringify(payload),
   });
 
+  const text = await res.text();
   if (!res.ok) {
-    console.error(`[apiClient] ingest failed: ${res.status} ${await res.text()}`);
+    console.error(`[apiClient] ingest failed: ${res.status} ${text}`);
+  } else {
+    // 成功時もPhotoが実際に作られたか/skippedで無視されたかを常に可視化する
+    console.log(`[apiClient] ingest ok: ${text}`);
   }
   return res.ok;
+}
+
+type TagPayload = {
+  discordUserId: string;
+  guildId: string;
+  gameTitle: string;
+  tag: string;
+};
+
+type TagResult = { ok: true } | { ok: false; status: number };
+
+/** Webアプリ側の /api/discord/tag に、直近のスクショへのゲームタグ付けを依頼する */
+export async function tagPhoto(payload: TagPayload): Promise<TagResult> {
+  const res = await fetch(`${BASE_URL}/api/discord/tag`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-internal-secret": SECRET,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    console.error(`[apiClient] tag failed: ${res.status} ${await res.text()}`);
+    return { ok: false, status: res.status };
+  }
+  return { ok: true };
 }

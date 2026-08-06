@@ -13,3 +13,15 @@ export function extractGameTag(content: string): string | null {
 export function tagToDisplayName(tag: string): string {
   return tag;
 }
+
+/**
+ * /tagコマンドで入力された自由記述のゲームタイトルを、ハッシュタグと同じ形式のタグに正規化する。
+ * 例: "Elden Ring" → "eldenring"
+ * こうすることで #eldenring による自動取り込みと /tag による後付けタグ付けが同じDiscordGameTagレコードを共有できる。
+ */
+export function normalizeGameTitleToTag(gameTitle: string): string {
+  return gameTitle
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}_]/gu, "");
+}

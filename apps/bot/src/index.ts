@@ -1,5 +1,9 @@
+import "./env.js";
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import { handleMessageCreate } from "./handlers/messageCreate.js";
+import * as tagCommand from "./commands/tag.js";
+
+const commands = new Map([[tagCommand.data.name, tagCommand]]);
 
 const client = new Client({
   intents: [
@@ -19,7 +23,13 @@ client.on(Events.MessageCreate, (message) => {
   });
 });
 
-// TODO: スラッシュコマンド（/tag等）のインタラクションハンドラ登録
-// client.on(Events.InteractionCreate, ...)
+client.on(Events.InteractionCreate, (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+  const command = commands.get(interaction.commandName);
+  if (!command) return;
+  command.execute(interaction).catch((err) => {
+    console.error(`[bot] failed to handle /${interaction.commandName}`, err);
+  });
+});
 
 client.login(process.env.DISCORD_BOT_TOKEN);

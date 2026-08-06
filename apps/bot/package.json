@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "deploy-commands": "tsx src/deploy-commands.ts"
   },
   "dependencies": {
-    "discord.js": "^14.15.0"
+    "discord.js": "^14.15.0",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
