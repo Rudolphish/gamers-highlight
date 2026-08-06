@@ -3,6 +3,7 @@ import { CheckCircle2, AlertCircle } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { SettingsNav } from "@/components/settings/SettingsNav";
 
 // Discord連携設定画面：アカウント連携状況の確認、未連携なら再ログイン導線
 // 判定ロジックは /api/discord/link (GET) と同じ（user.discordUserIdの有無）。
@@ -20,6 +21,7 @@ export default async function DiscordSettingsPage() {
       <h1 className="font-display text-2xl font-bold text-steam-text sm:text-3xl">
         Discord連携設定
       </h1>
+      <SettingsNav />
 
       <div className="mt-6 max-w-md rounded-sm border border-steam-border bg-steam-surface p-4">
         {linked ? (

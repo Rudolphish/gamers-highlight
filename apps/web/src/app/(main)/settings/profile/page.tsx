@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { User, Check, AlertCircle } from "lucide-react";
+import { SettingsNav } from "@/components/settings/SettingsNav";
 
 export default function ProfileSettingsPage() {
   const [name, setName] = useState("");
@@ -60,7 +61,8 @@ export default function ProfileSettingsPage() {
       <h1 className="font-display text-2xl font-bold text-steam-text sm:text-3xl">
         プロフィール設定
       </h1>
-      <p className="mt-1 font-mono text-xs text-steam-muted">
+      <SettingsNav />
+      <p className="mt-4 font-mono text-xs text-steam-muted">
         表示名の確認・変更を行えます
       </p>
 

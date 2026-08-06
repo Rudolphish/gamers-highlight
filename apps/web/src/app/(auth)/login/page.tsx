@@ -88,6 +88,10 @@ function LoginForm() {
           {provider === "google" ? "リダイレクト中…" : "Googleでログイン"}
         </button>
       </div>
+
+      <p className="mt-4 font-mono text-[10px] text-steam-muted/60">
+        © {new Date().getFullYear()} Gamer&apos;s Highlight
+      </p>
     </main>
   );
 }
