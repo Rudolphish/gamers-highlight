@@ -6,6 +6,12 @@ import { z } from "zod";
 
 const createGroupSchema = z.object({
   name: z.string().trim().min(1, "name is required").max(100),
+  guildId: z
+    .string()
+    .trim()
+    .regex(/^\d{15,25}$/, "guildId must be a Discord snowflake ID")
+    .optional()
+    .or(z.literal("")),
 });
 
 // GET /api/groups … 自分が所有/参加しているグループ一覧
@@ -44,9 +50,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  const guildId = parsed.data.guildId ? parsed.data.guildId : undefined;
+  if (guildId) {
+    const existing = await db.group.findUnique({ where: { guildId } });
+    if (existing) {
+      return NextResponse.json(
+        { error: "このDiscordサーバーは既に別のグループと紐付いています" },
+        { status: 409 }
+      );
+    }
+  }
+
   const group = await db.group.create({
     data: {
       name: parsed.data.name,
+      guildId,
       ownerId: user.id,
     },
   });
