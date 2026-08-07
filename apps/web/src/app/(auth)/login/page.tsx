@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Spinner } from "@/components/ui/Spinner";
 
-// ログイン画面：OAuth（Discord/Google）ログイン。
+// ログイン画面：OAuth（Discord）ログイン。
 // 許可リストに無いアカウントは lib/auth.ts の signIn コールバックで拒否され、
 // ?error=AccessDenied 付きでこの画面に戻ってくる。
 //
@@ -27,9 +27,9 @@ function LoginForm() {
   const oauthCallbackError = error === "OAuthCallback";
   const otherError = error && !denied && !configError && !oauthCallbackError;
 
-  const [provider, setProvider] = useState<"discord" | "google" | null>(null);
+  const [provider, setProvider] = useState<"discord" | null>(null);
 
-  function handleSignIn(p: "discord" | "google") {
+  function handleSignIn(p: "discord") {
     setProvider(p);
     signIn(p, { callbackUrl: "/" });
   }
@@ -54,14 +54,14 @@ function LoginForm() {
       )}
       {configError && (
         <p className="rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
-          ログイン設定に不備があります。Vercel環境変数 `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+          ログイン設定に不備があります。Vercel環境変数 `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`,
           `NEXTAUTH_SECRET` の設定を確認してください。
         </p>
       )}
       {oauthCallbackError && (
         <p className="rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
-          OAuth コールバックでエラーが発生しました。Vercel の `NEXTAUTH_URL` を `https://YOUR_DOMAIN` に設定し、 Discord/Google の OAuth リダイレクト
-          URI に `https://YOUR_DOMAIN/api/auth/callback/discord` または `https://YOUR_DOMAIN/api/auth/callback/google` を登録してください。
+          OAuth コールバックでエラーが発生しました。Vercel の `NEXTAUTH_URL` を `https://YOUR_DOMAIN` に設定し、Discord の OAuth リダイレクト
+          URI に `https://YOUR_DOMAIN/api/auth/callback/discord` を登録してください。
         </p>
       )}
       {otherError && (
@@ -78,14 +78,6 @@ function LoginForm() {
         >
           {provider === "discord" && <Spinner size={14} />}
           {provider === "discord" ? "リダイレクト中…" : "Discordでログイン"}
-        </button>
-        <button
-          onClick={() => handleSignIn("google")}
-          disabled={provider !== null}
-          className="flex items-center justify-center gap-2 rounded-md border border-steam-border bg-steam-surface px-6 py-2.5 text-sm font-medium transition hover:bg-steam-panel disabled:opacity-50"
-        >
-          {provider === "google" && <Spinner size={14} />}
-          {provider === "google" ? "リダイレクト中…" : "Googleでログイン"}
         </button>
       </div>
 

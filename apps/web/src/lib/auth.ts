@@ -1,6 +1,5 @@
 import type { NextAuthOptions } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
-import GoogleProvider from "next-auth/providers/google";
 import { db } from "./db";
 
 // VercelなどHTTPSホスティング環境で発生する「State cookie was missing」対策。
@@ -16,11 +15,6 @@ export const authOptions: NextAuthOptions = {
     DiscordProvider({
       clientId: process.env.DISCORD_CLIENT_ID!,
       clientSecret: process.env.DISCORD_CLIENT_SECRET!,
-      checks: ["pkce", "state"],
-    }),
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       checks: ["pkce", "state"],
     }),
   ],
@@ -52,7 +46,7 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     // クローズドな友人グループ運用のため、許可リストに無いアカウントはログイン自体を拒否する。
-    // Discordでログインした場合は discordUserId、それ以外(Google等)はメールアドレスで照合する。
+    // Discordでログインした場合は discordUserId、それ以外はメールアドレスで照合する。
     async signIn({ user, account }) {
       const discordUserId =
         account?.provider === "discord" ? account.providerAccountId : undefined;
