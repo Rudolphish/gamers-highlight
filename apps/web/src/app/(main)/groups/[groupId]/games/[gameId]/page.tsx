@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Newspaper, TrendingDown } from "lucide-react";
+import { ArrowLeft, ExternalLink, Newspaper, TrendingDown, Youtube } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -46,8 +46,10 @@ function newsContentToParagraphs(raw: string): string[] {
     .filter(Boolean);
 }
 
-// ゲーム詳細ページ：左にSteamの基本情報（レビュー・現在価格・リンク）、
-// 右上に最新ニュースの全文、右下に価格の値動きグラフ（IsThereAnyDeal API）を配置する。
+// ゲーム詳細ページ：左にSteamの基本情報（レビュー・現在価格・リンク・関連動画）、
+// 右上に最新ニュースの全文、右下に価格情報（IsThereAnyDeal API）を配置する。
+// 関連動画（YouTube）はゲームをリストに追加した時点で1回だけ検索してDBに保存したものを表示する
+// （search.listはクォータ消費が大きいため、ページ表示のたびには検索しない）。
 // いずれも外部サービス依存のため、個別に失敗してもページ全体は壊さずそのセクションだけ非表示にする。
 // HowLongToBeatはライブ連携を2度試みたが断念し、検索ページへの外部リンクのみ設置（docs/ideas.md参照）。
 export default async function GroupGameDetailPage({
@@ -86,6 +88,9 @@ export default async function GroupGameDetailPage({
   const latestNewsParagraphs = latestNews ? newsContentToParagraphs(latestNews.contents) : [];
 
   const coverUrl = game.coverUrl ?? steamHeaderImageUrl(game.steamAppId);
+  // 保存時に検証済みだが、埋め込みsrcに使う前に念のため形式を再チェックする
+  const youtubeVideoId =
+    game.youtubeVideoId && /^[A-Za-z0-9_-]{11}$/.test(game.youtubeVideoId) ? game.youtubeVideoId : null;
 
   return (
     <main className="p-4 sm:p-6">
@@ -149,6 +154,23 @@ export default async function GroupGameDetailPage({
                 <ExternalLink size={13} /> HowLongToBeatで見る
               </a>
             </div>
+
+            {youtubeVideoId && (
+              <div className="mt-4">
+                <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-steam-muted">
+                  <Youtube size={12} /> 関連動画
+                </h2>
+                <div className="mt-2 aspect-video w-full overflow-hidden rounded-sm border border-steam-border">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${youtubeVideoId}`}
+                    title="関連動画"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="h-full w-full"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 import { getSteamGenres } from "@/lib/steam";
+import { getGameplayVideo } from "@/lib/youtube";
 import { z } from "zod";
 
 const reactSchema = z.object({
@@ -67,7 +68,10 @@ export async function POST(
 
   let promoted = false;
   if (likeCount >= threshold) {
-    const genres = await getSteamGenres(proposal.steamAppId).catch(() => []);
+    const [genres, video] = await Promise.all([
+      getSteamGenres(proposal.steamAppId).catch(() => []),
+      getGameplayVideo(proposal.title).catch(() => null),
+    ]);
     try {
       await db.groupGame.create({
         data: {
@@ -76,6 +80,7 @@ export async function POST(
           title: proposal.title,
           coverUrl: proposal.coverUrl,
           genres,
+          youtubeVideoId: video?.videoId,
           addedById: proposal.proposedById,
         },
       });

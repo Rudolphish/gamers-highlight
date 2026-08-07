@@ -470,3 +470,32 @@
 - 懸念点・確認してほしいこと:
   - 実機で提案→複数アカウントでのリアクション→自動昇格までの一連の流れを確認してほしい（1人しかいないグループだと過半数=1のため即座に昇格することに注意）
   - ユーザーから「ゆくゆくはウィッシュリストのゲームが最安値更新したらDiscord通知したい」という要望があった。これはroadmap.md Phase 7に明記したが**今回は未着手**：IsThereAnyDealの`historylow`は「現在の最安値」のみを返すため、過去の最安値と比較して「更新された」と判定するには自前で定期的にポーリング・記録する仕組み（Botに現状スケジューラなし、Vercel Cron等の追加インフラが前提）が必要になる。次回改めて設計から相談する想定
+
+## [Phase 6] ゲーム詳細ページに関連YouTube動画を追加
+
+- 日時: 2026-08-08
+- 担当ツール: Claude（直接実装）
+- 変更ファイル:
+  - `packages/db/schema.prisma`（変更：`GroupGame`に`youtubeVideoId String?`を追加）
+  - `apps/web/src/lib/youtube.ts`（新規：`getGameplayVideo`。YouTube Data API v3の`search.list`を1回呼び、最上位のゲームプレイ動画を1件返す）
+  - `apps/web/src/app/api/groups/[id]/games/route.ts`（変更：ゲーム作成時にジャンルと並行してYouTube動画も検索・保存）
+  - `apps/web/src/app/api/groups/[id]/proposals/[proposalId]/reactions/route.ts`（変更：提案の自動昇格時も同様にYouTube動画を検索・保存）
+  - `apps/web/src/app/(main)/groups/[groupId]/games/[gameId]/page.tsx`（変更：`youtubeVideoId`があれば左カラムの下部に埋め込みiframeで関連動画を表示）
+- 変更内容の要約:
+  - YouTube Data API v3の`search.list`はクォータ消費が1回100（無料枠1日10,000＝実質100検索/日）と大きいことが事前調査で判明。ページ表示のたびに検索する設計にはできないため、**ジャンル取得と同じ「ゲームをリストに追加する瞬間に1回だけ検索してDBに保存する」パターン**を踏襲した。これにより表示側は保存済みの`youtubeVideoId`を読むだけで、追加のクォータ消費が発生しない
+  - 検索クエリは`<タイトル> gameplay`で固定。実データ（Hollow Knight）で動作確認済み
+  - 埋め込み前に`youtubeVideoId`が`^[A-Za-z0-9_-]{11}$`（YouTubeの動画ID形式）に一致するか再検証してから`<iframe src>`に使用（Google自身のAPIレスポンスとはいえ、念のための多層防御）
+  - 動画は左カラム（Steam基本情報カード）の末尾、Steam/HowLongToBeatリンクの下に配置。右カラム（ニュース・価格情報）のレイアウトは変更していない
+- 完了条件チェック:
+  - [x] ゲーム追加時に自動でYouTube動画が検索・保存される（通常追加・提案の自動昇格の両フローで）
+  - [x] ゲーム詳細ページで関連動画が埋め込み再生できる
+  - [x] 動画が見つからなかった場合はセクション自体が表示されない
+  - [x] ページ表示時にYouTube APIへの新規リクエストは発生しない（DB保存値を読むだけ）
+- 実行したコマンド:
+  - `prisma db push`（直接接続、成功）
+  - 実データでの動作確認：`getGameplayVideo("Hollow Knight")`→実在の動画ID・タイトルを取得
+  - `pnpm --filter web build`（成功）
+- 懸念点・確認してほしいこと:
+  - 実機でゲーム詳細ページの動画埋め込みを確認してほしい
+  - `YOUTUBE_API_KEY`もITAD_API_KEYと同様、Vercel本番環境変数への設定がまだ済んでいない（ローカル`.env`のみ）
+  - 既存のGroupGame（このセッション以前に追加されたもの）には`youtubeVideoId`が無いまま残る。遡及的な取得バッチは未実装（ジャンル同様の制約）

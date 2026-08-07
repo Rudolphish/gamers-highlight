@@ -108,17 +108,18 @@ model Group {
 // 個人のウィッシュリスト/ライブラリはSteam自体で完結するため作らず、
 // あくまで「このグループとして」のステータスのみを管理する。
 model GroupGame {
-  id         String          @id @default(cuid())
-  groupId    String
-  steamAppId Int
-  title      String
-  coverUrl   String?
-  status     GroupGameStatus @default(WISHLIST)
-  genres     String[]        @default([]) // Steam appdetailsの英語ジャンル名（例: "Action", "RPG"）
-  albumId    String?         @unique // 紐付け元のアルバム（あれば）。1アルバム=最大1ゲームを想定
-  addedById  String
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  id             String          @id @default(cuid())
+  groupId        String
+  steamAppId     Int
+  title          String
+  coverUrl       String?
+  status         GroupGameStatus @default(WISHLIST)
+  genres         String[]        @default([]) // Steam appdetailsの英語ジャンル名（例: "Action", "RPG"）
+  youtubeVideoId String? // 追加時に1回だけ検索して保存（YouTube APIの検索クォータ節約のため）
+  albumId        String?         @unique // 紐付け元のアルバム（あれば）。1アルバム=最大1ゲームを想定
+  addedById      String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   album   Album? @relation(fields: [albumId], references: [id], onDelete: SetNull)

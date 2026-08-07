@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 import { getSteamGenres } from "@/lib/steam";
+import { getGameplayVideo } from "@/lib/youtube";
 import { z } from "zod";
 
 const addGameSchema = z.object({
@@ -81,7 +82,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ game: updated });
   }
 
-  const genres = await getSteamGenres(parsed.data.steamAppId).catch(() => []);
+  const [genres, video] = await Promise.all([
+    getSteamGenres(parsed.data.steamAppId).catch(() => []),
+    getGameplayVideo(parsed.data.title).catch(() => null),
+  ]);
 
   const game = await db.groupGame.create({
     data: {
@@ -91,6 +95,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       coverUrl: parsed.data.coverUrl,
       albumId,
       genres,
+      youtubeVideoId: video?.videoId,
       addedById: user.id,
     },
     include: { addedBy: true },
