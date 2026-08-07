@@ -116,7 +116,7 @@ export function SteamCoverPicker({
         onClick={() => setOpen(true)}
         className="flex items-center gap-1.5 rounded-sm border border-steam-border px-3 py-2 font-mono text-xs text-steam-text hover:border-steam-blue"
       >
-        <Gamepad2 size={13} /> Steam画像
+        <Gamepad2 size={13} /> Steam連携
       </button>
 
       {open && (
