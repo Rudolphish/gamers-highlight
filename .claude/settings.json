@@ -13,7 +13,9 @@
       "Bash(git -C \"c:/Study/gamers-highlight\" check-ignore -v .claude/settings.local.json)",
       "WebFetch(domain:howlongtobeat.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(node scratch-hltb-debug.mjs)",
+      "Bash(node -e ' *)"
     ],
     "additionalDirectories": [
       "\\tmp"

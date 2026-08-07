@@ -101,14 +101,24 @@ export default async function GroupGameDetailPage({
             {game.addedBy.name ?? game.addedBy.email ?? "メンバー"}が追加
           </p>
 
-          <a
-            href={`https://store.steampowered.com/app/${game.steamAppId}`}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-4 inline-flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
-          >
-            <ExternalLink size={13} /> Steamストアで見る
-          </a>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <a
+              href={`https://store.steampowered.com/app/${game.steamAppId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
+            >
+              <ExternalLink size={13} /> Steamストアで見る
+            </a>
+            <a
+              href={`https://howlongtobeat.com/?q=${encodeURIComponent(game.title)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-sm border border-steam-border px-3 py-2 font-mono text-xs text-steam-text transition hover:border-steam-blue"
+            >
+              <ExternalLink size={13} /> HowLongToBeatで見る
+            </a>
+          </div>
 
           {news.length > 0 && (
             <div className="mt-6">
