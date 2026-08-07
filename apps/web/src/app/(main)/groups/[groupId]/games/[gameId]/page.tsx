@@ -155,11 +155,11 @@ export default async function GroupGameDetailPage({
               </a>
             </div>
 
-            {youtubeVideoId && (
-              <div className="mt-4">
-                <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-steam-muted">
-                  <Youtube size={12} /> 関連動画
-                </h2>
+            <div className="mt-4">
+              <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-steam-muted">
+                <Youtube size={12} /> 関連動画
+              </h2>
+              {youtubeVideoId && (
                 <div className="mt-2 aspect-video w-full overflow-hidden rounded-sm border border-steam-border">
                   <iframe
                     src={`https://www.youtube.com/embed/${youtubeVideoId}`}
@@ -169,8 +169,16 @@ export default async function GroupGameDetailPage({
                     className="h-full w-full"
                   />
                 </div>
-              </div>
-            )}
+              )}
+              <a
+                href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${game.title} gameplay`)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] text-steam-blue hover:underline"
+              >
+                <ExternalLink size={11} /> YouTubeで他の動画を探す
+              </a>
+            </div>
           </div>
         </div>
 
