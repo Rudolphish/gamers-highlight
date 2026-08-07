@@ -9,6 +9,7 @@ import { GroupShareModal } from "@/components/group/GroupShareModal";
 import { GroupNameEditor } from "@/components/group/GroupNameEditor";
 import { DeleteGroupButton } from "@/components/group/DeleteGroupButton";
 import { GroupGameList } from "@/components/group/GroupGameList";
+import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { steamHeaderImageUrl } from "@/lib/steam";
 
 // グループ詳細画面：名前編集、メンバー管理、配下アルバム一覧
@@ -124,35 +125,32 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
         </div>
       </div>
 
-      <div className="mt-6 flex items-center justify-between">
-        <h2 className="font-mono text-xs font-bold uppercase tracking-wide text-steam-muted">
-          アルバム
-        </h2>
-        <Link
-          href={`/groups/${group.id}/albums/new`}
-          className="flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
+      <div className="mt-6">
+        <CollapsibleSection
+          title="アルバム"
+          headerAction={
+            <Link
+              href={`/groups/${group.id}/albums/new`}
+              className="flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
+            >
+              <Plus size={14} /> 新規アルバム
+            </Link>
+          }
         >
-          <Plus size={14} /> 新規アルバム
-        </Link>
+          {albumCards.length === 0 ? (
+            <p className="font-mono text-sm text-steam-muted">
+              まだアルバムがありません。作成するか、Discordに投稿してみましょう。
+            </p>
+          ) : (
+            <AlbumGrid albums={albumCards} />
+          )}
+        </CollapsibleSection>
       </div>
 
-      {albumCards.length === 0 ? (
-        <p className="mt-4 font-mono text-sm text-steam-muted">
-          まだアルバムがありません。作成するか、Discordに投稿してみましょう。
-        </p>
-      ) : (
-        <div className="mt-4">
-          <AlbumGrid albums={albumCards} />
-        </div>
-      )}
-
       <div className="mt-8">
-        <h2 className="font-mono text-xs font-bold uppercase tracking-wide text-steam-muted">
-          気になっているゲーム
-        </h2>
-        <div className="mt-3">
+        <CollapsibleSection title="気になっているゲーム">
           <GroupGameList groupId={group.id} games={gameCards} canEdit={canEditGames} />
-        </div>
+        </CollapsibleSection>
       </div>
     </main>
   );

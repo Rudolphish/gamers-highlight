@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, X, Search, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
@@ -185,24 +186,27 @@ export function GroupGameList({
               key={game.id}
               className="overflow-hidden rounded-sm border border-steam-border bg-steam-surface transition hover:border-steam-blue"
             >
-              <div className="relative h-24 w-full overflow-hidden bg-steam-panel">
-                {game.coverUrl ? (
-                  <img src={game.coverUrl} alt={game.title} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center font-mono text-[10px] text-steam-muted/60">
-                    No Image
-                  </div>
-                )}
-              </div>
+              <Link href={`/groups/${groupId}/games/${game.id}`}>
+                <div className="relative h-24 w-full overflow-hidden bg-steam-panel">
+                  {game.coverUrl ? (
+                    <img src={game.coverUrl} alt={game.title} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center font-mono text-[10px] text-steam-muted/60">
+                      No Image
+                    </div>
+                  )}
+                </div>
+                <div className="px-2 pt-2">
+                  <p className="truncate font-display text-sm font-semibold text-steam-text">
+                    {game.title}
+                  </p>
+                  <p className="truncate font-mono text-[9px] text-steam-muted/70">
+                    {game.addedByName}が追加
+                  </p>
+                </div>
+              </Link>
               <div className="p-2">
-                <p className="truncate font-display text-sm font-semibold text-steam-text">
-                  {game.title}
-                </p>
-                <p className="truncate font-mono text-[9px] text-steam-muted/70">
-                  {game.addedByName}が追加
-                </p>
-
-                <div className="mt-1.5 flex items-center justify-between gap-1">
+                <div className="flex items-center justify-between gap-1">
                   {canEdit ? (
                     <select
                       value={game.status}
