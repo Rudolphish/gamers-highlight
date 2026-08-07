@@ -441,3 +441,32 @@
   - 実機で一連の操作（ジャンルフィルタ、サジェストからの追加、アルバムからのゲームリスト追加・ゲーム詳細への遷移）を確認してほしい
   - `searchSteamByGenre`はSteamの内部検索エンドポイントの応答形式（app IDが直接返らずCDN画像URLから抽出する必要がある点）に依存しており、Steam側の仕様変更で壊れる可能性はゼロではない（ただしHowLongToBeatほど頻繁に変わる想定はしていない）
   - 既存のGroupGame（このセッション以前に追加されたもの）には`genres`が空配列のまま残る。遡及的なジャンル取得バッチは未実装
+
+## [Phase 6] ゲーム提案機能（提案→リアクション→自動ウィッシュリスト登録）
+
+- 日時: 2026-08-07
+- 担当ツール: Claude（直接実装）
+- 変更ファイル:
+  - `packages/db/schema.prisma`（変更：`ProposalStatus`/`ProposalReactionType` enum、`GroupGameProposal`/`GroupGameProposalReaction`モデルを追加。`Group`/`User`に逆参照を追加）
+  - `apps/web/src/app/api/groups/[id]/proposals/route.ts`（新規：GET一覧〈PENDINGのみ〉・POST提案作成）
+  - `apps/web/src/app/api/groups/[id]/proposals/[proposalId]/route.ts`（新規：DELETE取り下げ/却下）
+  - `apps/web/src/app/api/groups/[id]/proposals/[proposalId]/reactions/route.ts`（新規：POSTでリアクションをトグルし、LIKEが過半数に達したら自動でGroupGame作成）
+  - `apps/web/src/components/group/GameProposals.tsx`（新規：提案一覧・3種リアクションボタン・提案モーダル・取り下げボタン）
+  - `apps/web/src/app/(main)/groups/[groupId]/page.tsx`（変更：`proposals`をincludeし、`GameProposals`を「気になっているゲーム」内に表示）
+- 変更内容の要約:
+  - ユーザーとの相談で仕様を確定：①リアクションは👍やりたい/🤔気になる/👎興味なしの3種類（1人1票、切り替え・取り消し可）、②ウィッシュリストへの昇格は「一定数のリアクションで自動登録」方式（手動採用ボタンは無し）
+  - 昇格の閾値は「グループの過半数」＝`floor((オーナー含む総メンバー数)/2)+1`。固定人数（例:3人）ではなくグループの人数に応じて動的に計算することで、少人数グループでも大人数グループでも自然に機能するようにした
+  - `GroupGameProposal`は`steamAppId`にDBレベルのユニーク制約を設けず、API側で「既にGroupGameにある」「既にPENDINGで提案されている」の2パターンのみ409で弾く設計にした。却下された提案は行ごと削除するため、同じゲームを後で再提案できる
+  - リアクションAPI内で昇格判定を行い、GroupGame作成時はSteamのジャンルも取得して保存（通常のゲーム追加フローと同じデータ品質を確保）。GroupGame作成時の一意制約違反（レース条件）はtry/catchで握りつぶし、採用扱いとして進める
+- 完了条件チェック:
+  - [x] メンバーがSteam検索からゲームを提案できる
+  - [x] 他メンバーが👍/🤔/👎でリアクションでき、同じボタンを再度押すと取り消せる
+  - [x] 👍がグループの過半数に達すると自動的に「気になっているゲーム」リスト（WISHLIST）に追加され、提案一覧からは消える
+  - [x] 提案者本人またはEDITOR以上が提案を取り下げられる
+  - [x] 既にリスト内/既に提案済みのゲームは重複して提案できない（409）
+- 実行したコマンド:
+  - `prisma db push`（直接接続、データ損失警告無し）
+  - `pnpm --filter web build`（成功）
+- 懸念点・確認してほしいこと:
+  - 実機で提案→複数アカウントでのリアクション→自動昇格までの一連の流れを確認してほしい（1人しかいないグループだと過半数=1のため即座に昇格することに注意）
+  - ユーザーから「ゆくゆくはウィッシュリストのゲームが最安値更新したらDiscord通知したい」という要望があった。これはroadmap.md Phase 7に明記したが**今回は未着手**：IsThereAnyDealの`historylow`は「現在の最安値」のみを返すため、過去の最安値と比較して「更新された」と判定するには自前で定期的にポーリング・記録する仕組み（Botに現状スケジューラなし、Vercel Cron等の追加インフラが前提）が必要になる。次回改めて設計から相談する想定

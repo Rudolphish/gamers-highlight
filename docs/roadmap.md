@@ -86,9 +86,8 @@ EpicSnapで検討していた「保存数制限＋Stripeサブスク」型を叩
 - [ ] ゲーム詳細ページ：関連YouTube動画表示（**要事前準備**：YouTube Data APIキーの取得）
 - [x] アプデ情報のキャッチアップ（Steam News API。キー不要）— ゲーム詳細ページに最新3件表示。グループ内の複数ゲームを横断した一覧化は未実装
 - [ ] グループ内プレイ状況の可視化（「今誰が何をプレイ中/積んでいるか」の一覧。[`ideas.md`](./ideas.md)参照）
-- [ ] **ゲーム提案機能**：グループメンバーが「このゲームどう？」とゲームを提案できる。提案には「ゲームページ」（Steamストアへのリンク、関連YouTube動画、価格/セール情報）を表示し、他メンバーがリアクション（興味あり等）できる。一定の反応を集めた（または誰かが確定させた）提案は、グループの「やりたいゲームリスト」（`GroupGame`のWISHLISTステータス）に登録される
-  - 前提：ゲームページの中身（Steamレビュー/YouTube動画は本Phase、価格/セール情報はPhase 7）に依存するため、提案機能自体はそれらが揃ってから着手するのが自然
-  - データ設計：`GroupGameProposal`（groupId, steamAppId, proposedBy, createdAt）＋`GroupGameProposalReaction`（proposalId, userId, reactionType）を想定
+- [x] **ゲーム提案機能**：グループメンバーが「このゲームどう？」とゲームを提案できる。他メンバーが3種類のリアクション（👍やりたい/🤔気になる/👎興味なし）でき、👍がグループの過半数（`floor(メンバー数/2)+1`）に達すると自動でグループのゲームリスト（`GroupGame`のWISHLISTステータス）に登録される。提案は提案者本人またはEDITOR以上が取り下げ可能
+  - データ設計：`GroupGameProposal`（groupId, steamAppId, proposedById, status〈PENDING/ACCEPTED/REJECTED〉）＋`GroupGameProposalReaction`（proposalId, userId, type〈LIKE/MAYBE/PASS〉、`@@unique([proposalId, userId])`で1人1票）
 
 ## Phase 7：柱3「狙ってるゲームのセール情報をチェックする」（長期ゴール）
 
@@ -96,7 +95,7 @@ EpicSnapで検討していた「保存数制限＋Stripeサブスク」型を叩
 - [x] 現在の価格・セール状況表示（Steam公式API）— Phase 6のゲーム詳細ページ実装時に前倒しで完了
 - [x] 最安値表示（IsThereAnyDeal APIキーを取得し実装済み。ゲーム詳細ページに現在価格〈Steam〉と過去最安値〈全ストア横断〉を並べて表示、比較ページへのリンク付き）
 - 値動きグラフは一度実装したが、**ユーザー判断で見送り**：ゲームの価格変動は株のように頻繁ではなく、グラフにすると逆に見づらいとのフィードバックがあったため、現在価格・最安値の2値表示＋外部リンクという単純な形に変更した（2026-08-07）
-- [ ] セール通知のDiscord連携（グループのウォッチリスト内のゲームがセールになったらBotがチャンネルに投稿。[`ideas.md`](./ideas.md)参照）
+- [ ] セール通知のDiscord連携（グループのウィッシュリスト〈`GroupGame`のWISHLISTステータス〉内のゲームが最安値を更新したらBotがチャンネルに投稿。ユーザー要望として2026-08-07に明確化：IsThereAnyDealの`games/historylow/v1`は「今の最安値」しか返さないため、定期ポーリング〈日次等〉で過去に記録した最安値と比較する仕組みが別途必要。Botに現状スケジューラが無いため、Vercel Cron等の追加インフラ検討が前提。[`ideas.md`](./ideas.md)参照）
 
 ---
 

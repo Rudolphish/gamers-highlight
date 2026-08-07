@@ -10,6 +10,7 @@ import { GroupNameEditor } from "@/components/group/GroupNameEditor";
 import { DeleteGroupButton } from "@/components/group/DeleteGroupButton";
 import { GroupGameList } from "@/components/group/GroupGameList";
 import { SuggestedGames } from "@/components/group/SuggestedGames";
+import { GameProposals } from "@/components/group/GameProposals";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { steamHeaderImageUrl, searchSteamByGenre } from "@/lib/steam";
 
@@ -38,6 +39,11 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
         orderBy: { createdAt: "desc" },
         include: { addedBy: true },
       },
+      proposals: {
+        where: { status: "PENDING" },
+        orderBy: { createdAt: "desc" },
+        include: { proposedBy: true, reactions: true },
+      },
     },
   });
   if (!group) notFound();
@@ -45,6 +51,16 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
   const isOwner = currentUser?.id === group.ownerId;
   const currentMembership = group.members.find((m) => m.userId === currentUser?.id);
   const canEditGames = isOwner || currentMembership?.role === "EDITOR";
+  const likeThreshold = Math.floor((1 + group.members.length) / 2) + 1;
+
+  const proposalCards = group.proposals.map((p) => ({
+    id: p.id,
+    title: p.title,
+    coverUrl: p.coverUrl,
+    proposedById: p.proposedById,
+    proposedByName: p.proposedBy.name ?? p.proposedBy.email ?? "メンバー",
+    reactions: p.reactions.map((r) => ({ userId: r.userId, type: r.type })),
+  }));
 
   const gameCards = group.games.map((g) => ({
     id: g.id,
@@ -174,6 +190,15 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
           <GroupGameList groupId={group.id} games={gameCards} canEdit={canEditGames} />
           {topGenre && (
             <SuggestedGames groupId={group.id} genre={topGenre} suggestions={suggestions} />
+          )}
+          {currentUser && (
+            <GameProposals
+              groupId={group.id}
+              proposals={proposalCards}
+              currentUserId={currentUser.id}
+              likeThreshold={likeThreshold}
+              canManage={canEditGames}
+            />
           )}
         </CollapsibleSection>
       </div>

@@ -32,6 +32,18 @@ enum GroupGameStatus {
   COMPLETED
 }
 
+enum ProposalStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum ProposalReactionType {
+  LIKE
+  MAYBE
+  PASS
+}
+
 enum MediaType {
   IMAGE
   VIDEO
@@ -67,6 +79,8 @@ model User {
   ownedGroups      Group[]                @relation("GroupOwner")
   groupMemberships GroupMember[]
   addedGroupGames  GroupGame[]            @relation("GroupGameAddedBy")
+  proposedGames    GroupGameProposal[]    @relation("ProposalProposedBy")
+  proposalReactions GroupGameProposalReaction[]
 
   @@map("users")
 }
@@ -81,10 +95,11 @@ model Group {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner   User          @relation("GroupOwner", fields: [ownerId], references: [id])
-  albums  Album[]
-  members GroupMember[]
-  games   GroupGame[]
+  owner     User                @relation("GroupOwner", fields: [ownerId], references: [id])
+  albums    Album[]
+  members   GroupMember[]
+  games     GroupGame[]
+  proposals GroupGameProposal[]
 
   @@map("groups")
 }
@@ -112,6 +127,41 @@ model GroupGame {
   @@unique([groupId, steamAppId])
   @@index([groupId])
   @@map("group_games")
+}
+
+// メンバーが「このゲームどう？」と提案し、他メンバーがリアクションできる仕組み。
+// LIKEが過半数（floor(メンバー数/2)+1）に達すると自動でGroupGame（WISHLIST）に昇格する。
+// steamAppIdの重複はAPI側でチェックする（却下後の再提案を許すため、DB制約では縛らない）。
+model GroupGameProposal {
+  id           String         @id @default(cuid())
+  groupId      String
+  steamAppId   Int
+  title        String
+  coverUrl     String?
+  proposedById String
+  status       ProposalStatus @default(PENDING)
+  createdAt    DateTime       @default(now())
+
+  group      Group                       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  proposedBy User                        @relation("ProposalProposedBy", fields: [proposedById], references: [id])
+  reactions  GroupGameProposalReaction[]
+
+  @@index([groupId])
+  @@map("group_game_proposals")
+}
+
+model GroupGameProposalReaction {
+  id         String               @id @default(cuid())
+  proposalId String
+  userId     String
+  type       ProposalReactionType
+  createdAt  DateTime             @default(now())
+
+  proposal GroupGameProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([proposalId, userId])
+  @@map("group_game_proposal_reactions")
 }
 
 model GroupMember {
