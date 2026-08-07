@@ -37,12 +37,9 @@ function LoginForm() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-6">
       <div className="flex flex-col items-center text-center">
-        <img
-          src="/logo.png"
-          alt="ShareStaq"
-          referrerPolicy="no-referrer"
-          className="mb-4 h-16 w-auto max-w-full object-contain drop-shadow-[0_0_24px_rgba(102,192,244,0.25)] sm:h-20"
-        />
+        <p className="mb-4 font-display text-4xl font-black tracking-tight text-steam-text drop-shadow-[0_0_24px_rgba(102,192,244,0.35)] sm:text-5xl">
+          Share<span className="text-steam-blue">Staq</span>
+        </p>
         <h1 className="text-2xl font-bold text-steam-text">ログイン</h1>
         <p className="mt-2 text-sm text-steam-muted">招待されたメンバーのみアクセスできます</p>
       </div>

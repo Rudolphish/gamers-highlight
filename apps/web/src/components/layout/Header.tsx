@@ -34,13 +34,9 @@ export function Header() {
     <header className="sticky top-0 z-20 border-b border-steam-border bg-steam-bg/95 backdrop-blur-lg">
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <Link href="/" className="flex items-center gap-3">
-          <img
-            src="/logo.png"
-            alt="ShareStaq"
-            referrerPolicy="no-referrer"
-            className="h-9 w-auto object-contain sm:h-10"
-          />
-          <p className="hidden font-display text-sm text-steam-muted sm:block">スクショをまとめて共有</p>
+          <span className="font-display text-xl font-black tracking-tight text-steam-text sm:text-2xl">
+            Share<span className="text-steam-blue">Staq</span>
+          </span>
         </Link>
 
         <div className="flex items-center gap-3">

@@ -30,13 +30,12 @@ export function Sidebar() {
   return (
     <aside className="flex w-20 flex-shrink-0 flex-col border-r border-steam-border bg-steam-panel py-4">
       <div className="mb-6 flex items-center justify-center px-2">
-        <Link href="/" className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-steam-border/50 bg-steam-panel shadow-lg shadow-steam-blue/10 hover:border-steam-blue transition">
-          <img
-            src="/icon.png"
-            alt="ShareStaq"
-            referrerPolicy="no-referrer"
-            className="h-full w-full object-cover"
-          />
+        <Link
+          href="/"
+          aria-label="ShareStaq ホーム"
+          className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-steam-border/50 bg-gradient-to-br from-steam-blue/20 to-steam-panel shadow-lg shadow-steam-blue/10 hover:border-steam-blue transition"
+        >
+          <span className="font-display text-sm font-black tracking-tight text-steam-blue">SS</span>
         </Link>
       </div>
 
