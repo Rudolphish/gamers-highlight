@@ -407,3 +407,37 @@
 - 懸念点・確認してほしいこと:
   - 実機で新しい価格情報パネルの見た目を確認してほしい
   - `ITAD_API_KEY`のVercel本番環境変数設定はまだ済んでいない点は変わらず（上記の懸念点を参照）
+
+## [Phase 6] ジャンル基盤・ジャンルフィルタ・サジェスト機能・アルバム⇔ゲーム連携
+
+- 日時: 2026-08-07
+- 担当ツール: Claude（直接実装）
+- 変更ファイル:
+  - `packages/db/schema.prisma`（変更：`GroupGame`に`genres String[] @default([])`と`albumId String? @unique`を追加、`Album`に逆参照`groupGame GroupGame?`を追加）
+  - `apps/web/src/lib/steam.ts`（変更：`getSteamGenres`〈appdetailsから英語ジャンル名取得〉、`GENRE_LABEL_JA`/`translateGenre`〈日本語表示ラベル〉、`searchSteamByGenre`〈ジャンル別のストア内検索〉を追加）
+  - `apps/web/src/app/api/groups/[id]/games/route.ts`（変更：ゲーム追加時にジャンルを自動取得・保存。`albumId`を受け取り、既存ゲームへの再紐付け／新規作成時の紐付けに対応）
+  - `apps/web/src/components/group/GroupGameList.tsx`（変更：`genres`をカードに表示、ジャンルフィルタ行を追加）
+  - `apps/web/src/components/group/SuggestedGames.tsx`（新規：ジャンルベースのサジェストUI、ワンクリック追加）
+  - `apps/web/src/app/(main)/groups/[groupId]/page.tsx`（変更：グループの既存ゲームのジャンル頻度を集計し最頻出ジャンルでサジェストを取得、`SuggestedGames`を表示）
+  - `apps/web/src/components/album/SteamCoverPicker.tsx`（変更：検索結果の各行に「サムネイルに設定」「グループのゲームリストに追加」の2アクションボタンを用意。連携済みの場合は緑チェックマーク表示）
+  - `apps/web/src/app/(main)/albums/[albumId]/page.tsx`（変更：`groupGame`をincludeし、連携済みなら見出し下に「ゲーム詳細を見る」リンクを表示。`SteamCoverPicker`に`groupId`/`linkedGameId`を渡す）
+- 変更内容の要約:
+  - ユーザーからの一括要望「検索・サジェスト・ジャンルタグ・アルバム⇔ゲーム連携」を A（ジャンル基盤）→D（アルバム連携）→B（ジャンルフィルタ）→C（サジェスト）の順で実施
+  - `searchSteamByGenre`はSteamストアの検索ページが内部で使う軽量JSONエンドポイント（`/search/results/?genre=...&json=1`）を利用。レスポンスにapp IDが含まれないため、サムネイル画像URL（`/apps/<id>/...`）のパスから正規表現で抽出する方式を採用。実データ（Elden Ring→"Action"ジャンル→検索）で疎通確認済み
+  - ジャンルは`appdetails`の英語表記（"Action"等）をそのまま検索キー・DB保存値として使い、表示のみ`GENRE_LABEL_JA`で日本語に変換する設計（検索エンドポイントの`genre=`パラメータが英語名を要求するため、内部値は英語で統一）
+  - サジェストは「グループの既存ゲーム全体でのジャンル出現頻度が最も高いジャンル」を1つ選び、そのジャンルのSteam人気ゲームから未追加のものを最大4件提示する簡易ルールベース。VIEWER権限には表示しない（`canEditGames`でガード）
+  - アルバム⇔ゲーム連携は`GroupGame.albumId`の`@unique`制約で1アルバム=最大1ゲームを担保。POST `/api/groups/:id/games`にalbumIdを渡した場合、同じゲームが既にリストにあれば再紐付け（冪等）、無ければ新規作成＋紐付けを行う。アルバムが既に別のゲームと紐付いている場合は409で弾く
+- 完了条件チェック:
+  - [x] ゲーム追加時に自動でジャンルが取得・保存される
+  - [x] グループのゲームリストをジャンルで絞り込める（複数ジャンル所属時は該当する全フィルタに表示）
+  - [x] 「気になっているゲーム」内に最頻出ジャンルからのサジェストが表示され、ワンクリックで追加できる
+  - [x] アルバムのSteam連携モーダルから「グループのゲームリストに追加」ができ、アルバム詳細ページから該当ゲームの詳細画面に遷移できる
+  - [x] 既に別のアルバムと紐付いているゲームへの二重紐付けは409で拒否される
+- 実行したコマンド:
+  - `prisma db push --accept-data-loss`（直接接続。`albumId`のユニーク制約追加に伴う警告だが、既存データは全てNULLのため安全と判断）
+  - 実データでの動作確認：`getSteamGenres(1245620)`→`["Action","RPG"]`、`searchSteamByGenre("Action")`→5件の実在ゲームを正しいapp ID付きで取得
+  - `pnpm --filter web build`（成功）
+- 懸念点・確認してほしいこと:
+  - 実機で一連の操作（ジャンルフィルタ、サジェストからの追加、アルバムからのゲームリスト追加・ゲーム詳細への遷移）を確認してほしい
+  - `searchSteamByGenre`はSteamの内部検索エンドポイントの応答形式（app IDが直接返らずCDN画像URLから抽出する必要がある点）に依存しており、Steam側の仕様変更で壊れる可能性はゼロではない（ただしHowLongToBeatほど頻繁に変わる想定はしていない）
+  - 既存のGroupGame（このセッション以前に追加されたもの）には`genres`が空配列のまま残る。遡及的なジャンル取得バッチは未実装

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, X, Search, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { translateGenre } from "@/lib/steam";
 
 type GameStatus = "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
 
@@ -14,6 +15,7 @@ type GroupGameItem = {
   title: string;
   coverUrl: string | null;
   status: GameStatus;
+  genres: string[];
   addedByName: string;
 };
 
@@ -46,6 +48,7 @@ export function GroupGameList({
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<GameStatus | "ALL">("ALL");
+  const [genreFilter, setGenreFilter] = useState<string | "ALL">("ALL");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SteamResult[]>([]);
@@ -55,7 +58,13 @@ export function GroupGameList({
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const filteredGames = filter === "ALL" ? games : games.filter((g) => g.status === filter);
+  const allGenres = Array.from(new Set(games.flatMap((g) => g.genres))).sort();
+
+  const filteredGames = games.filter(
+    (g) =>
+      (filter === "ALL" || g.status === filter) &&
+      (genreFilter === "ALL" || g.genres.includes(genreFilter))
+  );
 
   async function handleSearch() {
     const trimmed = query.trim();
@@ -175,6 +184,34 @@ export function GroupGameList({
         )}
       </div>
 
+      {allGenres.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setGenreFilter("ALL")}
+            className={`rounded-sm border px-2 py-1 font-mono text-[10px] transition ${
+              genreFilter === "ALL"
+                ? "border-steam-blue text-steam-blue"
+                : "border-steam-border text-steam-muted hover:border-steam-blue"
+            }`}
+          >
+            全ジャンル
+          </button>
+          {allGenres.map((g) => (
+            <button
+              key={g}
+              onClick={() => setGenreFilter(g)}
+              className={`rounded-sm border px-2 py-1 font-mono text-[10px] transition ${
+                genreFilter === g
+                  ? "border-steam-blue text-steam-blue"
+                  : "border-steam-border text-steam-muted hover:border-steam-blue"
+              }`}
+            >
+              {translateGenre(g)}
+            </button>
+          ))}
+        </div>
+      )}
+
       {filteredGames.length === 0 ? (
         <p className="mt-4 font-mono text-sm text-steam-muted">
           まだゲームが登録されていません。
@@ -203,6 +240,18 @@ export function GroupGameList({
                   <p className="truncate font-mono text-[9px] text-steam-muted/70">
                     {game.addedByName}が追加
                   </p>
+                  {game.genres.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {game.genres.slice(0, 2).map((g) => (
+                        <span
+                          key={g}
+                          className="rounded-sm bg-steam-panel px-1 py-0.5 font-mono text-[8px] text-steam-muted"
+                        >
+                          {translateGenre(g)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </Link>
               <div className="p-2">

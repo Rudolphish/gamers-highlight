@@ -9,8 +9,9 @@ import { GroupShareModal } from "@/components/group/GroupShareModal";
 import { GroupNameEditor } from "@/components/group/GroupNameEditor";
 import { DeleteGroupButton } from "@/components/group/DeleteGroupButton";
 import { GroupGameList } from "@/components/group/GroupGameList";
+import { SuggestedGames } from "@/components/group/SuggestedGames";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
-import { steamHeaderImageUrl } from "@/lib/steam";
+import { steamHeaderImageUrl, searchSteamByGenre } from "@/lib/steam";
 
 // グループ詳細画面：名前編集、メンバー管理、配下アルバム一覧
 export default async function GroupDetailPage({ params }: { params: { groupId: string } }) {
@@ -51,8 +52,29 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
     title: g.title,
     coverUrl: g.coverUrl,
     status: g.status,
+    genres: g.genres,
     addedByName: g.addedBy.name ?? g.addedBy.email ?? "メンバー",
   }));
+
+  // サジェスト：グループの既存ゲームで一番多いジャンルから、未追加のSteam人気ゲームを提案する簡易ルールベース
+  const genreCounts = new Map<string, number>();
+  for (const g of group.games) {
+    for (const genre of g.genres) {
+      genreCounts.set(genre, (genreCounts.get(genre) ?? 0) + 1);
+    }
+  }
+  const topGenre = [...genreCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+  let suggestions: Awaited<ReturnType<typeof searchSteamByGenre>> = [];
+  if (topGenre && canEditGames) {
+    const existingAppIds = new Set(group.games.map((g) => g.steamAppId));
+    try {
+      const candidates = await searchSteamByGenre(topGenre, 20);
+      suggestions = candidates.filter((c) => !existingAppIds.has(c.appId)).slice(0, 4);
+    } catch {
+      suggestions = [];
+    }
+  }
 
   const shareMembers = [
     {
@@ -150,6 +172,9 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       <div className="mt-8">
         <CollapsibleSection title="気になっているゲーム">
           <GroupGameList groupId={group.id} games={gameCards} canEdit={canEditGames} />
+          {topGenre && (
+            <SuggestedGames groupId={group.id} genre={topGenre} suggestions={suggestions} />
+          )}
         </CollapsibleSection>
       </div>
     </main>

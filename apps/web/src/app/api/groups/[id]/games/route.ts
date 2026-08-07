@@ -3,12 +3,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
+import { getSteamGenres } from "@/lib/steam";
 import { z } from "zod";
 
 const addGameSchema = z.object({
   steamAppId: z.number().int().positive(),
   title: z.string().trim().min(1).max(200),
   coverUrl: z.string().trim().url().optional(),
+  albumId: z.string().trim().min(1).optional(),
 });
 
 // GET /api/groups/:id/games … グループが共有しているゲームリスト一覧
@@ -31,7 +33,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return NextResponse.json({ games });
 }
 
-// POST /api/groups/:id/games … ゲームをグループのリストに追加（デフォルトWISHLIST）
+// POST /api/groups/:id/games … ゲームをグループのリストに追加（デフォルトWISHLIST）。
+// albumIdを渡すと、そのアルバムと紐付ける（アルバム側のSteam連携から呼ばれる想定）。
+// 既に同じゲームがリストにある場合、albumId無しなら409、albumId付きならそのアルバムと紐付け直す（冪等）。
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   const user = session?.user?.email
@@ -47,13 +51,37 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
+  const { albumId } = parsed.data;
+
+  if (albumId) {
+    const album = await db.album.findUnique({ where: { id: albumId }, select: { groupId: true } });
+    if (!album || album.groupId !== params.id) {
+      return NextResponse.json({ error: "invalid album" }, { status: 400 });
+    }
+
+    const albumLinked = await db.groupGame.findUnique({ where: { albumId } });
+    if (albumLinked && albumLinked.steamAppId !== parsed.data.steamAppId) {
+      return NextResponse.json({ error: "このアルバムは既に別のゲームと紐付いています" }, { status: 409 });
+    }
+  }
 
   const existing = await db.groupGame.findUnique({
     where: { groupId_steamAppId: { groupId: params.id, steamAppId: parsed.data.steamAppId } },
   });
+
   if (existing) {
-    return NextResponse.json({ error: "このゲームは既にリストに追加されています" }, { status: 409 });
+    if (!albumId) {
+      return NextResponse.json({ error: "このゲームは既にリストに追加されています" }, { status: 409 });
+    }
+    const updated = await db.groupGame.update({
+      where: { id: existing.id },
+      data: { albumId },
+      include: { addedBy: true },
+    });
+    return NextResponse.json({ game: updated });
   }
+
+  const genres = await getSteamGenres(parsed.data.steamAppId).catch(() => []);
 
   const game = await db.groupGame.create({
     data: {
@@ -61,6 +89,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       steamAppId: parsed.data.steamAppId,
       title: parsed.data.title,
       coverUrl: parsed.data.coverUrl,
+      albumId,
+      genres,
       addedById: user.id,
     },
     include: { addedBy: true },

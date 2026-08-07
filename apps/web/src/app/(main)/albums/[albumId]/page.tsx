@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import { Gamepad2 } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -24,6 +26,7 @@ export default async function AlbumDetailPage({
     include: {
       members: { include: { user: true } },
       owner: true,
+      groupGame: true,
     },
   });
   if (!album) notFound();
@@ -78,6 +81,14 @@ export default async function AlbumDetailPage({
             {album.title}
           </h1>
           <p className="mt-1 font-mono text-xs text-steam-muted">{memberNames.join(" / ")}</p>
+          {album.groupGame && (
+            <Link
+              href={`/groups/${album.groupId}/games/${album.groupGame.id}`}
+              className="mt-1 inline-flex items-center gap-1 font-mono text-[11px] text-steam-blue hover:underline"
+            >
+              <Gamepad2 size={12} /> ゲーム詳細を見る
+            </Link>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <ShareModal
@@ -89,8 +100,10 @@ export default async function AlbumDetailPage({
           {isOwner && (
             <SteamCoverPicker
               albumId={album.id}
+              groupId={album.groupId}
               initialQuery={album.gameTitle ?? album.title}
               hasSteamCover={album.steamAppId !== null}
+              linkedGameId={album.groupGame?.id}
             />
           )}
           {isOwner && <DeleteAlbumButton albumId={album.id} groupId={album.groupId} />}

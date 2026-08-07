@@ -99,12 +99,15 @@ model GroupGame {
   title      String
   coverUrl   String?
   status     GroupGameStatus @default(WISHLIST)
+  genres     String[]        @default([]) // Steam appdetailsの英語ジャンル名（例: "Action", "RPG"）
+  albumId    String?         @unique // 紐付け元のアルバム（あれば）。1アルバム=最大1ゲームを想定
   addedById  String
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 
-  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  addedBy User  @relation("GroupGameAddedBy", fields: [addedById], references: [id])
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  album   Album? @relation(fields: [albumId], references: [id], onDelete: SetNull)
+  addedBy User   @relation("GroupGameAddedBy", fields: [addedById], references: [id])
 
   @@unique([groupId, steamAppId])
   @@index([groupId])
@@ -145,6 +148,7 @@ model Album {
   members             AlbumMember[]
   discordAutoMappings DiscordChannelMapping[]
   discordGameTags     DiscordGameTag[]
+  groupGame           GroupGame?
 
   @@index([ownerId])
   @@index([groupId])

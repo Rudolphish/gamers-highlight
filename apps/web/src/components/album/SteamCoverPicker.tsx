@@ -2,19 +2,23 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Gamepad2, X, Search } from "lucide-react";
+import { Gamepad2, X, Search, ListPlus, Check } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 
 type SteamResult = { appId: number; name: string; thumbnail: string };
 
 export function SteamCoverPicker({
   albumId,
+  groupId,
   initialQuery,
   hasSteamCover,
+  linkedGameId,
 }: {
   albumId: string;
+  groupId: string;
   initialQuery: string;
   hasSteamCover: boolean;
+  linkedGameId?: string | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -22,6 +26,7 @@ export function SteamCoverPicker({
   const [results, setResults] = useState<SteamResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [applyingId, setApplyingId] = useState<number | null>(null);
+  const [addingId, setAddingId] = useState<number | null>(null);
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
@@ -60,6 +65,29 @@ export function SteamCoverPicker({
       setError("画像の設定に失敗しました");
     } finally {
       setApplyingId(null);
+    }
+  }
+
+  async function addToGroupList(appId: number, name: string) {
+    setAddingId(appId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/groups/${groupId}/games`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          steamAppId: appId,
+          title: name,
+          coverUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`,
+          albumId,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      router.refresh();
+    } catch {
+      setError("グループのゲームリストへの追加に失敗しました");
+    } finally {
+      setAddingId(null);
     }
   }
 
@@ -124,21 +152,46 @@ export function SteamCoverPicker({
 
             <div className="mt-3 flex max-h-72 flex-col gap-2 overflow-y-auto">
               {results.map((r) => (
-                <button
+                <div
                   key={r.appId}
-                  onClick={() => applyCover(r.appId)}
-                  disabled={applyingId !== null}
-                  className="flex items-center gap-3 rounded-sm border border-steam-border bg-steam-panel p-2 text-left transition hover:border-steam-blue disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-sm border border-steam-border bg-steam-panel p-2"
                 >
                   <img src={r.thumbnail} alt="" className="h-10 w-16 flex-shrink-0 rounded-sm object-cover" />
                   <span className="min-w-0 flex-1 truncate font-mono text-xs text-steam-text">{r.name}</span>
-                  {applyingId === r.appId && <Spinner size={14} className="flex-shrink-0" />}
-                </button>
+                  <button
+                    onClick={() => applyCover(r.appId)}
+                    disabled={applyingId !== null}
+                    title="サムネイルに設定"
+                    className="flex-shrink-0 rounded-sm border border-steam-border p-1.5 text-steam-muted transition hover:border-steam-blue hover:text-steam-text disabled:opacity-50"
+                  >
+                    {applyingId === r.appId ? <Spinner size={13} /> : <Gamepad2 size={13} />}
+                  </button>
+                  <button
+                    onClick={() => addToGroupList(r.appId, r.name)}
+                    disabled={addingId !== null}
+                    title="グループのゲームリストに追加"
+                    className="flex-shrink-0 rounded-sm border border-steam-border p-1.5 text-steam-muted transition hover:border-steam-blue hover:text-steam-text disabled:opacity-50"
+                  >
+                    {addingId === r.appId ? (
+                      <Spinner size={13} />
+                    ) : linkedGameId ? (
+                      <Check size={13} />
+                    ) : (
+                      <ListPlus size={13} />
+                    )}
+                  </button>
+                </div>
               ))}
               {searched && !searching && results.length === 0 && (
                 <p className="font-mono text-[11px] text-steam-muted/70">見つかりませんでした</p>
               )}
             </div>
+
+            {linkedGameId && (
+              <p className="mt-2 flex items-center gap-1 font-mono text-[10px] text-[#a4d007]">
+                <Check size={11} /> このアルバムはグループのゲームリストと連携済みです
+              </p>
+            )}
 
             {hasSteamCover && (
               <button

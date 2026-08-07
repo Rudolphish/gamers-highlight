@@ -92,6 +92,79 @@ export async function getSteamPriceInfo(appId: number): Promise<SteamPriceInfo |
   };
 }
 
+// Steamの英語ジャンル名（appdetailsの標準表記）→ 日本語表示ラベル。
+// マップに無いジャンルはそのまま英語表記で表示する（フォールバック）。
+export const GENRE_LABEL_JA: Record<string, string> = {
+  Action: "アクション",
+  Adventure: "アドベンチャー",
+  Casual: "カジュアル",
+  "Early Access": "早期アクセス",
+  "Free to Play": "基本プレイ無料",
+  Indie: "インディー",
+  "Massively Multiplayer": "MMO",
+  RPG: "RPG",
+  Racing: "レース",
+  Simulation: "シミュレーション",
+  Sports: "スポーツ",
+  Strategy: "ストラテジー",
+  "Game Development": "ゲーム開発",
+};
+
+export function translateGenre(genre: string): string {
+  return GENRE_LABEL_JA[genre] ?? genre;
+}
+
+/** ジャンル（英語の正規名。例: "Action", "RPG"）を取得する。検索・サジェストの照合キーとして使う */
+export async function getSteamGenres(appId: number): Promise<string[]> {
+  const url = `https://store.steampowered.com/api/appdetails?appids=${appId}&cc=jp`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  const entry = data?.[String(appId)];
+  if (!entry?.success) return [];
+
+  const genres: unknown[] = Array.isArray(entry.data?.genres) ? entry.data.genres : [];
+  return genres
+    .filter(
+      (g): g is { description: string } =>
+        typeof g === "object" && g !== null && typeof (g as { description?: unknown }).description === "string"
+    )
+    .map((g) => g.description);
+}
+
+export type SteamGenreSearchResult = {
+  appId: number;
+  name: string;
+  thumbnail: string;
+};
+
+/**
+ * ジャンル名（getSteamGenresが返す英語表記、例: "Action"）でSteamストアの人気ゲームを検索する。
+ * ストア検索ページが内部で使う軽量エンドポイントを使用（APIキー不要）。
+ * レスポンスにapp IDが含まれないため、サムネイル画像URLのパスから抽出する。
+ */
+export async function searchSteamByGenre(genre: string, count = 10): Promise<SteamGenreSearchResult[]> {
+  const url = `https://store.steampowered.com/search/results/?query&genre=${encodeURIComponent(genre)}&cc=jp&l=japanese&json=1`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  const items: unknown[] = Array.isArray(data?.items) ? data.items : [];
+
+  const results: SteamGenreSearchResult[] = [];
+  for (const item of items) {
+    if (typeof item !== "object" || item === null) continue;
+    const { name, logo } = item as { name?: unknown; logo?: unknown };
+    if (typeof name !== "string" || typeof logo !== "string") continue;
+    const match = logo.match(/\/apps\/(\d+)\//);
+    if (!match) continue;
+    results.push({ appId: Number(match[1]), name, thumbnail: logo });
+    if (results.length >= count) break;
+  }
+  return results;
+}
+
 export type SteamNewsItem = {
   id: string;
   title: string;
