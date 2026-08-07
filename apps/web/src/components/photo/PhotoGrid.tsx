@@ -13,6 +13,10 @@ type Media = {
   thumbnailUrl?: string | null;
   durationSeconds?: number | null;
   canDelete?: boolean;
+  capturedAt?: string | null;
+  gameTitle?: string | null;
+  uploaderName?: string | null;
+  albumTitle?: string | null;
 };
 
 export function PhotoGrid({ photos }: { photos: Media[] }) {
@@ -20,6 +24,14 @@ export function PhotoGrid({ photos }: { photos: Media[] }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const selectedPhoto = selectedIndex !== null ? photos[selectedIndex] : null;
+
+  // メタ情報系のいずれかのpropsが渡されているページ（アルバム詳細）でのみ情報パネルを有効にする
+  const hasMeta =
+    selectedPhoto !== null &&
+    (selectedPhoto.capturedAt !== undefined ||
+      selectedPhoto.gameTitle !== undefined ||
+      selectedPhoto.uploaderName !== undefined ||
+      selectedPhoto.albumTitle !== undefined);
 
   return (
     <>
@@ -31,14 +43,21 @@ export function PhotoGrid({ photos }: { photos: Media[] }) {
               setSelectedIndex(index);
               console.log("Selected photo index:", index);
             }}
-            className="relative aspect-square overflow-hidden rounded-sm border border-steam-border cursor-pointer hover:border-steam-blue hover:brightness-110 transition"
+            className="relative aspect-square overflow-hidden rounded-sm border border-steam-border cursor-pointer hover:border-steam-blue hover:brightness-110 hover:shadow-[0_0_16px_-2px_rgba(102,192,244,0.5)] transition"
           >
-            {item.mediaType === "VIDEO" && !item.thumbnailUrl ? (
+            {item.mediaType === "VIDEO" ? (
               <video
                 src={item.mediaUrl}
+                poster={item.thumbnailUrl ?? undefined}
                 preload="metadata"
                 muted
+                loop
                 className="h-full w-full object-cover"
+                onMouseEnter={(e) => e.currentTarget.play()}
+                onMouseLeave={(e) => {
+                  e.currentTarget.pause();
+                  e.currentTarget.currentTime = 0;
+                }}
               />
             ) : (
               <LoadingImage
@@ -71,6 +90,16 @@ export function PhotoGrid({ photos }: { photos: Media[] }) {
           }}
           hasPrev={selectedIndex > 0}
           hasNext={selectedIndex < photos.length - 1}
+          meta={
+            hasMeta
+              ? {
+                  capturedAt: selectedPhoto.capturedAt,
+                  gameTitle: selectedPhoto.gameTitle,
+                  uploaderName: selectedPhoto.uploaderName,
+                  albumTitle: selectedPhoto.albumTitle,
+                }
+              : undefined
+          }
         />
       )}
     </>

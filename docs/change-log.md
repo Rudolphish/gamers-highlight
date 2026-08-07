@@ -236,3 +236,55 @@
 1. 新しいセッションを始める際、プロンプトの冒頭で明示的に「auth.ts、db.ts、middleware.ts、.npmrc、package.jsonは絶対に編集禁止。エラーが起きても報告のみ」と繰り返し伝える
 2. エラーが出た場合は、AI Studioに直接修正させず、必ずClaudeにログを貼って調査依頼する運用に変える
 3. 可能であれば、これらのファイルだけ別途バックアップ（コピー）を残しておき、差分検知しやすくする
+
+## [T11, T12, T13] Phase 2 UIブラッシュアップ（ホバー発光・動画プレビュー・メタ情報パネル）
+
+- 日時: 2026-08-07
+- 担当ツール: Claude（今回はユーザーの希望によりAI Studioを介さず直接実装）
+- 変更ファイル:
+  - `apps/web/src/components/album/AlbumCard.tsx`（変更、classNameのみ）
+  - `apps/web/src/components/photo/PhotoGrid.tsx`（変更）
+  - `apps/web/src/components/photo/Lightbox.tsx`（変更）
+  - `apps/web/src/app/(main)/albums/[albumId]/page.tsx`（変更）
+- 変更内容の要約:
+  - T11: `AlbumCard.tsx`の外側divと`PhotoGrid.tsx`のサムネイルdivに、hover時のsteam-blueベースのbox-shadow発光を追加（classNameのみ、ロジック不変）
+  - T12: `PhotoGrid.tsx`の動画サムネイルを、`thumbnailUrl`の有無に関わらず常に`<video>`要素（`poster`属性でサムネイル表示）としてレンダリングするよう変更。`onMouseEnter`/`onMouseLeave`で再生/停止＋先頭に巻き戻し、`loop`属性を追加。既存の`onClick`（ライトボックスを開く）はそのまま維持
+  - T13: `Lightbox.tsx`に`meta`（`capturedAt`/`gameTitle`/`uploaderName`/`albumTitle`、いずれもoptional）propsを追加し、`meta`が渡された場合のみ左上に情報ボタンを表示、クリックで右下にメタ情報パネルをトグル表示。`PhotoGrid.tsx`の`Media`型に同フィールドを追加し、いずれかが渡されている場合のみ`Lightbox`へ`meta`を組み立てて渡す設計にすることで、検索ページ・ホーム画面（`RecentActivity`）には影響しないようにした。アルバム詳細ページ側で`db.photo.findMany`に`include: { uploader: true }`を追加し、`capturedAt`（ISO文字列化）・`gameTitle`・投稿者名・アルバム名を`PhotoGrid`に渡すよう変更
+- 完了条件チェック:
+  - [x] T11: ホバー時に両コンポーネントで浅い発光が見える／クリック動作・ズームは不変／classNameのみの変更
+  - [x] T12: ホバーで自動再生・離すと停止して先頭に戻る／音声なし／サムネイルクリックは引き続き動作／画像サムネイルには影響なし
+  - [x] T13: アルバム詳細ページで情報ボタンから撮影日・ゲーム名・投稿者名・アルバム名を表示／未設定項目は「-」表示／Prev/Next/Closeは引き続き動作／検索ページ・ホーム画面は変更していない
+- 実行したコマンド:
+  - `pnpm --filter web build`（成功。既存のESLint未インストール警告以外エラーなし）
+- 懸念点・確認してほしいこと:
+  - T12で仕様を一部拡張した：タスク原文は「`thumbnailUrl`が無い動画のみ`<video>`を使う」既存構造を前提にしていたが、`thumbnailUrl`がある動画もホバープレビューできるよう、常に`<video poster=...>`を使う形に変更した。見た目（静止画表示）は`poster`表示により変化しないと判断しているが、念のため実機で動画付きアルバムのホバー動作を確認してほしい
+  - `auth.ts`/`db.ts`/`.npmrc`/ルート`package.json`/`middleware.ts`は今回一切触れていない
+
+## [Phase 6] GroupGame（グループ共有ゲームリスト）の基盤実装
+
+- 日時: 2026-08-07
+- 担当ツール: Claude（直接実装）
+- 変更ファイル:
+  - `packages/db/schema.prisma`（変更：`GroupGameStatus` enum、`GroupGame`モデル、`Group.games`/`User.addedGroupGames`リレーションを追加）
+  - `apps/web/src/app/api/groups/[id]/games/route.ts`（新規：GET一覧・POST追加）
+  - `apps/web/src/app/api/groups/[id]/games/[gameId]/route.ts`（新規：PATCHステータス変更・DELETE削除）
+  - `apps/web/src/components/group/GroupGameList.tsx`（新規：ステータスフィルタ・Steam検索追加モーダル・ステータス変更UI）
+  - `apps/web/src/app/(main)/groups/[groupId]/page.tsx`（変更：ゲームリストセクションを追加）
+- 変更内容の要約:
+  - roadmap.mdのPhase 6着手にあたり、まずデータ設計（`GroupGame`）とその表示・追加・ステータス変更・削除の一通りのCRUD UIを実装
+  - `GroupGame`は`[groupId, steamAppId]`でユニーク制約。ステータスは`WISHLIST`/`PLAYING`/`BACKLOG`/`COMPLETED`の4種（roadmap.mdの旧Phase5「プレイ状態管理」をここに統合）
+  - ゲーム追加は既存の`/api/steam/search`（Steamストア検索プロキシ）を再利用し、`SteamCoverPicker.tsx`と同様のモーダルUXを踏襲
+  - 権限は既存の`hasGroupPermission`をそのまま使用（閲覧はVIEWER以上、追加/ステータス変更/削除はEDITOR以上）。API側では`update`/`delete`のwhere句に`groupId`も含め、他グループのgameIdを誤って/不正に操作できないようにガード
+  - Albumとの関連付け（`GroupGame.albumId`）は今回のスコープ外（roadmap.mdのタスク項目通り、必要になった時点で追加）
+- 完了条件チェック:
+  - [x] グループ詳細ページでゲームの追加・一覧表示ができる
+  - [x] ステータス変更（プレイ中/クリア済み/積みゲー/気になる）ができ、フィルタタブで絞り込める
+  - [x] VIEWER権限のメンバーには編集UI（追加ボタン・ステータス変更・削除）が表示されない
+  - [x] 同じゲームを重複追加しようとすると409エラーになる
+- 実行したコマンド:
+  - `pnpm --filter db generate`
+  - `prisma db push`（**注意**：通常の`DATABASE_URL`＝pgbouncerプーラー経由だとハングして返ってこない事象が発生。`.env`に追加した`DATABASE_DIRECT_CONNECT`＝Supabaseの直接接続文字列に切り替えて実行したところ588msで成功。詳細はCLAUDE.mdに追記済み）
+  - `pnpm --filter web build`（成功）
+- 懸念点・確認してほしいこと:
+  - 実機でグループ詳細ページの「気になっているゲーム」セクションからゲーム追加・ステータス変更・削除の一通りの操作を確認してほしい
+  - `spec.md`のDBスキーマ一覧は今回更新していない（現状`GroupGame`の記載なし。後日まとめて同期する想定）

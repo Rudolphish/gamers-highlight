@@ -25,6 +25,13 @@ enum PhotoSource {
   DISCORD
 }
 
+enum GroupGameStatus {
+  WISHLIST
+  PLAYING
+  BACKLOG
+  COMPLETED
+}
+
 enum MediaType {
   IMAGE
   VIDEO
@@ -59,6 +66,7 @@ model User {
   gameTags         DiscordGameTag[]
   ownedGroups      Group[]                @relation("GroupOwner")
   groupMemberships GroupMember[]
+  addedGroupGames  GroupGame[]            @relation("GroupGameAddedBy")
 
   @@map("users")
 }
@@ -76,8 +84,31 @@ model Group {
   owner   User          @relation("GroupOwner", fields: [ownerId], references: [id])
   albums  Album[]
   members GroupMember[]
+  games   GroupGame[]
 
   @@map("groups")
+}
+
+// グループ単位で共有される「気になっている/遊んでいるゲーム」リスト（柱2）。
+// 個人のウィッシュリスト/ライブラリはSteam自体で完結するため作らず、
+// あくまで「このグループとして」のステータスのみを管理する。
+model GroupGame {
+  id         String          @id @default(cuid())
+  groupId    String
+  steamAppId Int
+  title      String
+  coverUrl   String?
+  status     GroupGameStatus @default(WISHLIST)
+  addedById  String
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  addedBy User  @relation("GroupGameAddedBy", fields: [addedById], references: [id])
+
+  @@unique([groupId, steamAppId])
+  @@index([groupId])
+  @@map("group_games")
 }
 
 model GroupMember {

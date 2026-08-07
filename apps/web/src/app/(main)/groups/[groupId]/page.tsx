@@ -8,6 +8,7 @@ import { AlbumGrid } from "@/components/album/AlbumGrid";
 import { GroupShareModal } from "@/components/group/GroupShareModal";
 import { GroupNameEditor } from "@/components/group/GroupNameEditor";
 import { DeleteGroupButton } from "@/components/group/DeleteGroupButton";
+import { GroupGameList } from "@/components/group/GroupGameList";
 import { steamHeaderImageUrl } from "@/lib/steam";
 
 // グループ詳細画面：名前編集、メンバー管理、配下アルバム一覧
@@ -31,11 +32,26 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
           _count: { select: { photos: true, members: true } },
         },
       },
+      games: {
+        orderBy: { createdAt: "desc" },
+        include: { addedBy: true },
+      },
     },
   });
   if (!group) notFound();
 
   const isOwner = currentUser?.id === group.ownerId;
+  const currentMembership = group.members.find((m) => m.userId === currentUser?.id);
+  const canEditGames = isOwner || currentMembership?.role === "EDITOR";
+
+  const gameCards = group.games.map((g) => ({
+    id: g.id,
+    steamAppId: g.steamAppId,
+    title: g.title,
+    coverUrl: g.coverUrl,
+    status: g.status,
+    addedByName: g.addedBy.name ?? g.addedBy.email ?? "メンバー",
+  }));
 
   const shareMembers = [
     {
@@ -129,6 +145,15 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
           <AlbumGrid albums={albumCards} />
         </div>
       )}
+
+      <div className="mt-8">
+        <h2 className="font-mono text-xs font-bold uppercase tracking-wide text-steam-muted">
+          気になっているゲーム
+        </h2>
+        <div className="mt-3">
+          <GroupGameList groupId={group.id} games={gameCards} canEdit={canEditGames} />
+        </div>
+      </div>
     </main>
   );
 }

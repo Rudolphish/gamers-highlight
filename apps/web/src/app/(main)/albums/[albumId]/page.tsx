@@ -31,6 +31,7 @@ export default async function AlbumDetailPage({
   const photos = await db.photo.findMany({
     where: { albumId: album.id },
     orderBy: { createdAt: "desc" },
+    include: { uploader: true },
   });
 
   const tags = await db.discordGameTag.findMany({
@@ -117,6 +118,10 @@ export default async function AlbumDetailPage({
               thumbnailUrl: p.thumbnailUrl,
               durationSeconds: p.durationSeconds,
               canDelete: isOwner || p.uploaderId === currentUser?.id,
+              capturedAt: p.capturedAt?.toISOString() ?? null,
+              gameTitle: p.gameTitle,
+              uploaderName: p.uploader.name ?? p.uploader.email,
+              albumTitle: album.title,
             }))}
           />
         )}

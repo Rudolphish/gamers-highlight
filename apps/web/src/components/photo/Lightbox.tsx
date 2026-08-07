@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Trash2, Info } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 
 // メディア詳細（拡大表示）。IMAGE/VIDEO両対応。将来的にコメント機能もここに追加予定。
@@ -16,6 +16,12 @@ type LightboxProps = {
   onDeleted?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  meta?: {
+    capturedAt?: string | null;
+    gameTitle?: string | null;
+    uploaderName?: string | null;
+    albumTitle?: string | null;
+  };
 };
 
 export function Lightbox({
@@ -29,9 +35,11 @@ export function Lightbox({
   onDeleted,
   hasPrev = true,
   hasNext = true,
+  meta,
 }: LightboxProps) {
   const [loaded, setLoaded] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showMeta, setShowMeta] = useState(false);
 
   async function handleDelete() {
     if (!photoId) return;
@@ -74,6 +82,22 @@ export function Lightbox({
         }
       }}
     >
+      {/* 情報パネル切り替えボタン */}
+      {meta && (
+        <div className="absolute top-4 left-4 z-10">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMeta((v) => !v);
+            }}
+            className="rounded-full bg-black/60 p-2 text-white/80 hover:bg-black hover:text-white transition"
+            aria-label="情報を表示"
+          >
+            <Info size={20} />
+          </button>
+        </div>
+      )}
+
       {/* 閉じる・削除ボタン */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
         {canDelete && photoId && (
@@ -146,6 +170,31 @@ export function Lightbox({
         >
           <ChevronRight size={28} />
         </button>
+      )}
+
+      {/* メタ情報サイドパネル */}
+      {meta && showMeta && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute bottom-4 right-4 z-10 w-64 space-y-2 rounded-sm border border-steam-border bg-steam-surface/95 p-3 font-mono text-xs text-steam-text"
+        >
+          <p>
+            <span className="text-steam-muted">撮影日: </span>
+            {meta.capturedAt ? new Date(meta.capturedAt).toLocaleDateString("ja-JP") : "-"}
+          </p>
+          <p>
+            <span className="text-steam-muted">ゲーム: </span>
+            {meta.gameTitle ?? "-"}
+          </p>
+          <p>
+            <span className="text-steam-muted">投稿者: </span>
+            {meta.uploaderName ?? "-"}
+          </p>
+          <p>
+            <span className="text-steam-muted">アルバム: </span>
+            {meta.albumTitle ?? "-"}
+          </p>
+        </div>
       )}
     </div>
   );
