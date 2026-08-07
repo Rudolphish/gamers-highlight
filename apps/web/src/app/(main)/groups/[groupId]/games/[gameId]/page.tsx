@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Newspaper } from "lucide-react";
+import { ArrowLeft, ExternalLink, Newspaper, TrendingDown } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -11,6 +11,8 @@ import {
   getSteamReviewSummary,
   steamHeaderImageUrl,
 } from "@/lib/steam";
+import { getPriceHistory } from "@/lib/itad";
+import { PriceHistoryChart } from "@/components/group/PriceHistoryChart";
 
 const STATUS_LABEL = {
   WISHLIST: "気になる",
@@ -23,10 +25,32 @@ function settled<T>(result: PromiseSettledResult<T>): T | null {
   return result.status === "fulfilled" ? result.value : null;
 }
 
-// ゲーム詳細ページ：Steamレビュー・現在価格・最新ニュースを1ページに集約する。
+// SteamニュースのcontentsはBBCode/HTMLタグが混じるため、そのまま描画せず
+// タグ類を除去したプレーンテキストの段落配列に変換する（XSS対策）。
+function newsContentToParagraphs(raw: string): string[] {
+  const text = raw
+    .replace(/\[img\][^[]*\[\/img\]/gi, "")
+    .replace(/\[url=[^\]]*\]/gi, "")
+    .replace(/\[\/url\]/gi, "")
+    .replace(/\[[^\]]+\]/g, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+
+  return text
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+// ゲーム詳細ページ：左にSteamの基本情報（レビュー・現在価格・リンク）、
+// 右上に最新ニュースの全文、右下に価格の値動きグラフ（IsThereAnyDeal API）を配置する。
 // いずれも外部サービス依存のため、個別に失敗してもページ全体は壊さずそのセクションだけ非表示にする。
-// HowLongToBeat連携は検討したが、先方が検索APIを頻繁に変更しトークン認証まで要求するため
-// メンテコストに見合わないと判断し見送った（docs/ideas.mdに記録）。
+// HowLongToBeatはライブ連携を2度試みたが断念し、検索ページへの外部リンクのみ設置（docs/ideas.md参照）。
 export default async function GroupGameDetailPage({
   params,
 }: {
@@ -47,15 +71,20 @@ export default async function GroupGameDetailPage({
   });
   if (!game) notFound();
 
-  const [reviewResult, priceResult, newsResult] = await Promise.allSettled([
+  const [reviewResult, priceResult, newsResult, priceHistoryResult] = await Promise.allSettled([
     getSteamReviewSummary(game.steamAppId),
     getSteamPriceInfo(game.steamAppId),
-    getSteamNews(game.steamAppId, 3),
+    getSteamNews(game.steamAppId, 3, 4000),
+    getPriceHistory(game.steamAppId),
   ]);
 
   const reviews = settled(reviewResult);
   const price = settled(priceResult);
   const news = settled(newsResult) ?? [];
+  const priceHistory = settled(priceHistoryResult);
+
+  const [latestNews, ...otherNews] = news;
+  const latestNewsParagraphs = latestNews ? newsContentToParagraphs(latestNews.contents) : [];
 
   const coverUrl = game.coverUrl ?? steamHeaderImageUrl(game.steamAppId);
 
@@ -68,79 +97,115 @@ export default async function GroupGameDetailPage({
         <ArrowLeft size={14} /> {game.group.name}に戻る
       </Link>
 
-      <div className="mt-4 max-w-2xl overflow-hidden rounded-sm border border-steam-border bg-steam-surface">
-        <div className="relative h-48 w-full overflow-hidden bg-steam-panel sm:h-64">
-          <img src={coverUrl} alt={game.title} className="h-full w-full object-cover" />
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* 左：基本情報 */}
+        <div className="overflow-hidden rounded-sm border border-steam-border bg-steam-surface">
+          <div className="relative h-48 w-full overflow-hidden bg-steam-panel sm:h-64">
+            <img src={coverUrl} alt={game.title} className="h-full w-full object-cover" />
+          </div>
+
+          <div className="p-4 sm:p-6">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="rounded-sm border border-steam-blue/50 px-1.5 py-0.5 font-mono text-[10px] text-steam-blue">
+                {STATUS_LABEL[game.status]}
+              </span>
+              {reviews && (
+                <span className="rounded-sm border border-[#a4d007]/50 px-1.5 py-0.5 font-mono text-[10px] text-[#a4d007]">
+                  {reviews.scoreDesc}（{reviews.totalReviews.toLocaleString()}件）
+                </span>
+              )}
+              {price && (
+                <span className="rounded-sm border border-steam-border px-1.5 py-0.5 font-mono text-[10px] text-steam-text">
+                  {price.isFree
+                    ? "無料"
+                    : price.discountPercent > 0
+                      ? `${price.finalFormatted}（-${price.discountPercent}%）`
+                      : price.finalFormatted}
+                </span>
+              )}
+            </div>
+
+            <h1 className="mt-2 font-display text-2xl font-bold text-steam-text sm:text-3xl">
+              {game.title}
+            </h1>
+            <p className="mt-1 font-mono text-xs text-steam-muted">
+              {game.addedBy.name ?? game.addedBy.email ?? "メンバー"}が追加
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <a
+                href={`https://store.steampowered.com/app/${game.steamAppId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
+              >
+                <ExternalLink size={13} /> Steamストアで見る
+              </a>
+              <a
+                href={`https://howlongtobeat.com/?q=${encodeURIComponent(game.title)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-sm border border-steam-border px-3 py-2 font-mono text-xs text-steam-text transition hover:border-steam-blue"
+              >
+                <ExternalLink size={13} /> HowLongToBeatで見る
+              </a>
+            </div>
+          </div>
         </div>
 
-        <div className="p-4 sm:p-6">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-sm border border-steam-blue/50 px-1.5 py-0.5 font-mono text-[10px] text-steam-blue">
-              {STATUS_LABEL[game.status]}
-            </span>
-            {reviews && (
-              <span className="rounded-sm border border-[#a4d007]/50 px-1.5 py-0.5 font-mono text-[10px] text-[#a4d007]">
-                {reviews.scoreDesc}（{reviews.totalReviews.toLocaleString()}件）
-              </span>
-            )}
-            {price && (
-              <span className="rounded-sm border border-steam-border px-1.5 py-0.5 font-mono text-[10px] text-steam-text">
-                {price.isFree
-                  ? "無料"
-                  : price.discountPercent > 0
-                    ? `${price.finalFormatted}（-${price.discountPercent}%）`
-                    : price.finalFormatted}
-              </span>
-            )}
-          </div>
-
-          <h1 className="mt-2 font-display text-2xl font-bold text-steam-text sm:text-3xl">
-            {game.title}
-          </h1>
-          <p className="mt-1 font-mono text-xs text-steam-muted">
-            {game.addedBy.name ?? game.addedBy.email ?? "メンバー"}が追加
-          </p>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <a
-              href={`https://store.steampowered.com/app/${game.steamAppId}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
-            >
-              <ExternalLink size={13} /> Steamストアで見る
-            </a>
-            <a
-              href={`https://howlongtobeat.com/?q=${encodeURIComponent(game.title)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-sm border border-steam-border px-3 py-2 font-mono text-xs text-steam-text transition hover:border-steam-blue"
-            >
-              <ExternalLink size={13} /> HowLongToBeatで見る
-            </a>
-          </div>
-
-          {news.length > 0 && (
-            <div className="mt-6">
+        {/* 右：最新ニュース全文 + 価格の値動き */}
+        <div className="flex flex-col gap-4">
+          {latestNews && (
+            <div className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
               <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-steam-muted">
                 <Newspaper size={12} /> 最新ニュース
               </h2>
-              <div className="mt-2 flex flex-col gap-2">
-                {news.map((item) => (
-                  <a
-                    key={item.id}
-                    href={item.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-sm border border-steam-border bg-steam-panel p-2 transition hover:border-steam-blue"
-                  >
-                    <p className="line-clamp-2 font-mono text-xs text-steam-text">{item.title}</p>
-                    <p className="mt-1 font-mono text-[9px] text-steam-muted/70">
-                      {new Date(item.date * 1000).toLocaleDateString("ja-JP")}
-                    </p>
-                  </a>
-                ))}
+              <a
+                href={latestNews.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 block font-display text-base font-semibold text-steam-text hover:text-steam-blue"
+              >
+                {latestNews.title}
+              </a>
+              <p className="mt-0.5 font-mono text-[9px] text-steam-muted/70">
+                {new Date(latestNews.date * 1000).toLocaleDateString("ja-JP")}
+              </p>
+              <div className="mt-2 max-h-48 overflow-y-auto font-mono text-xs leading-relaxed text-steam-muted">
+                {latestNewsParagraphs.length > 0 ? (
+                  latestNewsParagraphs.map((p, i) => <p key={i} className="mt-2 first:mt-0">{p}</p>)
+                ) : (
+                  <p>本文はSteamストアページでご確認ください。</p>
+                )}
               </div>
+
+              {otherNews.length > 0 && (
+                <div className="mt-4 space-y-1.5 border-t border-steam-border pt-3">
+                  {otherNews.map((item) => (
+                    <a
+                      key={item.id}
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block truncate font-mono text-[10px] text-steam-muted hover:text-steam-blue"
+                    >
+                      {item.title}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {priceHistory && priceHistory.length >= 2 && (
+            <div className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
+              <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-steam-muted">
+                <TrendingDown size={12} /> 価格の推移（直近1年・Steam）
+              </h2>
+              <div className="mt-2">
+                <PriceHistoryChart points={priceHistory} />
+              </div>
+              <p className="mt-1 font-mono text-[9px] text-steam-muted/60">Data: IsThereAnyDeal</p>
             </div>
           )}
         </div>

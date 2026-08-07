@@ -97,11 +97,12 @@ export type SteamNewsItem = {
   title: string;
   url: string;
   date: number; // unix seconds
+  contents: string;
 };
 
-/** 最新のアプデ/ニュースを取得する */
-export async function getSteamNews(appId: number, count = 3): Promise<SteamNewsItem[]> {
-  const url = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${appId}&count=${count}&maxlength=300&format=json`;
+/** 最新のアプデ/ニュースを取得する。maxlengthは本文の最大文字数（0で無制限） */
+export async function getSteamNews(appId: number, count = 3, maxlength = 300): Promise<SteamNewsItem[]> {
+  const url = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${appId}&count=${count}&maxlength=${maxlength}&format=json`;
   const res = await fetch(url);
   if (!res.ok) return [];
 
@@ -110,8 +111,8 @@ export async function getSteamNews(appId: number, count = 3): Promise<SteamNewsI
 
   return items
     .filter(
-      (item): item is { gid: string; title: string; url: string; date: number } =>
+      (item): item is { gid: string; title: string; url: string; date: number; contents?: string } =>
         typeof item === "object" && item !== null && typeof (item as { title?: unknown }).title === "string"
     )
-    .map((item) => ({ id: item.gid, title: item.title, url: item.url, date: item.date }));
+    .map((item) => ({ id: item.gid, title: item.title, url: item.url, date: item.date, contents: item.contents ?? "" }));
 }

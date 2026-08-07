@@ -15,7 +15,8 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:github.com)",
       "Bash(node scratch-hltb-debug.mjs)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "WebFetch(domain:docs.isthereanydeal.com)"
     ],
     "additionalDirectories": [
       "\\tmp"
