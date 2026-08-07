@@ -11,8 +11,7 @@ import {
   getSteamReviewSummary,
   steamHeaderImageUrl,
 } from "@/lib/steam";
-import { getPriceHistory } from "@/lib/itad";
-import { PriceHistoryChart } from "@/components/group/PriceHistoryChart";
+import { getItadSummary } from "@/lib/itad";
 
 const STATUS_LABEL = {
   WISHLIST: "気になる",
@@ -71,17 +70,17 @@ export default async function GroupGameDetailPage({
   });
   if (!game) notFound();
 
-  const [reviewResult, priceResult, newsResult, priceHistoryResult] = await Promise.allSettled([
+  const [reviewResult, priceResult, newsResult, itadResult] = await Promise.allSettled([
     getSteamReviewSummary(game.steamAppId),
     getSteamPriceInfo(game.steamAppId),
     getSteamNews(game.steamAppId, 3, 4000),
-    getPriceHistory(game.steamAppId),
+    getItadSummary(game.steamAppId),
   ]);
 
   const reviews = settled(reviewResult);
   const price = settled(priceResult);
   const news = settled(newsResult) ?? [];
-  const priceHistory = settled(priceHistoryResult);
+  const itad = settled(itadResult);
 
   const [latestNews, ...otherNews] = news;
   const latestNewsParagraphs = latestNews ? newsContentToParagraphs(latestNews.contents) : [];
@@ -197,15 +196,37 @@ export default async function GroupGameDetailPage({
             </div>
           )}
 
-          {priceHistory && priceHistory.length >= 2 && (
+          {itad && (
             <div className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
               <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-steam-muted">
-                <TrendingDown size={12} /> 価格の推移（直近1年・Steam）
+                <TrendingDown size={12} /> 価格情報
               </h2>
-              <div className="mt-2">
-                <PriceHistoryChart points={priceHistory} />
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-sm border border-steam-border bg-steam-panel p-3 text-center">
+                  <p className="font-mono text-[9px] text-steam-muted">現在価格（Steam）</p>
+                  <p className="mt-1 font-display text-lg font-bold text-steam-text">
+                    {price ? (price.isFree ? "無料" : price.finalFormatted) : "-"}
+                  </p>
+                </div>
+                <div className="rounded-sm border border-steam-border bg-steam-panel p-3 text-center">
+                  <p className="font-mono text-[9px] text-steam-muted">過去最安値（全ストア）</p>
+                  <p className="mt-1 font-display text-lg font-bold text-[#a4d007]">
+                    ¥{itad.lowPrice.toLocaleString("ja-JP")}
+                  </p>
+                  <p className="font-mono text-[8px] text-steam-muted/70">
+                    {itad.lowShopName}
+                    {itad.lowCut > 0 ? `（-${itad.lowCut}%）` : ""}
+                  </p>
+                </div>
               </div>
-              <p className="mt-1 font-mono text-[9px] text-steam-muted/60">Data: IsThereAnyDeal</p>
+              <a
+                href={itad.pageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex items-center gap-1.5 font-mono text-[10px] text-steam-blue hover:underline"
+              >
+                <ExternalLink size={11} /> IsThereAnyDealで全ストアの価格を比較する
+              </a>
             </div>
           )}
         </div>

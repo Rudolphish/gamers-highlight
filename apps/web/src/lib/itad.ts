@@ -1,47 +1,51 @@
-// IsThereAnyDeal API連携（価格の値動き履歴）。APIキーが必要（.envのITAD_API_KEY）。
+// IsThereAnyDeal API連携（過去最安値・比較ページへのリンク）。APIキーが必要（.envのITAD_API_KEY）。
 // 公式ドキュメント化された安定したAPIだが、キー未設定の環境でも壊れないようnullで返す。
 
 const ITAD_BASE = "https://api.isthereanydeal.com";
 
-async function lookupGameId(steamAppId: number, key: string): Promise<string | null> {
+async function lookupGame(steamAppId: number, key: string): Promise<{ id: string; slug: string } | null> {
   const res = await fetch(`${ITAD_BASE}/games/lookup/v1?key=${key}&appid=${steamAppId}`);
   if (!res.ok) return null;
   const data = await res.json();
-  return data?.found ? data.game?.id ?? null : null;
+  if (!data?.found || !data.game?.id) return null;
+  return { id: data.game.id, slug: data.game.slug };
 }
 
-export type PriceHistoryPoint = {
-  timestamp: string; // ISO 8601
-  price: number;
-  regular: number;
-  cut: number;
+export type ItadSummary = {
+  slug: string;
+  pageUrl: string;
+  lowPrice: number;
+  lowShopName: string;
+  lowCut: number;
 };
 
-/** 過去1年のSteam価格変動履歴を古い順で返す。キー未設定/データ無しはnull */
-export async function getPriceHistory(steamAppId: number): Promise<PriceHistoryPoint[] | null> {
+/** 全ストア横断の過去最安値と、IsThereAnyDealの比較ページURLを取得する。キー未設定/データ無しはnull */
+export async function getItadSummary(steamAppId: number): Promise<ItadSummary | null> {
   const key = process.env.ITAD_API_KEY;
   if (!key) return null;
 
   try {
-    const gameId = await lookupGameId(steamAppId, key);
-    if (!gameId) return null;
+    const game = await lookupGame(steamAppId, key);
+    if (!game) return null;
 
-    const since = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
-    const url = `${ITAD_BASE}/games/history/v2?key=${key}&id=${gameId}&country=JP&shops=61&since=${encodeURIComponent(since)}`;
-    const res = await fetch(url);
+    const res = await fetch(`${ITAD_BASE}/games/historylow/v1?key=${key}&country=JP`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify([game.id]),
+    });
     if (!res.ok) return null;
 
     const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) return null;
+    const low = Array.isArray(data) ? data[0]?.low : null;
+    if (!low) return null;
 
-    const points: PriceHistoryPoint[] = data.map((item) => ({
-      timestamp: item.timestamp,
-      price: item.deal?.price?.amount ?? 0,
-      regular: item.deal?.regular?.amount ?? 0,
-      cut: item.deal?.cut ?? 0,
-    }));
-
-    return points.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return {
+      slug: game.slug,
+      pageUrl: `https://isthereanydeal.com/game/${game.slug}/info/`,
+      lowPrice: low.price?.amount ?? 0,
+      lowShopName: low.shop?.name ?? "不明",
+      lowCut: low.cut ?? 0,
+    };
   } catch {
     return null;
   }

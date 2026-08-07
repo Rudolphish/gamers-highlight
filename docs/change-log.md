@@ -384,3 +384,26 @@
   - 実機で価格推移グラフとニュース全文の見た目を確認してほしい（特に長いニュース本文でのスクロール、グラフのホバーツールチップ）
   - **重要**：`ITAD_API_KEY`はローカルの`.env`にのみ設定済みで、Vercel本番環境にはまだ設定していない。本番デプロイ後は価格推移グラフが出ないので、Vercelのプロジェクト環境変数に同じキーを追加する必要がある（CLAUDE.mdに記録済み）
   - ITAD APIのレート制限は「メール認証済みアカウントで5分1000リクエスト」と余裕があるが、キャッシュは未実装（ページ表示のたびにITAD/Steamへ問い合わせる）
+
+## [Phase 6] 価格推移グラフを撤回し、現在価格・過去最安値の2値表示＋ITADリンクに簡素化
+
+- 日時: 2026-08-07
+- 担当ツール: Claude（直接実装）
+- 変更ファイル:
+  - `apps/web/src/lib/itad.ts`（変更：`getPriceHistory`を`getItadSummary`に置き換え。`games/historylow/v1`〈全ストア横断の過去最安値〉＋ゲームの比較ページURL〈`https://isthereanydeal.com/game/<slug>/info/`〉を返す）
+  - `apps/web/src/components/group/PriceHistoryChart.tsx`（削除：未使用になったため）
+  - `apps/web/src/app/(main)/groups/[groupId]/games/[gameId]/page.tsx`（変更：価格推移グラフのセクションを、現在価格〈Steam〉と過去最安値〈全ストア〉を並べたシンプルな2値表示＋IsThereAnyDealへの外部リンクに置き換え）
+- 変更内容の要約:
+  - 前回実装した価格推移グラフについて、ユーザーから「ゲームの価格は株と違って値動きが少なく、グラフにすると逆に見づらい」というフィードバックがあり、素早く方針転換
+  - 実装前に`games/historylow/v1`を実データ（Elden Ring）で動作確認（POSTボディに`[gameId]`、`country=JP`。レスポンスは`shop`込みの最安値情報で、必ずしもSteamが最安とは限らない＝全ストア横断の値であることを確認）
+  - IsThereAnyDealの公開ゲームページURL形式（`/game/<slug>/info/`）を調べ、比較ページへの外部リンクを追加
+- 完了条件チェック:
+  - [x] ゲーム詳細ページ右下に現在価格（Steam）と過去最安値（全ストア、店舗名・割引率付き）が並んで表示される
+  - [x] 「IsThereAnyDealで見る」リンクから該当ゲームの比較ページに遷移できる
+  - [x] `PriceHistoryChart.tsx`は削除済み、未使用importは残っていない
+- 実行したコマンド:
+  - `games/historylow/v1`を実データで動作確認（200、レスポンス構造を確認）
+  - `pnpm --filter web build`（成功）
+- 懸念点・確認してほしいこと:
+  - 実機で新しい価格情報パネルの見た目を確認してほしい
+  - `ITAD_API_KEY`のVercel本番環境変数設定はまだ済んでいない点は変わらず（上記の懸念点を参照）
