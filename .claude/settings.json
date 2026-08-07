@@ -10,7 +10,10 @@
       "Bash(pnpm pm2:restart)",
       "Bash(pm2 restart *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://sharestaq.vercel.app/login)",
-      "Bash(git -C \"c:/Study/gamers-highlight\" check-ignore -v .claude/settings.local.json)"
+      "Bash(git -C \"c:/Study/gamers-highlight\" check-ignore -v .claude/settings.local.json)",
+      "WebFetch(domain:howlongtobeat.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)"
     ],
     "additionalDirectories": [
       "\\tmp"

@@ -1,11 +1,16 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, Newspaper } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
-import { steamHeaderImageUrl } from "@/lib/steam";
+import {
+  getSteamNews,
+  getSteamPriceInfo,
+  getSteamReviewSummary,
+  steamHeaderImageUrl,
+} from "@/lib/steam";
 
 const STATUS_LABEL = {
   WISHLIST: "気になる",
@@ -14,8 +19,14 @@ const STATUS_LABEL = {
   COMPLETED: "クリア済み",
 } as const;
 
-// ゲーム詳細ページ：現状はタイトル・ステータス・Steamストアへのリンクのみ。
-// Steamレビュー/関連YouTube動画などはroadmap.md Phase 6の後続タスクで追加予定。
+function settled<T>(result: PromiseSettledResult<T>): T | null {
+  return result.status === "fulfilled" ? result.value : null;
+}
+
+// ゲーム詳細ページ：Steamレビュー・現在価格・最新ニュースを1ページに集約する。
+// いずれも外部サービス依存のため、個別に失敗してもページ全体は壊さずそのセクションだけ非表示にする。
+// HowLongToBeat連携は検討したが、先方が検索APIを頻繁に変更しトークン認証まで要求するため
+// メンテコストに見合わないと判断し見送った（docs/ideas.mdに記録）。
 export default async function GroupGameDetailPage({
   params,
 }: {
@@ -36,6 +47,16 @@ export default async function GroupGameDetailPage({
   });
   if (!game) notFound();
 
+  const [reviewResult, priceResult, newsResult] = await Promise.allSettled([
+    getSteamReviewSummary(game.steamAppId),
+    getSteamPriceInfo(game.steamAppId),
+    getSteamNews(game.steamAppId, 3),
+  ]);
+
+  const reviews = settled(reviewResult);
+  const price = settled(priceResult);
+  const news = settled(newsResult) ?? [];
+
   const coverUrl = game.coverUrl ?? steamHeaderImageUrl(game.steamAppId);
 
   return (
@@ -53,9 +74,26 @@ export default async function GroupGameDetailPage({
         </div>
 
         <div className="p-4 sm:p-6">
-          <span className="rounded-sm border border-steam-blue/50 px-1.5 py-0.5 font-mono text-[10px] text-steam-blue">
-            {STATUS_LABEL[game.status]}
-          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-sm border border-steam-blue/50 px-1.5 py-0.5 font-mono text-[10px] text-steam-blue">
+              {STATUS_LABEL[game.status]}
+            </span>
+            {reviews && (
+              <span className="rounded-sm border border-[#a4d007]/50 px-1.5 py-0.5 font-mono text-[10px] text-[#a4d007]">
+                {reviews.scoreDesc}（{reviews.totalReviews.toLocaleString()}件）
+              </span>
+            )}
+            {price && (
+              <span className="rounded-sm border border-steam-border px-1.5 py-0.5 font-mono text-[10px] text-steam-text">
+                {price.isFree
+                  ? "無料"
+                  : price.discountPercent > 0
+                    ? `${price.finalFormatted}（-${price.discountPercent}%）`
+                    : price.finalFormatted}
+              </span>
+            )}
+          </div>
+
           <h1 className="mt-2 font-display text-2xl font-bold text-steam-text sm:text-3xl">
             {game.title}
           </h1>
@@ -72,9 +110,29 @@ export default async function GroupGameDetailPage({
             <ExternalLink size={13} /> Steamストアで見る
           </a>
 
-          <p className="mt-6 font-mono text-[11px] text-steam-muted/60">
-            レビューや関連動画などの情報は今後追加予定です。
-          </p>
+          {news.length > 0 && (
+            <div className="mt-6">
+              <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-steam-muted">
+                <Newspaper size={12} /> 最新ニュース
+              </h2>
+              <div className="mt-2 flex flex-col gap-2">
+                {news.map((item) => (
+                  <a
+                    key={item.id}
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-sm border border-steam-border bg-steam-panel p-2 transition hover:border-steam-blue"
+                  >
+                    <p className="line-clamp-2 font-mono text-xs text-steam-text">{item.title}</p>
+                    <p className="mt-1 font-mono text-[9px] text-steam-muted/70">
+                      {new Date(item.date * 1000).toLocaleDateString("ja-JP")}
+                    </p>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </main>
