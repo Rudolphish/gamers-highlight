@@ -33,7 +33,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return NextResponse.json({ group });
 }
 
-// PATCH /api/groups/:id … OWNER/EDITORのみ更新可（名前変更）
+// PATCH /api/groups/:id … 名前変更はOWNER/EDITOR、通知先チャンネルの変更はOWNERのみ
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   const user = session?.user?.email
@@ -41,13 +41,29 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     : null;
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const allowed = await hasGroupPermission(params.id, user.id, "EDITOR");
-  if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
-
   const body = await req.json();
+  const data: { name?: string; notificationChannelId?: string | null } = {};
+
+  if (body.name !== undefined) {
+    const allowed = await hasGroupPermission(params.id, user.id, "EDITOR");
+    if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    data.name = body.name;
+  }
+
+  if (body.notificationChannelId !== undefined) {
+    const isOwner = await hasGroupPermission(params.id, user.id, "OWNER");
+    if (!isOwner) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+
+    const trimmed = typeof body.notificationChannelId === "string" ? body.notificationChannelId.trim() : "";
+    if (trimmed && !/^\d{15,25}$/.test(trimmed)) {
+      return NextResponse.json({ error: "notificationChannelId must be a Discord snowflake ID" }, { status: 400 });
+    }
+    data.notificationChannelId = trimmed || null;
+  }
+
   const group = await db.group.update({
     where: { id: params.id },
-    data: { name: body.name },
+    data,
   });
 
   return NextResponse.json({ group });

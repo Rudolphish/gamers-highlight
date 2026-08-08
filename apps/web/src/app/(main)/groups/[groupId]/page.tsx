@@ -12,6 +12,7 @@ import { GroupGameList } from "@/components/group/GroupGameList";
 import { PlayStatusSummary } from "@/components/group/PlayStatusSummary";
 import { SuggestedGames } from "@/components/group/SuggestedGames";
 import { GameProposals } from "@/components/group/GameProposals";
+import { NotificationChannelSetting } from "@/components/group/NotificationChannelSetting";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { steamHeaderImageUrl, searchSteamByGenre } from "@/lib/steam";
 
@@ -152,7 +153,14 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
   return (
     <main className="p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <GroupNameEditor groupId={group.id} name={group.name} canEdit={isOwner} />
+        <div>
+          <GroupNameEditor groupId={group.id} name={group.name} canEdit={isOwner} />
+          {isOwner && (
+            <div className="mt-1.5">
+              <NotificationChannelSetting groupId={group.id} channelId={group.notificationChannelId} />
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <GroupShareModal
             groupId={group.id}

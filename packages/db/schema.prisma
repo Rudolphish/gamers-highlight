@@ -88,12 +88,13 @@ model User {
 // 複数アルバムを束ねる上位単位。基本的に1グループ=1Discordサーバーを想定し、
 // Botの自動取り込み時にguildIdからどのグループにアルバムを自動作成するか判定する。
 model Group {
-  id        String   @id @default(cuid())
-  name      String
-  guildId   String?  @unique
-  ownerId   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  name                  String
+  guildId               String?  @unique
+  notificationChannelId String? // ウィッシュリストの最安値更新通知の投稿先チャンネル（未設定なら通知しない）
+  ownerId               String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   owner     User                @relation("GroupOwner", fields: [ownerId], references: [id])
   albums    Album[]
@@ -120,6 +121,11 @@ model GroupGame {
   addedById      String
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+
+  // 最安値更新通知（Discord）用。日次cronが前回記録との比較に使う。WISHLISTのみ対象。
+  lastKnownLowPrice   Float?
+  lastKnownLowShop    String?
+  lastPriceCheckedAt  DateTime?
 
   group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   album   Album? @relation(fields: [albumId], references: [id], onDelete: SetNull)

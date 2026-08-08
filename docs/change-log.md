@@ -520,3 +520,39 @@
   - `pnpm --filter web build`（成功）
 - 懸念点・確認してほしいこと:
   - 実機で見た目を確認してほしい（横スクロールのサムネイル一覧が意図通りか）
+
+## [Phase 7] 最安値更新のDiscord通知（Vercel Cron + Discord REST API）
+
+- 日時: 2026-08-08
+- 担当ツール: Claude（直接実装）
+- 変更ファイル:
+  - `packages/db/schema.prisma`（変更：`Group.notificationChannelId`、`GroupGame`に`lastKnownLowPrice`/`lastKnownLowShop`/`lastPriceCheckedAt`を追加）
+  - `apps/web/src/lib/discord.ts`（新規：`postDiscordMessage`。discord.jsクライアントは使わず、`DISCORD_BOT_TOKEN`でDiscord REST APIに直接POST）
+  - `apps/web/src/app/api/cron/check-wishlist-prices/route.ts`（新規：Vercel Cronから日次で呼ばれるエンドポイント）
+  - `apps/web/vercel.json`（新規：`crons`設定、毎日0時に上記エンドポイントを呼ぶ）
+  - `apps/web/src/app/api/groups/[id]/route.ts`（変更：PATCHで`notificationChannelId`も更新可能に。名前変更はEDITOR以上、通知先チャンネル変更はOWNERのみに権限を分離）
+  - `apps/web/src/components/group/NotificationChannelSetting.tsx`（新規：グループ詳細ページでオーナーが通知先チャンネルIDを設定するUI）
+  - `apps/web/src/app/(main)/groups/[groupId]/page.tsx`（変更：グループ名の下にオーナー限定で通知設定を表示）
+  - `VERCEL_ENVIRONMENT_VARIABLES.md`（変更：`GOOGLE_CLIENT_ID`等の削除済み変数を除去、`ITAD_API_KEY`/`YOUTUBE_API_KEY`/`CRON_SECRET`を追記）
+- 変更内容の要約:
+  - 事前調査で判明した重要な制約：**apps/bot（discord.jsクライアント）とapps/web（Vercel上のサーバーレス）の間に、Web→Botへの通信経路が存在しない**（Bot→Webの一方向のみ、`INTERNAL_API_SECRET`もその用途）。そのため、Botプロセスを経由せず、Web側のcronルートから直接Discord REST API（`https://discord.com/api/v10/channels/:id/messages`、`Authorization: Bot <token>`）を叩く設計にした。`DISCORD_BOT_TOKEN`は元々apps/web/.envに存在していた（未使用のまま置かれていた）ため新規取得は不要で、実際に`GET /users/@me`で疎通確認済み
+  - スケジューリングはユーザー選択によりVercel Cron Jobsを採用。Hobbyプランは「1日1回まで」の制限があることを事前に確認した上で、`vercel.json`に`0 0 * * *`（毎日0時）で設定
+  - cronルートは`Authorization: Bearer ${CRON_SECRET}`で認証（Vercelが自動付与するヘッダーと一致させる方式）。`CRON_SECRET`はAPIキーと違い外部サービスへの登録が不要なため、Claude側でランダム生成し`.env`（root・apps/web両方）に追記した
+  - 価格判定は`GroupGame.lastKnownLowPrice`との比較のみ（履歴テーブルは作らず、直近の1値だけ保持する設計。オーバーエンジニアリングを避けた）。**初回チェック（`lastKnownLowPrice`がnull）は基準値を記録するだけで通知しない**——これが無いと、通知先チャンネルを新規設定した瞬間に既存の全ウィッシュリストゲームで「最安値更新！」の誤通知が飛んでしまう
+  - 通知先チャンネルが設定されているグループの全WISHLISTゲームを`Promise.allSettled`で並行チェックし、Vercelのサーバーレス関数のデフォルトタイムアウト超過を避けるため`maxDuration = 60`を明示
+  - 通知先チャンネルの設定はグループのOWNERのみ（名前変更のEDITOR権限より厳しい権限に分離）
+- 完了条件チェック:
+  - [x] 認証ヘッダーが無い/間違っている場合は401を返す
+  - [x] 正しい`CRON_SECRET`で呼ぶと200を返し、通知先チャンネル未設定時は`checked: 0`で正常終了する
+  - [x] グループ詳細ページでオーナーが通知先チャンネルIDを設定できる（EDITOR/VIEWERには設定UIを表示しない）
+  - [ ] 実際の価格下落を検知してのDiscord投稿 — ローカルでは検証していない（初回チェックが必ず「通知なし」になる安全設計のため、本番で実際に確認するには2回目以降のcron実行を待つ必要がある）
+- 実行したコマンド:
+  - `prisma db push`（直接接続、成功）
+  - `GET https://discord.com/api/v10/users/@me`でBotトークンの有効性を確認（200、`ShareStaqBot`）
+  - ローカルdevサーバー起動→`/api/cron/check-wishlist-prices`を認証ヘッダー無し/誤り/正しい場合の3パターンで実行確認（401/401/200 `{checked:0,notified:0,total:0}`）
+  - `pnpm --filter web build`（成功）
+- 懸念点・確認してほしいこと:
+  - **重要**：`CRON_SECRET`・`ITAD_API_KEY`・`YOUTUBE_API_KEY`のいずれもVercel本番環境変数にまだ設定されていない。これらを追加しないと本番でcronが401を返し続ける（`VERCEL_ENVIRONMENT_VARIABLES.md`参照）
+  - Vercelプロジェクトの「Root Directory」が`apps/web`に設定されている前提で`vercel.json`をそこに置いた。もし異なる場合はcron設定が読み込まれないので、初回デプロイ後にVercelダッシュボードの「Cron Jobs」タブで登録されているか確認してほしい
+  - グループ詳細ページで通知先チャンネルIDを設定した上で、実際に価格が下がるゲームが出るまで通知の実地確認はできない。手動で早期に確認したい場合は、`GroupGame.lastKnownLowPrice`をPrisma Studio等で意図的に高い値に書き換えてからcronを再実行すると強制的に「値下がり」を発生させられる
+  - Discordへの投稿はplain textのみ（Embed等の装飾は無し）。見た目を良くしたい場合は今後Embed化を検討
