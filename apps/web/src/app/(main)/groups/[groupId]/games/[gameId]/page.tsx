@@ -12,6 +12,7 @@ import {
   steamHeaderImageUrl,
 } from "@/lib/steam";
 import { getItadSummary } from "@/lib/itad";
+import { HltbCard } from "@/components/group/HltbCard";
 
 const STATUS_LABEL = {
   WISHLIST: "気になる",
@@ -51,7 +52,8 @@ function newsContentToParagraphs(raw: string): string[] {
 // 関連動画（YouTube）はゲームをリストに追加した時点で1回だけ検索してDBに保存したものを表示する
 // （search.listはクォータ消費が大きいため、ページ表示のたびには検索しない）。
 // いずれも外部サービス依存のため、個別に失敗してもページ全体は壊さずそのセクションだけ非表示にする。
-// HowLongToBeatはライブ連携を2度試みたが断念し、検索ページへの外部リンクのみ設置（docs/ideas.md参照）。
+// HowLongToBeatは過去3回断念したが、4度目でユーザーが見つけた現行の非公式スクレイパーの
+// 実装を参考に成功。ゲーム追加時に1回だけ取得してDB保存する（lib/hltb.ts参照）。
 export default async function GroupGameDetailPage({
   params,
 }: {
@@ -144,14 +146,6 @@ export default async function GroupGameDetailPage({
                 className="inline-flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
               >
                 <ExternalLink size={13} /> Steamストアで見る
-              </a>
-              <a
-                href={`https://howlongtobeat.com/?q=${encodeURIComponent(game.title)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-sm border border-steam-border px-3 py-2 font-mono text-xs text-steam-text transition hover:border-steam-blue"
-              >
-                <ExternalLink size={13} /> HowLongToBeatで見る
               </a>
             </div>
 
@@ -259,6 +253,20 @@ export default async function GroupGameDetailPage({
               </a>
             </div>
           )}
+
+          {game.hltbGameId !== null &&
+            game.hltbMainHours !== null &&
+            game.hltbMainExtraHours !== null &&
+            game.hltbCompletionistHours !== null &&
+            game.hltbAllStylesHours !== null && (
+              <HltbCard
+                gameId={game.hltbGameId}
+                main={game.hltbMainHours}
+                mainExtra={game.hltbMainExtraHours}
+                completionist={game.hltbCompletionistHours}
+                allStyles={game.hltbAllStylesHours}
+              />
+            )}
         </div>
       </div>
     </main>

@@ -556,3 +556,51 @@
   - Vercelプロジェクトの「Root Directory」が`apps/web`に設定されている前提で`vercel.json`をそこに置いた。もし異なる場合はcron設定が読み込まれないので、初回デプロイ後にVercelダッシュボードの「Cron Jobs」タブで登録されているか確認してほしい
   - グループ詳細ページで通知先チャンネルIDを設定した上で、実際に価格が下がるゲームが出るまで通知の実地確認はできない。手動で早期に確認したい場合は、`GroupGame.lastKnownLowPrice`をPrisma Studio等で意図的に高い値に書き換えてからcronを再実行すると強制的に「値下がり」を発生させられる
   - Discordへの投稿はplain textのみ（Embed等の装飾は無し）。見た目を良くしたい場合は今後Embed化を検討
+
+## [Phase 6] 壊れていたHowLongToBeat検索リンクを削除
+
+- 日時: 2026-08-08
+- 担当ツール: Claude（直接実装）
+- 変更ファイル:
+  - `apps/web/src/app/(main)/groups/[groupId]/games/[gameId]/page.tsx`（変更：「HowLongToBeatで見る」リンクを削除）
+- 変更内容の要約:
+  - ユーザーからの指摘（ITADのHowLongToBeat連携と比較して「うちのリンクはリンクが変なURLになってちゃんと飛ばない」）を受けて調査した結果、`https://howlongtobeat.com/?q=<タイトル>`というURLは**先方のNext.jsアプリのSSR propsから完全に無視されている**ことを実機検証で確認（`__NEXT_DATA__`のpagePropsが常に人気ゲーム一覧のままで、クエリパラメータが一切反映されない）。以前このURL形式を採用した際に実際の動作検証をしていなかったことが原因
+  - ITAD側は`howlongtobeat.com/game/<数値ID>`という直接のゲームページリンクを使っており、これはITADのAPIドキュメントにある`getHowLongToBeat Overview`という**内部専用エンドポイント**（外部には非公開）で解決していると判明
+  - この時点では数値IDを得る手段が無かったため、いったんリンク自体を削除する判断とした（直後に別の情報源から復活することになる。次のエントリ参照）
+- 実行したコマンド:
+  - `https://howlongtobeat.com/?q=...`のSSR pagePropsを直接確認し、クエリが無視されることを実証
+  - `isthereanydeal.com/game/hollow-knight/info/`のHTMLから実際のHowLongToBeatリンク形式を確認
+  - ITADの公開APIドキュメントで、HowLongToBeat関連機能が内部専用であることを確認
+  - `pnpm --filter web build`（成功）
+
+## [Phase 6] HowLongToBeat連携、4度目の挑戦で成功（クリア時間表示・正確なリンク）
+
+- 日時: 2026-08-08
+- 担当ツール: Claude（直接実装）
+- 変更ファイル:
+  - `packages/db/schema.prisma`（変更：`GroupGame`に`hltbGameId`/`hltbMainHours`/`hltbMainExtraHours`/`hltbCompletionistHours`/`hltbAllStylesHours`を追加）
+  - `apps/web/src/lib/hltb.ts`（新規：`getHowLongToBeat`。現行の非公式スクレイピング手順を実装）
+  - `apps/web/src/app/api/groups/[id]/games/route.ts`・`apps/web/src/app/api/groups/[id]/proposals/[proposalId]/reactions/route.ts`（変更：ゲーム追加時／提案の自動昇格時にHLTBデータも取得・保存）
+  - `apps/web/src/components/group/HltbCard.tsx`（新規：クリア時間をバー表示するカード。ITADの表示スタイルを参考にした見た目）
+  - `apps/web/src/app/(main)/groups/[groupId]/games/[gameId]/page.tsx`（変更：右カラムに`HltbCard`を追加）
+- 変更内容の要約:
+  - ユーザーが見つけた`codeberg.org/Crashdummy/HowLongToBeatScraper`（.NET製、2026-07-31最終更新の現行メンテ品）のソースコードを調査し、現在実際に動作する手順を特定：
+    1. `GET https://howlongtobeat.com/api/bleed/init?t=<epoch ms>`（`Referer`ヘッダー必須、`Referer`が無いと403）→ `token`/`hpKey`/`hpVal`を取得
+    2. `POST https://howlongtobeat.com/api/bleed`（`x-auth-token`/`x-hp-key`/`x-hp-val`をヘッダーに付与）。**ボディにも`{hpKey}: hpVal`という動的な名前のフィールドを追加する必要がある**——ヘッダーだけでは404になり、これが今回の発見の核心
+  - 過去3回の失敗は「JSバンドルを正規表現で解析してエンドポイントを動的発見する」という2023年頃のPython/JS実装の手法を踏襲していたことが原因だったと判明。実際には**固定パス`/api/bleed`**であり、動的発見は不要だった（メンテ側のコメントに「先方は我々を困らせるためだけに時々エンドポイントを変える」とあり、変更時は都度追従が必要という前提は変わらない）
+  - レスポンスの`game_id`（数値）も保存することで、`https://howlongtobeat.com/game/<id>`という正確なゲームページリンクも同時に実現（前エントリで削除したリンク機能を、今度は正しい形で復活）
+  - 実装前に実際のAPIを叩いて動作確認（Hollow Knight/Elden Ring/Stardew Valleyで検証、`game_id: 26286`がITADの表示していたリンクと完全一致）してからスキーマ・API・UIに反映
+  - 表示UIはユーザーが見せてくれたITAD上のHowLongToBeat表示（クロックアイコン＋タイトル＋4項目のバー）を参考にしたデザイン
+- 完了条件チェック:
+  - [x] ゲーム追加時（通常追加・提案の自動昇格の両方）に自動でHLTBデータが取得・保存される
+  - [x] ゲーム詳細ページにクリアのみ/やり込み要素込み/完全収集/全プレイスタイル平均の4項目がバー表示される
+  - [x] 「HowLongToBeatで見る」リンクが正確なゲームページ（数値ID）に飛ぶ
+  - [x] 取得できなかった場合はカード自体が表示されない（他の連携と同じフェイルセーフ設計）
+- 実行したコマンド:
+  - 実データでの動作確認：`getHowLongToBeat("Hollow Knight")`→`{ main: 27, mainExtra: 41.6, completionist: 65.6 }`、Elden Ring・Stardew Valleyでも確認
+  - `prisma db push`（直接接続、3回に分けて実施：`hltbMainHours`等→`hltbAllStylesHours`→`hltbGameId`の順で追加していったため）
+  - `pnpm --filter web build`（成功）
+- 懸念点・確認してほしいこと:
+  - 実機でゲーム詳細ページのHowLongToBeatカードを確認してほしい
+  - **重要**：メンテナ自身が明言している通り、HowLongToBeat側の仕様変更でこの実装は今後また壊れる可能性が高い。壊れても他の連携と同様「そのカードが表示されなくなるだけ」でアプリ全体には影響しない設計にしてある
+  - 既存のGroupGame（このセッション以前・HLTB実装前に追加されたもの）にはHLTBデータが無いまま残る。遡及的な取得バッチは未実装（ジャンル・YouTube動画と同様の制約）

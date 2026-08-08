@@ -117,6 +117,11 @@ model GroupGame {
   status         GroupGameStatus @default(WISHLIST)
   genres         String[]        @default([]) // Steam appdetailsの英語ジャンル名（例: "Action", "RPG"）
   youtubeVideoId String? // 追加時に1回だけ検索して保存（YouTube APIの検索クォータ節約のため）
+  hltbGameId             Int? // HowLongToBeatの数値ゲームID。ゲームページへの正確なリンクに使う
+  hltbMainHours          Float? // HowLongToBeat: クリアのみ（時間）。追加時に1回だけ取得
+  hltbMainExtraHours     Float? // やり込み要素込み
+  hltbCompletionistHours Float? // 完全収集
+  hltbAllStylesHours     Float? // 全プレイスタイル平均
   albumId        String?         @unique // 紐付け元のアルバム（あれば）。1アルバム=最大1ゲームを想定
   addedById      String
   createdAt      DateTime        @default(now())

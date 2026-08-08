@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 import { getSteamGenres } from "@/lib/steam";
 import { getGameplayVideo } from "@/lib/youtube";
+import { getHowLongToBeat } from "@/lib/hltb";
 import { z } from "zod";
 
 const addGameSchema = z.object({
@@ -82,9 +83,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ game: updated });
   }
 
-  const [genres, video] = await Promise.all([
+  const [genres, video, hltb] = await Promise.all([
     getSteamGenres(parsed.data.steamAppId).catch(() => []),
     getGameplayVideo(parsed.data.title).catch(() => null),
+    getHowLongToBeat(parsed.data.title).catch(() => null),
   ]);
 
   const game = await db.groupGame.create({
@@ -96,6 +98,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       albumId,
       genres,
       youtubeVideoId: video?.videoId,
+      hltbGameId: hltb?.gameId,
+      hltbMainHours: hltb?.main,
+      hltbMainExtraHours: hltb?.mainExtra,
+      hltbCompletionistHours: hltb?.completionist,
+      hltbAllStylesHours: hltb?.allStyles,
       addedById: user.id,
     },
     include: { addedBy: true },

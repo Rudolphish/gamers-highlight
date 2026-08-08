@@ -85,6 +85,7 @@ EpicSnapで検討していた「保存数制限＋Stripeサブスク」型を叩
 - [x] ゲーム詳細ページ：現在の価格・セール状況表示（Steam公式APIで取得可、APIキー不要）— Phase 7から前倒しで実装済み（最安値/値動きグラフは引き続きPhase 7でIsThereAnyDeal APIが必要）
 - [x] ゲーム詳細ページ：関連YouTube動画表示 — YouTube Data APIキーを取得し実装済み。search.listのクォータ消費（1回100、無料枠は実質100回/日）が大きいため、ページ表示のたびには検索せずゲームをリストに追加した時点で1回だけ検索してDBに保存する方式
 - [x] アプデ情報のキャッチアップ（Steam News API。キー不要）— ゲーム詳細ページに最新3件表示。グループ内の複数ゲームを横断した一覧化は未実装
+- [x] ゲーム詳細ページ：HowLongToBeatのクリア時間目安表示 — 3度断念した後、2026-08-08にユーザーが見つけた現行の非公式スクレイパー実装を参考に4度目で成功（`lib/hltb.ts`）。ゲーム追加時に1回だけ取得してDB保存（`hltbGameId`で正確なゲームページへのリンクも保持）。経緯は`docs/ideas.md`参照
 - [x] グループ内プレイ状況の可視化 — 「気になっているゲーム」内に常時表示のダッシュボード（`PlayStatusSummary`）を追加。プレイ中/積みゲーのサムネイルを一覧表示し、クリックでゲーム詳細に遷移。個人単位ではなくグループ単位のステータスをそのまま使う既存方針を踏襲
 - [x] **ゲーム提案機能**：グループメンバーが「このゲームどう？」とゲームを提案できる。他メンバーが3種類のリアクション（👍やりたい/🤔気になる/👎興味なし）でき、👍がグループの過半数（`floor(メンバー数/2)+1`）に達すると自動でグループのゲームリスト（`GroupGame`のWISHLISTステータス）に登録される。提案は提案者本人またはEDITOR以上が取り下げ可能
   - データ設計：`GroupGameProposal`（groupId, steamAppId, proposedById, status〈PENDING/ACCEPTED/REJECTED〉）＋`GroupGameProposalReaction`（proposalId, userId, type〈LIKE/MAYBE/PASS〉、`@@unique([proposalId, userId])`で1人1票）
