@@ -16,6 +16,10 @@ import { NotificationChannelSetting } from "@/components/group/NotificationChann
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { steamHeaderImageUrl, searchSteamByGenre } from "@/lib/steam";
 
+// アルバム数がグループの活動量に応じて際限なく増えうるため、初期表示は最新分のみに絞る
+// （継続的にスクショを投稿するアプリの性質上、他のリレーション以上に増加が速いため）
+const ALBUM_PAGE_SIZE = 24;
+
 // グループ詳細画面：名前編集、メンバー管理、配下アルバム一覧
 export default async function GroupDetailPage({ params }: { params: { groupId: string } }) {
   const session = await getServerSession(authOptions);
@@ -30,6 +34,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       members: { include: { user: true } },
       albums: {
         orderBy: { updatedAt: "desc" },
+        take: ALBUM_PAGE_SIZE,
         include: {
           owner: true,
           members: { take: 4, orderBy: { invitedAt: "asc" }, include: { user: true } },
@@ -37,6 +42,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
           _count: { select: { photos: true, members: true } },
         },
       },
+      _count: { select: { albums: true } },
       games: {
         orderBy: { createdAt: "desc" },
         include: { addedBy: true },
@@ -196,7 +202,15 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
               まだアルバムがありません。作成するか、Discordに投稿してみましょう。
             </p>
           ) : (
-            <AlbumGrid albums={albumCards} />
+            <>
+              <AlbumGrid albums={albumCards} />
+              {group._count.albums > albumCards.length && (
+                <p className="mt-3 font-mono text-[10px] text-steam-muted">
+                  更新が新しい{albumCards.length}件を表示中（全{group._count.albums}件）。
+                  古いアルバムは<Link href="/albums" className="text-steam-blue hover:underline">アルバム一覧</Link>から探せます。
+                </p>
+              )}
+            </>
           )}
         </CollapsibleSection>
       </div>
