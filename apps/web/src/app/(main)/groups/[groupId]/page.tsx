@@ -9,6 +9,7 @@ import { GroupShareModal } from "@/components/group/GroupShareModal";
 import { GroupNameEditor } from "@/components/group/GroupNameEditor";
 import { DeleteGroupButton } from "@/components/group/DeleteGroupButton";
 import { GroupGameList } from "@/components/group/GroupGameList";
+import { PlayStatusSummary } from "@/components/group/PlayStatusSummary";
 import { SuggestedGames } from "@/components/group/SuggestedGames";
 import { GameProposals } from "@/components/group/GameProposals";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
@@ -187,6 +188,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
 
       <div className="mt-8">
         <CollapsibleSection title="気になっているゲーム">
+          <PlayStatusSummary groupId={group.id} games={gameCards} />
           <GroupGameList groupId={group.id} games={gameCards} canEdit={canEditGames} />
           {topGenre && (
             <SuggestedGames groupId={group.id} genre={topGenre} suggestions={suggestions} />

@@ -71,7 +71,7 @@ EpicSnapで検討していた「保存数制限＋Stripeサブスク」型を叩
 
 上記はおまけ機能的な位置付けのため一旦保留。プレイ状態管理はPhase 6の`GroupGame`に統合したため、Phase 6を先に着手する。
 
-## Phase 6：柱2「これから遊ぶゲームを考える」（長期ゴール）
+## Phase 6：柱2「これから遊ぶゲームを考える」（長期ゴール） ✅ 完了（2026-08-08）
 
 **個人のウィッシュリスト/ライブラリ管理はSteam自体で完結するため、本アプリでは作らない。** 価値があるのは「グループで共有される」ウィッシュリスト/ライブラリ（このグループが狙っているゲーム、グループ内で今誰が何を遊んでいるか）。データ設計は`Group`単位（`GroupGame`のような新モデルを想定：groupId, steamAppId, status〈WISHLIST/PLAYING/BACKLOG/COMPLETED〉, addedBy, 関連Album（あれば）への参照）。**旧Phase 5にあった「プレイ状態管理」（プレイ中／クリア済み／積みゲーの分類）はこの`GroupGame`のstatus管理に統合済み**（個人単位ではなくグループ単位で管理する）。
 
@@ -85,7 +85,7 @@ EpicSnapで検討していた「保存数制限＋Stripeサブスク」型を叩
 - [x] ゲーム詳細ページ：現在の価格・セール状況表示（Steam公式APIで取得可、APIキー不要）— Phase 7から前倒しで実装済み（最安値/値動きグラフは引き続きPhase 7でIsThereAnyDeal APIが必要）
 - [x] ゲーム詳細ページ：関連YouTube動画表示 — YouTube Data APIキーを取得し実装済み。search.listのクォータ消費（1回100、無料枠は実質100回/日）が大きいため、ページ表示のたびには検索せずゲームをリストに追加した時点で1回だけ検索してDBに保存する方式
 - [x] アプデ情報のキャッチアップ（Steam News API。キー不要）— ゲーム詳細ページに最新3件表示。グループ内の複数ゲームを横断した一覧化は未実装
-- [ ] グループ内プレイ状況の可視化（「今誰が何をプレイ中/積んでいるか」の一覧。[`ideas.md`](./ideas.md)参照）
+- [x] グループ内プレイ状況の可視化 — 「気になっているゲーム」内に常時表示のダッシュボード（`PlayStatusSummary`）を追加。プレイ中/積みゲーのサムネイルを一覧表示し、クリックでゲーム詳細に遷移。個人単位ではなくグループ単位のステータスをそのまま使う既存方針を踏襲
 - [x] **ゲーム提案機能**：グループメンバーが「このゲームどう？」とゲームを提案できる。他メンバーが3種類のリアクション（👍やりたい/🤔気になる/👎興味なし）でき、👍がグループの過半数（`floor(メンバー数/2)+1`）に達すると自動でグループのゲームリスト（`GroupGame`のWISHLISTステータス）に登録される。提案は提案者本人またはEDITOR以上が取り下げ可能
   - データ設計：`GroupGameProposal`（groupId, steamAppId, proposedById, status〈PENDING/ACCEPTED/REJECTED〉）＋`GroupGameProposalReaction`（proposalId, userId, type〈LIKE/MAYBE/PASS〉、`@@unique([proposalId, userId])`で1人1票）
 
