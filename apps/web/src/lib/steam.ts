@@ -59,6 +59,71 @@ export async function getSteamReviewSummary(appId: number): Promise<SteamReviewS
   };
 }
 
+/** Steamのレビュー/ニュース本文に混じるBBCode/HTMLタグを除去してプレーンテキスト化する（XSS対策も兼ねる） */
+export function stripSteamBBCode(raw: string): string {
+  return raw
+    .replace(/\[img\][^[]*\[\/img\]/gi, "")
+    .replace(/\[url=[^\]]*\]/gi, "")
+    .replace(/\[\/url\]/gi, "")
+    .replace(/\[\*\]/gi, "・")
+    .replace(/\[[^\]]+\]/g, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
+export type SteamReviewItem = {
+  id: string;
+  votedUp: boolean;
+  text: string;
+  playtimeHours: number;
+  createdAt: number; // unix seconds
+};
+
+/**
+ * 実際のレビュー本文を数件取得する（language指定で言語を絞り込むが、Steam側の判定は
+ * 完全ではなく稀に他言語が混じることがある）。
+ */
+export async function getSteamReviews(
+  appId: number,
+  count = 3,
+  language = "japanese"
+): Promise<SteamReviewItem[]> {
+  const url = `https://store.steampowered.com/appreviews/${appId}?json=1&language=${language}&purchase_type=all&filter=recent&num_per_page=${count}`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  const items: unknown[] = Array.isArray(data?.reviews) ? data.reviews : [];
+
+  return items
+    .filter(
+      (item): item is {
+        recommendationid: string;
+        voted_up: boolean;
+        review: string;
+        timestamp_created: number;
+        author?: { playtime_forever?: number };
+      } =>
+        typeof item === "object" &&
+        item !== null &&
+        typeof (item as { review?: unknown }).review === "string"
+    )
+    .map((item) => ({
+      id: item.recommendationid,
+      votedUp: item.voted_up,
+      text: stripSteamBBCode(item.review),
+      playtimeHours: Math.round(((item.author?.playtime_forever ?? 0) / 60) * 10) / 10,
+      createdAt: item.timestamp_created,
+    }))
+    .filter((item) => item.text.length > 0);
+}
+
 export type SteamPriceInfo = {
   isFree: boolean;
   finalFormatted: string;

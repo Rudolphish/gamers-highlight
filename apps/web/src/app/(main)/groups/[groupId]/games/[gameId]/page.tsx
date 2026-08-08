@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Newspaper, TrendingDown, Youtube } from "lucide-react";
+import { ArrowLeft, ExternalLink, MessageSquare, Newspaper, ThumbsDown, ThumbsUp, TrendingDown, Youtube } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -8,8 +8,10 @@ import { hasGroupPermission } from "@/lib/permissions";
 import {
   getSteamNews,
   getSteamPriceInfo,
+  getSteamReviews,
   getSteamReviewSummary,
   steamHeaderImageUrl,
+  stripSteamBBCode,
 } from "@/lib/steam";
 import { getItadSummary } from "@/lib/itad";
 import { HltbCard } from "@/components/group/HltbCard";
@@ -28,20 +30,7 @@ function settled<T>(result: PromiseSettledResult<T>): T | null {
 // SteamニュースのcontentsはBBCode/HTMLタグが混じるため、そのまま描画せず
 // タグ類を除去したプレーンテキストの段落配列に変換する（XSS対策）。
 function newsContentToParagraphs(raw: string): string[] {
-  const text = raw
-    .replace(/\[img\][^[]*\[\/img\]/gi, "")
-    .replace(/\[url=[^\]]*\]/gi, "")
-    .replace(/\[\/url\]/gi, "")
-    .replace(/\[[^\]]+\]/g, "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-
-  return text
+  return stripSteamBBCode(raw)
     .split(/\n+/)
     .map((p) => p.trim())
     .filter(Boolean);
@@ -74,14 +63,16 @@ export default async function GroupGameDetailPage({
   });
   if (!game) notFound();
 
-  const [reviewResult, priceResult, newsResult, itadResult] = await Promise.allSettled([
+  const [reviewResult, reviewItemsResult, priceResult, newsResult, itadResult] = await Promise.allSettled([
     getSteamReviewSummary(game.steamAppId),
+    getSteamReviews(game.steamAppId, 3),
     getSteamPriceInfo(game.steamAppId),
     getSteamNews(game.steamAppId, 3, 4000),
     getItadSummary(game.steamAppId),
   ]);
 
   const reviews = settled(reviewResult);
+  const reviewItems = settled(reviewItemsResult) ?? [];
   const price = settled(priceResult);
   const news = settled(newsResult) ?? [];
   const itad = settled(itadResult);
@@ -217,6 +208,32 @@ export default async function GroupGameDetailPage({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {reviewItems.length > 0 && (
+            <div className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
+              <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-steam-muted">
+                <MessageSquare size={12} /> レビュー
+              </h2>
+              <div className="mt-2 flex flex-col gap-3">
+                {reviewItems.map((r) => (
+                  <div key={r.id} className="border-t border-steam-border pt-2 first:border-t-0 first:pt-0">
+                    <div className="flex items-center gap-1.5 font-mono text-[9px] text-steam-muted/70">
+                      {r.votedUp ? (
+                        <ThumbsUp size={11} className="text-[#a4d007]" />
+                      ) : (
+                        <ThumbsDown size={11} className="text-[#eb4b4b]" />
+                      )}
+                      <span>プレイ時間 {r.playtimeHours}h</span>
+                      <span>・{new Date(r.createdAt * 1000).toLocaleDateString("ja-JP")}</span>
+                    </div>
+                    <p className="mt-1 line-clamp-4 font-mono text-xs leading-relaxed text-steam-text">
+                      {r.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
