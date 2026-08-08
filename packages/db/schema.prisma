@@ -294,3 +294,13 @@ model DiscordChannelMapping {
   @@index([guildId])
   @@map("discord_channel_mappings")
 }
+
+// Discord Bot（apps/bot、PM2常駐プロセス）の死活監視用ハートビート。
+// Bot側が起動時＋定期的にlastSeenAtを更新し、Vercel Cron（check-bot-health）が
+// 日次でこれが古すぎないかチェックしてDiscordに通知する。常に単一行（id: "bot"）のみ。
+model BotHeartbeat {
+  id         String   @id
+  lastSeenAt DateTime @default(now())
+
+  @@map("bot_heartbeats")
+}

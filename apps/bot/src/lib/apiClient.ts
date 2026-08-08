@@ -61,3 +61,18 @@ export async function tagPhoto(payload: TagPayload): Promise<TagResult> {
   }
   return { ok: true };
 }
+
+/** Webアプリ側の /api/internal/bot-heartbeat に生存報告を送る（死活監視用） */
+export async function sendHeartbeat(): Promise<void> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/internal/bot-heartbeat`, {
+      method: "POST",
+      headers: { "x-internal-secret": SECRET },
+    });
+    if (!res.ok) {
+      console.error(`[apiClient] heartbeat failed: ${res.status}`);
+    }
+  } catch (err) {
+    console.error("[apiClient] heartbeat failed", err);
+  }
+}

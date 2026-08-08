@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/check-wishlist-prices",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/check-bot-health",
+      "schedule": "0 12 * * *"
     }
   ]
 }

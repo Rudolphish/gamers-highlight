@@ -2,6 +2,9 @@ import "./env.js";
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import { handleMessageCreate } from "./handlers/messageCreate.js";
 import * as tagCommand from "./commands/tag.js";
+import { sendHeartbeat } from "./lib/apiClient.js";
+
+const HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000; // 15分おき
 
 const commands = new Map([[tagCommand.data.name, tagCommand]]);
 
@@ -15,6 +18,8 @@ const client = new Client({
 
 client.once(Events.ClientReady, (c) => {
   console.log(`[bot] logged in as ${c.user.tag}`);
+  sendHeartbeat();
+  setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 });
 
 client.on(Events.MessageCreate, (message) => {
