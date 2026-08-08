@@ -644,3 +644,34 @@
   - ユーザーの意向により、**今回のセッションでは実装せず、次回セッションで着手できるようdocs/roadmap.mdに引き継ぎ事項として整理**（Phase 1セクションに追記）。詳細はroadmap.mdの「2026-08-08時点：新機能は一区切り、次は「改善系」タスク」を参照
 - 懸念点・確認してほしいこと:
   - 次回セッション開始時、ナビゲーション改善（①）と楽観的更新（③）のどちらから着手するかを改めて確認すること（今回は方向性の合意のみで優先順位は未決定）
+
+## [改善系タスク①③実装 + 開発用テストログイン追加]
+
+- 日時: 2026-08-08
+- 担当ツール: Claude
+- 変更ファイル:
+  - `apps/web/src/app/(main)/albums/[albumId]/page.tsx`（変更）
+  - `apps/web/src/app/(main)/groups/[groupId]/page.tsx`（変更）
+  - `apps/web/src/components/group/GroupGameList.tsx`（変更）
+  - `apps/web/src/components/group/GameProposals.tsx`（変更）
+  - `apps/web/src/components/group/SuggestedGames.tsx`（変更）
+  - `apps/web/src/components/group/GroupNameEditor.tsx`（変更）
+  - `apps/web/src/components/group/NotificationChannelSetting.tsx`（変更）
+  - `apps/web/src/lib/auth.ts`（変更、ユーザー明示指示により）
+- 変更内容の要約:
+  - ①：ユーザーが「戻るリンク追加」方式を選択。アルバム詳細→所属グループ、グループ詳細→グループ一覧、それぞれ`ArrowLeft`アイコン付きリンクを追加（既存の`groups/[groupId]/games/[gameId]`と同じ見た目に統一）
+  - ③：5つのミューテーション系コンポーネントに楽観的更新を適用。React 18.3のため`useOptimistic`（React 19）は使えず、`useState`＋`useEffect`でのローカルstate即時反映→失敗時ロールバックという手動パターンで実装
+  - 開発用テストログイン：ユーザーから「Claudeがテストできるよう、本格リリース前に消す入口を用意していい」と明示許可を得た上で、`auth.ts`に`DEV_LOGIN_ENABLED`ブロックを追加（`NODE_ENV!=="production"`かつ`.env`の`ENABLE_DEV_LOGIN==="true"`の二重ガード、ログインUIには一切出さず`/api/auth/callback/dev-login`を直接叩く方式のみ）。専用テストユーザー「dev-test@sharestaq.local」＋自動作成のテスト用グループでログインし、実際のブラウザ（Playwright）でaddGame/changeStatus/removeGame/propose/react/withdraw/名前編集/通知チャンネル設定の全操作を動作確認済み
+- 完了条件チェック:
+  - [x] アルバム詳細・グループ詳細ページに戻るリンクが表示される
+  - [x] 5コンポーネントの操作（追加/削除/ステータス変更/リアクション/名前編集/チャンネル設定）が即座に画面へ反映される
+  - [x] 失敗時に元の状態へロールバックし、エラーメッセージが表示される（Playwrightでネットワークエラーを模擬して確認）
+  - [x] `tsc --noEmit`エラーなし
+- 実行したコマンド:
+  - `pnpm tsc --noEmit -p tsconfig.json`（apps/web、2回）
+  - `pnpm --filter web dev`（動作確認用に2回起動・停止）
+  - Playwright（Chromiumをローカルにインストールし、scratchpadディレクトリで一時実行。プロジェクトのdependenciesには追加していない）
+- 懸念点・確認してほしいこと:
+  - 開発用テストログインは本格リリース前に`auth.ts`の`DEV_LOGIN_ENABLED`ブロックと`.env`の`ENABLE_DEV_LOGIN`行を削除すること（CLAUDE.mdに記載済み）
+  - ②（別グループでの同一ゲーム重複登録）は前回セッションで調査済み・対応不要と判明していたため、今回は実装対象外
+  - コミットは3つに分割（①ナビゲーション、③楽観的更新、開発用ログイン）。pushはまだ行っていない
