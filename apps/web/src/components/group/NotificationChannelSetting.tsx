@@ -77,7 +77,7 @@ export function NotificationChannelSetting({
           onKeyDown={(e) => e.key === "Enter" && save()}
           className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-[10px] text-steam-text outline-none focus:border-steam-blue"
         />
-        <button onClick={save} className="text-steam-blue">
+        <button onClick={save} aria-label="保存" className="text-steam-blue">
           <Check size={14} />
         </button>
         <button
@@ -86,6 +86,7 @@ export function NotificationChannelSetting({
             setDraft(displayChannelId ?? "");
             setError(null);
           }}
+          aria-label="キャンセル"
           className="text-steam-muted"
         >
           <X size={14} />

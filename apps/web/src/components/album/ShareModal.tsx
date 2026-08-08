@@ -114,7 +114,11 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
           <div className="w-full max-w-md rounded-sm border border-steam-border bg-steam-surface p-4">
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold text-steam-text">メンバー管理</h2>
-              <button onClick={() => setOpen(false)} className="text-steam-muted hover:text-steam-text">
+              <button
+                onClick={() => setOpen(false)}
+                aria-label="閉じる"
+                className="text-steam-muted hover:text-steam-text"
+              >
                 <X size={16} />
               </button>
             </div>

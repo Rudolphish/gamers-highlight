@@ -127,7 +127,11 @@ export function SteamCoverPicker({
               <h2 className="font-display text-lg font-semibold text-steam-text">
                 Steamの画像をサムネイルに設定
               </h2>
-              <button onClick={() => setOpen(false)} className="text-steam-muted hover:text-steam-text">
+              <button
+                onClick={() => setOpen(false)}
+                aria-label="閉じる"
+                className="text-steam-muted hover:text-steam-text"
+              >
                 <X size={16} />
               </button>
             </div>
@@ -169,6 +173,7 @@ export function SteamCoverPicker({
                     onClick={() => applyCover(r.appId)}
                     disabled={applyingId !== null}
                     title="サムネイルに設定"
+                    aria-label="サムネイルに設定"
                     className="flex-shrink-0 rounded-sm border border-steam-border p-1.5 text-steam-muted transition hover:border-steam-blue hover:text-steam-text disabled:opacity-50"
                   >
                     {applyingId === r.appId ? <Spinner size={13} /> : <Gamepad2 size={13} />}
@@ -177,6 +182,7 @@ export function SteamCoverPicker({
                     onClick={() => addToGroupList(r.appId, r.name)}
                     disabled={addingId !== null}
                     title="グループのゲームリストに追加"
+                    aria-label="グループのゲームリストに追加"
                     className="flex-shrink-0 rounded-sm border border-steam-border p-1.5 text-steam-muted transition hover:border-steam-blue hover:text-steam-text disabled:opacity-50"
                   >
                     {addingId === r.appId ? (

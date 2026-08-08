@@ -79,7 +79,7 @@ export function GroupNameEditor({
         onKeyDown={(e) => e.key === "Enter" && save()}
         className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-display text-2xl font-bold text-steam-text outline-none focus:border-steam-blue sm:text-3xl"
       />
-      <button onClick={save} className="text-steam-blue">
+      <button onClick={save} aria-label="保存" className="text-steam-blue">
         <Check size={18} />
       </button>
       <button
@@ -87,6 +87,7 @@ export function GroupNameEditor({
           setEditing(false);
           setDraft(displayName);
         }}
+        aria-label="キャンセル"
         className="text-steam-muted"
       >
         <X size={18} />

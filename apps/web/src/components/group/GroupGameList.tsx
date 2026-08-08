@@ -331,6 +331,7 @@ export function GroupGameList({
               </h2>
               <button
                 onClick={() => setOpen(false)}
+                aria-label="閉じる"
                 className="text-steam-muted hover:text-steam-text"
               >
                 <X size={16} />
