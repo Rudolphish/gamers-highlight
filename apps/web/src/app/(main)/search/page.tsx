@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search as SearchIcon } from "lucide-react";
+import Link from "next/link";
+import Image from "next/image";
+import { Search as SearchIcon, Gamepad2 } from "lucide-react";
 import { PhotoGrid } from "@/components/photo/PhotoGrid";
 
 type Media = {
@@ -12,6 +14,22 @@ type Media = {
   durationSeconds?: number | null;
 };
 
+type GroupGameResult = {
+  id: string;
+  groupId: string;
+  groupName: string;
+  title: string;
+  coverUrl: string | null;
+  status?: "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  WISHLIST: "気になる",
+  PLAYING: "プレイ中",
+  BACKLOG: "積みゲー",
+  COMPLETED: "クリア済み",
+};
+
 export default function SearchPage() {
   const [game, setGame] = useState("");
   const [uploader, setUploader] = useState("");
@@ -19,6 +37,8 @@ export default function SearchPage() {
   const [to, setTo] = useState("");
 
   const [photos, setPhotos] = useState<Media[]>([]);
+  const [groupGames, setGroupGames] = useState<GroupGameResult[]>([]);
+  const [groupProposals, setGroupProposals] = useState<GroupGameResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [searched, setSearched] = useState(false);
 
@@ -38,8 +58,27 @@ export default function SearchPage() {
       } else {
         setPhotos([]);
       }
+
+      // グループのゲームリスト/提案の検索は「ゲームタイトル」欄が入力されている時だけ行う
+      const trimmedGame = params?.game?.trim();
+      if (trimmedGame) {
+        const groupRes = await fetch(`/api/search/group-games?q=${encodeURIComponent(trimmedGame)}`);
+        if (groupRes.ok) {
+          const data = await groupRes.json();
+          setGroupGames(data.games ?? []);
+          setGroupProposals(data.proposals ?? []);
+        } else {
+          setGroupGames([]);
+          setGroupProposals([]);
+        }
+      } else {
+        setGroupGames([]);
+        setGroupProposals([]);
+      }
     } catch {
       setPhotos([]);
+      setGroupGames([]);
+      setGroupProposals([]);
     } finally {
       setLoading(false);
       setSearched(true);
@@ -52,7 +91,6 @@ export default function SearchPage() {
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    console.log("検索条件:", { game, uploader, from, to });
     fetchPhotos({ game, uploader, from, to });
   }
 
@@ -135,6 +173,78 @@ export default function SearchPage() {
           </div>
         )}
       </section>
+
+      {(groupGames.length > 0 || groupProposals.length > 0) && (
+        <section className="mt-6">
+          <h2 className="mb-3 font-mono text-xs text-steam-muted">
+            グループのゲーム/提案 ({groupGames.length + groupProposals.length} 件)
+          </h2>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+            {groupGames.map((g) => (
+              <Link
+                key={`game-${g.id}`}
+                href={`/groups/${g.groupId}/games/${g.id}`}
+                className="overflow-hidden rounded-sm border border-steam-border bg-steam-surface transition hover:border-steam-blue"
+              >
+                <div className="relative h-24 w-full overflow-hidden bg-steam-panel">
+                  {g.coverUrl ? (
+                    <Image
+                      src={g.coverUrl}
+                      alt={g.title}
+                      fill
+                      sizes="(max-width: 640px) 50vw, 25vw"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center font-mono text-[10px] text-steam-muted/60">
+                      No Image
+                    </div>
+                  )}
+                </div>
+                <div className="p-2">
+                  <p className="truncate font-display text-sm font-semibold text-steam-text">{g.title}</p>
+                  <p className="truncate font-mono text-[9px] text-steam-muted/70">{g.groupName}</p>
+                  {g.status && (
+                    <span className="mt-1 inline-block rounded-sm border border-steam-border px-1.5 py-0.5 font-mono text-[9px] text-steam-muted">
+                      {STATUS_LABEL[g.status]}
+                    </span>
+                  )}
+                </div>
+              </Link>
+            ))}
+            {groupProposals.map((p) => (
+              <Link
+                key={`proposal-${p.id}`}
+                href={`/groups/${p.groupId}`}
+                className="overflow-hidden rounded-sm border border-steam-border bg-steam-surface transition hover:border-steam-blue"
+              >
+                <div className="relative h-24 w-full overflow-hidden bg-steam-panel">
+                  {p.coverUrl ? (
+                    <Image
+                      src={p.coverUrl}
+                      alt={p.title}
+                      fill
+                      sizes="(max-width: 640px) 50vw, 25vw"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center font-mono text-[10px] text-steam-muted/60">
+                      No Image
+                    </div>
+                  )}
+                </div>
+                <div className="p-2">
+                  <p className="truncate font-display text-sm font-semibold text-steam-text">{p.title}</p>
+                  <p className="truncate font-mono text-[9px] text-steam-muted/70">{p.groupName}</p>
+                  <span className="mt-1 inline-flex items-center gap-1 rounded-sm border border-steam-blue/50 px-1.5 py-0.5 font-mono text-[9px] text-steam-blue">
+                    <Gamepad2 size={9} /> 提案中
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }
