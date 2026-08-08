@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -152,7 +152,14 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
 
   return (
     <main className="p-4 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <Link
+        href="/groups"
+        className="inline-flex items-center gap-1.5 font-mono text-xs text-steam-muted hover:text-steam-text"
+      >
+        <ArrowLeft size={14} /> グループ一覧に戻る
+      </Link>
+
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <GroupNameEditor groupId={group.id} name={group.name} canEdit={isOwner} />
           {isOwner && (
