@@ -10,7 +10,7 @@ import { extractFirstFrame } from "@/lib/video-thumbnail";
 // 1ファイルごとの流れ：
 //   1. contentTypeで画像/動画を判定
 //   2. 動画の場合、まず1フレーム目をcanvasで抽出してサムネイル画像を作る
-//   3. サムネイル(動画の場合のみ)→本体の順で、それぞれ署名付きURLを取得してR2へ直接PUT
+//   3. サムネイル(動画の場合のみ)→本体の順で、それぞれ署名付きPOSTポリシーを取得してR2へ直接POST
 //
 // 複数ファイルは「同時並列」ではなく「順番に1つずつ」処理する。
 // R2への署名付きURL発行APIを一度に大量に叩かないようにするための安全策で、
@@ -35,14 +35,20 @@ async function uploadViaSignedUrl(file: File, extra: Record<string, unknown> = {
     body: JSON.stringify({ contentType: file.type, sizeBytes: file.size, ...extra }),
   });
   if (!res.ok) throw new Error((await res.text()) || "アップロードリクエストに失敗しました");
-  const { uploadUrl, photo } = await res.json();
+  const { post, photo } = await res.json();
 
-  const putRes = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": file.type },
-    body: file,
-  });
-  if (!putRes.ok) throw new Error("ストレージへのアップロードに失敗しました");
+  // post が無い場合はストレージ未設定のモック環境（ローカル開発時のフォールバック）。
+  // 実際のオブジェクトアップロードは発生せず、既にDBに保存済みのモックURLをそのまま使う。
+  if (post) {
+    const formData = new FormData();
+    for (const [key, value] of Object.entries(post.fields as Record<string, string>)) {
+      formData.append(key, value);
+    }
+    formData.append("file", file);
+
+    const postRes = await fetch(post.url, { method: "POST", body: formData });
+    if (!postRes.ok) throw new Error("ストレージへのアップロードに失敗しました");
+  }
 
   return photo;
 }

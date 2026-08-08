@@ -1,6 +1,7 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { randomUUID } from "crypto";
+import { maxSizeFor } from "./media-limits";
 
 function getS3Client() {
   const accessKeyId = process.env.STORAGE_ACCESS_KEY_ID;
@@ -19,9 +20,14 @@ function getS3Client() {
 }
 
 /**
- * クライアントが直接ストレージへPUTするための署名付きURLを発行する。
+ * クライアントが直接ストレージへPOSTするための署名付きPOSTポリシーを発行する。
  * サーバーをバイナリが経由しないため、画像・動画どちらでもサーバー負荷が増えない。
  * mediaType に応じて保存先プレフィックスを分けておくと、後の集計・ライフサイクル管理がしやすい。
+ *
+ * 署名付きPUT URLではなくPOSTポリシーを使うのは、content-length-range条件で
+ * ストレージ側に実際のファイルサイズ上限を強制させるため。PUT URLだとサイズ制約を
+ * 埋め込めず、クライアントが申告するsizeBytesをDB保存時にチェックするだけになり、
+ * 実際のアップロード自体は上限を超えても素通りしてしまう。
  */
 export async function createUploadUrl(contentType: string, mediaType: "IMAGE" | "VIDEO") {
   const prefix = mediaType === "VIDEO" ? "videos" : "photos";
@@ -32,20 +38,24 @@ export async function createUploadUrl(contentType: string, mediaType: "IMAGE" | 
   if (!s3 || !bucket) {
     console.warn("[storage] STORAGE credentials not set — returning fallback mock URL");
     return {
-      uploadUrl: `/api/photos`,
+      post: null,
       key,
       publicUrl: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80",
     };
   }
 
-  const command = new PutObjectCommand({
+  const post = await createPresignedPost(s3, {
     Bucket: bucket,
     Key: key,
-    ContentType: contentType,
+    Conditions: [
+      ["content-length-range", 0, maxSizeFor(mediaType)],
+      ["eq", "$Content-Type", contentType],
+    ],
+    Fields: { "Content-Type": contentType },
+    Expires: 300, // 5分で失効
   });
-  const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 }); // 5分で失効
   const publicUrl = `${process.env.STORAGE_PUBLIC_URL || ""}/${key}`;
-  return { uploadUrl, key, publicUrl };
+  return { post, key, publicUrl };
 }
 
 /**

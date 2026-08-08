@@ -9,8 +9,10 @@ import {
   MAX_VIDEO_DURATION_SECONDS,
 } from "@/lib/media-limits";
 
-// POST /api/photos … 署名付きアップロードURLを発行し、Photoレコードを先に作る
-// クライアントはレスポンスのuploadUrlへ直接PUTする
+// POST /api/photos … 署名付きPOSTポリシー(post.url/post.fields)を発行し、Photoレコードを先に作る
+// クライアントはpost.fields一式+fileをFormDataに詰めてpost.urlへ直接POSTする
+// （content-length-range条件で実際のファイルサイズ上限をストレージ側にも強制させるため、
+// 単純な署名付きPUT URLではなくPOSTポリシーを使っている）
 // body: { contentType, sizeBytes, durationSeconds?, thumbnailUrl?, albumId?, gameTitle? }
 // thumbnailUrl は動画の場合のみ使用。クライアント側で1フレーム目 or 任意画像を
 // 先に(通常の画像として)アップロードし、その公開URLをここに渡す想定。
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const { uploadUrl, publicUrl } = await createUploadUrl(body.contentType, mediaType);
+  const { post, publicUrl } = await createUploadUrl(body.contentType, mediaType);
 
   const photo = await db.photo.create({
     data: {
@@ -58,5 +60,5 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({ uploadUrl, photo }, { status: 201 });
+  return NextResponse.json({ post, photo }, { status: 201 });
 }
