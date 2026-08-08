@@ -255,7 +255,7 @@ export default async function GroupGameDetailPage({
                   <p className="mt-1 font-display text-lg font-bold text-[#a4d007]">
                     ¥{itad.lowPrice.toLocaleString("ja-JP")}
                   </p>
-                  <p className="font-mono text-[8px] text-steam-muted/70">
+                  <p className="font-mono text-[9px] text-steam-muted/70">
                     {itad.lowShopName}
                     {itad.lowCut > 0 ? `（-${itad.lowCut}%）` : ""}
                   </p>

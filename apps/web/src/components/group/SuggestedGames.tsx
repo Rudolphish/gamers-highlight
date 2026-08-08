@@ -77,7 +77,7 @@ export function SuggestedGames({
                 <button
                   onClick={() => addSuggestion(s)}
                   disabled={added}
-                  className="flex-shrink-0 text-steam-muted transition hover:text-steam-blue disabled:opacity-50"
+                  className="flex-shrink-0 p-1.5 text-steam-muted transition hover:text-steam-blue disabled:opacity-50"
                   aria-label="リストに追加"
                 >
                   {added ? <Check size={12} className="text-[#a4d007]" /> : <Plus size={12} />}

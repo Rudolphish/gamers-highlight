@@ -123,7 +123,7 @@ export function NotificationChannelSetting({
             className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-[10px] text-steam-text outline-none focus:border-steam-blue"
           />
         )}
-        <button onClick={save} aria-label="保存" className="text-steam-blue">
+        <button onClick={save} aria-label="保存" className="p-1.5 text-steam-blue">
           <Check size={14} />
         </button>
         <button
@@ -133,7 +133,7 @@ export function NotificationChannelSetting({
             setError(null);
           }}
           aria-label="キャンセル"
-          className="text-steam-muted"
+          className="p-1.5 text-steam-muted"
         >
           <X size={14} />
         </button>

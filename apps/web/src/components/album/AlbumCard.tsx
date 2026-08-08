@@ -77,14 +77,14 @@ export function AlbumCard({
                 {m.avatarUrl ? (
                   <Image src={m.avatarUrl} alt={m.name ?? ""} width={20} height={20} className="h-full w-full object-cover" />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center font-mono text-[8px] text-steam-muted">
+                  <div className="flex h-full w-full items-center justify-center font-mono text-[9px] text-steam-muted">
                     {(m.name ?? "?").slice(0, 1)}
                   </div>
                 )}
               </div>
             ))}
             {extraMembers > 0 && (
-              <div className="flex h-5 w-5 items-center justify-center rounded-full border border-steam-surface bg-steam-panel font-mono text-[8px] text-steam-muted">
+              <div className="flex h-5 w-5 items-center justify-center rounded-full border border-steam-surface bg-steam-panel font-mono text-[9px] text-steam-muted">
                 +{extraMembers}
               </div>
             )}

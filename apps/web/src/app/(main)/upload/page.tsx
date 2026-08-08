@@ -195,7 +195,7 @@ export default function UploadPage() {
               {item.status === "idle" && !running && (
                 <button
                   onClick={() => removeItem(i)}
-                  className="flex-shrink-0 text-steam-muted hover:text-[#eb4b4b]"
+                  className="flex-shrink-0 p-1.5 text-steam-muted hover:text-[#eb4b4b]"
                   aria-label="削除"
                 >
                   <X size={14} />

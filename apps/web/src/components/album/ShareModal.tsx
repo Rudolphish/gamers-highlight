@@ -117,7 +117,7 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
               <button
                 onClick={() => setOpen(false)}
                 aria-label="閉じる"
-                className="text-steam-muted hover:text-steam-text"
+                className="p-2 text-steam-muted hover:text-steam-text"
               >
                 <X size={16} />
               </button>

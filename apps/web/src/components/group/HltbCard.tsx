@@ -59,7 +59,7 @@ export function HltbCard({ gameId, main, mainExtra, completionist, allStyles }: 
         })}
       </div>
 
-      <p className="mt-2 font-mono text-[8px] text-steam-muted/60">非公式データのため目安値です</p>
+      <p className="mt-2 font-mono text-[9px] text-steam-muted/60">非公式データのため目安値です</p>
     </div>
   );
 }

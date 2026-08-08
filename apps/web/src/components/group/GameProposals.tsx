@@ -225,7 +225,7 @@ export function GameProposals({
                         disabled={withdrawingId === p.id}
                         title="取り下げる"
                         aria-label="取り下げる"
-                        className="ml-auto flex-shrink-0 text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
+                        className="ml-auto flex-shrink-0 p-1.5 text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
                       >
                         {withdrawingId === p.id ? <Spinner size={11} /> : <Trash2 size={11} />}
                       </button>
@@ -248,7 +248,7 @@ export function GameProposals({
               <button
                 onClick={() => setOpen(false)}
                 aria-label="閉じる"
-                className="text-steam-muted hover:text-steam-text"
+                className="p-2 text-steam-muted hover:text-steam-text"
               >
                 <X size={16} />
               </button>

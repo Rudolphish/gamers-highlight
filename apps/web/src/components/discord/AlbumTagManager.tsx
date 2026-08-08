@@ -89,7 +89,7 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
             <button
               onClick={() => removeTag(t.id)}
               disabled={pending}
-              className="ml-1 text-steam-muted hover:text-[#eb4b4b] disabled:opacity-50"
+              className="ml-1 p-1 text-steam-muted hover:text-[#eb4b4b] disabled:opacity-50"
               aria-label={`${t.tag}を削除`}
             >
               {removingTagId === t.id ? <Spinner size={10} /> : <X size={10} />}

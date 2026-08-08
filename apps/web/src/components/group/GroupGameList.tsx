@@ -273,7 +273,7 @@ export function GroupGameList({
                       {game.genres.slice(0, 2).map((g) => (
                         <span
                           key={g}
-                          className="rounded-sm bg-steam-panel px-1 py-0.5 font-mono text-[8px] text-steam-muted"
+                          className="rounded-sm bg-steam-panel px-1 py-0.5 font-mono text-[9px] text-steam-muted"
                         >
                           {translateGenre(g)}
                         </span>
@@ -309,7 +309,7 @@ export function GroupGameList({
                     <button
                       onClick={() => removeGame(game.id)}
                       disabled={updatingId === game.id}
-                      className="flex-shrink-0 text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
+                      className="flex-shrink-0 p-1.5 text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
                       aria-label="削除"
                     >
                       {updatingId === game.id ? <Spinner size={12} /> : <Trash2 size={12} />}
@@ -332,7 +332,7 @@ export function GroupGameList({
               <button
                 onClick={() => setOpen(false)}
                 aria-label="閉じる"
-                className="text-steam-muted hover:text-steam-text"
+                className="p-2 text-steam-muted hover:text-steam-text"
               >
                 <X size={16} />
               </button>

@@ -119,7 +119,7 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
                 <button
                   onClick={() => removeMapping(m.id)}
                   disabled={removingId !== null}
-                  className="flex-shrink-0 text-steam-muted hover:text-[#eb4b4b] disabled:opacity-50"
+                  className="flex-shrink-0 p-1.5 text-steam-muted hover:text-[#eb4b4b] disabled:opacity-50"
                   aria-label="削除"
                 >
                   {removingId === m.id ? <Spinner size={13} /> : <Trash2 size={13} />}
