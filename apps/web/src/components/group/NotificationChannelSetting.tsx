@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Pencil, Check, X } from "lucide-react";
 
+type ChannelOption = { id: string; name: string };
+
 // ウィッシュリストの最安値更新通知（Discord）の投稿先チャンネルIDをオーナーが設定する。
-// チャンネルIDはDiscordの「開発者モード」を有効にしてチャンネルを右クリック→「IDをコピー」で取得する
-// （グループ作成時のサーバーID取得と同じ手順）。
+// Botがそのサーバーに参加していれば、チャンネル一覧をプルダウンから選べる
+// （/api/groups/:id/discord-channels経由）。取得できない場合（サーバーID未設定、
+// Bot未参加等）はチャンネルIDの直接入力にフォールバックする。
 export function NotificationChannelSetting({
   groupId,
   channelId,
@@ -19,9 +22,28 @@ export function NotificationChannelSetting({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(channelId ?? "");
   const [error, setError] = useState<string | null>(null);
+  // undefined=読み込み中、null=取得不可（手打ちにフォールバック）
+  const [channels, setChannels] = useState<ChannelOption[] | null | undefined>(undefined);
 
   // サーバーから最新データが届いたら（router.refresh()完了時など）楽観的な値を正に置き換える
   useEffect(() => setDisplayChannelId(channelId), [channelId]);
+
+  useEffect(() => {
+    if (!editing) return;
+    let cancelled = false;
+    setChannels(undefined);
+    fetch(`/api/groups/${groupId}/discord-channels`)
+      .then((res) => (res.ok ? res.json() : { channels: null }))
+      .then((data) => {
+        if (!cancelled) setChannels(data.channels ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setChannels(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editing, groupId]);
 
   async function save() {
     const trimmed = draft.trim();
@@ -66,17 +88,41 @@ export function NotificationChannelSetting({
     );
   }
 
+  const useDropdown = Array.isArray(channels) && channels.length > 0;
+  const knownIds = new Set((channels ?? []).map((c) => c.id));
+
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          autoFocus
-          placeholder="DiscordチャンネルID（空欄で通知オフ）"
-          onKeyDown={(e) => e.key === "Enter" && save()}
-          className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-[10px] text-steam-text outline-none focus:border-steam-blue"
-        />
+        {channels === undefined ? (
+          <span className="font-mono text-[10px] text-steam-muted">チャンネル一覧を取得中…</span>
+        ) : useDropdown ? (
+          <select
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            autoFocus
+            className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-[10px] text-steam-text outline-none focus:border-steam-blue"
+          >
+            <option value="">通知オフ</option>
+            {draft && !knownIds.has(draft) && (
+              <option value={draft}>#{draft}（現在の設定）</option>
+            )}
+            {channels!.map((c) => (
+              <option key={c.id} value={c.id}>
+                #{c.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            autoFocus
+            placeholder="DiscordチャンネルID（空欄で通知オフ）"
+            onKeyDown={(e) => e.key === "Enter" && save()}
+            className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-[10px] text-steam-text outline-none focus:border-steam-blue"
+          />
+        )}
         <button onClick={save} aria-label="保存" className="text-steam-blue">
           <Check size={14} />
         </button>
@@ -92,6 +138,12 @@ export function NotificationChannelSetting({
           <X size={14} />
         </button>
       </div>
+      {channels === null && (
+        <p className="font-mono text-[9px] text-steam-muted/60">
+          チャンネル一覧を取得できませんでした（サーバーID未設定、またはBot未参加の可能性）。IDを直接入力してください。
+        </p>
+      )}
+      {error && <p className="font-mono text-[9px] text-[#eb4b4b]">{error}</p>}
     </div>
   );
 }
