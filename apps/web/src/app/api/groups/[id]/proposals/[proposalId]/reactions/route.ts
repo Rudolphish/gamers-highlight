@@ -3,9 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
-import { getSteamGenres } from "@/lib/steam";
-import { getGameplayVideo } from "@/lib/youtube";
-import { getHowLongToBeat } from "@/lib/hltb";
+import { getOrFetchExternalGameData } from "@/lib/externalGameCache";
 import { z } from "zod";
 
 const reactSchema = z.object({
@@ -69,11 +67,7 @@ export async function POST(
 
   let promoted = false;
   if (likeCount >= threshold) {
-    const [genres, video, hltb] = await Promise.all([
-      getSteamGenres(proposal.steamAppId).catch(() => []),
-      getGameplayVideo(proposal.title).catch(() => null),
-      getHowLongToBeat(proposal.title).catch(() => null),
-    ]);
+    const external = await getOrFetchExternalGameData(proposal.steamAppId, proposal.title);
     try {
       await db.groupGame.create({
         data: {
@@ -81,13 +75,7 @@ export async function POST(
           steamAppId: proposal.steamAppId,
           title: proposal.title,
           coverUrl: proposal.coverUrl,
-          genres,
-          youtubeVideoId: video?.videoId,
-          hltbGameId: hltb?.gameId,
-          hltbMainHours: hltb?.main,
-          hltbMainExtraHours: hltb?.mainExtra,
-          hltbCompletionistHours: hltb?.completionist,
-          hltbAllStylesHours: hltb?.allStyles,
+          ...external,
           addedById: proposal.proposedById,
         },
       });

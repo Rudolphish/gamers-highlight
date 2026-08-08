@@ -105,6 +105,24 @@ model Group {
   @@map("groups")
 }
 
+// Steam/YouTube/HowLongToBeatへの外部問い合わせ結果をsteamAppId単位でキャッシュする。
+// GroupGameは元々グループ単位のレコードのため、複数グループが同じゲームを追加すると
+// これらの外部APIに毎回問い合わせが発生していた（特にYouTube search.listはクォータが厳しい）。
+// GroupGame作成時にまずここを見て、あれば再利用する（無ければ取得してここにも保存する）。
+model ExternalGameCache {
+  steamAppId             Int      @id
+  genres                 String[] @default([])
+  youtubeVideoId         String?
+  hltbGameId             Int?
+  hltbMainHours          Float?
+  hltbMainExtraHours     Float?
+  hltbCompletionistHours Float?
+  hltbAllStylesHours     Float?
+  updatedAt              DateTime @updatedAt
+
+  @@map("external_game_caches")
+}
+
 // グループ単位で共有される「気になっている/遊んでいるゲーム」リスト（柱2）。
 // 個人のウィッシュリスト/ライブラリはSteam自体で完結するため作らず、
 // あくまで「このグループとして」のステータスのみを管理する。
