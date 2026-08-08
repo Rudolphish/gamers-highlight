@@ -675,3 +675,36 @@
   - 開発用テストログインは本格リリース前に`auth.ts`の`DEV_LOGIN_ENABLED`ブロックと`.env`の`ENABLE_DEV_LOGIN`行を削除すること（CLAUDE.mdに記載済み）
   - ②（別グループでの同一ゲーム重複登録）は前回セッションで調査済み・対応不要と判明していたため、今回は実装対象外
   - コミットは3つに分割（①ナビゲーション、③楽観的更新、開発用ログイン）。pushはまだ行っていない
+
+## [改善10項目の実装]
+
+- 日時: 2026-08-08
+- 担当ツール: Claude
+- 変更ファイル（コミット単位、計10コミット）:
+  1. `apps/web/src/lib/storage.ts`／`app/api/photos/route.ts`／`app/(main)/upload/page.tsx`／`package.json`／`pnpm-lock.yaml` — アップロードを署名付きPUTから`@aws-sdk/s3-presigned-post`へ切替
+  2. `next.config.js`／画像を使う13コンポーネント・ページ — `next/image`統一
+  3. `app/(main)/error.tsx`／`app/error.tsx`／`app/global-error.tsx` — エラーバウンダリ新規
+  4. アイコンボタンを持つ7コンポーネント — `aria-label`追加
+  5. `packages/db/schema.prisma`（`BotHeartbeat`）／`app/api/internal/bot-heartbeat/route.ts`／`app/api/cron/check-bot-health/route.ts`／`apps/bot/src/index.ts`・`lib/apiClient.ts`／`vercel.json` — Bot死活監視
+  6. `lib/discord.ts`（`listGuildTextChannels`）／`app/api/groups/[id]/discord-channels/route.ts`／`components/group/NotificationChannelSetting.tsx` — 通知チャンネルのプルダウン化
+  7. `app/(main)/groups/[groupId]/page.tsx` — アルバム一覧に`take: 24`＋`_count`
+  8. `app/api/search/group-games/route.ts`／`app/(main)/search/page.tsx` — 検索対象拡張
+  9. アイコンボタン15箇所＋`text-[8px]`6箇所 — タップ領域・文字サイズ調整
+  10. `packages/db/schema.prisma`（`ExternalGameCache`）／`lib/externalGameCache.ts`／`app/api/groups/[id]/games/route.ts`／`app/api/groups/[id]/proposals/[proposalId]/reactions/route.ts` — 外部API問い合わせのキャッシュ化
+- 経緯:
+  - ①③実装完了後、ユーザーから「このサイトの改善ポイントを10個挙げてみて」と依頼され、実コード調査（`next/image`未使用、エラーバウンダリ皆無、presigned PUTにサイズ制約が無い等）に基づき10項目を提示
+  - ユーザーから「全部やる方向でいい。タスクに分解して実施してテストしたらコミットまでやる流れで10個分実施して」と明示指示（コマンド実行は破壊的でなければ全許可、ただし新規npm依存の追加時は1回だけ確認を挟んだ）
+- 完了条件チェック:
+  - [x] 10項目すべて実装・`tsc --noEmit`通過
+  - [x] 各タスクごとに実際のdevサーバー＋ブラウザ（Playwright、開発用テストログイン経由）で動作確認
+  - [x] スキーマ変更（`BotHeartbeat`・`ExternalGameCache`）は`DATABASE_DIRECT_CONNECT`経由で反映
+  - [x] 各タスクごとに個別コミット（計10コミット）
+- 実行したコマンド（抜粋）:
+  - `pnpm --filter web add @aws-sdk/s3-presigned-post @aws-sdk/client-s3@latest @aws-sdk/s3-request-presigner@latest`
+  - `DATABASE_URL=<direct> pnpm exec prisma db push`（2回、schema変更のたび）
+  - `pnpm tsc --noEmit` / `pnpm build`（bot側）／`pnpm --filter web dev`＋Playwright（タスクごとに繰り返し）
+- 懸念点・確認してほしいこと:
+  - Bot死活監視の「down」通知経路（実際にDiscordへ警告を投稿する分岐）は、本番と共有のDBに繋がる開発環境で誤アラームを送るリスクを避けるためライブ実行していない。コードレビューのみで確認済み
+  - Vercel Cronを1個から2個に増やした（`check-wishlist-prices`と`check-bot-health`）。Hobbyプランでの複数cron定義自体は問題ない想定だが、実際のVercelダッシュボードでの反映は未確認（次回pushして確認してほしい）
+  - `.claude/settings.json`の許可コマンド一覧が今回のセッションで自動的に増えている（ユーザーの承認を都度記録する仕組みによるもの、Claudeが意図的に変更したものではない）
+  - コミットはまだpushしていない。ユーザーが全コミット出揃った段階でpush・実機確認する意向
