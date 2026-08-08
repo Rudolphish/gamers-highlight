@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, X, Search, Trash2 } from "lucide-react";
@@ -47,6 +47,7 @@ export function GroupGameList({
   canEdit: boolean;
 }) {
   const router = useRouter();
+  const [items, setItems] = useState(games);
   const [filter, setFilter] = useState<GameStatus | "ALL">("ALL");
   const [genreFilter, setGenreFilter] = useState<string | "ALL">("ALL");
   const [open, setOpen] = useState(false);
@@ -54,13 +55,15 @@ export function GroupGameList({
   const [results, setResults] = useState<SteamResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [addingId, setAddingId] = useState<number | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const allGenres = Array.from(new Set(games.flatMap((g) => g.genres))).sort();
+  // サーバーから最新データが届いたら（router.refresh()完了時など）楽観的な値を正に置き換える
+  useEffect(() => setItems(games), [games]);
 
-  const filteredGames = games.filter(
+  const allGenres = Array.from(new Set(items.flatMap((g) => g.genres))).sort();
+
+  const filteredGames = items.filter(
     (g) =>
       (filter === "ALL" || g.status === filter) &&
       (genreFilter === "ALL" || g.genres.includes(genreFilter))
@@ -85,7 +88,22 @@ export function GroupGameList({
   }
 
   async function addGame(result: SteamResult) {
-    setAddingId(result.appId);
+    const previous = items;
+    const tempItem: GroupGameItem = {
+      id: `temp-${result.appId}`,
+      steamAppId: result.appId,
+      title: result.name,
+      coverUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${result.appId}/header.jpg`,
+      status: "WISHLIST",
+      genres: [],
+      addedByName: "追加中…",
+    };
+    // 追加は即座に画面に反映し、モーダルも閉じてしまう（往復を待たせない）
+    setItems([tempItem, ...previous]);
+    setOpen(false);
+    setQuery("");
+    setResults([]);
+    setSearched(false);
     setError(null);
     try {
       const res = await fetch(`/api/groups/${groupId}/games`, {
@@ -94,26 +112,23 @@ export function GroupGameList({
         body: JSON.stringify({
           steamAppId: result.appId,
           title: result.name,
-          coverUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${result.appId}/header.jpg`,
+          coverUrl: tempItem.coverUrl,
         }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         throw new Error(data?.error ?? "追加に失敗しました");
       }
-      setOpen(false);
-      setQuery("");
-      setResults([]);
-      setSearched(false);
       router.refresh();
     } catch (e) {
+      setItems(previous);
       setError(e instanceof Error ? e.message : "追加に失敗しました");
-    } finally {
-      setAddingId(null);
     }
   }
 
   async function changeStatus(gameId: string, status: GameStatus) {
+    const previous = items;
+    setItems(items.map((g) => (g.id === gameId ? { ...g, status } : g)));
     setUpdatingId(gameId);
     setError(null);
     try {
@@ -125,6 +140,7 @@ export function GroupGameList({
       if (!res.ok) throw new Error(await res.text());
       router.refresh();
     } catch {
+      setItems(previous);
       setError("ステータスの更新に失敗しました");
     } finally {
       setUpdatingId(null);
@@ -132,6 +148,8 @@ export function GroupGameList({
   }
 
   async function removeGame(gameId: string) {
+    const previous = items;
+    setItems(items.filter((g) => g.id !== gameId));
     setUpdatingId(gameId);
     setError(null);
     try {
@@ -139,6 +157,7 @@ export function GroupGameList({
       if (!res.ok) throw new Error(await res.text());
       router.refresh();
     } catch {
+      setItems(previous);
       setError("削除に失敗しました");
     } finally {
       setUpdatingId(null);
@@ -211,6 +230,8 @@ export function GroupGameList({
           ))}
         </div>
       )}
+
+      {error && <p className="mt-2 font-mono text-xs text-[#eb4b4b]">{error}</p>}
 
       {filteredGames.length === 0 ? (
         <p className="mt-4 font-mono text-sm text-steam-muted">
@@ -333,12 +354,10 @@ export function GroupGameList({
                 <button
                   key={r.appId}
                   onClick={() => addGame(r)}
-                  disabled={addingId !== null}
-                  className="flex items-center gap-3 rounded-sm border border-steam-border bg-steam-panel p-2 text-left transition hover:border-steam-blue disabled:opacity-50"
+                  className="flex items-center gap-3 rounded-sm border border-steam-border bg-steam-panel p-2 text-left transition hover:border-steam-blue"
                 >
                   <img src={r.thumbnail} alt="" className="h-10 w-16 flex-shrink-0 rounded-sm object-cover" />
                   <span className="min-w-0 flex-1 truncate font-mono text-xs text-steam-text">{r.name}</span>
-                  {addingId === r.appId && <Spinner size={14} className="flex-shrink-0" />}
                 </button>
               ))}
               {searched && !searching && results.length === 0 && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Search, ThumbsUp, HelpCircle, ThumbsDown, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
@@ -40,15 +40,18 @@ export function GameProposals({
   canManage: boolean;
 }) {
   const router = useRouter();
+  const [localProposals, setLocalProposals] = useState(proposals);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SteamResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [proposingId, setProposingId] = useState<number | null>(null);
   const [reactingId, setReactingId] = useState<string | null>(null);
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // サーバーから最新データが届いたら（router.refresh()完了時など）楽観的な値を正に置き換える
+  useEffect(() => setLocalProposals(proposals), [proposals]);
 
   async function handleSearch() {
     const trimmed = query.trim();
@@ -69,7 +72,21 @@ export function GameProposals({
   }
 
   async function propose(result: SteamResult) {
-    setProposingId(result.appId);
+    const previous = localProposals;
+    const tempProposal: Proposal = {
+      id: `temp-${result.appId}`,
+      title: result.name,
+      coverUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${result.appId}/header.jpg`,
+      proposedById: currentUserId,
+      proposedByName: "あなた",
+      reactions: [],
+    };
+    // 提案は即座に一覧へ反映し、モーダルも閉じてしまう（往復を待たせない）
+    setLocalProposals([tempProposal, ...previous]);
+    setOpen(false);
+    setQuery("");
+    setResults([]);
+    setSearched(false);
     setError(null);
     try {
       const res = await fetch(`/api/groups/${groupId}/proposals`, {
@@ -78,26 +95,32 @@ export function GameProposals({
         body: JSON.stringify({
           steamAppId: result.appId,
           title: result.name,
-          coverUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${result.appId}/header.jpg`,
+          coverUrl: tempProposal.coverUrl,
         }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         throw new Error(data?.error ?? "提案に失敗しました");
       }
-      setOpen(false);
-      setQuery("");
-      setResults([]);
-      setSearched(false);
       router.refresh();
     } catch (e) {
+      setLocalProposals(previous);
       setError(e instanceof Error ? e.message : "提案に失敗しました");
-    } finally {
-      setProposingId(null);
     }
   }
 
   async function react(proposalId: string, type: ReactionType) {
+    const previous = localProposals;
+    setLocalProposals(
+      previous.map((p) =>
+        p.id === proposalId
+          ? {
+              ...p,
+              reactions: [...p.reactions.filter((r) => r.userId !== currentUserId), { userId: currentUserId, type }],
+            }
+          : p
+      )
+    );
     setReactingId(proposalId);
     setError(null);
     try {
@@ -109,6 +132,7 @@ export function GameProposals({
       if (!res.ok) throw new Error(await res.text());
       router.refresh();
     } catch {
+      setLocalProposals(previous);
       setError("リアクションに失敗しました");
     } finally {
       setReactingId(null);
@@ -116,6 +140,8 @@ export function GameProposals({
   }
 
   async function withdraw(proposalId: string) {
+    const previous = localProposals;
+    setLocalProposals(previous.filter((p) => p.id !== proposalId));
     setWithdrawingId(proposalId);
     setError(null);
     try {
@@ -123,6 +149,7 @@ export function GameProposals({
       if (!res.ok) throw new Error(await res.text());
       router.refresh();
     } catch {
+      setLocalProposals(previous);
       setError("取り下げに失敗しました");
     } finally {
       setWithdrawingId(null);
@@ -143,11 +170,11 @@ export function GameProposals({
         </button>
       </div>
 
-      {proposals.length === 0 ? (
+      {localProposals.length === 0 ? (
         <p className="mt-2 font-mono text-[10px] text-steam-muted/70">まだ提案はありません。</p>
       ) : (
         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {proposals.map((p) => {
+          {localProposals.map((p) => {
             const likeCount = p.reactions.filter((r) => r.type === "LIKE").length;
             const myReaction = p.reactions.find((r) => r.userId === currentUserId)?.type;
             const canWithdraw = canManage || p.proposedById === currentUserId;
@@ -173,7 +200,7 @@ export function GameProposals({
                         <button
                           key={type}
                           onClick={() => react(p.id, type)}
-                          disabled={reactingId !== null}
+                          disabled={reactingId === p.id}
                           title={label}
                           className={`flex items-center gap-0.5 rounded-sm border px-1.5 py-0.5 font-mono text-[9px] transition disabled:opacity-50 ${
                             active
@@ -239,12 +266,10 @@ export function GameProposals({
                 <button
                   key={r.appId}
                   onClick={() => propose(r)}
-                  disabled={proposingId !== null}
-                  className="flex items-center gap-3 rounded-sm border border-steam-border bg-steam-panel p-2 text-left transition hover:border-steam-blue disabled:opacity-50"
+                  className="flex items-center gap-3 rounded-sm border border-steam-border bg-steam-panel p-2 text-left transition hover:border-steam-blue"
                 >
                   <img src={r.thumbnail} alt="" className="h-10 w-16 flex-shrink-0 rounded-sm object-cover" />
                   <span className="min-w-0 flex-1 truncate font-mono text-xs text-steam-text">{r.name}</span>
-                  {proposingId === r.appId && <Spinner size={14} className="flex-shrink-0" />}
                 </button>
               ))}
               {searched && !searching && results.length === 0 && (

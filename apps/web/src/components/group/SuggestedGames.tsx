@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Check } from "lucide-react";
-import { Spinner } from "@/components/ui/Spinner";
 import { translateGenre } from "@/lib/steam";
 
 type Suggestion = { appId: number; name: string; thumbnail: string };
@@ -20,14 +19,14 @@ export function SuggestedGames({
   suggestions: Suggestion[];
 }) {
   const router = useRouter();
-  const [addingId, setAddingId] = useState<number | null>(null);
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
   if (suggestions.length === 0) return null;
 
   async function addSuggestion(s: Suggestion) {
-    setAddingId(s.appId);
+    // 即座に「追加済み」表示にし、失敗した時だけ元に戻す
+    setAddedIds((prev) => new Set(prev).add(s.appId));
     setError(null);
     try {
       const res = await fetch(`/api/groups/${groupId}/games`, {
@@ -43,12 +42,14 @@ export function SuggestedGames({
         const data = await res.json().catch(() => null);
         throw new Error(data?.error ?? "追加に失敗しました");
       }
-      setAddedIds((prev) => new Set(prev).add(s.appId));
       router.refresh();
     } catch (e) {
+      setAddedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(s.appId);
+        return next;
+      });
       setError(e instanceof Error ? e.message : "追加に失敗しました");
-    } finally {
-      setAddingId(null);
     }
   }
 
@@ -72,17 +73,11 @@ export function SuggestedGames({
                 </span>
                 <button
                   onClick={() => addSuggestion(s)}
-                  disabled={addingId !== null || added}
+                  disabled={added}
                   className="flex-shrink-0 text-steam-muted transition hover:text-steam-blue disabled:opacity-50"
                   aria-label="リストに追加"
                 >
-                  {added ? (
-                    <Check size={12} className="text-[#a4d007]" />
-                  ) : addingId === s.appId ? (
-                    <Spinner size={12} />
-                  ) : (
-                    <Plus size={12} />
-                  )}
+                  {added ? <Check size={12} className="text-[#a4d007]" /> : <Plus size={12} />}
                 </button>
               </div>
             </div>

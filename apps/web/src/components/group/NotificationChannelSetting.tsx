@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Pencil, Check, X } from "lucide-react";
-import { Spinner } from "@/components/ui/Spinner";
 
 // ウィッシュリストの最安値更新通知（Discord）の投稿先チャンネルIDをオーナーが設定する。
 // チャンネルIDはDiscordの「開発者モード」を有効にしてチャンネルを右クリック→「IDをコピー」で取得する
@@ -16,14 +15,20 @@ export function NotificationChannelSetting({
   channelId: string | null;
 }) {
   const router = useRouter();
+  const [displayChannelId, setDisplayChannelId] = useState(channelId);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(channelId ?? "");
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // サーバーから最新データが届いたら（router.refresh()完了時など）楽観的な値を正に置き換える
+  useEffect(() => setDisplayChannelId(channelId), [channelId]);
 
   async function save() {
     const trimmed = draft.trim();
-    setPending(true);
+    const previous = displayChannelId;
+    // 即座に確定表示に切り替え、失敗した時だけ元に戻す
+    setDisplayChannelId(trimmed || null);
+    setEditing(false);
     setError(null);
     try {
       const res = await fetch(`/api/groups/${groupId}`, {
@@ -35,25 +40,29 @@ export function NotificationChannelSetting({
         const data = await res.json().catch(() => null);
         throw new Error(data?.error ?? "更新に失敗しました");
       }
-      setEditing(false);
       router.refresh();
     } catch (e) {
+      setDisplayChannelId(previous);
       setError(e instanceof Error ? e.message : "更新に失敗しました");
-    } finally {
-      setPending(false);
     }
   }
 
   if (!editing) {
     return (
-      <button
-        onClick={() => setEditing(true)}
-        className="group flex items-center gap-1.5 font-mono text-[10px] text-steam-muted transition hover:text-steam-text"
-      >
-        <Bell size={11} />
-        {channelId ? `通知先チャンネル: ${channelId}` : "最安値更新の通知先チャンネルを設定"}
-        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100" />
-      </button>
+      <div>
+        <button
+          onClick={() => {
+            setDraft(displayChannelId ?? "");
+            setEditing(true);
+          }}
+          className="group flex items-center gap-1.5 font-mono text-[10px] text-steam-muted transition hover:text-steam-text"
+        >
+          <Bell size={11} />
+          {displayChannelId ? `通知先チャンネル: ${displayChannelId}` : "最安値更新の通知先チャンネルを設定"}
+          <Pencil size={10} className="opacity-0 transition group-hover:opacity-100" />
+        </button>
+        {error && <p className="mt-1 font-mono text-[9px] text-[#eb4b4b]">{error}</p>}
+      </div>
     );
   }
 
@@ -63,28 +72,25 @@ export function NotificationChannelSetting({
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          disabled={pending}
           autoFocus
           placeholder="DiscordチャンネルID（空欄で通知オフ）"
           onKeyDown={(e) => e.key === "Enter" && save()}
-          className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-[10px] text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+          className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-[10px] text-steam-text outline-none focus:border-steam-blue"
         />
-        <button onClick={save} disabled={pending} className="text-steam-blue disabled:opacity-50">
-          {pending ? <Spinner size={14} /> : <Check size={14} />}
+        <button onClick={save} className="text-steam-blue">
+          <Check size={14} />
         </button>
         <button
           onClick={() => {
             setEditing(false);
-            setDraft(channelId ?? "");
+            setDraft(displayChannelId ?? "");
             setError(null);
           }}
-          disabled={pending}
-          className="text-steam-muted disabled:opacity-50"
+          className="text-steam-muted"
         >
           <X size={14} />
         </button>
       </div>
-      {error && <p className="font-mono text-[9px] text-[#eb4b4b]">{error}</p>}
     </div>
   );
 }
