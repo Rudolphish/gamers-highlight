@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Users, X, UserPlus } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 
@@ -126,7 +127,7 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
                 >
                   <div className="h-6 w-6 flex-shrink-0 overflow-hidden rounded-full bg-steam-surface">
                     {m.avatarUrl ? (
-                      <img src={m.avatarUrl} alt="" className="h-full w-full object-cover" />
+                      <Image src={m.avatarUrl} alt="" width={24} height={24} className="h-full w-full object-cover" />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center font-mono text-[9px] text-steam-muted">
                         {(m.name ?? "?").slice(0, 1)}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Plus, Check } from "lucide-react";
 import { translateGenre } from "@/lib/steam";
 
@@ -66,7 +67,9 @@ export function SuggestedGames({
               key={s.appId}
               className="overflow-hidden rounded-sm border border-steam-border bg-steam-panel"
             >
-              <img src={s.thumbnail} alt={s.name} className="h-16 w-full object-cover" />
+              <div className="relative h-16 w-full">
+                <Image src={s.thumbnail} alt={s.name} fill sizes="(max-width: 640px) 50vw, 25vw" className="object-cover" />
+              </div>
               <div className="flex items-center gap-1 p-1.5">
                 <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-steam-text">
                   {s.name}

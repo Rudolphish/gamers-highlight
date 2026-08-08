@@ -150,6 +150,9 @@ export function Lightbox({
                 <Spinner size={32} className="text-steam-muted" />
               </div>
             )}
+            {/* next/imageのfill/width-heightは既知サイズの箱を前提にするため、この
+                「読み込むまでサイズが分からない・ビューポート基準で自然サイズ表示」という
+                用途とは相性が悪く、意図的にnext/imageへは移行していない */}
             <img
               src={mediaUrl}
               alt=""

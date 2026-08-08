@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Plus, X, Search, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
@@ -247,7 +248,13 @@ export function GroupGameList({
               <Link href={`/groups/${groupId}/games/${game.id}`}>
                 <div className="relative h-24 w-full overflow-hidden bg-steam-panel">
                   {game.coverUrl ? (
-                    <img src={game.coverUrl} alt={game.title} className="h-full w-full object-cover" />
+                    <Image
+                      src={game.coverUrl}
+                      alt={game.title}
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
+                      className="object-cover"
+                    />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center font-mono text-[10px] text-steam-muted/60">
                       No Image
@@ -356,7 +363,13 @@ export function GroupGameList({
                   onClick={() => addGame(r)}
                   className="flex items-center gap-3 rounded-sm border border-steam-border bg-steam-panel p-2 text-left transition hover:border-steam-blue"
                 >
-                  <img src={r.thumbnail} alt="" className="h-10 w-16 flex-shrink-0 rounded-sm object-cover" />
+                  <Image
+                    src={r.thumbnail}
+                    alt=""
+                    width={64}
+                    height={40}
+                    className="h-10 w-16 flex-shrink-0 rounded-sm object-cover"
+                  />
                   <span className="min-w-0 flex-1 truncate font-mono text-xs text-steam-text">{r.name}</span>
                 </button>
               ))}

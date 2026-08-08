@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 type GameStatus = "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
 
@@ -54,7 +55,7 @@ function StatusRow({
             className="flex-shrink-0 overflow-hidden rounded-sm border border-steam-border transition hover:border-steam-blue"
           >
             {g.coverUrl ? (
-              <img src={g.coverUrl} alt={g.title} className="h-12 w-20 object-cover" />
+              <Image src={g.coverUrl} alt={g.title} width={80} height={48} className="h-12 w-20 object-cover" />
             ) : (
               <div className="flex h-12 w-20 items-center justify-center bg-steam-surface font-mono text-[8px] text-steam-muted">
                 {g.title.slice(0, 8)}

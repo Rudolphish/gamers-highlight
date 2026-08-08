@@ -4,9 +4,7 @@ const path = require("path");
 const nextConfig = {
   images: {
     remotePatterns: [
-      // Cloudflare R2の公開ドメイン（pub-*.r2.dev）と、ストレージのエンドポイントのみ許可。
-      // ※現在のコードは<img>タグを直接使っておりこの設定は未使用だが、
-      // 将来next/imageに切り替える際のために先に絞り込んでおく。
+      // Cloudflare R2の公開ドメイン（pub-*.r2.dev）と、ストレージのエンドポイント。
       {
         protocol: "https",
         hostname: "pub-*.r2.dev",
@@ -14,6 +12,21 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "*.r2.cloudflarestorage.com",
+      },
+      // Steamストアのゲームカバー/サムネイル（cdn.akamai.steamstatic.com等、複数のサブドメインを使うためワイルドカード）
+      {
+        protocol: "https",
+        hostname: "*.steamstatic.com",
+      },
+      // Discordのユーザーアバター
+      {
+        protocol: "https",
+        hostname: "cdn.discordapp.com",
+      },
+      // ストレージ未設定時（ローカル開発のフォールバック）のモック画像
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
       },
     ],
   },

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Play } from "lucide-react";
 import { formatRelativeTime } from "@/lib/relative-time";
 
@@ -31,10 +32,12 @@ export function RecentActivity({ photos }: { photos: RecentPhoto[] }) {
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <img
+                <Image
                   src={p.thumbnailUrl ?? p.mediaUrl}
                   alt=""
-                  className="h-full w-full object-cover"
+                  fill
+                  sizes="128px"
+                  className="object-cover"
                 />
               )}
               {p.mediaType === "VIDEO" && (

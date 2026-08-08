@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Plus, X, Search, ThumbsUp, HelpCircle, ThumbsDown, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 
@@ -185,7 +186,13 @@ export function GameProposals({
                 className="flex items-center gap-2 rounded-sm border border-steam-border bg-steam-panel p-2"
               >
                 {p.coverUrl && (
-                  <img src={p.coverUrl} alt={p.title} className="h-12 w-20 flex-shrink-0 rounded-sm object-cover" />
+                  <Image
+                    src={p.coverUrl}
+                    alt={p.title}
+                    width={80}
+                    height={48}
+                    className="h-12 w-20 flex-shrink-0 rounded-sm object-cover"
+                  />
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-mono text-xs text-steam-text">{p.title}</p>
@@ -268,7 +275,13 @@ export function GameProposals({
                   onClick={() => propose(r)}
                   className="flex items-center gap-3 rounded-sm border border-steam-border bg-steam-panel p-2 text-left transition hover:border-steam-blue"
                 >
-                  <img src={r.thumbnail} alt="" className="h-10 w-16 flex-shrink-0 rounded-sm object-cover" />
+                  <Image
+                    src={r.thumbnail}
+                    alt=""
+                    width={64}
+                    height={40}
+                    className="h-10 w-16 flex-shrink-0 rounded-sm object-cover"
+                  />
                   <span className="min-w-0 flex-1 truncate font-mono text-xs text-steam-text">{r.name}</span>
                 </button>
               ))}

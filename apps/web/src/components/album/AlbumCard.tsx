@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { formatRelativeTime } from "@/lib/relative-time";
 
 type Member = { id: string; name?: string | null; avatarUrl?: string | null };
@@ -37,10 +38,12 @@ export function AlbumCard({
               className="h-full w-full object-cover transition group-hover:scale-105"
             />
           ) : (
-            <img
+            <Image
               src={coverImageUrl}
               alt={title}
-              className="h-full w-full object-cover transition group-hover:scale-105"
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-cover transition group-hover:scale-105"
             />
           )
         ) : (
@@ -72,7 +75,7 @@ export function AlbumCard({
                 className="h-5 w-5 overflow-hidden rounded-full border border-steam-surface bg-steam-panel"
               >
                 {m.avatarUrl ? (
-                  <img src={m.avatarUrl} alt={m.name ?? ""} className="h-full w-full object-cover" />
+                  <Image src={m.avatarUrl} alt={m.name ?? ""} width={20} height={20} className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center font-mono text-[8px] text-steam-muted">
                     {(m.name ?? "?").slice(0, 1)}

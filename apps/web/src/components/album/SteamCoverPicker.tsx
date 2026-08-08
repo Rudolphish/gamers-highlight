@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Gamepad2, X, Search, ListPlus, Check } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 
@@ -156,7 +157,13 @@ export function SteamCoverPicker({
                   key={r.appId}
                   className="flex items-center gap-2 rounded-sm border border-steam-border bg-steam-panel p-2"
                 >
-                  <img src={r.thumbnail} alt="" className="h-10 w-16 flex-shrink-0 rounded-sm object-cover" />
+                  <Image
+                    src={r.thumbnail}
+                    alt=""
+                    width={64}
+                    height={40}
+                    className="h-10 w-16 flex-shrink-0 rounded-sm object-cover"
+                  />
                   <span className="min-w-0 flex-1 truncate font-mono text-xs text-steam-text">{r.name}</span>
                   <button
                     onClick={() => applyCover(r.appId)}

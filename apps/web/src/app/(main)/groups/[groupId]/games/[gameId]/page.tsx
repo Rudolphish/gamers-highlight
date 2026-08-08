@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, ExternalLink, MessageSquare, Newspaper, ThumbsDown, ThumbsUp, TrendingDown, Youtube } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -98,7 +99,7 @@ export default async function GroupGameDetailPage({
         {/* 左：基本情報 */}
         <div className="overflow-hidden rounded-sm border border-steam-border bg-steam-surface">
           <div className="relative h-48 w-full overflow-hidden bg-steam-panel sm:h-64">
-            <img src={coverUrl} alt={game.title} className="h-full w-full object-cover" />
+            <Image src={coverUrl} alt={game.title} fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" priority />
           </div>
 
           <div className="p-4 sm:p-6">
