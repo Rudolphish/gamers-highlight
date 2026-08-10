@@ -142,7 +142,9 @@ function loadState() {
   };
   if (!existsSync(STATE_FILE)) return empty;
   try {
-    return { ...empty, ...JSON.parse(readFileSync(STATE_FILE, "utf-8")) };
+    // Windowsのエディタ/PowerShellで手編集するとBOMが付くことがあり、
+    // そのままJSON.parseすると毎回パース失敗＝状態が黙ってリセットされ続ける
+    return { ...empty, ...JSON.parse(readFileSync(STATE_FILE, "utf-8").replace(/^﻿/, "")) };
   } catch (e) {
     console.error(`[auto-review] .review-state.jsonの読み取りに失敗したため初期状態から始めます: ${e.message}`);
     return empty;
