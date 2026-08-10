@@ -19,7 +19,8 @@
       "PowerShell(git -c http.sslBackend=schannel push origin master)",
       "PowerShell(pnpm --filter @gamers-highlight/db exec prisma generate)",
       "PowerShell(pnpm --filter web exec tsc --noEmit)",
-      "PowerShell(pnpm --filter web build 2>&1)"
+      "PowerShell(pnpm --filter web build 2>&1)",
+      "PowerShell(git add -A)"
     ],
     "deny": [
       "Edit(.npmrc)",
