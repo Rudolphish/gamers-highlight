@@ -1,5 +1,32 @@
 // SteamストアAPI連携。APIキー不要で使える公開エンドポイントのみ使用する。
 
+/**
+ * ゲーム1件分の外部データにまとめて付けるキャッシュタグ。
+ * リフレッシュ時に revalidateTag(gameCacheTag(appId)) で一括無効化する。
+ */
+export function gameCacheTag(appId: number): string {
+  return `game-${appId}`;
+}
+
+/**
+ * ゲーム詳細ページで毎回描画される情報（レビュー・価格・ニュース）用のfetchオプション。
+ *
+ * Next.js 14のApp Routerではオプション無しの`fetch`は既定でキャッシュされる（force-cache）ため、
+ * 何も指定しないと**一度取得した価格やレビューが更新されないまま固定される**。
+ * 実際にこのリポジトリは全ての外部fetchが無指定で、価格が古いまま出ていた。
+ * 明示的な再検証期間を与えたうえでタグを付け、手動リフレッシュでも飛ばせるようにする。
+ */
+export function gameFetchOptions(appId: number): RequestInit {
+  return { next: { revalidate: 60 * 60 * 6, tags: [gameCacheTag(appId)] } };
+}
+
+/**
+ * ゲーム追加時・手動リフレッシュ時にしか呼ばれない問い合わせ用。
+ * これらは毎回の描画では走らないためキャッシュする意味が無く、むしろキャッシュされると
+ * 「リフレッシュしたのに古い値が返る」ことになるので明示的に無効化する。
+ */
+const NO_STORE: RequestInit = { cache: "no-store" };
+
 export type SteamSearchResult = {
   appId: number;
   name: string;
@@ -9,7 +36,7 @@ export type SteamSearchResult = {
 /** ゲーム名でSteamストアを検索する（Steamストアの検索窓と同じ公開API） */
 export async function searchSteamGames(query: string): Promise<SteamSearchResult[]> {
   const url = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&l=japanese&cc=jp`;
-  const res = await fetch(url);
+  const res = await fetch(url, NO_STORE);
   if (!res.ok) return [];
 
   const data = await res.json();
@@ -53,7 +80,7 @@ export type SteamReviewSummary = {
 /** レビュー概要（「非常に好評」等の評価とその内訳件数）を取得する */
 export async function getSteamReviewSummary(appId: number): Promise<SteamReviewSummary | null> {
   const url = `https://store.steampowered.com/appreviews/${appId}?json=1&language=japanese&purchase_type=all`;
-  const res = await fetch(url);
+  const res = await fetch(url, gameFetchOptions(appId));
   if (!res.ok) return null;
 
   const data = await res.json();
@@ -104,7 +131,7 @@ export async function getSteamReviews(
   language = "japanese"
 ): Promise<SteamReviewItem[]> {
   const url = `https://store.steampowered.com/appreviews/${appId}?json=1&language=${language}&purchase_type=all&filter=recent&num_per_page=${count}`;
-  const res = await fetch(url);
+  const res = await fetch(url, gameFetchOptions(appId));
   if (!res.ok) return [];
 
   const data = await res.json();
@@ -143,7 +170,7 @@ export type SteamPriceInfo = {
 /** 現在の価格・セール状況を取得する（無料ゲーム/非公開ゲームはnull寄りの扱い） */
 export async function getSteamPriceInfo(appId: number): Promise<SteamPriceInfo | null> {
   const url = `https://store.steampowered.com/api/appdetails?appids=${appId}&cc=jp&l=japanese`;
-  const res = await fetch(url);
+  const res = await fetch(url, gameFetchOptions(appId));
   if (!res.ok) return null;
 
   const data = await res.json();
@@ -209,7 +236,7 @@ export type SteamAppSummary = {
 export async function getSteamAppSummary(appId: number): Promise<SteamAppSummary> {
   const empty: SteamAppSummary = { genres: [], headerImage: null };
   const url = `https://store.steampowered.com/api/appdetails?appids=${appId}&cc=jp`;
-  const res = await fetch(url);
+  const res = await fetch(url, NO_STORE);
   if (!res.ok) return empty;
 
   const data = await res.json();
@@ -280,7 +307,7 @@ export type SteamNewsItem = {
 /** 最新のアプデ/ニュースを取得する。maxlengthは本文の最大文字数（0で無制限） */
 export async function getSteamNews(appId: number, count = 3, maxlength = 300): Promise<SteamNewsItem[]> {
   const url = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${appId}&count=${count}&maxlength=${maxlength}&format=json`;
-  const res = await fetch(url);
+  const res = await fetch(url, gameFetchOptions(appId));
   if (!res.ok) return [];
 
   const data = await res.json();

@@ -37,7 +37,11 @@
       "PowerShell($env:ENABLE_DEV_LOGIN = \"true\"; pnpm --filter web dev)",
       "Bash(node \"C:/Users/rudir/AppData/Local/Temp/claude/c--Study-gamers-highlight/c884b15f-3d7d-4629-b4dc-a73fad24451f/scratchpad/check-appids.mjs\")",
       "Bash(pnpm --filter @gamers-highlight/db exec prisma generate)",
-      "Bash(DRY=1 node --env-file=.env ./scratch-backfill-covers.mjs)"
+      "Bash(DRY=1 node --env-file=.env ./scratch-backfill-covers.mjs)",
+      "Bash(node -e \"const p=require\\('./apps/web/package.json'\\);console.log\\('next:', p.dependencies.next, '/ react:', p.dependencies.react\\)\")",
+      "Bash(node -e \"console.log\\('実際にインストールされているnext:', require\\('./node_modules/next/package.json'\\).version\\)\")",
+      "Bash(curl -s -o /dev/null -w \"devサーバー: %{http_code}\\\\n\" --max-time 10 http://localhost:3000/login)",
+      "Bash(node --env-file=.env ./scratch-age-cache.mjs 413150)"
     ],
     "deny": [
       "Edit(.npmrc)",

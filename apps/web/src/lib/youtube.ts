@@ -14,7 +14,9 @@ export async function getGameplayVideo(title: string): Promise<YoutubeVideo | nu
   try {
     const q = encodeURIComponent(`${title} gameplay`);
     const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&type=video&maxResults=1&order=relevance&key=${key}`;
-    const res = await fetch(url);
+    // 追加時・手動リフレッシュ時にしか呼ばないので、キャッシュされると
+    // 「リフレッシュしたのに同じ動画が返る」ことになる。明示的に無効化する
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;
 
     const data = await res.json();

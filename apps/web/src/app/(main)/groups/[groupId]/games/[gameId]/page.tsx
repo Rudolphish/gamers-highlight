@@ -17,6 +17,8 @@ import {
 import { getItadSummary } from "@/lib/itad";
 import { HltbCard } from "@/components/group/HltbCard";
 import { InterestButton } from "@/components/group/InterestButton";
+import { RefreshGameDataButton } from "@/components/group/RefreshGameDataButton";
+import { REFRESH_INTERVAL_MS } from "@/lib/externalGameCache";
 
 const STATUS_LABEL = {
   WISHLIST: "気になる",
@@ -69,6 +71,14 @@ export default async function GroupGameDetailPage({
     id: i.userId,
     name: i.user.name ?? i.user.email ?? "メンバー",
   }));
+
+  // 外部情報の最終更新時刻。ExternalGameCacheはsteamAppId単位でグループ横断に共有されるため、
+  // 更新間隔の制限もグループをまたいで共有される
+  const cache = await db.externalGameCache.findUnique({
+    where: { steamAppId: game.steamAppId },
+    select: { updatedAt: true },
+  });
+  const canRefresh = await hasGroupPermission(params.groupId, currentUser.id, "EDITOR");
 
   const [reviewResult, reviewItemsResult, priceResult, newsResult, itadResult] = await Promise.allSettled([
     getSteamReviewSummary(game.steamAppId),
@@ -143,6 +153,18 @@ export default async function GroupGameDetailPage({
                 users={interestedUsers}
                 currentUserId={currentUser.id}
                 showNames
+              />
+            </div>
+
+            <div className="mt-3">
+              <RefreshGameDataButton
+                groupId={params.groupId}
+                gameId={game.id}
+                refreshedAt={cache?.updatedAt.toISOString() ?? null}
+                nextAvailableAt={
+                  cache ? new Date(cache.updatedAt.getTime() + REFRESH_INTERVAL_MS).toISOString() : null
+                }
+                canRefresh={canRefresh}
               />
             </div>
 
