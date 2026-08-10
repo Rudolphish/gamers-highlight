@@ -22,12 +22,12 @@
       "PowerShell(pnpm --filter web build 2>&1)",
       "PowerShell(git add -A)",
       "PowerShell(pnpm --filter web dev)",
-      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.json','utf8'\\)\\);console.log\\('settings.json: valid JSON'\\)\")",
-      "Bash(git -c http.sslBackend=schannel push origin master)"
+      "Bash(git -c http.sslBackend=schannel push origin master)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.json','utf8'\\)\\);console.log\\('valid JSON'\\)\")"
     ],
     "deny": [
       "Edit(.npmrc)",
-      "Write(.npmrc)",
+      "Edit(**/.npmrc)",
       "PowerShell(*.npmrc*)",
       "Bash(*prisma migrate deploy*)",
       "Bash(*prisma migrate reset*)",
