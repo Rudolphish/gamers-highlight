@@ -20,7 +20,7 @@
       "Edit(.npmrc)",
       "Bash(*prisma migrate deploy*)",
       "Bash(*prisma migrate reset*)",
-      "Bash(*prisma db push*--force*)",
+      "Bash(*prisma db push*)",
       "Bash(*DATABASE_URL*supabase.co*)",
       "Bash(*vercel --prod*)",
       "Bash(*vercel deploy --prod*)",
