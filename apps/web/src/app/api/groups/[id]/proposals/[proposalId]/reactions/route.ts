@@ -67,14 +67,18 @@ export async function POST(
 
   let promoted = false;
   if (likeCount >= threshold) {
-    const external = await getOrFetchExternalGameData(proposal.steamAppId, proposal.title);
+    const { headerImage, ...external } = await getOrFetchExternalGameData(
+      proposal.steamAppId,
+      proposal.title
+    );
     try {
       await db.groupGame.create({
         data: {
           groupId: params.id,
           steamAppId: proposal.steamAppId,
           title: proposal.title,
-          coverUrl: proposal.coverUrl,
+          // 提案時に組み立てた固定パスより、appdetailsが返す正しいURLを優先する
+          coverUrl: headerImage ?? proposal.coverUrl,
           ...external,
           addedById: proposal.proposedById,
         },

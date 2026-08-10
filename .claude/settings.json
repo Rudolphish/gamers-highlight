@@ -24,7 +24,20 @@
       "PowerShell(pnpm --filter web dev)",
       "Bash(git -c http.sslBackend=schannel push origin master)",
       "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.json','utf8'\\)\\);console.log\\('valid JSON'\\)\")",
-      "Bash(node --check .claude/hooks/auto-review.mjs)"
+      "Bash(node --check .claude/hooks/auto-review.mjs)",
+      "Bash(curl -s \"https://store.steampowered.com/api/storesearch/?term=stardew&l=japanese&cc=jp\")",
+      "Bash(node -e \"console.log\\(encodeURIComponent\\('the witcher'\\)\\)\")",
+      "Bash(curl -s \"https://store.steampowered.com/api/storesearch/?term=$\\(node -e \"console.log\\(encodeURIComponent\\('the witcher'\\)\\)\"\\)&l=japanese&cc=jp\")",
+      "Bash(curl -s -o /dev/null -w \"  header.jpg  -> %{http_code}\\\\n\" \"https://cdn.akamai.steamstatic.com/steam/apps/124923/header.jpg\")",
+      "Bash(curl -s -o /dev/null -w \"  新パス      -> %{http_code}\\\\n\" \"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/124923/header.jpg\")",
+      "Bash(curl -s \"https://store.steampowered.com/api/appdetails?appids=124923&cc=jp&l=japanese\")",
+      "Bash(curl -s \"https://store.steampowered.com/appreviews/124923?json=1&language=japanese&purchase_type=all\")",
+      "Bash(curl -s \"http://localhost:3000/api/steam/search?q=$\\(node -e \"console.log\\(encodeURIComponent\\('the witcher'\\)\\)\"\\)\")",
+      "Bash(curl -s -w \"\\\\n[http %{http_code}]\\\\n\" \"http://localhost:3000/api/steam/search?q=$\\(node -e \"console.log\\(encodeURIComponent\\('the witcher'\\)\\)\"\\)\")",
+      "PowerShell($env:ENABLE_DEV_LOGIN = \"true\"; pnpm --filter web dev)",
+      "Bash(node \"C:/Users/rudir/AppData/Local/Temp/claude/c--Study-gamers-highlight/c884b15f-3d7d-4629-b4dc-a73fad24451f/scratchpad/check-appids.mjs\")",
+      "Bash(pnpm --filter @gamers-highlight/db exec prisma generate)",
+      "Bash(DRY=1 node --env-file=.env ./scratch-backfill-covers.mjs)"
     ],
     "deny": [
       "Edit(.npmrc)",

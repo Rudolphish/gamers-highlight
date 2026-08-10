@@ -15,12 +15,21 @@ export async function searchSteamGames(query: string): Promise<SteamSearchResult
   const data = await res.json();
   const items: unknown[] = Array.isArray(data?.items) ? data.items : [];
 
+  // storesearchはゲーム（type: "app"）以外に、パッケージ（"sub"）やバンドル（"bundle"）も返す。
+  // これらのidはapp IDではないため、そのまま採用するとsteamAppIdに別体系のIDが入り、
+  // 以降が軒並み壊れる：
+  //   - カバー画像 steam/apps/<id>/header.jpg が404（subの画像は steam/subs/<id>/... にある）
+  //   - appdetailsが success:false になりジャンル・価格が取れない
+  //   - レビュー0件、ニュース無し、ITAD/HowLongToBeatの紐付けも不可
+  // 検索モーダル上はAPIが返すtiny_imageを表示するのでサムネイルは正常に見え、
+  // 「追加した後だけ画像が壊れる」という分かりにくい形で出る（実際に発生した）。
   return items
     .filter(
-      (item): item is { id: number; name: string; tiny_image: string } =>
+      (item): item is { id: number; name: string; tiny_image: string; type: string } =>
         typeof item === "object" &&
         item !== null &&
-        typeof (item as { id?: unknown }).id === "number"
+        typeof (item as { id?: unknown }).id === "number" &&
+        (item as { type?: unknown }).type === "app"
     )
     .map((item) => ({
       appId: item.id,
@@ -179,23 +188,53 @@ export function translateGenre(genre: string): string {
   return GENRE_LABEL_JA[genre] ?? genre;
 }
 
-/** ジャンル（英語の正規名。例: "Action", "RPG"）を取得する。検索・サジェストの照合キーとして使う */
-export async function getSteamGenres(appId: number): Promise<string[]> {
+export type SteamAppSummary = {
+  /** ジャンル（英語の正規名。例: "Action", "RPG"）。検索・サジェストの照合キーとして使う */
+  genres: string[];
+  /** ストアのヘッダー画像URL。steamHeaderImageUrl()の推測ではなくAPIが返す正しい値 */
+  headerImage: string | null;
+};
+
+/**
+ * ゲームの基本情報をappdetailsから1回の問い合わせでまとめて取る。
+ *
+ * headerImageを必ずここから取るのが肝心：steamHeaderImageUrl()が組み立てる
+ * `steam/apps/<id>/header.jpg` という固定パスは、Steamがアセットを
+ * `store_item_assets/steam/apps/<id>/<コンテンツハッシュ>/header.jpg` に移した結果、
+ * **新しめのタイトルでは404になる**（さらにGRAIN ROTのようにファイル名が
+ * header_alt_assets_0.jpg のケースもあり、パスを推測しきることはできない）。
+ * 古いタイトルでは旧パスが今も通るため「一部のゲームだけ画像が出ない」という
+ * 分かりにくい形で出る（実際に発生した）。
+ */
+export async function getSteamAppSummary(appId: number): Promise<SteamAppSummary> {
+  const empty: SteamAppSummary = { genres: [], headerImage: null };
   const url = `https://store.steampowered.com/api/appdetails?appids=${appId}&cc=jp`;
   const res = await fetch(url);
-  if (!res.ok) return [];
+  if (!res.ok) return empty;
 
   const data = await res.json();
   const entry = data?.[String(appId)];
-  if (!entry?.success) return [];
+  if (!entry?.success) return empty;
 
-  const genres: unknown[] = Array.isArray(entry.data?.genres) ? entry.data.genres : [];
-  return genres
+  const rawGenres: unknown[] = Array.isArray(entry.data?.genres) ? entry.data.genres : [];
+  const genres = rawGenres
     .filter(
       (g): g is { description: string } =>
         typeof g === "object" && g !== null && typeof (g as { description?: unknown }).description === "string"
     )
     .map((g) => g.description);
+
+  const headerImage =
+    typeof entry.data?.header_image === "string" && entry.data.header_image.startsWith("https://")
+      ? entry.data.header_image
+      : null;
+
+  return { genres, headerImage };
+}
+
+/** ジャンルだけが欲しい場合の薄いラッパー */
+export async function getSteamGenres(appId: number): Promise<string[]> {
+  return (await getSteamAppSummary(appId)).genres;
 }
 
 export type SteamGenreSearchResult = {

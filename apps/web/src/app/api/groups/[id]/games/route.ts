@@ -81,14 +81,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ game: updated });
   }
 
-  const external = await getOrFetchExternalGameData(parsed.data.steamAppId, parsed.data.title);
+  const { headerImage, ...external } = await getOrFetchExternalGameData(
+    parsed.data.steamAppId,
+    parsed.data.title
+  );
 
   const game = await db.groupGame.create({
     data: {
       groupId: params.id,
       steamAppId: parsed.data.steamAppId,
       title: parsed.data.title,
-      coverUrl: parsed.data.coverUrl,
+      // クライアントが送ってくるcoverUrlは固定パスの組み立てで、新しめのタイトルだと404になる。
+      // appdetailsが返す正しいURLが取れたならそちらを優先する
+      coverUrl: headerImage ?? parsed.data.coverUrl,
       albumId,
       ...external,
       addedById: user.id,

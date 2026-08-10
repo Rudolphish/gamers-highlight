@@ -113,6 +113,7 @@ model Group {
 model ExternalGameCache {
   steamAppId             Int      @id
   genres                 String[] @default([])
+  headerImage            String? // appdetailsが返すヘッダー画像URL。固定パスの組み立てでは新しいタイトルが404になるため必ずAPI値を使う
   youtubeVideoId         String?
   hltbGameId             Int?
   hltbMainHours          Float?
