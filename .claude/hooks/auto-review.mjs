@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 /**
  * Stop hook: 開発セッションが応答を終えるたびに実行される。
+ * （SessionStart hookからは `--record-session-base` 付きで呼ばれ、その時のHEADを
+ *   「このセッションの開始地点」として記録するだけで終了する。下記参照）
  *
  * 流れ：
- *   1. 今回の変更差分(git diff)を取得。差分が無ければ何もしない。
+ *   1. 今回の変更差分(git diff)を取得。未コミットの差分が無ければ、
+ *      セッション開始地点から進んだ「まだレビューしていないコミット」の差分を対象にする。
+ *      どちらも無ければ何もしない。
  *   2. headlessのclaude(`claude -p --safe-mode`)を「レビュー担当」として起動し、
  *      docs/review-checklist.md の観点でチェックさせる。
  *   3. レビュー結果を docs/review-log/ に保存（.gitignore対象、コミットはされない。
@@ -29,6 +33,23 @@
  *     （docs/review-log/**、.review-state.json）を除外している。含めてしまうと
  *     実行のたびに「差分が変わった」ことになり、lastDiffHash方式が機能しなくなる
  *     （実際に一度この不具合で20回連続実行された）。
+ *
+ * 【コミット済みの変更もレビューする仕組み（2026-08-10追加）】
+ *   当初は「Stop時点で未コミットの差分」だけを見ていたため、実装からコミットまでを
+ *   1ターンで完結させると差分が常に空になり、レビューが一度も走らなかった
+ *   （実際にこの見落としが発生し、totalRuns:0のまま1セッションが終わった）。
+ *   そこで、SessionStart hookでそのセッション開始時のHEADをbaseCommitとして記録し、
+ *   Stop時に未コミット差分が空なら baseCommit..HEAD をレビュー対象にする。
+ *   レビューし終えたらbaseCommitをHEADまで進め、対象コミットのSHAをreviewedCommitsに
+ *   積む（同じコミットを何度もレビューしないため）。
+ *   ※baseCommitの記録がSessionStartではなくStop時になると、そのターン中のコミットが
+ *     既に「過去」になってしまい同じ穴が空く。だからSessionStartでの記録が必須。
+ *
+ * 【止まらなくなった時の逃げ道】
+ *   以前は「git commitして差分を空にする」が最速の沈静化手段だったが、上記の変更で
+ *   コミットしてもレビューが走るようになったため、その手は使えなくなった。
+ *   代わりに、.claude/hooks/.review-off を作れば（中身は何でもよい）このフックは
+ *   即座に何もせず終了する。消せば元に戻る。
  */
 
 import { execFileSync, execSync } from "node:child_process";
@@ -46,6 +67,13 @@ const MAX_ITERATIONS = 3; // 同じ差分が連続でFAILし続けた場合の�
 const MAX_TOTAL_RUNS = 6; // 差分が毎回変わり続けても、1セッションでの通算上限
 const MAX_REVIEW_LOGS = 20; // docs/review-log/ に残す最大件数（古い順に間引く）
 const MAX_DIFF_CHARS = 40000;
+const MAX_COMMITS_TO_REVIEW = 20; // baseCommitが古すぎる/rebase等で範囲が異常に広い時は諦める
+const MAX_REVIEWED_COMMITS = 100; // stateに残すレビュー済みSHAの上限（古いものから捨てる）
+
+// これを置くと自動レビューを完全に止められる（中身は何でもよい）。
+// 以前は「git commitして差分を空にする」のが最速の沈静化手段だったが、
+// コミット済みの変更もレビューするようになったためその手が使えなくなった代わりの逃げ道。
+const SKIP_FILE = join(__dirname, ".review-off");
 
 // diff/untracked-file収集から除外するパス（このフック自身の副生成物）。
 // Windowsではパス区切りが`\`になるので、比較前に`/`へ正規化する。
@@ -85,8 +113,33 @@ function readStdinJson() {
   }
 }
 
+function git(args) {
+  return execFileSync("git", args, {
+    cwd: REPO_ROOT,
+    encoding: "utf-8",
+    maxBuffer: 1024 * 1024 * 5,
+  }).trim();
+}
+
+// 取得できなければnull（gitが壊れている、まだ1コミットも無い等）
+function safeHead() {
+  try {
+    return git(["rev-parse", "HEAD"]);
+  } catch (e) {
+    console.error(`[auto-review] HEADの取得に失敗しました: ${e.message}`);
+    return null;
+  }
+}
+
 function loadState() {
-  const empty = { count: 0, lastDiffHash: null, totalRuns: 0, sessionId: null };
+  const empty = {
+    count: 0,
+    lastDiffHash: null,
+    totalRuns: 0,
+    sessionId: null,
+    baseCommit: null,
+    reviewedCommits: [],
+  };
   if (!existsSync(STATE_FILE)) return empty;
   try {
     return { ...empty, ...JSON.parse(readFileSync(STATE_FILE, "utf-8")) };
@@ -108,10 +161,16 @@ function hash(str) {
 // textは「優先ファイルが先頭に来る」よう並べ替え済み。fileOffsetsは各ファイルの
 // 差分がtext中のどの位置から始まるかを記録したもの（切り詰め時にどのファイルが
 // 完全に省略されたか判定するために使う）。
-function getDiff() {
+//
+// revision に "HEAD"（既定）を渡すと未コミットの作業ツリーの差分、
+// "<base>..<head>" 形式を渡すとそのコミット範囲の差分を取る。
+// 未追跡ファイルは作業ツリーを見る時にしか存在しないので、その場合だけ拾う。
+function getDiff(revision = "HEAD") {
+  const isWorkingTree = revision === "HEAD";
+
   let statSummary;
   try {
-    statSummary = execFileSync("git", ["diff", "HEAD", "--stat"], {
+    statSummary = execFileSync("git", ["diff", revision, "--stat"], {
       cwd: REPO_ROOT,
       encoding: "utf-8",
       maxBuffer: 1024 * 1024 * 5,
@@ -123,7 +182,7 @@ function getDiff() {
 
   let trackedFiles;
   try {
-    trackedFiles = execFileSync("git", ["diff", "HEAD", "--name-only"], {
+    trackedFiles = execFileSync("git", ["diff", revision, "--name-only"], {
       cwd: REPO_ROOT,
       encoding: "utf-8",
     })
@@ -134,18 +193,20 @@ function getDiff() {
     return null;
   }
 
-  let untrackedFiles;
-  try {
-    untrackedFiles = execFileSync("git", ["ls-files", "--others", "--exclude-standard"], {
-      cwd: REPO_ROOT,
-      encoding: "utf-8",
-    })
-      .split("\n")
-      .filter(Boolean)
-      .filter((f) => !isSelfGenerated(f));
-  } catch (e) {
-    console.error(`[auto-review] 未追跡ファイル一覧の取得に失敗しました: ${e.message}`);
-    return null;
+  let untrackedFiles = [];
+  if (isWorkingTree) {
+    try {
+      untrackedFiles = execFileSync("git", ["ls-files", "--others", "--exclude-standard"], {
+        cwd: REPO_ROOT,
+        encoding: "utf-8",
+      })
+        .split("\n")
+        .filter(Boolean)
+        .filter((f) => !isSelfGenerated(f));
+    } catch (e) {
+      console.error(`[auto-review] 未追跡ファイル一覧の取得に失敗しました: ${e.message}`);
+      return null;
+    }
   }
 
   // 優先ファイルを先頭に、それ以外は元の順序のまま。tracked/untrackedを合わせて1つの
@@ -164,7 +225,7 @@ function getDiff() {
     try {
       if (tracked) {
         // 通常のgit diffはexit 0なので、ここに来る時点で本物の失敗
-        body += execFileSync("git", ["diff", "HEAD", "--", f], {
+        body += execFileSync("git", ["diff", revision, "--", f], {
           cwd: REPO_ROOT,
           encoding: "utf-8",
           maxBuffer: 1024 * 1024 * 5,
@@ -297,9 +358,57 @@ function saveReviewLog(content) {
   return path;
 }
 
+// セッション開始時のHEADを「まだレビューしていないコミットの起点」として記録する。
+// SessionStart hookから `--record-session-base` 付きで呼ばれる専用の入口。
+function recordSessionBase(sessionId) {
+  const head = safeHead();
+  saveState({
+    count: 0,
+    lastDiffHash: null,
+    totalRuns: 0,
+    sessionId,
+    baseCommit: head,
+    reviewedCommits: [],
+  });
+}
+
+// baseCommit..HEAD のうち、まだレビューしていないコミットがあるかを調べる。
+// 無ければnull。範囲が広すぎる場合は{tooMany:true}を返す（レビューはせず起点だけ進める）。
+function getPendingCommits(state) {
+  if (!state.baseCommit) return null;
+  const head = safeHead();
+  if (!head || head === state.baseCommit) return null;
+
+  let shas;
+  try {
+    shas = git(["rev-list", `${state.baseCommit}..${head}`]).split("\n").filter(Boolean);
+  } catch {
+    // baseCommitがHEADの祖先でない（rebase/reset/branch切り替え等）。
+    // 追いかけても意味が無いので、起点を今のHEADに引き直して仕切り直す。
+    return { unreachable: true, to: head, shas: [] };
+  }
+
+  if (shas.length === 0) return null;
+  if (shas.every((s) => state.reviewedCommits.includes(s))) return null;
+  if (shas.length > MAX_COMMITS_TO_REVIEW) return { tooMany: true, to: head, shas };
+  return { from: state.baseCommit, to: head, shas };
+}
+
 function main() {
   const input = readStdinJson();
   const sessionId = typeof input.session_id === "string" ? input.session_id : null;
+
+  if (process.argv.includes("--record-session-base")) {
+    recordSessionBase(sessionId);
+    process.exit(0);
+  }
+
+  if (existsSync(SKIP_FILE)) {
+    console.error(
+      `[auto-review] ${SKIP_FILE} があるため自動レビューをスキップしました（再開するにはこのファイルを削除してください）。`
+    );
+    process.exit(0);
+  }
 
   const diff = getDiff();
   if (diff === null) {
@@ -314,15 +423,51 @@ function main() {
   // セッションが変わっていたら通算カウンタを0から数え直す
   // （.review-state.jsonはセッションを跨いだ永続ファイルのため、これが無いと
   //   前回セッションでの上限到達がそのまま引き継がれ、以降ずっとレビューされなくなる）
+  // SessionStart hookが動いていればbaseCommitは既に入っているが、動かなかった場合の
+  // フォールバックとしてここでも今のHEADを起点にしておく（このターン中のコミットは
+  // 拾えないが、以降のコミットは拾える）。
   if (sessionId && state.sessionId !== sessionId) {
-    state = { count: 0, lastDiffHash: null, totalRuns: 0, sessionId };
+    state = {
+      count: 0,
+      lastDiffHash: null,
+      totalRuns: 0,
+      sessionId,
+      baseCommit: safeHead(),
+      reviewedCommits: [],
+    };
   }
 
+  // 未コミットの差分が無ければ、コミット済みでまだレビューしていない分を対象にする。
+  // 実装からコミットまでを1ターンで終わらせるとレビューが一度も走らなかった問題への対応。
+  let target = diff;
+  let pending = null;
   if (!diff.text) {
-    // 変更なし（全部戻された/コミットされた等）。stateが古いまま残ると、次に偶然
-    // 同じ差分に戻った時カウンタが途中から再開してしまうため、ここでもリセットする。
-    saveState({ count: 0, lastDiffHash: null, totalRuns: 0, sessionId });
-    process.exit(0);
+    pending = getPendingCommits(state);
+
+    if (!pending) {
+      // 本当に何も無い。stateが古いまま残ると、次に偶然同じ差分に戻った時
+      // カウンタが途中から再開してしまうため、カウンタ類はここでリセットする。
+      saveState({ ...state, count: 0, lastDiffHash: null, totalRuns: 0, sessionId });
+      process.exit(0);
+    }
+
+    if (pending.unreachable || pending.tooMany) {
+      console.error(
+        pending.unreachable
+          ? "[auto-review] セッション開始地点が現在のHEADから辿れないため（rebase/reset等）、レビューはせず起点を引き直しました。"
+          : `[auto-review] 未レビューのコミットが${pending.shas.length}件と多すぎるため（上限${MAX_COMMITS_TO_REVIEW}件）、レビューはせず起点を引き直しました。`
+      );
+      saveState({ ...state, sessionId, baseCommit: pending.to });
+      process.exit(0);
+    }
+
+    const commitDiff = getDiff(`${pending.from}..${pending.to}`);
+    if (commitDiff === null || !commitDiff.text) {
+      // 差分が取れない/実質空（docs/review-log等だけのコミット）。起点だけ進めて終わる。
+      saveState({ ...state, sessionId, baseCommit: pending.to });
+      process.exit(0);
+    }
+    target = commitDiff;
   }
 
   const totalRuns = state.totalRuns + 1;
@@ -337,7 +482,7 @@ function main() {
     process.exit(0);
   }
 
-  const diffHash = hash(diff.text);
+  const diffHash = hash(target.text);
   const nextCount = state.lastDiffHash === diffHash ? state.count + 1 : 1;
 
   // 前回と全く同じ差分で既にMAX_ITERATIONS回試している場合は諦めて人間に渡す
@@ -345,13 +490,23 @@ function main() {
     console.error(
       `[auto-review] 同一差分での自動レビューが${MAX_ITERATIONS}回連続でFAILしたため、これ以上は自動修正せず終了します。docs/review-log/ の最新ログを確認してください。`
     );
-    saveState({ count: nextCount, lastDiffHash: diffHash, totalRuns, sessionId });
+    saveState({ ...state, count: nextCount, lastDiffHash: diffHash, totalRuns, sessionId });
     process.exit(0);
   }
 
+  // コミット済み分をレビューした場合、同じコミットを次のStopでも延々と対象にしないよう、
+  // 起点をHEADまで進めてSHAを記録する（PASS/FAILどちらでも記録する。FAIL後の修正は
+  // 未コミットの差分として次のレビュー対象になるため、コミット自体の再レビューは不要）。
+  const reviewedFields = pending
+    ? {
+        baseCommit: pending.to,
+        reviewedCommits: [...pending.shas, ...state.reviewedCommits].slice(0, MAX_REVIEWED_COMMITS),
+      }
+    : { baseCommit: state.baseCommit, reviewedCommits: state.reviewedCommits };
+
   let reviewOutput;
   try {
-    reviewOutput = runReviewer(diff);
+    reviewOutput = runReviewer(target);
   } catch (e) {
     // レビュー担当プロセスの起動失敗はインフラ障害であり、コードの問題ではない。
     // VERDICT: FAILとして開発側Claudeに「直せない指摘」を渡すと無駄な作業をさせてしまうため、
@@ -380,15 +535,15 @@ function main() {
 
   if (isPass) {
     // 合格。カウンターをリセットしてセッションをそのまま終了させる。
-    saveState({ count: 0, lastDiffHash: null, totalRuns: 0, sessionId });
+    saveState({ count: 0, lastDiffHash: null, totalRuns: 0, sessionId, ...reviewedFields });
     process.exit(0);
   }
 
-  saveState({ count: nextCount, lastDiffHash: diffHash, totalRuns, sessionId });
+  saveState({ count: nextCount, lastDiffHash: diffHash, totalRuns, sessionId, ...reviewedFields });
 
   // FAIL。exit code 2 でStopをブロックし、修正指示をClaudeに渡して続行させる。
   console.error(
-    `[auto-review] レビューでNGが出ました（同一差分${nextCount}/${MAX_ITERATIONS}回目、通算${totalRuns}/${MAX_TOTAL_RUNS}回目）。以下の指摘を修正してください:\n\n${reviewOutput}\n\n(詳細ログ: ${logPath})`
+    `[auto-review] レビューでNGが出ました（${pending ? `コミット${pending.shas.length}件分` : "未コミットの差分"}、同一差分${nextCount}/${MAX_ITERATIONS}回目、通算${totalRuns}/${MAX_TOTAL_RUNS}回目）。以下の指摘を修正してください:\n\n${reviewOutput}\n\n(詳細ログ: ${logPath})`
   );
   process.exit(2);
 }
