@@ -52,10 +52,10 @@ export async function GET(req: Request) {
 
       if (dropped) {
         // 「気になってる」マークを付けたメンバーがいれば添える。@メンションだと通知が
-        // うるさくなりうるので、あくまで名前の列挙にとどめる
-        const interestedNames = game.interests
-          .map((i) => i.user.name ?? i.user.email)
-          .filter((name): name is string => Boolean(name));
+        // うるさくなりうるので、あくまで名前の列挙にとどめる。
+        // 表示名が未設定でもメールアドレスにはフォールバックしない（Discordチャンネルに
+        // メールアドレスを流さないため）。画面側の表示と同じく「メンバー」に寄せる。
+        const interestedNames = game.interests.map((i) => i.user.name ?? "メンバー");
 
         const message = [
           `📉 **${game.title}** が最安値を更新しました！`,

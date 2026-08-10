@@ -20,7 +20,14 @@
       "PowerShell(pnpm --filter @gamers-highlight/db exec prisma generate)",
       "PowerShell(pnpm --filter web exec tsc --noEmit)",
       "PowerShell(pnpm --filter web build 2>&1)",
-      "PowerShell(git add -A)"
+      "PowerShell(git add -A)",
+      "PowerShell(pnpm --filter web dev)",
+      "Bash(curl -s -o /tmp/anon.html -w 'status=%{http_code}\\\\n' http://localhost:3000/groups/cmsjvk4rx0002fr76st4o3tos)",
+      "Bash(curl -s -o /dev/null -w \"status=%{http_code} redirect=%{redirect_url}\\\\n\" \"http://localhost:3000/albums\")",
+      "Bash(curl -s \"http://localhost:3000/groups\")",
+      "Bash(curl -s -o /tmp/anon2.html -w 'status=%{http_code}\\\\n' http://localhost:3000/groups/cmsjvk4rx0002fr76st4o3tos)",
+      "PowerShell($env:ENABLE_DEV_LOGIN = \"true\"; pnpm --filter web dev)",
+      "Bash(rm -f /tmp/tmp.CMVf1KtuRd /tmp/anon.html /tmp/anon2.html /tmp/anon-list.html /tmp/member.html; echo cleaned)"
     ],
     "deny": [
       "Edit(.npmrc)",
@@ -42,7 +49,10 @@
       "Bash(*r2 delete*)",
       "Bash(*bucket delete*)"
     ],
-    "defaultMode": "bypassPermissions"
+    "defaultMode": "bypassPermissions",
+    "additionalDirectories": [
+      "\\tmp"
+    ]
   },
   "hooks": {
     "Stop": [

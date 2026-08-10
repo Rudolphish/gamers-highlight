@@ -27,19 +27,23 @@ export async function POST(
   });
   if (!game) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const existing = await db.groupGameInterest.findUnique({
-    where: { groupGameId_userId: { groupGameId: game.id, userId: user.id } },
+  // 「取得してから分岐」だと、二重クリックや複数タブからの同時POSTで
+  // @@unique([groupGameId, userId]) 違反や「既に消えている行のdelete」が起きて500になる。
+  // まず消してみて、消せなかった＝付いていなかった、と判断する形にすると
+  // どちらの経路も競合時に例外を投げない（deleteManyは0件でも、
+  // createManyのskipDuplicatesは重複でも成功する）。
+  const deleted = await db.groupGameInterest.deleteMany({
+    where: { groupGameId: game.id, userId: user.id },
   });
-
-  if (existing) {
-    await db.groupGameInterest.delete({ where: { id: existing.id } });
-  } else {
-    await db.groupGameInterest.create({
+  const interested = deleted.count === 0;
+  if (interested) {
+    await db.groupGameInterest.createMany({
       data: { groupGameId: game.id, userId: user.id },
+      skipDuplicates: true,
     });
   }
 
   const count = await db.groupGameInterest.count({ where: { groupGameId: game.id } });
 
-  return NextResponse.json({ interested: !existing, count });
+  return NextResponse.json({ interested, count });
 }

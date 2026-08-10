@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Eye } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 
@@ -23,7 +22,6 @@ export function InterestButton({
   currentUserId: string;
   showNames?: boolean;
 }) {
-  const router = useRouter();
   const [localUsers, setLocalUsers] = useState(users);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +50,10 @@ export function InterestButton({
         method: "POST",
       });
       if (!res.ok) throw new Error(await res.text());
-      router.refresh();
+      // 他の楽観的更新と違いrouter.refresh()はしない。ゲーム詳細ページの再レンダリングは
+      // Steam（レビュー/レビュー本文/価格/ニュース）とIsThereAnyDealへの外部問い合わせを
+      // まとめて走らせ直すため、マークの付け外しごとにやるには重すぎる。
+      // 変わるのは自分の分だけなので、ローカルの状態がそのまま正しい結果になる。
     } catch {
       setLocalUsers(previous);
       setError("更新に失敗しました");

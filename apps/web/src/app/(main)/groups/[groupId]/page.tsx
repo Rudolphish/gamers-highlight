@@ -4,6 +4,7 @@ import { ArrowLeft, Plus } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { hasGroupPermission } from "@/lib/permissions";
 import { AlbumGrid } from "@/components/album/AlbumGrid";
 import { GroupShareModal } from "@/components/group/GroupShareModal";
 import { GroupNameEditor } from "@/components/group/GroupNameEditor";
@@ -26,6 +27,14 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
   const currentUser = session?.user?.email
     ? await db.user.findUnique({ where: { email: session.user.email } })
     : null;
+  if (!currentUser) notFound();
+
+  // このページは`/groups`がmiddlewareのmatcher対象外のため、未ログインでも素通りして
+  // グループ名・メンバー・ゲーム一覧まで見えてしまっていた（2026-08-10にレビューで発覚、
+  // 実際に未ログインのcurlで200が返ることを確認済み）。配下のゲーム詳細ページと同じく、
+  // ページ側でVIEWER権限を必須にする。
+  const allowed = await hasGroupPermission(params.groupId, currentUser.id, "VIEWER");
+  if (!allowed) notFound();
 
   const group = await db.group.findUnique({
     where: { id: params.groupId },
@@ -226,20 +235,18 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
             groupId={group.id}
             games={gameCards}
             canEdit={canEditGames}
-            currentUserId={currentUser?.id ?? null}
+            currentUserId={currentUser.id}
           />
           {topGenre && (
             <SuggestedGames groupId={group.id} genre={topGenre} suggestions={suggestions} />
           )}
-          {currentUser && (
-            <GameProposals
-              groupId={group.id}
-              proposals={proposalCards}
-              currentUserId={currentUser.id}
-              likeThreshold={likeThreshold}
-              canManage={canEditGames}
-            />
-          )}
+          <GameProposals
+            groupId={group.id}
+            proposals={proposalCards}
+            currentUserId={currentUser.id}
+            likeThreshold={likeThreshold}
+            canManage={canEditGames}
+          />
         </CollapsibleSection>
       </div>
     </main>
