@@ -1,0 +1,9 @@
+date,topic,decision,evidence
+2026-08-10,permissions.deny のパターンマッチは大小文字を区別する,rejected,"区別しない。大文字の -R ルールしか無い状態で `rm -rf .` と `rd -recurse ...` の両方が実際にブロックされることを実測で確認済み。小文字版ルールの併記は冗長なので入れない"
+2026-08-10,Write(パス) 形式の deny ルールを追加すべき,rejected,"Write(...) はファイル権限チェックの対象外。Claude Code 自身が Stop hook 出力で警告を出した一次情報。Edit(パス) が Write を含む全ファイル編集ツールをカバーするため、Edit 側だけで足りる"
+2026-08-10,deny リストが Bash ツールにしか効いていない,accepted,"実測で PowerShell ツール経由の素通りを確認し、全ルールに PowerShell(...) 版を併記して対応済み（コミット 027a81c / 1870ca1）。以後 deny を足すときは両方書くこと"
+2026-08-10,PowerShell の削除ガードが Bash 構文のままで効かない,accepted,"rm -rf は PowerShell に存在しない表記。各エイリアス（rm/ri/rd/rmdir/del/erase）× -R* の形に直して対応済み（コミット 1870ca1）"
+2026-08-10,.npmrc の保護がリポジトリルート限定,accepted,"Edit(**/.npmrc) に拡大して対応済み（コミット fbb1d66）。サブディレクトリの .npmrc が拒否され、同ディレクトリの他ファイルは書けることを実測で確認"
+2026-08-10,パイプ経由や .NET API 経由の削除も deny で塞ぐべき,deferred,"ユーザー判断で打ち止め。文字列パターンによる deny の原理的な限界であり、パイプ・.NET API・変数展開まで塞ぐと際限がなく過剰ブロックの副作用が大きい。deny は「うっかり事故を止める網」と割り切る方針"
+2026-08-10,permissions.defaultMode の bypassPermissions を見直すべき,rejected,"ユーザー判断で維持。Stop hook の自動修正ループが無確認で回るために必要。その代わり deny リストを唯一の安全網として強化する方針を採用済み"
+2026-08-10,グループ詳細ページに権限チェックが無い,accepted,"未ログインの curl で 200 が返り情報が見えることを実測で確認し、hasGroupPermission(VIEWER) を追加して対応済み（コミット 2d3882e）。middleware.ts の matcher 追加は自己判断変更禁止ファイルのため未実施でユーザー確認待ち"

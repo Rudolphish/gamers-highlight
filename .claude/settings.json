@@ -23,7 +23,8 @@
       "PowerShell(git add -A)",
       "PowerShell(pnpm --filter web dev)",
       "Bash(git -c http.sslBackend=schannel push origin master)",
-      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.json','utf8'\\)\\);console.log\\('valid JSON'\\)\")"
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.json','utf8'\\)\\);console.log\\('valid JSON'\\)\")",
+      "Bash(node --check .claude/hooks/auto-review.mjs)"
     ],
     "deny": [
       "Edit(.npmrc)",
