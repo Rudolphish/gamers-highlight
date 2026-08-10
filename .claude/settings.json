@@ -27,7 +27,8 @@
       "Bash(curl -s \"http://localhost:3000/groups\")",
       "Bash(curl -s -o /tmp/anon2.html -w 'status=%{http_code}\\\\n' http://localhost:3000/groups/cmsjvk4rx0002fr76st4o3tos)",
       "PowerShell($env:ENABLE_DEV_LOGIN = \"true\"; pnpm --filter web dev)",
-      "Bash(rm -f /tmp/tmp.CMVf1KtuRd /tmp/anon.html /tmp/anon2.html /tmp/anon-list.html /tmp/member.html; echo cleaned)"
+      "Bash(rm -f /tmp/tmp.CMVf1KtuRd /tmp/anon.html /tmp/anon2.html /tmp/anon-list.html /tmp/member.html; echo cleaned)",
+      "PowerShell(node -e \"console.log\\('state:', JSON.stringify\\(require\\('./.claude/hooks/.review-state.json'\\)\\)\\)\")"
     ],
     "deny": [
       "Edit(.npmrc)",

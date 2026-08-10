@@ -142,9 +142,12 @@ function loadState() {
   };
   if (!existsSync(STATE_FILE)) return empty;
   try {
-    // Windowsのエディタ/PowerShellで手編集するとBOMが付くことがあり、
-    // そのままJSON.parseすると毎回パース失敗＝状態が黙ってリセットされ続ける
-    return { ...empty, ...JSON.parse(readFileSync(STATE_FILE, "utf-8").replace(/^﻿/, "")) };
+    // Windowsのエディタ/PowerShellで手編集するとBOMが付くことがあり、そのまま
+    // JSON.parseすると毎回パース失敗→下のcatchで初期状態に戻り続ける（stderrには出るが、
+    // フックのstderrを普段見ない運用だと「状態が勝手に消える」ようにしか見えない）。
+    // 生のU+FEFFを正規表現に直書きすると不可視で、整形ツールに消されても
+    // /^/ になるだけでエラーにならず退行に気づけないため、エスケープ表記で書く。
+    return { ...empty, ...JSON.parse(readFileSync(STATE_FILE, "utf-8").replace(/^\uFEFF/, "")) };
   } catch (e) {
     console.error(`[auto-review] .review-state.jsonの読み取りに失敗したため初期状態から始めます: ${e.message}`);
     return empty;
