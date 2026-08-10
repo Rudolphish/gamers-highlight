@@ -28,5 +28,7 @@ packages/db/generated/
 # auto-review hook output (docs/review-checklist.md itself is tracked)
 docs/review-log/
 .claude/hooks/.review-state.json
+# 自動レビューのキルスイッチ。誤ってコミットすると全員のレビューが恒久的に止まる
+.claude/hooks/.review-off
 CLAUDE.md
 GOAL.txt

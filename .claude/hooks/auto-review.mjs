@@ -365,15 +365,23 @@ function saveReviewLog(content) {
 
 // セッション開始時のHEADを「まだレビューしていないコミットの起点」として記録する。
 // SessionStart hookから `--record-session-base` 付きで呼ばれる専用の入口。
+//
+// 同一セッション内で再発火した場合（resume等）は、何も潰さないこと。無条件に初期化すると
+// (a) ループ防止のtotalRuns/countが0に戻ってMAX_TOTAL_RUNSが効かなくなり、
+// (b) baseCommitがHEADまで進んで、それ以前にコミットした変更が未レビューのまま消える
+// ——という、このフックが塞いだはずの穴が両方とも再発する。
 function recordSessionBase(sessionId) {
   const head = safeHead();
+  const state = loadState();
+  const sameSession = Boolean(sessionId) && state.sessionId === sessionId;
   saveState({
-    count: 0,
-    lastDiffHash: null,
-    totalRuns: 0,
+    ...state,
+    count: sameSession ? state.count : 0,
+    lastDiffHash: sameSession ? state.lastDiffHash : null,
+    totalRuns: sameSession ? state.totalRuns : 0,
     sessionId,
-    baseCommit: head,
-    reviewedCommits: [],
+    baseCommit: sameSession ? state.baseCommit ?? head : head,
+    reviewedCommits: sameSession ? state.reviewedCommits : [],
   });
 }
 
@@ -384,12 +392,20 @@ function getPendingCommits(state) {
   const head = safeHead();
   if (!head || head === state.baseCommit) return null;
 
+  // rebase/reset/ブランチ切り替えで起点がHEADの祖先でなくなっているかを明示的に確かめる。
+  // `git rev-list A..B` はAが祖先でなくても（オブジェクトさえ残っていれば）throwせずに
+  // 成功してしまい、無関係なコミット群をレビュー対象にしてしまうため、例外任せにはしない。
+  try {
+    git(["merge-base", "--is-ancestor", state.baseCommit, head]);
+  } catch {
+    return { unreachable: true, to: head, shas: [] };
+  }
+
   let shas;
   try {
     shas = git(["rev-list", `${state.baseCommit}..${head}`]).split("\n").filter(Boolean);
   } catch {
-    // baseCommitがHEADの祖先でない（rebase/reset/branch切り替え等）。
-    // 追いかけても意味が無いので、起点を今のHEADに引き直して仕切り直す。
+    // 起点のオブジェクト自体が消えている（gc済み等）。追いかけようがないので引き直す。
     return { unreachable: true, to: head, shas: [] };
   }
 
@@ -403,15 +419,18 @@ function main() {
   const input = readStdinJson();
   const sessionId = typeof input.session_id === "string" ? input.session_id : null;
 
-  if (process.argv.includes("--record-session-base")) {
-    recordSessionBase(sessionId);
-    process.exit(0);
-  }
-
+  // キルスイッチの判定は最初に行う。--record-session-baseより後ろに置くと、
+  // 「置けば何もしない」と説明しているのにSessionStart経路だけ素通りして
+  // .review-state.jsonを書き換えてしまう。
   if (existsSync(SKIP_FILE)) {
     console.error(
       `[auto-review] ${SKIP_FILE} があるため自動レビューをスキップしました（再開するにはこのファイルを削除してください）。`
     );
+    process.exit(0);
+  }
+
+  if (process.argv.includes("--record-session-base")) {
+    recordSessionBase(sessionId);
     process.exit(0);
   }
 
