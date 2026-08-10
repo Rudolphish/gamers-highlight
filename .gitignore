@@ -24,5 +24,9 @@ packages/db/generated/
 *.log
 .turbo/
 .tmp*
+
+# auto-review hook output (docs/review-checklist.md itself is tracked)
+docs/review-log/
+.claude/hooks/.review-state.json
 CLAUDE.md
 GOAL.txt

@@ -1,12 +1,10 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
       "Bash(pnpm --filter web exec tsc --noEmit *)",
       "Bash(git add *)",
-      "Bash(ls -la ~/.claude/projects/c--Study-gamers-highlight/*.jsonl 2>&1 | wc -l; ls -lat ~/.claude/projects/c--Study-gamers-highlight/*.jsonl 2>&1 | head -n 50)",
       "Read(//c/Users/rudir/.claude/projects/c--Study-gamers-highlight/**)",
-      "Bash(jq -c 'select\\(.type==\"assistant\"\\) | .message.content[]? | select\\(.type==\"tool_use\"\\) | {name: .name, command: .input.command}' ~/.claude/projects/c--Study-gamers-highlight/b34f7dd8-eb50-4669-89e1-3fb5b56c9008.jsonl 2>/dev/null > /tmp/toolcalls.jsonl *)",
-      "Bash(head -n 5 ~/.claude/projects/c--Study-gamers-highlight/b34f7dd8-eb50-4669-89e1-3fb5b56c9008.jsonl | jq -c 'keys' 2>&1)",
       "Bash(pnpm pm2:restart)",
       "Bash(pm2 restart *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://sharestaq.vercel.app/login)",
@@ -18,8 +16,39 @@
       "Bash(node -e ' *)",
       "WebFetch(domain:docs.isthereanydeal.com)"
     ],
-    "additionalDirectories": [
-      "\\tmp"
+    "deny": [
+      "Edit(.npmrc)",
+      "Bash(*prisma migrate deploy*)",
+      "Bash(*prisma migrate reset*)",
+      "Bash(*prisma db push*--force*)",
+      "Bash(*DATABASE_URL*supabase.co*)",
+      "Bash(*vercel --prod*)",
+      "Bash(*vercel deploy --prod*)",
+      "Bash(*vercel env rm*)",
+      "Bash(*vercel remove*)",
+      "Bash(*git push --force*)",
+      "Bash(*git push*--force*)",
+      "Bash(*git push -f*)",
+      "Bash(*rm -rf*)",
+      "Bash(*rm -fr*)",
+      "Bash(*rm -r *)",
+      "Bash(*r2 rm*)",
+      "Bash(*r2 delete*)",
+      "Bash(*bucket delete*)"
+    ],
+    "defaultMode": "bypassPermissions"
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/auto-review.mjs\"",
+            "timeout": 300
+          }
+        ]
+      }
     ]
   }
 }
