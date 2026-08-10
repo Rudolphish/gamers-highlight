@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Plus, X, Search, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { InterestButton, type InterestUser } from "@/components/group/InterestButton";
 import { translateGenre } from "@/lib/steam";
 
 type GameStatus = "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
@@ -18,6 +19,7 @@ type GroupGameItem = {
   status: GameStatus;
   genres: string[];
   addedByName: string;
+  interestedUsers: InterestUser[];
 };
 
 type SteamResult = { appId: number; name: string; thumbnail: string };
@@ -42,10 +44,12 @@ export function GroupGameList({
   groupId,
   games,
   canEdit,
+  currentUserId,
 }: {
   groupId: string;
   games: GroupGameItem[];
   canEdit: boolean;
+  currentUserId: string | null;
 }) {
   const router = useRouter();
   const [items, setItems] = useState(games);
@@ -98,6 +102,7 @@ export function GroupGameList({
       status: "WISHLIST",
       genres: [],
       addedByName: "追加中…",
+      interestedUsers: [],
     };
     // 追加は即座に画面に反映し、モーダルも閉じてしまう（往復を待たせない）
     setItems([tempItem, ...previous]);
@@ -305,16 +310,26 @@ export function GroupGameList({
                     </span>
                   )}
 
-                  {canEdit && (
-                    <button
-                      onClick={() => removeGame(game.id)}
-                      disabled={updatingId === game.id}
-                      className="flex-shrink-0 p-1.5 text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
-                      aria-label="削除"
-                    >
-                      {updatingId === game.id ? <Spinner size={12} /> : <Trash2 size={12} />}
-                    </button>
-                  )}
+                  <div className="flex flex-shrink-0 items-center gap-1">
+                    {currentUserId && !game.id.startsWith("temp-") && (
+                      <InterestButton
+                        groupId={groupId}
+                        gameId={game.id}
+                        users={game.interestedUsers}
+                        currentUserId={currentUserId}
+                      />
+                    )}
+                    {canEdit && (
+                      <button
+                        onClick={() => removeGame(game.id)}
+                        disabled={updatingId === game.id}
+                        className="flex-shrink-0 p-1.5 text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
+                        aria-label="削除"
+                      >
+                        {updatingId === game.id ? <Spinner size={12} /> : <Trash2 size={12} />}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

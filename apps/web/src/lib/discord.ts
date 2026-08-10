@@ -33,7 +33,12 @@ export async function listGuildTextChannels(guildId: string): Promise<DiscordCha
   }
 }
 
-/** 指定チャンネルにメッセージを投稿する。失敗時はfalseを返す（例外は投げない） */
+/**
+ * 指定チャンネルにメッセージを投稿する。失敗時はfalseを返す（例外は投げない）。
+ * メッセージ本文にはユーザーが自由に決められる表示名などが混ざりうるため、
+ * `allowed_mentions: { parse: [] }` で@everyone/@here/ロールメンションの発火を封じる
+ * （このヘルパーからの通知でメンションを飛ばしたいケースは今のところ無い）。
+ */
 export async function postDiscordMessage(channelId: string, content: string): Promise<boolean> {
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) return false;
@@ -45,7 +50,7 @@ export async function postDiscordMessage(channelId: string, content: string): Pr
         Authorization: `Bot ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
     });
     return res.ok;
   } catch {

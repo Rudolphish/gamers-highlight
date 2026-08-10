@@ -18,7 +18,12 @@ export async function GET(req: Request) {
 
   const groups = await db.group.findMany({
     where: { notificationChannelId: { not: null } },
-    include: { games: { where: { status: "WISHLIST" } } },
+    include: {
+      games: {
+        where: { status: "WISHLIST" },
+        include: { interests: { include: { user: true } } },
+      },
+    },
   });
 
   const tasks = groups.flatMap((group) =>
@@ -46,9 +51,16 @@ export async function GET(req: Request) {
       });
 
       if (dropped) {
+        // 「気になってる」マークを付けたメンバーがいれば添える。@メンションだと通知が
+        // うるさくなりうるので、あくまで名前の列挙にとどめる
+        const interestedNames = game.interests
+          .map((i) => i.user.name ?? i.user.email)
+          .filter((name): name is string => Boolean(name));
+
         const message = [
           `📉 **${game.title}** が最安値を更新しました！`,
           `¥${summary.lowPrice.toLocaleString("ja-JP")}（${summary.lowShopName}）`,
+          ...(interestedNames.length > 0 ? [`👀 気になってる: ${interestedNames.join("、")}`] : []),
           summary.pageUrl,
         ].join("\n");
         await postDiscordMessage(channelId, message);

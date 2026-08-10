@@ -14,7 +14,12 @@
       "WebFetch(domain:github.com)",
       "Bash(node scratch-hltb-debug.mjs)",
       "Bash(node -e ' *)",
-      "WebFetch(domain:docs.isthereanydeal.com)"
+      "WebFetch(domain:docs.isthereanydeal.com)",
+      "PowerShell(git push origin master)",
+      "PowerShell(git -c http.sslBackend=schannel push origin master)",
+      "PowerShell(pnpm --filter @gamers-highlight/db exec prisma generate)",
+      "PowerShell(pnpm --filter web exec tsc --noEmit)",
+      "PowerShell(pnpm --filter web build 2>&1)"
     ],
     "deny": [
       "Edit(.npmrc)",

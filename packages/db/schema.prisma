@@ -81,6 +81,7 @@ model User {
   addedGroupGames  GroupGame[]            @relation("GroupGameAddedBy")
   proposedGames    GroupGameProposal[]    @relation("ProposalProposedBy")
   proposalReactions GroupGameProposalReaction[]
+  gameInterests    GroupGameInterest[]
 
   @@map("users")
 }
@@ -150,13 +151,32 @@ model GroupGame {
   lastKnownLowShop    String?
   lastPriceCheckedAt  DateTime?
 
-  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  album   Album? @relation(fields: [albumId], references: [id], onDelete: SetNull)
-  addedBy User   @relation("GroupGameAddedBy", fields: [addedById], references: [id])
+  group     Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  album     Album?              @relation(fields: [albumId], references: [id], onDelete: SetNull)
+  addedBy   User                @relation("GroupGameAddedBy", fields: [addedById], references: [id])
+  interests GroupGameInterest[]
 
   @@unique([groupId, steamAppId])
   @@index([groupId])
   @@map("group_games")
+}
+
+// グループ共有ウォッチリストの「気になってる」マーク（柱3）。
+// GroupGame.statusが「グループとして」の状態を表すのに対し、こちらはメンバー個人が
+// 軽く興味を表明するためのもの（ステータスは変えない）。誰が狙っているかが分かるほか、
+// 最安値更新のDiscord通知に「気になっているメンバー」を添えるのにも使う。
+model GroupGameInterest {
+  id          String   @id @default(cuid())
+  groupGameId String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  groupGame GroupGame @relation(fields: [groupGameId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupGameId, userId])
+  @@index([groupGameId])
+  @@map("group_game_interests")
 }
 
 // メンバーが「このゲームどう？」と提案し、他メンバーがリアクションできる仕組み。

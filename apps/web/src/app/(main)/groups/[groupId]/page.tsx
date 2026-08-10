@@ -45,7 +45,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       _count: { select: { albums: true } },
       games: {
         orderBy: { createdAt: "desc" },
-        include: { addedBy: true },
+        include: { addedBy: true, interests: { include: { user: true } } },
       },
       proposals: {
         where: { status: "PENDING" },
@@ -78,6 +78,10 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
     status: g.status,
     genres: g.genres,
     addedByName: g.addedBy.name ?? g.addedBy.email ?? "メンバー",
+    interestedUsers: g.interests.map((i) => ({
+      id: i.userId,
+      name: i.user.name ?? i.user.email ?? "メンバー",
+    })),
   }));
 
   // サジェスト：グループの既存ゲームで一番多いジャンルから、未追加のSteam人気ゲームを提案する簡易ルールベース
@@ -218,7 +222,12 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       <div className="mt-8">
         <CollapsibleSection title="気になっているゲーム">
           <PlayStatusSummary groupId={group.id} games={gameCards} />
-          <GroupGameList groupId={group.id} games={gameCards} canEdit={canEditGames} />
+          <GroupGameList
+            groupId={group.id}
+            games={gameCards}
+            canEdit={canEditGames}
+            currentUserId={currentUser?.id ?? null}
+          />
           {topGenre && (
             <SuggestedGames groupId={group.id} genre={topGenre} suggestions={suggestions} />
           )}

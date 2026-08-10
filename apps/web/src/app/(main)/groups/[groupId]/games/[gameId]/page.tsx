@@ -16,6 +16,7 @@ import {
 } from "@/lib/steam";
 import { getItadSummary } from "@/lib/itad";
 import { HltbCard } from "@/components/group/HltbCard";
+import { InterestButton } from "@/components/group/InterestButton";
 
 const STATUS_LABEL = {
   WISHLIST: "気になる",
@@ -60,9 +61,14 @@ export default async function GroupGameDetailPage({
 
   const game = await db.groupGame.findUnique({
     where: { id: params.gameId, groupId: params.groupId },
-    include: { addedBy: true, group: true },
+    include: { addedBy: true, group: true, interests: { include: { user: true } } },
   });
   if (!game) notFound();
+
+  const interestedUsers = game.interests.map((i) => ({
+    id: i.userId,
+    name: i.user.name ?? i.user.email ?? "メンバー",
+  }));
 
   const [reviewResult, reviewItemsResult, priceResult, newsResult, itadResult] = await Promise.allSettled([
     getSteamReviewSummary(game.steamAppId),
@@ -129,6 +135,16 @@ export default async function GroupGameDetailPage({
             <p className="mt-1 font-mono text-xs text-steam-muted">
               {game.addedBy.name ?? game.addedBy.email ?? "メンバー"}が追加
             </p>
+
+            <div className="mt-3">
+              <InterestButton
+                groupId={params.groupId}
+                gameId={game.id}
+                users={interestedUsers}
+                currentUserId={currentUser.id}
+                showNames
+              />
+            </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
               <a
