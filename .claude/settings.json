@@ -22,10 +22,13 @@
       "PowerShell(pnpm --filter web build 2>&1)",
       "PowerShell(git add -A)",
       "PowerShell(pnpm --filter web dev)",
-      "PowerShell(git commit -q -F \"C:\\\\Users\\\\rudir\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Study-gamers-highlight\\\\c884b15f-3d7d-4629-b4dc-a73fad24451f\\\\scratchpad\\\\commitmsg.txt\")"
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.json','utf8'\\)\\);console.log\\('settings.json: valid JSON'\\)\")",
+      "Bash(git -c http.sslBackend=schannel push origin master)"
     ],
     "deny": [
       "Edit(.npmrc)",
+      "Write(.npmrc)",
+      "PowerShell(*.npmrc*)",
       "Bash(*prisma migrate deploy*)",
       "Bash(*prisma migrate reset*)",
       "Bash(*prisma db push*)",
@@ -54,11 +57,13 @@
       "PowerShell(*git push --force*)",
       "PowerShell(*git push*--force*)",
       "PowerShell(*git push -f*)",
-      "PowerShell(*rm -rf*)",
-      "PowerShell(*rm -fr*)",
-      "PowerShell(*rm -r *)",
-      "PowerShell(*Remove-Item*-Recurse*)",
-      "PowerShell(*ri *-Recurse*)",
+      "PowerShell(*Remove-Item*-R*)",
+      "PowerShell(*rm *-R*)",
+      "PowerShell(*ri *-R*)",
+      "PowerShell(*rd *-R*)",
+      "PowerShell(*rmdir *-R*)",
+      "PowerShell(*del *-R*)",
+      "PowerShell(*erase *-R*)",
       "PowerShell(*r2 rm*)",
       "PowerShell(*r2 delete*)",
       "PowerShell(*bucket delete*)"
