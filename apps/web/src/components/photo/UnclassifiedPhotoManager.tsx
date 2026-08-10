@@ -144,7 +144,7 @@ export function UnclassifiedPhotoManager({
                 />
               )}
               {item.mediaType === "VIDEO" && (
-                <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-1 py-0.5 font-mono text-[9px] font-bold text-white">
+                <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-1 py-0.5 font-mono text-4xs font-bold text-white">
                   <Play size={8} fill="white" /> {item.durationSeconds ?? "?"}s
                 </span>
               )}
@@ -165,7 +165,7 @@ export function UnclassifiedPhotoManager({
 
       <div className="mt-6 flex flex-col gap-4 rounded-sm border border-steam-border bg-steam-surface p-4 sm:flex-row sm:items-end sm:gap-6">
         <div className="flex-1">
-          <label className="font-mono text-[11px] text-steam-muted">既存アルバムに追加</label>
+          <label className="font-mono text-2xs text-steam-muted">既存アルバムに追加</label>
           <div className="mt-1 flex gap-2">
             <select
               value={targetAlbumId}
@@ -192,7 +192,7 @@ export function UnclassifiedPhotoManager({
         </div>
 
         <div className="flex-1">
-          <label className="font-mono text-[11px] text-steam-muted">新規アルバムを作って移動</label>
+          <label className="font-mono text-2xs text-steam-muted">新規アルバムを作って移動</label>
           <div className="mt-1 flex gap-2">
             <select
               value={newAlbumGroupId}

@@ -102,7 +102,7 @@ export default async function AlbumsPage() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-display text-sm font-semibold text-steam-text">未分類の投稿</p>
-            <p className="font-mono text-[11px] text-steam-muted">
+            <p className="font-mono text-2xs text-steam-muted">
               まだどのアルバムにも入っていない投稿が{unclassifiedCount}件あります。タップして振り分ける
             </p>
           </div>

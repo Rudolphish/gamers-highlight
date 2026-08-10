@@ -52,7 +52,7 @@ export default async function GroupsPage() {
               <p className="truncate font-display text-base font-semibold text-steam-text">
                 {group.name}
               </p>
-              <div className="mt-2 flex items-center gap-3 font-mono text-[10px] text-steam-muted">
+              <div className="mt-2 flex items-center gap-3 font-mono text-3xs text-steam-muted">
                 <span className="flex items-center gap-1">
                   <Film size={11} /> {group._count.albums}
                 </span>

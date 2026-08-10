@@ -56,7 +56,7 @@ export function SuggestedGames({
 
   return (
     <div className="mt-4 border-t border-steam-border pt-4">
-      <p className="font-mono text-[10px] text-steam-muted">
+      <p className="font-mono text-3xs text-steam-muted">
         よく遊んでいる「{translateGenre(genre)}」ジャンルから
       </p>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -71,7 +71,7 @@ export function SuggestedGames({
                 <Image src={s.thumbnail} alt={s.name} fill sizes="(max-width: 640px) 50vw, 25vw" className="object-cover" />
               </div>
               <div className="flex items-center gap-1 p-1.5">
-                <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-steam-text">
+                <span className="min-w-0 flex-1 truncate font-mono text-4xs text-steam-text">
                   {s.name}
                 </span>
                 <button
@@ -87,7 +87,7 @@ export function SuggestedGames({
           );
         })}
       </div>
-      {error && <p className="mt-2 font-mono text-[10px] text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{error}</p>}
     </div>
   );
 }

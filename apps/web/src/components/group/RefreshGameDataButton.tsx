@@ -75,7 +75,7 @@ export function RefreshGameDataButton({
 
   if (!canRefresh) {
     return lastRefreshed ? (
-      <p className="font-mono text-[10px] text-steam-muted/70">
+      <p className="font-mono text-3xs text-steam-muted/70">
         情報の最終更新: {formatWhen(lastRefreshed)}
       </p>
     ) : null;
@@ -92,25 +92,25 @@ export function RefreshGameDataButton({
               ? `次に更新できるのは ${formatWhen(availableAt)} 以降です`
               : "Steam・IsThereAnyDeal・YouTube・HowLongToBeatの情報を取り直す"
           }
-          className="inline-flex items-center gap-1.5 rounded-sm border border-steam-border px-2.5 py-1.5 font-mono text-[10px] text-steam-text transition hover:border-steam-blue disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 rounded-sm border border-steam-border px-2.5 py-1.5 font-mono text-3xs text-steam-text transition hover:border-steam-blue disabled:cursor-not-allowed disabled:opacity-40"
         >
           {pending ? <Spinner size={11} /> : <RefreshCw size={11} />}
           {pending ? "更新中…" : "情報を更新"}
         </button>
 
         {lastRefreshed && (
-          <span className="font-mono text-[10px] text-steam-muted/70">
+          <span className="font-mono text-3xs text-steam-muted/70">
             最終更新: {formatWhen(lastRefreshed)}
           </span>
         )}
       </div>
 
       {waiting && availableAt && !message && (
-        <p className="mt-1 font-mono text-[9px] text-steam-muted/60">
+        <p className="mt-1 font-mono text-4xs text-steam-muted/60">
           次に更新できるのは {formatWhen(availableAt)} 以降です（1日1回まで）
         </p>
       )}
-      {message && <p className="mt-1 font-mono text-[9px] text-steam-muted">{message}</p>}
+      {message && <p className="mt-1 font-mono text-4xs text-steam-muted">{message}</p>}
     </div>
   );
 }

@@ -160,19 +160,19 @@ export function GameProposals({
   return (
     <div className="mt-4 border-t border-steam-border pt-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-mono text-[10px] font-bold uppercase tracking-wide text-steam-muted">
+        <h3 className="font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
           ゲーム提案
         </h3>
         <button
           onClick={() => setOpen(true)}
-          className="flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 font-mono text-[10px] text-steam-text transition hover:border-steam-blue"
+          className="flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 font-mono text-3xs text-steam-text transition hover:border-steam-blue"
         >
           <Plus size={12} /> 提案する
         </button>
       </div>
 
       {localProposals.length === 0 ? (
-        <p className="mt-2 font-mono text-[10px] text-steam-muted/70">まだ提案はありません。</p>
+        <p className="mt-2 font-mono text-3xs text-steam-muted/70">まだ提案はありません。</p>
       ) : (
         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {localProposals.map((p) => {
@@ -196,7 +196,7 @@ export function GameProposals({
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-mono text-xs text-steam-text">{p.title}</p>
-                  <p className="truncate font-mono text-[9px] text-steam-muted/70">
+                  <p className="truncate font-mono text-4xs text-steam-muted/70">
                     {p.proposedByName}が提案・やりたい {likeCount}/{likeThreshold}
                   </p>
                   <div className="mt-1 flex items-center gap-1">
@@ -209,7 +209,7 @@ export function GameProposals({
                           onClick={() => react(p.id, type)}
                           disabled={reactingId === p.id}
                           title={label}
-                          className={`flex items-center gap-0.5 rounded-sm border px-1.5 py-0.5 font-mono text-[9px] transition disabled:opacity-50 ${
+                          className={`flex items-center gap-0.5 rounded-sm border px-1.5 py-0.5 font-mono text-4xs transition disabled:opacity-50 ${
                             active
                               ? "border-steam-blue text-steam-blue"
                               : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -238,7 +238,7 @@ export function GameProposals({
         </div>
       )}
 
-      {error && <p className="mt-2 font-mono text-[10px] text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{error}</p>}
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
@@ -291,7 +291,7 @@ export function GameProposals({
                 </button>
               ))}
               {searched && !searching && results.length === 0 && (
-                <p className="font-mono text-[11px] text-steam-muted/70">見つかりませんでした</p>
+                <p className="font-mono text-2xs text-steam-muted/70">見つかりませんでした</p>
               )}
             </div>
           </div>

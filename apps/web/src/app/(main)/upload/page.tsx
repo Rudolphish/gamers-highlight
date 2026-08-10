@@ -155,7 +155,7 @@ export default function UploadPage() {
         <p className="mt-2 font-mono text-xs text-steam-muted">
           {items.length > 0 ? "選び直す（クリック）" : "クリックしてファイルを選択（複数選択可）"}
         </p>
-        <p className="mt-1 font-mono text-[10px] text-steam-muted/60">
+        <p className="mt-1 font-mono text-3xs text-steam-muted/60">
           画像: 最大15MB／動画: 最大30MB・30秒まで
         </p>
       </button>
@@ -175,12 +175,12 @@ export default function UploadPage() {
               <span className="min-w-0 flex-1 truncate font-mono text-xs text-steam-text">
                 {item.file.name}
               </span>
-              <span className="flex-shrink-0 font-mono text-[10px] text-steam-muted">
+              <span className="flex-shrink-0 font-mono text-3xs text-steam-muted">
                 {(item.file.size / 1024 / 1024).toFixed(1)}MB
               </span>
 
               {item.status === "uploading" && (
-                <span className="flex-shrink-0 font-mono text-[10px] text-steam-blue">
+                <span className="flex-shrink-0 font-mono text-3xs text-steam-blue">
                   アップロード中…
                 </span>
               )}
@@ -188,7 +188,7 @@ export default function UploadPage() {
                 <Check size={14} className="flex-shrink-0 text-[#a4d007]" />
               )}
               {item.status === "error" && (
-                <span className="flex flex-shrink-0 items-center gap-1 font-mono text-[10px] text-[#eb4b4b]">
+                <span className="flex flex-shrink-0 items-center gap-1 font-mono text-3xs text-[#eb4b4b]">
                   <AlertCircle size={12} /> 失敗
                 </span>
               )}
@@ -207,7 +207,7 @@ export default function UploadPage() {
       )}
 
       <div className="mt-4">
-        <label className="font-mono text-[11px] text-steam-muted">追加先アルバム</label>
+        <label className="font-mono text-2xs text-steam-muted">追加先アルバム</label>
         <select
           value={albumId}
           onChange={(e) => setAlbumId(e.target.value)}
@@ -224,7 +224,7 @@ export default function UploadPage() {
       </div>
 
       <div className="mt-3">
-        <label className="font-mono text-[11px] text-steam-muted">
+        <label className="font-mono text-2xs text-steam-muted">
           ゲームタグ（任意・全ファイル共通）
         </label>
         <input

@@ -42,7 +42,7 @@ export function Sidebar() {
       <nav className="flex flex-1 flex-col gap-6 px-1">
         {NAV_GROUPS.map((group) => (
           <div key={group.label} className="space-y-2">
-            <p className="px-2 text-[10px] uppercase tracking-[0.3em] text-steam-muted">{group.label}</p>
+            <p className="px-2 text-3xs uppercase tracking-[0.3em] text-steam-muted">{group.label}</p>
             <div className="space-y-1">
               {group.items.map((item) => {
                 const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
@@ -55,7 +55,7 @@ export function Sidebar() {
                     }`}
                   >
                     <item.icon size={18} />
-                    <span className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2 whitespace-nowrap rounded-sm border border-steam-border bg-steam-surface px-2 py-1 text-[11px] text-steam-text opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                    <span className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2 whitespace-nowrap rounded-sm border border-steam-border bg-steam-surface px-2 py-1 text-2xs text-steam-text opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
                       {item.label}
                     </span>
                   </Link>

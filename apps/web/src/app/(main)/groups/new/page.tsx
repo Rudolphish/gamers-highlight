@@ -54,7 +54,7 @@ export default function NewGroupPage() {
 
       <div className="mt-6 flex max-w-md flex-col gap-4">
         <div>
-          <label className="font-mono text-[11px] text-steam-muted">
+          <label className="font-mono text-2xs text-steam-muted">
             グループ名 <span className="text-[#eb4b4b]">*</span>
           </label>
           <input
@@ -67,7 +67,7 @@ export default function NewGroupPage() {
         </div>
 
         <div>
-          <label className="font-mono text-[11px] text-steam-muted">
+          <label className="font-mono text-2xs text-steam-muted">
             DiscordサーバーID（任意）
           </label>
           <input
@@ -77,7 +77,7 @@ export default function NewGroupPage() {
             disabled={pending}
             className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
           />
-          <p className="mt-1 font-mono text-[10px] text-steam-muted/70">
+          <p className="mt-1 font-mono text-3xs text-steam-muted/70">
             指定すると、そのDiscordサーバーでのハッシュタグ投稿がこのグループに自動で取り込まれます。
             後から変更はできません。サーバーへのBot招待手順は
             <Link href="/manual#discord-bot-invite" className="text-steam-blue hover:underline">

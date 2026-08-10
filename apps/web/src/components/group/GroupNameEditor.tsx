@@ -65,7 +65,7 @@ export function GroupNameEditor({
           {displayName}
           <Pencil size={16} className="text-steam-muted opacity-0 transition group-hover:opacity-100" />
         </button>
-        {error && <p className="mt-1 font-mono text-[10px] text-[#eb4b4b]">{error}</p>}
+        {error && <p className="mt-1 font-mono text-3xs text-[#eb4b4b]">{error}</p>}
       </div>
     );
   }

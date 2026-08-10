@@ -133,7 +133,7 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
                     {m.avatarUrl ? (
                       <Image src={m.avatarUrl} alt="" width={24} height={24} className="h-full w-full object-cover" />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center font-mono text-[9px] text-steam-muted">
+                      <div className="flex h-full w-full items-center justify-center font-mono text-4xs text-steam-muted">
                         {(m.name ?? "?").slice(0, 1)}
                       </div>
                     )}
@@ -149,7 +149,7 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
                         value={m.role}
                         onChange={(e) => handleRoleChange(m.userId, e.target.value as "EDITOR" | "VIEWER")}
                         disabled={pending}
-                        className="rounded-sm border border-steam-border bg-steam-bg px-1.5 py-1 font-mono text-[10px] text-steam-text disabled:opacity-50"
+                        className="rounded-sm border border-steam-border bg-steam-bg px-1.5 py-1 font-mono text-3xs text-steam-text disabled:opacity-50"
                       >
                         <option value="EDITOR">編集者</option>
                         <option value="VIEWER">閲覧者</option>
@@ -157,14 +157,14 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
                       <button
                         onClick={() => handleRemove(m.userId)}
                         disabled={pending}
-                        className="flex items-center gap-1 font-mono text-[10px] text-[#eb4b4b] disabled:opacity-50"
+                        className="flex items-center gap-1 font-mono text-3xs text-[#eb4b4b] disabled:opacity-50"
                       >
                         {removingUserId === m.userId && <Spinner size={10} />}
                         削除
                       </button>
                     </>
                   ) : (
-                    <span className="font-mono text-[10px] text-steam-muted">{ROLE_LABEL[m.role]}</span>
+                    <span className="font-mono text-3xs text-steam-muted">{ROLE_LABEL[m.role]}</span>
                   )}
                 </li>
               ))}
@@ -172,7 +172,7 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
 
             {isOwner && (
               <div className="mt-4 border-t border-steam-border pt-4">
-                <p className="font-mono text-[11px] text-steam-muted">新しいメンバーを招待</p>
+                <p className="font-mono text-2xs text-steam-muted">新しいメンバーを招待</p>
                 <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                   <select
                     value={inviteeId}
@@ -206,7 +206,7 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
                   </button>
                 </div>
                 {candidates.length === 0 && (
-                  <p className="mt-2 font-mono text-[10px] text-steam-muted/70">
+                  <p className="mt-2 font-mono text-3xs text-steam-muted/70">
                     招待可能な未参加ユーザーがいません
                   </p>
                 )}

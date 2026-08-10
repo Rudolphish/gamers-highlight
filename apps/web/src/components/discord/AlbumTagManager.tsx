@@ -72,7 +72,7 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
   return (
     <div className="rounded-sm border border-steam-border bg-steam-surface p-4">
       <h2 className="font-display font-semibold text-steam-text">タグ（ハッシュタグ別名）</h2>
-      <p className="mt-1 font-mono text-[11px] text-steam-muted">
+      <p className="mt-1 font-mono text-2xs text-steam-muted">
         Discordでこのアルバムに投稿する際のハッシュタグを複数登録できます。
         「#eldenring」と「#elden_ring」のような表記ゆれをまとめたい場合、
         両方をここに追加してください。
@@ -82,7 +82,7 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
         {tags.map((t) => (
           <li
             key={t.id}
-            className="flex items-center gap-1 rounded-sm border border-steam-border bg-steam-panel px-2 py-1 font-mono text-[11px] text-steam-muted"
+            className="flex items-center gap-1 rounded-sm border border-steam-border bg-steam-panel px-2 py-1 font-mono text-2xs text-steam-muted"
           >
             <Hash size={10} className="text-steam-blue" />
             {t.tag}
@@ -97,7 +97,7 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
           </li>
         ))}
         {tags.length === 0 && (
-          <span className="font-mono text-[11px] text-steam-muted/60">
+          <span className="font-mono text-2xs text-steam-muted/60">
             タグ未設定（このアルバムは未分類扱いになります）
           </span>
         )}

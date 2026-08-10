@@ -92,7 +92,7 @@ export default async function AlbumDetailPage({
           {album.groupGame && (
             <Link
               href={`/groups/${album.groupId}/games/${album.groupGame.id}`}
-              className="mt-1 inline-flex items-center gap-1 font-mono text-[11px] text-steam-blue hover:underline"
+              className="mt-1 inline-flex items-center gap-1 font-mono text-2xs text-steam-blue hover:underline"
             >
               <Gamepad2 size={12} /> ゲーム詳細を見る
             </Link>

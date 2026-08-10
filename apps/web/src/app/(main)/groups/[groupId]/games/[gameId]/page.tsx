@@ -120,16 +120,16 @@ export default async function GroupGameDetailPage({
 
           <div className="p-4 sm:p-6">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded-sm border border-steam-blue/50 px-1.5 py-0.5 font-mono text-[10px] text-steam-blue">
+              <span className="rounded-sm border border-steam-blue/50 px-1.5 py-0.5 font-mono text-3xs text-steam-blue">
                 {STATUS_LABEL[game.status]}
               </span>
               {reviews && (
-                <span className="rounded-sm border border-[#a4d007]/50 px-1.5 py-0.5 font-mono text-[10px] text-[#a4d007]">
+                <span className="rounded-sm border border-[#a4d007]/50 px-1.5 py-0.5 font-mono text-3xs text-[#a4d007]">
                   {reviews.scoreDesc}（{reviews.totalReviews.toLocaleString()}件）
                 </span>
               )}
               {price && (
-                <span className="rounded-sm border border-steam-border px-1.5 py-0.5 font-mono text-[10px] text-steam-text">
+                <span className="rounded-sm border border-steam-border px-1.5 py-0.5 font-mono text-3xs text-steam-text">
                   {price.isFree
                     ? "無料"
                     : price.discountPercent > 0
@@ -180,7 +180,7 @@ export default async function GroupGameDetailPage({
             </div>
 
             <div className="mt-4">
-              <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-steam-muted">
+              <h2 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
                 <Youtube size={12} /> 関連動画
               </h2>
               {youtubeVideoId && (
@@ -198,7 +198,7 @@ export default async function GroupGameDetailPage({
                 href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${game.title} gameplay`)}`}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] text-steam-blue hover:underline"
+                className="mt-2 inline-flex items-center gap-1.5 font-mono text-3xs text-steam-blue hover:underline"
               >
                 <ExternalLink size={11} /> YouTubeで他の動画を探す
               </a>
@@ -210,7 +210,7 @@ export default async function GroupGameDetailPage({
         <div className="flex flex-col gap-4">
           {latestNews && (
             <div className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
-              <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-steam-muted">
+              <h2 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
                 <Newspaper size={12} /> 最新ニュース
               </h2>
               <a
@@ -221,7 +221,7 @@ export default async function GroupGameDetailPage({
               >
                 {latestNews.title}
               </a>
-              <p className="mt-0.5 font-mono text-[9px] text-steam-muted/70">
+              <p className="mt-0.5 font-mono text-4xs text-steam-muted/70">
                 {new Date(latestNews.date * 1000).toLocaleDateString("ja-JP")}
               </p>
               <div className="mt-2 max-h-48 overflow-y-auto font-mono text-xs leading-relaxed text-steam-muted">
@@ -240,7 +240,7 @@ export default async function GroupGameDetailPage({
                       href={item.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="block truncate font-mono text-[10px] text-steam-muted hover:text-steam-blue"
+                      className="block truncate font-mono text-3xs text-steam-muted hover:text-steam-blue"
                     >
                       {item.title}
                     </a>
@@ -252,13 +252,13 @@ export default async function GroupGameDetailPage({
 
           {reviewItems.length > 0 && (
             <div className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
-              <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-steam-muted">
+              <h2 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
                 <MessageSquare size={12} /> レビュー
               </h2>
               <div className="mt-2 flex flex-col gap-3">
                 {reviewItems.map((r) => (
                   <div key={r.id} className="border-t border-steam-border pt-2 first:border-t-0 first:pt-0">
-                    <div className="flex items-center gap-1.5 font-mono text-[9px] text-steam-muted/70">
+                    <div className="flex items-center gap-1.5 font-mono text-4xs text-steam-muted/70">
                       {r.votedUp ? (
                         <ThumbsUp size={11} className="text-[#a4d007]" />
                       ) : (
@@ -278,22 +278,22 @@ export default async function GroupGameDetailPage({
 
           {itad && (
             <div className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
-              <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-steam-muted">
+              <h2 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
                 <TrendingDown size={12} /> 価格情報
               </h2>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <div className="rounded-sm border border-steam-border bg-steam-panel p-3 text-center">
-                  <p className="font-mono text-[9px] text-steam-muted">現在価格（Steam）</p>
+                  <p className="font-mono text-4xs text-steam-muted">現在価格（Steam）</p>
                   <p className="mt-1 font-display text-lg font-bold text-steam-text">
                     {price ? (price.isFree ? "無料" : price.finalFormatted) : "-"}
                   </p>
                 </div>
                 <div className="rounded-sm border border-steam-border bg-steam-panel p-3 text-center">
-                  <p className="font-mono text-[9px] text-steam-muted">過去最安値（全ストア）</p>
+                  <p className="font-mono text-4xs text-steam-muted">過去最安値（全ストア）</p>
                   <p className="mt-1 font-display text-lg font-bold text-[#a4d007]">
                     ¥{itad.lowPrice.toLocaleString("ja-JP")}
                   </p>
-                  <p className="font-mono text-[9px] text-steam-muted/70">
+                  <p className="font-mono text-4xs text-steam-muted/70">
                     {itad.lowShopName}
                     {itad.lowCut > 0 ? `（-${itad.lowCut}%）` : ""}
                   </p>
@@ -303,7 +303,7 @@ export default async function GroupGameDetailPage({
                 href={itad.pageUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-3 inline-flex items-center gap-1.5 font-mono text-[10px] text-steam-blue hover:underline"
+                className="mt-3 inline-flex items-center gap-1.5 font-mono text-3xs text-steam-blue hover:underline"
               >
                 <ExternalLink size={11} /> IsThereAnyDealで全ストアの価格を比較する
               </a>
