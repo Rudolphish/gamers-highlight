@@ -20,6 +20,60 @@ export type ExternalGameResult = ExternalGameData & {
   headerImage: string | null;
 };
 
+/** 手動リフレッシュの結果表示に使う、取得できなかった外部ソースの識別子 */
+export type ExternalSource = "steam" | "youtube" | "hltb";
+
+export const EXTERNAL_SOURCE_LABEL: Record<ExternalSource, string> = {
+  steam: "Steam",
+  youtube: "YouTube",
+  hltb: "HowLongToBeat",
+};
+
+type FetchOutcome = {
+  data: ExternalGameData;
+  headerImage: string | null;
+  /** 値が得られなかったソース。「障害」と「そもそも該当が無い」は区別しない */
+  missing: ExternalSource[];
+};
+
+/**
+ * 外部3サービスを引く共通部分。
+ *
+ * HowLongToBeatだけはSteamの結果を待ってから引く必要がある：先方は英語タイトルのDBで、
+ * `GroupGame.title`はSteam検索（`l=japanese`）由来の日本語名なので、そのまま渡すと
+ * 「モンスターハンター：ワールド」のようなクエリになって必ず0件になる。
+ * appdetailsが返す英語名を使う（この問い合わせはどのみちジャンル/ヘッダー画像のために行っている）。
+ * YouTubeは逆に日本語タイトルで引いた方が実況動画が当たるため、表示用タイトルのまま並行実行する。
+ */
+async function fetchExternal(steamAppId: number, title: string): Promise<FetchOutcome> {
+  const [steam, video] = await Promise.all([
+    getSteamAppSummary(steamAppId).catch(() => ({ genres: [] as string[], headerImage: null, name: null })),
+    getGameplayVideo(title).catch(() => null),
+  ]);
+
+  const hltb = await getHowLongToBeat(steam.name ?? title).catch(() => null);
+
+  const missing: ExternalSource[] = [];
+  // appdetailsが成功していれば必ずnameが入るので、これをSteam側の成否判定に使う
+  if (steam.name === null) missing.push("steam");
+  if (video === null) missing.push("youtube");
+  if (hltb === null) missing.push("hltb");
+
+  return {
+    data: {
+      genres: steam.genres,
+      youtubeVideoId: video?.videoId ?? null,
+      hltbGameId: hltb?.gameId ?? null,
+      hltbMainHours: hltb?.main ?? null,
+      hltbMainExtraHours: hltb?.mainExtra ?? null,
+      hltbCompletionistHours: hltb?.completionist ?? null,
+      hltbAllStylesHours: hltb?.allStyles ?? null,
+    },
+    headerImage: steam.headerImage,
+    missing,
+  };
+}
+
 /**
  * Steam/YouTube/HowLongToBeatの情報をsteamAppId単位でキャッシュしつつ取得する。
  * GroupGameはグループ単位のレコードのため、複数グループが同じSteamゲームを
@@ -36,23 +90,9 @@ export const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export async function refreshExternalGameData(
   steamAppId: number,
   title: string
-): Promise<ExternalGameResult> {
-  const [steam, video, hltb] = await Promise.all([
-    getSteamAppSummary(steamAppId).catch(() => ({ genres: [] as string[], headerImage: null })),
-    getGameplayVideo(title).catch(() => null),
-    getHowLongToBeat(title).catch(() => null),
-  ]);
-
-  const result: ExternalGameData = {
-    // 取得に失敗した項目で既存の値を潰さない（一時的な障害で情報が消えるのを防ぐ）
-    genres: steam.genres,
-    youtubeVideoId: video?.videoId ?? null,
-    hltbGameId: hltb?.gameId ?? null,
-    hltbMainHours: hltb?.main ?? null,
-    hltbMainExtraHours: hltb?.mainExtra ?? null,
-    hltbCompletionistHours: hltb?.completionist ?? null,
-    hltbAllStylesHours: hltb?.allStyles ?? null,
-  };
+): Promise<ExternalGameResult & { missing: ExternalSource[] }> {
+  // 取得に失敗した項目で既存の値を潰さない（一時的な障害で情報が消えるのを防ぐ）
+  const { data: result, headerImage: fetchedHeader, missing } = await fetchExternal(steamAppId, title);
 
   const existing = await db.externalGameCache.findUnique({ where: { steamAppId } });
   const merged: ExternalGameData = existing
@@ -66,7 +106,7 @@ export async function refreshExternalGameData(
         hltbAllStylesHours: result.hltbAllStylesHours ?? existing.hltbAllStylesHours,
       }
     : result;
-  const headerImage = steam.headerImage ?? existing?.headerImage ?? null;
+  const headerImage = fetchedHeader ?? existing?.headerImage ?? null;
 
   await db.externalGameCache.upsert({
     where: { steamAppId },
@@ -74,7 +114,7 @@ export async function refreshExternalGameData(
     update: { ...merged, headerImage },
   });
 
-  return { ...merged, headerImage };
+  return { ...merged, headerImage, missing };
 }
 
 export async function getOrFetchExternalGameData(
@@ -88,7 +128,8 @@ export async function getOrFetchExternalGameData(
     // （appdetailsへの1回の問い合わせで済み、次回以降はキャッシュから返る）。
     let headerImage = cached.headerImage;
     if (headerImage === null) {
-      headerImage = (await getSteamAppSummary(steamAppId).catch(() => ({ headerImage: null }))).headerImage;
+      headerImage = (await getSteamAppSummary(steamAppId).catch(() => ({ headerImage: null })))
+        .headerImage;
       if (headerImage !== null) {
         await db.externalGameCache.update({ where: { steamAppId }, data: { headerImage } });
       }
@@ -106,27 +147,13 @@ export async function getOrFetchExternalGameData(
     };
   }
 
-  const [steam, video, hltb] = await Promise.all([
-    getSteamAppSummary(steamAppId).catch(() => ({ genres: [], headerImage: null })),
-    getGameplayVideo(title).catch(() => null),
-    getHowLongToBeat(title).catch(() => null),
-  ]);
-
-  const result: ExternalGameData = {
-    genres: steam.genres,
-    youtubeVideoId: video?.videoId ?? null,
-    hltbGameId: hltb?.gameId ?? null,
-    hltbMainHours: hltb?.main ?? null,
-    hltbMainExtraHours: hltb?.mainExtra ?? null,
-    hltbCompletionistHours: hltb?.completionist ?? null,
-    hltbAllStylesHours: hltb?.allStyles ?? null,
-  };
+  const { data: result, headerImage } = await fetchExternal(steamAppId, title);
 
   await db.externalGameCache.upsert({
     where: { steamAppId },
-    create: { steamAppId, ...result, headerImage: steam.headerImage },
-    update: { ...result, headerImage: steam.headerImage },
+    create: { steamAppId, ...result, headerImage },
+    update: { ...result, headerImage },
   });
 
-  return { ...result, headerImage: steam.headerImage };
+  return { ...result, headerImage };
 }

@@ -64,7 +64,14 @@ export function RefreshGameDataButton({
 
       if (data?.refreshedAt) setLastRefreshed(data.refreshedAt);
       if (data?.nextAvailableAt) setAvailableAt(data.nextAvailableAt);
-      setMessage("最新の情報に更新しました。");
+      // 一部のソースが取れていない場合に「更新しました」だけ出すと、
+      // 何も変わっていないのに成功したように見えてしまう
+      const missing: string[] = Array.isArray(data?.missing) ? data.missing : [];
+      setMessage(
+        missing.length > 0
+          ? `更新しました（${missing.join("・")}の情報は取得できませんでした）`
+          : "最新の情報に更新しました。"
+      );
       router.refresh();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "更新に失敗しました");

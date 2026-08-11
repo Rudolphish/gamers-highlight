@@ -220,6 +220,12 @@ export type SteamAppSummary = {
   genres: string[];
   /** ストアのヘッダー画像URL。steamHeaderImageUrl()の推測ではなくAPIが返す正しい値 */
   headerImage: string | null;
+  /**
+   * 英語の正式タイトル。`GroupGame.title`は日本語検索（`l=japanese`）由来の日本語名なので、
+   * 英語タイトル前提の外部サービス（HowLongToBeat）を引くときはこちらを使う。
+   * 取得できなければnull。
+   */
+  name: string | null;
 };
 
 /**
@@ -234,7 +240,8 @@ export type SteamAppSummary = {
  * 分かりにくい形で出る（実際に発生した）。
  */
 export async function getSteamAppSummary(appId: number): Promise<SteamAppSummary> {
-  const empty: SteamAppSummary = { genres: [], headerImage: null };
+  const empty: SteamAppSummary = { genres: [], headerImage: null, name: null };
+  // `l`を付けないので英語の値が返る（genresの英語名とnameの英語タイトルはこれが前提）
   const url = `https://store.steampowered.com/api/appdetails?appids=${appId}&cc=jp`;
   const res = await fetch(url, NO_STORE);
   if (!res.ok) return empty;
@@ -256,7 +263,12 @@ export async function getSteamAppSummary(appId: number): Promise<SteamAppSummary
       ? entry.data.header_image
       : null;
 
-  return { genres, headerImage };
+  const name =
+    typeof entry.data?.name === "string" && entry.data.name.trim().length > 0
+      ? entry.data.name.trim()
+      : null;
+
+  return { genres, headerImage, name };
 }
 
 /** ジャンルだけが欲しい場合の薄いラッパー */
