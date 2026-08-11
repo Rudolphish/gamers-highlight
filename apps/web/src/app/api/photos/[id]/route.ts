@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasAlbumPermission } from "@/lib/permissions";
 import { deleteStoredObjects } from "@/lib/storage";
+import { isAdminEmail } from "@/lib/admin";
 
 // DELETE /api/photos/:id
 // アップロード自体を取り消す用途に使う。レコードとあわせてストレージの実体も消す。
@@ -23,7 +24,10 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   const isAlbumOwner = photo.albumId
     ? await hasAlbumPermission(photo.albumId, user.id, "OWNER")
     : false;
-  if (!isUploader && !isAlbumOwner) {
+  // 管理者は/adminのメディア一覧から横断的に消せる。容量が逼迫したときに
+  // 誰の投稿かに関わらず整理できないと、管理画面の意味がないため。
+  const isAdmin = isAdminEmail(session?.user?.email);
+  if (!isUploader && !isAlbumOwner && !isAdmin) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
