@@ -310,11 +310,12 @@ export default async function GroupGameDetailPage({
             </div>
           )}
 
+          {/* 項目ごとに収録状況が違うため、1つでも時間が取れていればカードを出す */}
           {game.hltbGameId !== null &&
-            game.hltbMainHours !== null &&
-            game.hltbMainExtraHours !== null &&
-            game.hltbCompletionistHours !== null &&
-            game.hltbAllStylesHours !== null && (
+            (game.hltbMainHours !== null ||
+              game.hltbMainExtraHours !== null ||
+              game.hltbCompletionistHours !== null ||
+              game.hltbAllStylesHours !== null) && (
               <HltbCard
                 gameId={game.hltbGameId}
                 main={game.hltbMainHours}

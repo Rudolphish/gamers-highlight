@@ -4,7 +4,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
-import { refreshExternalGameData, REFRESH_INTERVAL_MS } from "@/lib/externalGameCache";
+import {
+  refreshExternalGameData,
+  REFRESH_INTERVAL_MS,
+  EXTERNAL_SOURCE_LABEL,
+} from "@/lib/externalGameCache";
 import { gameCacheTag } from "@/lib/steam";
 
 // POST /api/groups/:id/games/:gameId/refresh … ゲーム詳細ページの外部情報を取り直す。
@@ -60,7 +64,10 @@ export async function POST(
     }
   }
 
-  const { headerImage, ...external } = await refreshExternalGameData(game.steamAppId, game.title);
+  const { headerImage, missing, ...external } = await refreshExternalGameData(
+    game.steamAppId,
+    game.title
+  );
 
   await db.groupGame.update({
     where: { id: game.id },
@@ -76,9 +83,13 @@ export async function POST(
   });
   const refreshedAt = updated?.updatedAt ?? new Date();
 
+  // 一部のソースだけ取れなかった場合も200で返す（保存済みの値は更新されているため）。
+  // ただし「更新しました」とだけ伝えると、何も増えていないのに成功したように見えてしまい、
+  // しかも次の更新まで24時間待たされる。取れなかったソース名は明示する。
   return NextResponse.json({
     ok: true,
     refreshedAt: refreshedAt.toISOString(),
     nextAvailableAt: new Date(refreshedAt.getTime() + REFRESH_INTERVAL_MS).toISOString(),
+    missing: missing.map((source) => EXTERNAL_SOURCE_LABEL[source]),
   });
 }

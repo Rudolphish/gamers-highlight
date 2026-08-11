@@ -11,16 +11,42 @@
 const BASE_URL = "https://howlongtobeat.com";
 const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:138.0) Gecko/20100101 Firefox/138.0";
 const MIN_SIMILARITY = 0.4;
+/** 先方が無応答のときにゲーム追加APIごと道連れにされないための上限 */
+const TIMEOUT_MS = 8000;
+
+/**
+ * 失敗理由。呼び出し側は結局nullとして扱うが、
+ * 「日本語タイトルで0件」なのか「先方の仕様変更でそもそも通信が通らない」のかは
+ * ログに残さないと事後に切り分けられない（実際にこれで原因特定が遅れた）。
+ */
+export type HltbFailure =
+  | "init-http-error"
+  | "init-bad-shape"
+  | "search-http-error"
+  | "no-results"
+  | "no-match"
+  | "no-times"
+  | "network-error";
+
+function warn(reason: HltbFailure, title: string, detail?: unknown) {
+  console.warn(`[hltb] ${reason} title=${JSON.stringify(title)}`, detail ?? "");
+}
 
 type AuthInfo = { token: string; hpKey: string; hpVal: string };
 
-async function getAuth(): Promise<AuthInfo | null> {
+async function getAuth(title: string): Promise<AuthInfo | null> {
   const res = await fetch(`${BASE_URL}/api/bleed/init?t=${Date.now()}`, {
     headers: { "User-Agent": USER_AGENT, Accept: "*/*", Referer: `${BASE_URL}/` },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    warn("init-http-error", title, res.status);
+    return null;
+  }
   const data = await res.json();
   if (typeof data?.token !== "string" || typeof data?.hpKey !== "string" || typeof data?.hpVal !== "string") {
+    // ここに来たら先方がinitの応答形式を変えた可能性が高い
+    warn("init-bad-shape", title, Object.keys(data ?? {}));
     return null;
   }
   return { token: data.token, hpKey: data.hpKey, hpVal: data.hpVal };
@@ -61,16 +87,36 @@ function similarity(a: string, b: string): number {
 
 export type HltbEstimate = {
   gameId: number;
-  main: number;
-  mainExtra: number;
-  completionist: number;
-  allStyles: number;
+  /** 各項目はデータが無ければnull。全項目nullの場合はgetHowLongToBeat自体がnullを返す */
+  main: number | null;
+  mainExtra: number | null;
+  completionist: number | null;
+  allStyles: number | null;
 };
 
-/** ゲームタイトルからクリア時間の目安（時間単位、小数点1桁）を取得する。見つからない/失敗時はnull */
-export async function getHowLongToBeat(title: string): Promise<HltbEstimate | null> {
+/**
+ * 検索に投げる前のタイトル正規化。
+ * Steamの名前には™/®/©が入っていることが多く（"NieR:Automata™" 等）、
+ * そのまま検索語にすると先方のヒット率が落ちる。
+ */
+function normalizeTitle(title: string): string {
+  return title
+    .replace(/[™®©]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * ゲームタイトルからクリア時間の目安（時間単位、小数点1桁）を取得する。見つからない/失敗時はnull。
+ *
+ * **必ず英語タイトルを渡すこと**。HowLongToBeatは英語タイトルのDBなので、
+ * Steamの日本語名（storesearchは`l=japanese`で日本語名を返す）で引くと必ず0件になる。
+ * 呼び出し側はappdetailsが返す英語名を使う（lib/externalGameCache.ts参照）。
+ */
+export async function getHowLongToBeat(rawTitle: string): Promise<HltbEstimate | null> {
+  const title = normalizeTitle(rawTitle);
   try {
-    const auth = await getAuth();
+    const auth = await getAuth(title);
     if (!auth) return null;
 
     const res = await fetch(`${BASE_URL}/api/bleed`, {
@@ -102,12 +148,19 @@ export async function getHowLongToBeat(title: string): Promise<HltbEstimate | nu
         useCache: true,
         [auth.hpKey]: auth.hpVal,
       }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      warn("search-http-error", title, res.status);
+      return null;
+    }
 
     const data = await res.json();
     const items: RawEntry[] = Array.isArray(data?.data) ? data.data : [];
-    if (items.length === 0) return null;
+    if (items.length === 0) {
+      warn("no-results", title);
+      return null;
+    }
 
     let best: RawEntry | null = null;
     let bestScore = -1;
@@ -121,18 +174,39 @@ export async function getHowLongToBeat(title: string): Promise<HltbEstimate | nu
         best = item;
       }
     }
-    if (!best || bestScore < MIN_SIMILARITY || typeof best.game_id !== "number") return null;
+    if (!best || bestScore < MIN_SIMILARITY || typeof best.game_id !== "number") {
+      warn("no-match", title, { bestScore, candidate: best?.game_name });
+      return null;
+    }
 
-    const toHours = (seconds: number | undefined) => Math.round(((seconds ?? 0) / 3600) * 10) / 10;
+    // 未収録の項目は0秒で返ってくる。これを0時間として保存すると
+    // 「0h」のバーが並ぶうえ、マージ側の `?? existing` を素通りして(0は非nullish)
+    // 既にあった正しい値を潰してしまうため、データ無しはnullとして扱う。
+    const toHours = (seconds: number | undefined) =>
+      typeof seconds === "number" && seconds > 0 ? Math.round((seconds / 3600) * 10) / 10 : null;
 
-    return {
+    const estimate: HltbEstimate = {
       gameId: best.game_id,
       main: toHours(best.comp_main),
       mainExtra: toHours(best.comp_plus),
       completionist: toHours(best.comp_100),
       allStyles: toHours(best.comp_all),
     };
-  } catch {
+
+    if (
+      estimate.main === null &&
+      estimate.mainExtra === null &&
+      estimate.completionist === null &&
+      estimate.allStyles === null
+    ) {
+      // タイトルは一致したが時間データがまだ無い（未発売など）
+      warn("no-times", title, best.game_name);
+      return null;
+    }
+
+    return estimate;
+  } catch (e) {
+    warn("network-error", title, e instanceof Error ? e.message : e);
     return null;
   }
 }

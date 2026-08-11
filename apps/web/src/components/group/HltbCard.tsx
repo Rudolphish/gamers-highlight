@@ -2,10 +2,11 @@ import { Clock, ExternalLink } from "lucide-react";
 
 type Props = {
   gameId: number;
-  main: number;
-  mainExtra: number;
-  completionist: number;
-  allStyles: number;
+  /** 未収録の項目はnull。行ごと表示しない */
+  main: number | null;
+  mainExtra: number | null;
+  completionist: number | null;
+  allStyles: number | null;
 };
 
 const ROWS: { label: string; key: keyof Omit<Props, "gameId"> }[] = [
@@ -19,7 +20,9 @@ const ROWS: { label: string; key: keyof Omit<Props, "gameId"> }[] = [
 // 非公式スクレイピングの値のため、参考程度の目安として扱う。
 export function HltbCard({ gameId, main, mainExtra, completionist, allStyles }: Props) {
   const values = { main, mainExtra, completionist, allStyles };
-  const max = Math.max(main, mainExtra, completionist, allStyles, 1);
+  // 項目ごとに収録状況が違う（完全収集だけ未収録、等）ため、
+  // 揃っている項目だけでバーの基準を決める
+  const max = Math.max(...Object.values(values).filter((v): v is number => v !== null), 1);
 
   return (
     <div className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
@@ -41,6 +44,7 @@ export function HltbCard({ gameId, main, mainExtra, completionist, allStyles }: 
       <div className="mt-3 flex flex-col gap-2">
         {ROWS.map(({ label, key }) => {
           const value = values[key];
+          if (value === null) return null;
           const widthPercent = Math.max((value / max) * 100, 4);
           return (
             <div key={key}>
