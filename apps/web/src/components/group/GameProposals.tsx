@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import { Plus, X, Search, ThumbsUp, HelpCircle, ThumbsDown, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
@@ -185,17 +186,38 @@ export function GameProposals({
                 key={p.id}
                 className="flex items-center gap-2 rounded-sm border border-steam-border bg-steam-panel p-2"
               >
-                {p.coverUrl && (
-                  <Image
-                    src={p.coverUrl}
-                    alt={p.title}
-                    width={80}
-                    height={48}
-                    className="h-12 w-20 flex-shrink-0 rounded-sm object-cover"
-                  />
-                )}
+                {p.coverUrl &&
+                  (p.id.startsWith("temp-") ? (
+                    <Image
+                      src={p.coverUrl}
+                      alt={p.title}
+                      width={80}
+                      height={48}
+                      className="h-12 w-20 flex-shrink-0 rounded-sm object-cover"
+                    />
+                  ) : (
+                    <Link href={`/groups/${groupId}/proposals/${p.id}`} className="flex-shrink-0">
+                      <Image
+                        src={p.coverUrl}
+                        alt={p.title}
+                        width={80}
+                        height={48}
+                        className="h-12 w-20 rounded-sm object-cover transition hover:brightness-110"
+                      />
+                    </Link>
+                  ))}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-xs text-steam-text">{p.title}</p>
+                  {/* 楽観的に差し込んだ仮の提案（temp-*）はまだサーバー上に無いのでリンクにしない */}
+                  {p.id.startsWith("temp-") ? (
+                    <p className="truncate font-mono text-xs text-steam-text">{p.title}</p>
+                  ) : (
+                    <Link
+                      href={`/groups/${groupId}/proposals/${p.id}`}
+                      className="block truncate font-mono text-xs text-steam-text hover:text-steam-blue"
+                    >
+                      {p.title}
+                    </Link>
+                  )}
                   <p className="truncate font-mono text-4xs text-steam-muted/70">
                     {p.proposedByName}が提案・やりたい {likeCount}/{likeThreshold}
                   </p>
