@@ -27,3 +27,4 @@ OAuthリダイレクトURIの例:
 - `ITAD_API_KEY` — IsThereAnyDeal API（ゲーム詳細ページの価格情報、最安値更新通知の判定に使用）設定済み（2026-08-08）
 - `YOUTUBE_API_KEY` — YouTube Data API v3（ゲーム詳細ページの関連動画）設定済み（2026-08-08）
 - `CRON_SECRET` — Vercel Cron Jobsからの`/api/cron/check-wishlist-prices`呼び出しを認証するための秘密値。ローカルで生成した値をVercel側にも設定 設定済み（2026-08-08）
+- `ADMIN_EMAILS` — 設定画面の「許可リスト」タブから、ログインできる人を追加・削除できる管理者のメールアドレス（カンマ区切り、例: `you@example.com,friend@example.com`）。**未設定だと誰もこの画面を操作できない**（フェイルクローズ）ため、自分のアドレスを入れておくこと。ここに書くのは「許可リストを編集できる人」であり、アプリを使える人の一覧ではない（そちらは許可リスト自体で管理する）

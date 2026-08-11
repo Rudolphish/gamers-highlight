@@ -2,6 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { db } from "./db";
+import { isAdminEmail } from "./admin";
 
 // VercelなどHTTPSホスティング環境で発生する「State cookie was missing」対策。
 // NEXTAUTH_URLがhttpsならセキュアCookie（__Secure-/__Host-プレフィックス）を明示的に使う。
@@ -137,6 +138,13 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       // TODO: session.user.id にDBのUser.idを詰める
+
+      // 管理者かどうかをセッションに載せておく。設定画面のタブ（クライアント
+      // コンポーネント）から出し分けるための表示用フラグで、権限判定そのものは
+      // 常にサーバー側（API・ページ）で isAdminEmail を呼んで行う。
+      if (session.user) {
+        session.user.isAdmin = isAdminEmail(session.user.email);
+      }
       return session;
     },
   },

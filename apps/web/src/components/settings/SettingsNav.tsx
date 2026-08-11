@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 const TABS = [
   { href: "/settings/profile", label: "プロフィール" },
@@ -9,12 +10,17 @@ const TABS = [
   { href: "/settings/channel-mapping", label: "チャンネル連携" },
 ];
 
+// 許可リストは管理者だけが操作できるので、タブ自体も管理者にしか出さない
+const ADMIN_TABS = [{ href: "/settings/allowlist", label: "許可リスト" }];
+
 export function SettingsNav() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const tabs = session?.user?.isAdmin ? [...TABS, ...ADMIN_TABS] : TABS;
 
   return (
-    <div className="mt-4 flex gap-1 border-b border-steam-border">
-      {TABS.map((tab) => {
+    <div className="mt-4 flex flex-wrap gap-1 border-b border-steam-border">
+      {tabs.map((tab) => {
         const active = pathname === tab.href;
         return (
           <Link
