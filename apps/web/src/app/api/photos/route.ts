@@ -2,20 +2,19 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { createUploadUrl } from "@/lib/storage";
-import {
-  resolveMediaType,
-  maxSizeFor,
-  MAX_VIDEO_DURATION_SECONDS,
-} from "@/lib/media-limits";
+import { isManagedStorageUrl } from "@/lib/storage";
+import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/media-limits";
 
-// POST /api/photos … 署名付きPOSTポリシー(post.url/post.fields)を発行し、Photoレコードを先に作る
-// クライアントはpost.fields一式+fileをFormDataに詰めてpost.urlへ直接POSTする
-// （content-length-range条件で実際のファイルサイズ上限をストレージ側にも強制させるため、
-// 単純な署名付きPUT URLではなくPOSTポリシーを使っている）
-// body: { contentType, sizeBytes, durationSeconds?, thumbnailUrl?, albumId?, gameTitle? }
+// POST /api/photos … アップロード済みのオブジェクトに対してPhotoレコードを作る
+// body: { contentType, mediaUrl, sizeBytes?, durationSeconds?, thumbnailUrl?, albumId?, gameTitle? }
+//
+// mediaUrl は先に POST /api/photos/upload-url で受け取った publicUrl。
+// 署名付きPOSTの発行とレコード作成を分けているのは、ストレージへのアップロードが
+// 失敗したときにレコードだけが残らないようにするため。以前は先にレコードを作っており、
+// 失敗すると404のURLを指したPhotoが残って壊れた画像として出続けていた。
+//
 // thumbnailUrl は動画の場合のみ使用。クライアント側で1フレーム目 or 任意画像を
-// 先に(通常の画像として)アップロードし、その公開URLをここに渡す想定。
+// 先にアップロードし、その公開URLをここに渡す想定。
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   const user = session?.user?.email
@@ -28,6 +27,15 @@ export async function POST(req: Request) {
   const mediaType = resolveMediaType(body.contentType);
   if (!mediaType) {
     return NextResponse.json({ error: "unsupported content type" }, { status: 400 });
+  }
+
+  // クライアントの申告をそのまま保存するので、自分たちのストレージ上のURLかを必ず確認する。
+  // ここが無いと任意のURLをmediaUrlとして保存できてしまう。
+  if (!isManagedStorageUrl(body.mediaUrl)) {
+    return NextResponse.json({ error: "invalid mediaUrl" }, { status: 400 });
+  }
+  if (body.thumbnailUrl != null && !isManagedStorageUrl(body.thumbnailUrl)) {
+    return NextResponse.json({ error: "invalid thumbnailUrl" }, { status: 400 });
   }
 
   if (typeof body.sizeBytes === "number" && body.sizeBytes > maxSizeFor(mediaType)) {
@@ -44,12 +52,10 @@ export async function POST(req: Request) {
     );
   }
 
-  const { post, publicUrl } = await createUploadUrl(body.contentType, mediaType);
-
   const photo = await db.photo.create({
     data: {
       mediaType,
-      mediaUrl: publicUrl,
+      mediaUrl: body.mediaUrl,
       thumbnailUrl: mediaType === "VIDEO" ? body.thumbnailUrl ?? null : null,
       sizeBytes: body.sizeBytes ?? null,
       durationSeconds: mediaType === "VIDEO" ? body.durationSeconds ?? null : null,
@@ -60,5 +66,5 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({ post, photo }, { status: 201 });
+  return NextResponse.json({ photo }, { status: 201 });
 }

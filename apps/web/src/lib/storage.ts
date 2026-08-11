@@ -64,11 +64,18 @@ export async function createUploadUrl(contentType: string, mediaType: "IMAGE" | 
 }
 
 /**
- * サムネイル用など、Photoレコードを作らずにオブジェクトだけ置きたい場合の署名付きPOST。
- * createUploadUrlと違いDBには何も書かない。
+ * クライアントから受け取ったURLが、自分たちのストレージ上のものかを検証する。
+ *
+ * Photoレコードはアップロード成功後にクライアントの申告で作るため、
+ * ここを通さないと任意のURLをmediaUrlとして保存できてしまう。
+ *
+ * STORAGE未設定（ローカルのモック環境）ではフォールバックURLを受け入れる必要があるので、
+ * 判定自体を行わない。本番では必ずSTORAGE_PUBLIC_URLが入っている前提。
  */
-export async function createThumbnailUploadUrl(contentType: string) {
-  return createUploadUrl(contentType, "IMAGE");
+export function isManagedStorageUrl(url: unknown): url is string {
+  if (typeof url !== "string" || url.length === 0) return false;
+  if (!process.env.STORAGE_PUBLIC_URL) return true;
+  return storageKeyFromUrl(url) !== null;
 }
 
 /**

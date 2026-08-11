@@ -10,7 +10,15 @@ import { extractFirstFrame } from "@/lib/video-thumbnail";
 // 1ファイルごとの流れ：
 //   1. contentTypeで画像/動画を判定
 //   2. 動画の場合、まず1フレーム目をcanvasで抽出してサムネイル画像を作る
-//   3. サムネイル(動画の場合のみ)→本体の順で、それぞれ署名付きPOSTポリシーを取得してR2へ直接POST
+//   3. サムネイル(動画の場合のみ)→本体の順で、署名付きPOSTポリシー(/api/photos/upload-url)を
+//      取得してR2へ直接POST
+//   4. **上げ切ってから** /api/photos でPhotoレコードを作る
+//
+// 4を最後に回しているのが重要。以前は先にレコードを作ってから署名を返していたため、
+// ストレージへのPOSTが失敗すると404のURLを指したPhotoが残り、ホームやアルバムに
+// 壊れた画像として出続けていた（電波の悪い場所では普通に起きる）。
+// 今の順序なら、失敗して残るのは参照されないオブジェクトだけで画面には出ない
+// （/admin の「孤児ファイル」で把握できる）。
 //
 // 複数ファイルは「同時並列」ではなく「順番に1つずつ」処理する。
 // R2への署名付きURL発行APIを一度に大量に叩かないようにするための安全策で、
@@ -42,29 +50,31 @@ async function postFileToStorage(post: { url: string; fields: Record<string, str
   if (!postRes.ok) throw new Error("ストレージへのアップロードに失敗しました");
 }
 
-async function uploadViaSignedUrl(file: File, extra: Record<string, unknown> = {}) {
-  const res = await fetch("/api/photos", {
+/**
+ * 署名付きURLを受け取ってストレージへ上げるところまで。Photoレコードは作らない。
+ * 上げ切ってから作ることで、途中で失敗しても「ファイルが無いのにレコードだけある」
+ * 状態にならない（失敗時に残るのは参照されないオブジェクトだけで、画面には出ない）。
+ */
+async function uploadToStorage(file: File, extra: Record<string, unknown> = {}): Promise<string> {
+  const res = await fetch("/api/photos/upload-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ contentType: file.type, sizeBytes: file.size, ...extra }),
   });
   if (!res.ok) throw new Error((await res.text()) || "アップロードリクエストに失敗しました");
-  const { post, photo } = await res.json();
-  await postFileToStorage(post, file);
-  return photo;
-}
-
-/** 動画のサムネイルはPhotoレコードを作らずオブジェクトだけ置く（/api/photos/thumbnail） */
-async function uploadThumbnail(file: File): Promise<string> {
-  const res = await fetch("/api/photos/thumbnail", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contentType: file.type, sizeBytes: file.size }),
-  });
-  if (!res.ok) throw new Error((await res.text()) || "サムネイルのアップロードに失敗しました");
   const { post, publicUrl } = await res.json();
   await postFileToStorage(post, file);
   return publicUrl;
+}
+
+async function createPhotoRecord(body: Record<string, unknown>) {
+  const res = await fetch("/api/photos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.text()) || "投稿の保存に失敗しました");
+  return (await res.json()).photo;
 }
 
 async function uploadOne(item: UploadItem, gameTag: string, albumId: string) {
@@ -73,10 +83,15 @@ async function uploadOne(item: UploadItem, gameTag: string, albumId: string) {
   if (item.mode === "video") {
     const thumbBlob = await extractFirstFrame(item.file);
     const thumbFile = new File([thumbBlob], "thumbnail.jpg", { type: "image/jpeg" });
-    thumbnailUrl = await uploadThumbnail(thumbFile);
+    thumbnailUrl = await uploadToStorage(thumbFile);
   }
 
-  await uploadViaSignedUrl(item.file, {
+  const mediaUrl = await uploadToStorage(item.file);
+
+  await createPhotoRecord({
+    contentType: item.file.type,
+    mediaUrl,
+    sizeBytes: item.file.size,
     thumbnailUrl,
     gameTitle: gameTag.trim() || undefined,
     albumId: albumId || undefined,
