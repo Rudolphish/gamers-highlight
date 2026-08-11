@@ -1,5 +1,10 @@
+import { recordApiUsage, YOUTUBE_SEARCH_UNITS } from "./apiUsage";
+
 // YouTube Data API v3連携。search.listは1回あたりクォータ100（無料枠1日10,000＝実質100回/日）を
 // 消費するため、ページ表示のたびには呼ばず、ゲームをリストに追加する時に1回だけ検索して結果をDBに保存する。
+//
+// 消費量は管理者ページで見えるようにApiUsageへ記録する。`cache: "no-store"`で
+// 必ず実際に外部へ出るため、ここで数えた回数と実消費が一致する。
 
 export type YoutubeVideo = {
   videoId: string;
@@ -17,6 +22,9 @@ export async function getGameplayVideo(title: string): Promise<YoutubeVideo | nu
     // 追加時・手動リフレッシュ時にしか呼ばないので、キャッシュされると
     // 「リフレッシュしたのに同じ動画が返る」ことになる。明示的に無効化する
     const res = await fetch(url, { cache: "no-store" });
+    // 結果の成否によらずクォータは消費される（エラー応答でも引かれる）ので、
+    // 中身を見る前に記録する
+    await recordApiUsage("youtube", YOUTUBE_SEARCH_UNITS);
     if (!res.ok) return null;
 
     const data = await res.json();

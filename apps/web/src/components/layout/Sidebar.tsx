@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Film, Home, Search, Settings, Upload, Users } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { FileText, Film, Home, Search, Settings, ShieldCheck, Upload, Users } from "lucide-react";
 
 const NAV_GROUPS = [
   {
@@ -24,8 +25,16 @@ const NAV_GROUPS = [
   },
 ];
 
+// 管理者だけに出すリンク（実際の権限判定はページ側でサーバー側に行わせる）
+const ADMIN_GROUP = {
+  label: "管理者",
+  items: [{ href: "/admin", label: "使用量・メディア", icon: ShieldCheck }],
+};
+
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const navGroups = session?.user?.isAdmin ? [...NAV_GROUPS, ADMIN_GROUP] : NAV_GROUPS;
 
   return (
     <aside className="flex w-20 flex-shrink-0 flex-col border-r border-steam-border bg-steam-panel py-4">
@@ -40,7 +49,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-1 flex-col gap-6 px-1">
-        {NAV_GROUPS.map((group) => (
+        {navGroups.map((group) => (
           <div key={group.label} className="space-y-2">
             <p className="px-2 text-3xs uppercase tracking-[0.3em] text-steam-muted">{group.label}</p>
             <div className="space-y-1">
