@@ -7,6 +7,11 @@ import { db } from "./db";
 export const APP_SETTING_KEYS = {
   /** エラー通知の投稿先DiscordチャンネルID。未設定なら通知しない */
   errorNotifyChannelId: "errorNotifyChannelId",
+  /**
+   * 無料枠の使用率について最後に警告した段階（JSON、リソースごと）。
+   * 同じ段階で毎日鳴り続けないように、段階が上がった時だけ通知するために持つ。
+   */
+  usageAlertLevels: "usageAlertLevels",
 } as const;
 
 export type AppSettingKey = (typeof APP_SETTING_KEYS)[keyof typeof APP_SETTING_KEYS];
