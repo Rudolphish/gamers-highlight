@@ -5,7 +5,13 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // アプリの実行時はSupavisorプーラー（6543番）。サーバーレスで接続数を食い潰さないため。
   url      = env("DATABASE_URL")
+  // マイグレーション（db push / migrate）はプーラー経由だとアドバイザリロックが
+  // 成立せず、エラーも出さずにハングする。Prismaにここを直接接続へ振り分けさせる。
+  // これが無いと、スキーマを変えるたびに .env の DATABASE_URL を手で直接接続へ
+  // 書き換えて実行し、プーラーへ戻す、という手順が必要になる（戻し忘れの事故が起きる）。
+  directUrl = env("DATABASE_DIRECT_CONNECT")
 }
 
 enum AlbumRole {

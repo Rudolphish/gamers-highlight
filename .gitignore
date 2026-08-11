@@ -32,5 +32,8 @@ docs/review-log/
 .claude/hooks/review-ledger.csv
 # 自動レビューのキルスイッチ。誤ってコミットすると全員のレビューが恒久的に止まる
 .claude/hooks/.review-off
-CLAUDE.md
+# CLAUDE.md はマシンローカル扱いをやめて追跡する。
+# change-log.md が「詳細はCLAUDE.mdに追記済み」と参照しているのに、ここで除外されていたため
+# ファイルごと失われ、記録されていたはずの落とし穴（プーラー経由のdb pushがハングする件）を
+# 後日もう一度踏むことになった。共有される場所に置かないと記録の意味がない。
 GOAL.txt

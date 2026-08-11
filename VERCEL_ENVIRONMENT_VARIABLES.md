@@ -2,7 +2,8 @@
 
 以下は `apps/web` を Vercel にデプロイする際に必須の環境変数です。
 
-- `DATABASE_URL`
+- `DATABASE_URL` — Supavisor プーラー（6543番、`pgbouncer=true`）を指すこと。直接接続にするとサーバーレスで接続数を食い潰す
+- `DATABASE_DIRECT_CONNECT` — Supabaseの直接接続文字列（5432番）。`schema.prisma` の `directUrl` が参照し、`prisma db push` / `migrate` はこちらを使う（プーラー経由だとハングするため）。**マイグレーションはローカルから実行するので Vercel 側には不要**。未設定でも `prisma generate` は成功するのでビルドは通る（実測済み）
 - `NEXTAUTH_SECRET`
 - `NEXTAUTH_URL` (通常は自動設定されるが、手動で設定しても安全)
 - `DISCORD_CLIENT_ID`
@@ -32,6 +33,6 @@ OAuthリダイレクトURIの例:
 管理者ページの使用率表示に使う上限値（任意。未設定なら無料枠の目安を使う）:
 
 - `STORAGE_LIMIT_BYTES` — R2の容量上限。既定は10GB（無料枠）
-- `DATABASE_LIMIT_BYTES` — DBの容量上限。既定は0.5GB（Neon無料枠）
+- `DATABASE_LIMIT_BYTES` — DBの容量上限。既定は0.5GB（Supabase無料枠）
 
 プランを上げた場合はここを実態に合わせること。分母がずれていると使用率の数字を見て誤った判断をすることになる。
