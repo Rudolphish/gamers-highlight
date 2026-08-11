@@ -11,11 +11,10 @@ import { GroupNameEditor } from "@/components/group/GroupNameEditor";
 import { DeleteGroupButton } from "@/components/group/DeleteGroupButton";
 import { GroupGameList } from "@/components/group/GroupGameList";
 import { PlayStatusSummary } from "@/components/group/PlayStatusSummary";
-import { SuggestedGames } from "@/components/group/SuggestedGames";
 import { GameProposals } from "@/components/group/GameProposals";
 import { NotificationChannelSetting } from "@/components/group/NotificationChannelSetting";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
-import { steamHeaderImageUrl, searchSteamByGenre } from "@/lib/steam";
+import { steamHeaderImageUrl } from "@/lib/steam";
 
 // アルバム数がグループの活動量に応じて際限なく増えうるため、初期表示は最新分のみに絞る
 // （継続的にスクショを投稿するアプリの性質上、他のリレーション以上に増加が速いため）
@@ -92,26 +91,6 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       name: i.user.name ?? i.user.email ?? "メンバー",
     })),
   }));
-
-  // サジェスト：グループの既存ゲームで一番多いジャンルから、未追加のSteam人気ゲームを提案する簡易ルールベース
-  const genreCounts = new Map<string, number>();
-  for (const g of group.games) {
-    for (const genre of g.genres) {
-      genreCounts.set(genre, (genreCounts.get(genre) ?? 0) + 1);
-    }
-  }
-  const topGenre = [...genreCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-
-  let suggestions: Awaited<ReturnType<typeof searchSteamByGenre>> = [];
-  if (topGenre && canEditGames) {
-    const existingAppIds = new Set(group.games.map((g) => g.steamAppId));
-    try {
-      const candidates = await searchSteamByGenre(topGenre, 20);
-      suggestions = candidates.filter((c) => !existingAppIds.has(c.appId)).slice(0, 4);
-    } catch {
-      suggestions = [];
-    }
-  }
 
   const shareMembers = [
     {
@@ -237,9 +216,6 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
             canEdit={canEditGames}
             currentUserId={currentUser.id}
           />
-          {topGenre && (
-            <SuggestedGames groupId={group.id} genre={topGenre} suggestions={suggestions} />
-          )}
           <GameProposals
             groupId={group.id}
             proposals={proposalCards}
