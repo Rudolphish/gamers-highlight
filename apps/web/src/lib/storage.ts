@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { randomUUID } from "crypto";
 import { maxSizeFor } from "./media-limits";
@@ -56,6 +56,59 @@ export async function createUploadUrl(contentType: string, mediaType: "IMAGE" | 
   });
   const publicUrl = `${process.env.STORAGE_PUBLIC_URL || ""}/${key}`;
   return { post, key, publicUrl };
+}
+
+/**
+ * サムネイル用など、Photoレコードを作らずにオブジェクトだけ置きたい場合の署名付きPOST。
+ * createUploadUrlと違いDBには何も書かない。
+ */
+export async function createThumbnailUploadUrl(contentType: string) {
+  return createUploadUrl(contentType, "IMAGE");
+}
+
+/**
+ * 保存済みの公開URLから、バケット内のオブジェクトキーを復元する。
+ * Photoは`mediaUrl`しか持たずキーを別途保存していないため、
+ * STORAGE_PUBLIC_URLのプレフィックスを剥がして求める。
+ *
+ * 自前のストレージ上に無いURL（STORAGE未設定時のモック画像や、
+ * Discordの添付URLをそのまま保存したもの）はnullを返し、削除対象から外す。
+ */
+export function storageKeyFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const base = process.env.STORAGE_PUBLIC_URL;
+  if (!base) return null;
+  const prefix = base.endsWith("/") ? base : `${base}/`;
+  if (!url.startsWith(prefix)) return null;
+  const key = url.slice(prefix.length);
+  return key.length > 0 ? key : null;
+}
+
+/**
+ * 公開URLで指定したオブジェクトをストレージから削除する。
+ *
+ * 失敗しても例外は投げない：呼び出し元はDBのレコードを消し終えた後に呼ぶため、
+ * ここで落とすと「削除できていないように見えて実は消えている」状態になる。
+ * 消し漏らしはログに残し、後から手で回収できるようにする。
+ */
+export async function deleteStoredObjects(urls: (string | null | undefined)[]): Promise<void> {
+  const bucket = process.env.STORAGE_BUCKET;
+  const s3 = getS3Client();
+  if (!s3 || !bucket) return;
+
+  const keys = Array.from(
+    new Set(urls.map(storageKeyFromUrl).filter((k): k is string => k !== null))
+  );
+
+  await Promise.all(
+    keys.map(async (Key) => {
+      try {
+        await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key }));
+      } catch (e) {
+        console.error(`[storage] failed to delete object key=${Key}`, e);
+      }
+    })
+  );
 }
 
 /**
