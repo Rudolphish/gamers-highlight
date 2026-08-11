@@ -53,8 +53,11 @@ export function GroupGameList({
 }) {
   const router = useRouter();
   const [items, setItems] = useState(games);
-  const [filter, setFilter] = useState<GameStatus | "ALL">("ALL");
-  const [genreFilter, setGenreFilter] = useState<string | "ALL">("ALL");
+  // ステータス・ジャンルとも複数選択できる。空＝絞り込みなし（＝すべて）。
+  // 同じ枠の中はOR（「気になる」＋「プレイ中」でどちらかに当てはまるもの）、
+  // ステータス枠とジャンル枠の間はANDで効く。
+  const [statusFilter, setStatusFilter] = useState<Set<GameStatus>>(new Set());
+  const [genreFilter, setGenreFilter] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SteamResult[]>([]);
@@ -70,9 +73,18 @@ export function GroupGameList({
 
   const filteredGames = items.filter(
     (g) =>
-      (filter === "ALL" || g.status === filter) &&
-      (genreFilter === "ALL" || g.genres.includes(genreFilter))
+      (statusFilter.size === 0 || statusFilter.has(g.status)) &&
+      (genreFilter.size === 0 || g.genres.some((genre) => genreFilter.has(genre)))
   );
+
+  const filterCount = statusFilter.size + genreFilter.size;
+
+  // 選択済みならその項目だけ外し、未選択なら足す
+  function toggle<T>(set: Set<T>, value: T): Set<T> {
+    const next = new Set(set);
+    if (!next.delete(value)) next.add(value);
+    return next;
+  }
 
   async function handleSearch() {
     const trimmed = query.trim();
@@ -175,9 +187,10 @@ export function GroupGameList({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1.5">
           <button
-            onClick={() => setFilter("ALL")}
+            onClick={() => setStatusFilter(new Set())}
+            aria-pressed={statusFilter.size === 0}
             className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
-              filter === "ALL"
+              statusFilter.size === 0
                 ? "border-steam-blue text-steam-blue"
                 : "border-steam-border text-steam-muted hover:border-steam-blue"
             }`}
@@ -187,9 +200,10 @@ export function GroupGameList({
           {STATUS_ORDER.map((s) => (
             <button
               key={s}
-              onClick={() => setFilter(s)}
+              onClick={() => setStatusFilter((prev) => toggle(prev, s))}
+              aria-pressed={statusFilter.has(s)}
               className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
-                filter === s
+                statusFilter.has(s)
                   ? STATUS_BADGE_CLASS[s]
                   : "border-steam-border text-steam-muted hover:border-steam-blue"
               }`}
@@ -212,9 +226,10 @@ export function GroupGameList({
       {allGenres.length > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           <button
-            onClick={() => setGenreFilter("ALL")}
+            onClick={() => setGenreFilter(new Set())}
+            aria-pressed={genreFilter.size === 0}
             className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
-              genreFilter === "ALL"
+              genreFilter.size === 0
                 ? "border-steam-blue text-steam-blue"
                 : "border-steam-border text-steam-muted hover:border-steam-blue"
             }`}
@@ -224,9 +239,10 @@ export function GroupGameList({
           {allGenres.map((g) => (
             <button
               key={g}
-              onClick={() => setGenreFilter(g)}
+              onClick={() => setGenreFilter((prev) => toggle(prev, g))}
+              aria-pressed={genreFilter.has(g)}
               className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
-                genreFilter === g
+                genreFilter.has(g)
                   ? "border-steam-blue text-steam-blue"
                   : "border-steam-border text-steam-muted hover:border-steam-blue"
               }`}
@@ -237,11 +253,30 @@ export function GroupGameList({
         </div>
       )}
 
+      {filterCount > 0 && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <p className="font-mono text-3xs text-steam-muted">
+            {filterCount}件の条件で絞り込み中・{filteredGames.length}/{items.length}件
+          </p>
+          <button
+            onClick={() => {
+              setStatusFilter(new Set());
+              setGenreFilter(new Set());
+            }}
+            className="inline-flex items-center gap-1 font-mono text-3xs text-steam-muted transition hover:text-steam-blue"
+          >
+            <X size={10} /> 条件をクリア
+          </button>
+        </div>
+      )}
+
       {error && <p className="mt-2 font-mono text-xs text-[#eb4b4b]">{error}</p>}
 
       {filteredGames.length === 0 ? (
         <p className="mt-4 font-mono text-sm text-steam-muted">
-          まだゲームが登録されていません。
+          {items.length === 0
+            ? "まだゲームが登録されていません。"
+            : "条件に一致するゲームがありません。"}
         </p>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
