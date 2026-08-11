@@ -28,6 +28,20 @@ type UploadItem = {
 
 type AlbumOption = { id: string; title: string };
 
+// post が無い場合はストレージ未設定のモック環境（ローカル開発時のフォールバック）。
+// 実際のオブジェクトアップロードは発生せず、既に返ってきているモックURLをそのまま使う。
+async function postFileToStorage(post: { url: string; fields: Record<string, string> } | null, file: File) {
+  if (!post) return;
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(post.fields)) {
+    formData.append(key, value);
+  }
+  formData.append("file", file);
+
+  const postRes = await fetch(post.url, { method: "POST", body: formData });
+  if (!postRes.ok) throw new Error("ストレージへのアップロードに失敗しました");
+}
+
 async function uploadViaSignedUrl(file: File, extra: Record<string, unknown> = {}) {
   const res = await fetch("/api/photos", {
     method: "POST",
@@ -36,21 +50,21 @@ async function uploadViaSignedUrl(file: File, extra: Record<string, unknown> = {
   });
   if (!res.ok) throw new Error((await res.text()) || "アップロードリクエストに失敗しました");
   const { post, photo } = await res.json();
-
-  // post が無い場合はストレージ未設定のモック環境（ローカル開発時のフォールバック）。
-  // 実際のオブジェクトアップロードは発生せず、既にDBに保存済みのモックURLをそのまま使う。
-  if (post) {
-    const formData = new FormData();
-    for (const [key, value] of Object.entries(post.fields as Record<string, string>)) {
-      formData.append(key, value);
-    }
-    formData.append("file", file);
-
-    const postRes = await fetch(post.url, { method: "POST", body: formData });
-    if (!postRes.ok) throw new Error("ストレージへのアップロードに失敗しました");
-  }
-
+  await postFileToStorage(post, file);
   return photo;
+}
+
+/** 動画のサムネイルはPhotoレコードを作らずオブジェクトだけ置く（/api/photos/thumbnail） */
+async function uploadThumbnail(file: File): Promise<string> {
+  const res = await fetch("/api/photos/thumbnail", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contentType: file.type, sizeBytes: file.size }),
+  });
+  if (!res.ok) throw new Error((await res.text()) || "サムネイルのアップロードに失敗しました");
+  const { post, publicUrl } = await res.json();
+  await postFileToStorage(post, file);
+  return publicUrl;
 }
 
 async function uploadOne(item: UploadItem, gameTag: string, albumId: string) {
@@ -59,9 +73,7 @@ async function uploadOne(item: UploadItem, gameTag: string, albumId: string) {
   if (item.mode === "video") {
     const thumbBlob = await extractFirstFrame(item.file);
     const thumbFile = new File([thumbBlob], "thumbnail.jpg", { type: "image/jpeg" });
-    const thumbPhoto = await uploadViaSignedUrl(thumbFile);
-    thumbnailUrl = thumbPhoto.mediaUrl;
-    await fetch(`/api/photos/${thumbPhoto.id}`, { method: "DELETE" }).catch(() => {});
+    thumbnailUrl = await uploadThumbnail(thumbFile);
   }
 
   await uploadViaSignedUrl(item.file, {
