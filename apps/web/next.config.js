@@ -18,6 +18,13 @@ const nextConfig = {
         protocol: "https",
         hostname: "*.steamstatic.com",
       },
+      // appdetailsのheader_imageは古いタイトルでこのドメインを返すことがある。
+      // 許可されていないホストのURLはnext/imageが400 ("url" parameter is not allowed)で弾き、
+      // 保存されているURL自体は正しいのに画像だけ出ないという分かりにくい壊れ方をする。
+      {
+        protocol: "https",
+        hostname: "*.akamaihd.net",
+      },
       // Discordのユーザーアバター
       {
         protocol: "https",
