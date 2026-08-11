@@ -32,7 +32,9 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-20 border-b border-steam-border bg-steam-bg/95 backdrop-blur-lg">
-      <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      {/* 本文（main）は最大幅なしの全幅レイアウトなので、ヘッダー側も幅を絞らずに
+          同じ左右パディングで揃える。1600px 超のモニタでロゴだけ内側にずれるのを防ぐ。 */}
+      <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <Link href="/" className="flex items-center gap-3">
           <span className="font-display text-xl font-black tracking-tight text-steam-text sm:text-2xl">
             Share<span className="text-steam-blue">Staq</span>

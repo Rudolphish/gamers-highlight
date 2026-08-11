@@ -218,7 +218,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
             <>
               <AlbumGrid albums={albumCards} />
               {group._count.albums > albumCards.length && (
-                <p className="mt-3 font-mono text-[10px] text-steam-muted">
+                <p className="mt-3 font-mono text-3xs text-steam-muted">
                   更新が新しい{albumCards.length}件を表示中（全{group._count.albums}件）。
                   古いアルバムは<Link href="/albums" className="text-steam-blue hover:underline">アルバム一覧</Link>から探せます。
                 </p>

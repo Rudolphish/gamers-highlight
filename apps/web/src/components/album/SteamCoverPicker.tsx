@@ -196,12 +196,12 @@ export function SteamCoverPicker({
                 </div>
               ))}
               {searched && !searching && results.length === 0 && (
-                <p className="font-mono text-[11px] text-steam-muted/70">見つかりませんでした</p>
+                <p className="font-mono text-2xs text-steam-muted/70">見つかりませんでした</p>
               )}
             </div>
 
             {linkedGameId && (
-              <p className="mt-2 flex items-center gap-1 font-mono text-[10px] text-[#a4d007]">
+              <p className="mt-2 flex items-center gap-1 font-mono text-3xs text-[#a4d007]">
                 <Check size={11} /> このアルバムはグループのゲームリストと連携済みです
               </p>
             )}
@@ -210,7 +210,7 @@ export function SteamCoverPicker({
               <button
                 onClick={clearCover}
                 disabled={clearing}
-                className="mt-3 flex items-center gap-1 font-mono text-[11px] text-[#eb4b4b] disabled:opacity-50"
+                className="mt-3 flex items-center gap-1 font-mono text-2xs text-[#eb4b4b] disabled:opacity-50"
               >
                 {clearing && <Spinner size={11} />}
                 Steam画像を解除して投稿写真に戻す

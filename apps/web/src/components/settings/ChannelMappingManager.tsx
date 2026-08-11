@@ -84,7 +84,7 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
   return (
     <div className="mt-6 max-w-xl">
       <div>
-        <label className="font-mono text-[11px] text-steam-muted">対象グループ</label>
+        <label className="font-mono text-2xs text-steam-muted">対象グループ</label>
         <select
           value={groupId}
           onChange={(e) => setGroupId(e.target.value)}
@@ -99,7 +99,7 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
       </div>
 
       <div className="mt-4 rounded-sm border border-steam-border bg-steam-surface p-4">
-        <p className="font-mono text-[11px] text-steam-muted">
+        <p className="font-mono text-2xs text-steam-muted">
           特定のチャンネルへの投稿を、ハッシュタグ無しでも自動的に指定のゲームに振り分けます
           （ハッシュタグが優先され、無い場合のフォールバックとして使われます）。
         </p>
@@ -127,7 +127,7 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
               </li>
             ))}
             {visibleMappings.length === 0 && (
-              <li className="font-mono text-[11px] text-steam-muted/60">まだ設定がありません</li>
+              <li className="font-mono text-2xs text-steam-muted/60">まだ設定がありません</li>
             )}
           </ul>
         )}
@@ -156,7 +156,7 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
             追加
           </button>
         </div>
-        <p className="mt-2 font-mono text-[10px] text-steam-muted/70">
+        <p className="mt-2 font-mono text-3xs text-steam-muted/70">
           チャンネルIDはDiscordの開発者モードを有効にし、チャンネルを右クリック→「IDをコピー」で取得できます。
         </p>
 

@@ -77,13 +77,13 @@ export function NotificationChannelSetting({
             setDraft(displayChannelId ?? "");
             setEditing(true);
           }}
-          className="group flex items-center gap-1.5 font-mono text-[10px] text-steam-muted transition hover:text-steam-text"
+          className="group flex items-center gap-1.5 font-mono text-3xs text-steam-muted transition hover:text-steam-text"
         >
           <Bell size={11} />
           {displayChannelId ? `通知先チャンネル: ${displayChannelId}` : "最安値更新の通知先チャンネルを設定"}
           <Pencil size={10} className="opacity-0 transition group-hover:opacity-100" />
         </button>
-        {error && <p className="mt-1 font-mono text-[9px] text-[#eb4b4b]">{error}</p>}
+        {error && <p className="mt-1 font-mono text-4xs text-[#eb4b4b]">{error}</p>}
       </div>
     );
   }
@@ -95,13 +95,13 @@ export function NotificationChannelSetting({
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
         {channels === undefined ? (
-          <span className="font-mono text-[10px] text-steam-muted">チャンネル一覧を取得中…</span>
+          <span className="font-mono text-3xs text-steam-muted">チャンネル一覧を取得中…</span>
         ) : useDropdown ? (
           <select
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             autoFocus
-            className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-[10px] text-steam-text outline-none focus:border-steam-blue"
+            className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-3xs text-steam-text outline-none focus:border-steam-blue"
           >
             <option value="">通知オフ</option>
             {draft && !knownIds.has(draft) && (
@@ -120,7 +120,7 @@ export function NotificationChannelSetting({
             autoFocus
             placeholder="DiscordチャンネルID（空欄で通知オフ）"
             onKeyDown={(e) => e.key === "Enter" && save()}
-            className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-[10px] text-steam-text outline-none focus:border-steam-blue"
+            className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-3xs text-steam-text outline-none focus:border-steam-blue"
           />
         )}
         <button onClick={save} aria-label="保存" className="p-1.5 text-steam-blue">
@@ -139,11 +139,11 @@ export function NotificationChannelSetting({
         </button>
       </div>
       {channels === null && (
-        <p className="font-mono text-[9px] text-steam-muted/60">
+        <p className="font-mono text-4xs text-steam-muted/60">
           チャンネル一覧を取得できませんでした（サーバーID未設定、またはBot未参加の可能性）。IDを直接入力してください。
         </p>
       )}
-      {error && <p className="font-mono text-[9px] text-[#eb4b4b]">{error}</p>}
+      {error && <p className="font-mono text-4xs text-[#eb4b4b]">{error}</p>}
     </div>
   );
 }

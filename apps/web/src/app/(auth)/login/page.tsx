@@ -78,7 +78,7 @@ function LoginForm() {
         </button>
       </div>
 
-      <p className="mt-4 font-mono text-[10px] text-steam-muted/60">
+      <p className="mt-4 font-mono text-3xs text-steam-muted/60">
         © {new Date().getFullYear()} ShareStaq
       </p>
     </main>

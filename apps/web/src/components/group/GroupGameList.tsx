@@ -176,7 +176,7 @@ export function GroupGameList({
         <div className="flex flex-wrap gap-1.5">
           <button
             onClick={() => setFilter("ALL")}
-            className={`rounded-sm border px-2 py-1 font-mono text-[10px] transition ${
+            className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
               filter === "ALL"
                 ? "border-steam-blue text-steam-blue"
                 : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -188,7 +188,7 @@ export function GroupGameList({
             <button
               key={s}
               onClick={() => setFilter(s)}
-              className={`rounded-sm border px-2 py-1 font-mono text-[10px] transition ${
+              className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
                 filter === s
                   ? STATUS_BADGE_CLASS[s]
                   : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -213,7 +213,7 @@ export function GroupGameList({
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           <button
             onClick={() => setGenreFilter("ALL")}
-            className={`rounded-sm border px-2 py-1 font-mono text-[10px] transition ${
+            className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
               genreFilter === "ALL"
                 ? "border-steam-blue text-steam-blue"
                 : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -225,7 +225,7 @@ export function GroupGameList({
             <button
               key={g}
               onClick={() => setGenreFilter(g)}
-              className={`rounded-sm border px-2 py-1 font-mono text-[10px] transition ${
+              className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
                 genreFilter === g
                   ? "border-steam-blue text-steam-blue"
                   : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -261,7 +261,7 @@ export function GroupGameList({
                       className="object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center font-mono text-[10px] text-steam-muted/60">
+                    <div className="flex h-full w-full items-center justify-center font-mono text-3xs text-steam-muted/60">
                       No Image
                     </div>
                   )}
@@ -270,7 +270,7 @@ export function GroupGameList({
                   <p className="truncate font-display text-sm font-semibold text-steam-text">
                     {game.title}
                   </p>
-                  <p className="truncate font-mono text-[9px] text-steam-muted/70">
+                  <p className="truncate font-mono text-4xs text-steam-muted/70">
                     {game.addedByName}が追加
                   </p>
                   {game.genres.length > 0 && (
@@ -278,7 +278,7 @@ export function GroupGameList({
                       {game.genres.slice(0, 2).map((g) => (
                         <span
                           key={g}
-                          className="rounded-sm bg-steam-panel px-1 py-0.5 font-mono text-[9px] text-steam-muted"
+                          className="rounded-sm bg-steam-panel px-1 py-0.5 font-mono text-4xs text-steam-muted"
                         >
                           {translateGenre(g)}
                         </span>
@@ -294,7 +294,7 @@ export function GroupGameList({
                       value={game.status}
                       disabled={updatingId === game.id}
                       onChange={(e) => changeStatus(game.id, e.target.value as GameStatus)}
-                      className={`rounded-sm border bg-steam-panel px-1 py-0.5 font-mono text-[10px] outline-none disabled:opacity-50 ${STATUS_BADGE_CLASS[game.status]}`}
+                      className={`rounded-sm border bg-steam-panel px-1 py-0.5 font-mono text-3xs outline-none disabled:opacity-50 ${STATUS_BADGE_CLASS[game.status]}`}
                     >
                       {STATUS_ORDER.map((s) => (
                         <option key={s} value={s}>
@@ -304,7 +304,7 @@ export function GroupGameList({
                     </select>
                   ) : (
                     <span
-                      className={`rounded-sm border px-1.5 py-0.5 font-mono text-[10px] ${STATUS_BADGE_CLASS[game.status]}`}
+                      className={`rounded-sm border px-1.5 py-0.5 font-mono text-3xs ${STATUS_BADGE_CLASS[game.status]}`}
                     >
                       {STATUS_LABEL[game.status]}
                     </span>
@@ -390,7 +390,7 @@ export function GroupGameList({
                 </button>
               ))}
               {searched && !searching && results.length === 0 && (
-                <p className="font-mono text-[11px] text-steam-muted/70">見つかりませんでした</p>
+                <p className="font-mono text-2xs text-steam-muted/70">見つかりませんでした</p>
               )}
             </div>
 

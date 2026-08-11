@@ -35,7 +35,7 @@ export default async function DiscordSettingsPage() {
               <AlertCircle size={16} className="flex-shrink-0" />
               Discordアカウントが未連携です
             </div>
-            <p className="mt-2 font-mono text-[11px] text-steam-muted">
+            <p className="mt-2 font-mono text-2xs text-steam-muted">
               Discordの投稿を自動で取り込むには、Discordアカウントでのログインが必要です。
             </p>
             <Link

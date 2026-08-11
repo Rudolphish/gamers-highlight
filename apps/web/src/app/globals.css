@@ -4,6 +4,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * 大画面向けのルートフォントサイズ調整。
+ * Tailwind のサイズ指定（フォント・余白・角丸・幅など）はほぼ rem ベースなので、
+ * ルートの font-size を画面幅に応じて伸ばすと UI 全体が同じ比率でスケールする。
+ *
+ * 計算式: 13px + 0.3125vw （min/max で 1rem〜1.3125rem にクランプ）
+ *   - 〜960px   : 1rem（= ブラウザ既定値。スマホ・タブレットは従来どおり）
+ *   - 1280px    : 約 17px
+ *   - 1920px    : 約 19px（23.8インチ FHD モニタ想定）
+ *   - 2560px〜  : 約 21px で頭打ち
+ *
+ * min/max 側を rem で書いているのは、ブラウザの文字サイズ設定を上書きしないため。
+ */
+html {
+  font-size: clamp(1rem, 0.8125rem + 0.3125vw, 1.3125rem);
+}
+
 body {
   background-color: #1b2838;
   color: #c7d5e0;

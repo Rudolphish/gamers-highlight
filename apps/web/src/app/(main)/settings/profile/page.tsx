@@ -71,7 +71,7 @@ export default function ProfileSettingsPage() {
       ) : (
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4 rounded-sm border border-steam-border bg-steam-surface p-4">
           <div>
-            <label className="font-mono text-[11px] text-steam-muted">メールアドレス（変更不可）</label>
+            <label className="font-mono text-2xs text-steam-muted">メールアドレス（変更不可）</label>
             <input
               type="text"
               value={email}
@@ -81,7 +81,7 @@ export default function ProfileSettingsPage() {
           </div>
 
           <div>
-            <label className="font-mono text-[11px] text-steam-muted">表示名</label>
+            <label className="font-mono text-2xs text-steam-muted">表示名</label>
             <div className="relative mt-1">
               <input
                 type="text"

@@ -106,7 +106,7 @@ export default function SearchPage() {
       <form onSubmit={handleSearch} className="mt-4 flex flex-col gap-3 rounded-sm border border-steam-border bg-steam-surface p-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="font-mono text-[11px] text-steam-muted">ゲームタイトル</label>
+            <label className="font-mono text-2xs text-steam-muted">ゲームタイトル</label>
             <input
               type="text"
               value={game}
@@ -116,7 +116,7 @@ export default function SearchPage() {
             />
           </div>
           <div>
-            <label className="font-mono text-[11px] text-steam-muted">投稿者ID</label>
+            <label className="font-mono text-2xs text-steam-muted">投稿者ID</label>
             <input
               type="text"
               value={uploader}
@@ -129,7 +129,7 @@ export default function SearchPage() {
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="font-mono text-[11px] text-steam-muted">開始日</label>
+            <label className="font-mono text-2xs text-steam-muted">開始日</label>
             <input
               type="date"
               value={from}
@@ -138,7 +138,7 @@ export default function SearchPage() {
             />
           </div>
           <div>
-            <label className="font-mono text-[11px] text-steam-muted">終了日</label>
+            <label className="font-mono text-2xs text-steam-muted">終了日</label>
             <input
               type="date"
               value={to}
@@ -196,16 +196,16 @@ export default function SearchPage() {
                       className="object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center font-mono text-[10px] text-steam-muted/60">
+                    <div className="flex h-full w-full items-center justify-center font-mono text-3xs text-steam-muted/60">
                       No Image
                     </div>
                   )}
                 </div>
                 <div className="p-2">
                   <p className="truncate font-display text-sm font-semibold text-steam-text">{g.title}</p>
-                  <p className="truncate font-mono text-[9px] text-steam-muted/70">{g.groupName}</p>
+                  <p className="truncate font-mono text-4xs text-steam-muted/70">{g.groupName}</p>
                   {g.status && (
-                    <span className="mt-1 inline-block rounded-sm border border-steam-border px-1.5 py-0.5 font-mono text-[9px] text-steam-muted">
+                    <span className="mt-1 inline-block rounded-sm border border-steam-border px-1.5 py-0.5 font-mono text-4xs text-steam-muted">
                       {STATUS_LABEL[g.status]}
                     </span>
                   )}
@@ -228,15 +228,15 @@ export default function SearchPage() {
                       className="object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center font-mono text-[10px] text-steam-muted/60">
+                    <div className="flex h-full w-full items-center justify-center font-mono text-3xs text-steam-muted/60">
                       No Image
                     </div>
                   )}
                 </div>
                 <div className="p-2">
                   <p className="truncate font-display text-sm font-semibold text-steam-text">{p.title}</p>
-                  <p className="truncate font-mono text-[9px] text-steam-muted/70">{p.groupName}</p>
-                  <span className="mt-1 inline-flex items-center gap-1 rounded-sm border border-steam-blue/50 px-1.5 py-0.5 font-mono text-[9px] text-steam-blue">
+                  <p className="truncate font-mono text-4xs text-steam-muted/70">{p.groupName}</p>
+                  <span className="mt-1 inline-flex items-center gap-1 rounded-sm border border-steam-blue/50 px-1.5 py-0.5 font-mono text-4xs text-steam-blue">
                     <Gamepad2 size={9} /> 提案中
                   </span>
                 </div>

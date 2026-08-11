@@ -67,7 +67,7 @@ export function PhotoGrid({ photos }: { photos: Media[] }) {
               />
             )}
             {item.mediaType === "VIDEO" && (
-              <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-1 py-0.5 font-mono text-[9px] font-bold text-white">
+              <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-1 py-0.5 font-mono text-4xs font-bold text-white">
                 <Play size={8} fill="white" /> {item.durationSeconds ?? "?"}s
               </span>
             )}
