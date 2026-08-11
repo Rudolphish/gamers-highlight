@@ -1,4 +1,9 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  ListObjectsV2Command,
+} from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { randomUUID } from "crypto";
 import { maxSizeFor } from "./media-limits";
@@ -109,6 +114,42 @@ export async function deleteStoredObjects(urls: (string | null | undefined)[]): 
       }
     })
   );
+}
+
+export type StoredObject = { key: string; sizeBytes: number; lastModified: Date | null };
+
+/**
+ * バケット内の全オブジェクトを列挙する（管理者ページの使用量表示用）。
+ *
+ * DBの`Photo.sizeBytes`を合計しても近い値は出るが、あれはクライアントの自己申告で
+ * null もありうるうえ、DBから参照が切れた孤児ファイルを拾えない。請求されるのは
+ * バケットの中身なので、実測はこちらを使う。
+ *
+ * STORAGE未設定ならnull（「0件」と区別するため空配列ではなくnullを返す）。
+ */
+export async function listStoredObjects(): Promise<StoredObject[] | null> {
+  const bucket = process.env.STORAGE_BUCKET;
+  const s3 = getS3Client();
+  if (!s3 || !bucket) return null;
+
+  const objects: StoredObject[] = [];
+  let token: string | undefined;
+  do {
+    const res = await s3.send(
+      new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token })
+    );
+    for (const o of res.Contents ?? []) {
+      if (!o.Key) continue;
+      objects.push({
+        key: o.Key,
+        sizeBytes: o.Size ?? 0,
+        lastModified: o.LastModified ?? null,
+      });
+    }
+    token = res.IsTruncated ? res.NextContinuationToken : undefined;
+  } while (token);
+
+  return objects;
 }
 
 /**

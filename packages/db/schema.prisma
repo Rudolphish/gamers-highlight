@@ -343,3 +343,23 @@ model BotHeartbeat {
 
   @@map("bot_heartbeats")
 }
+
+// 外部APIの呼び出し回数を日別に記録する（管理者ページの使用量表示用）。
+//
+// 対象はYouTube Data APIのみ。search.listは1回100ユニット・無料枠が1日10,000で
+// 実質100回/日しかなく、超えるとその日は関連動画が取れなくなるため、
+// 残りが見えないと運用できない。
+//
+// ITAD/Steamを対象にしていないのは、Next.jsのデータキャッシュ越しに呼んでいて
+// 「実際に外部へ出たか」がコード側から判別できず、呼び出し地点で数えると
+// 過大計上になるため（キャッシュヒットも1回と数えてしまう）。
+model ApiUsage {
+  id      String   @id @default(cuid())
+  service String // "youtube" など
+  date    DateTime @db.Date // 日別集計。クォータのリセットに合わせUTC基準
+  calls   Int      @default(0)
+  units   Int      @default(0) // クォータ単位（YouTubeのsearch.listは1回100）
+
+  @@unique([service, date])
+  @@map("api_usages")
+}
