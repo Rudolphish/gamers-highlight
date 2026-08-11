@@ -96,6 +96,20 @@ App Router のオプション無し `fetch` は `force-cache`。何も指定し�
 漏れると未ログインでも描画まで進む。実際に `/groups` と `/manual` が漏れており、
 `/groups/new` は未ログインで作成フォームが出て、`/groups/[groupId]/albums/new` は500になっていた。
 
+### 画面のエラーは /admin/errors に集まる
+
+エラーバウンダリ（`app/error.tsx`・`app/(main)/error.tsx`・`app/global-error.tsx`）が
+`/api/errors` へ通報し、`ErrorReport` に記録される。Discordへの通知先は環境変数ではなく
+`AppSetting`（`errorNotifyChannelId`）に持たせてある。**再デプロイせずに変えられるようにするため。**
+
+**本番のサーバー側エラーはNext.jsがメッセージを伏せる**ので、記録されるのは
+「An error occurred in the Server Components render...」という汎用文と digest だけになる。
+原因を追うにはその digest でVercelのログを検索する。実測で確認済みの挙動なので、
+メッセージが具体的でないこと自体は不具合ではない。
+
+同じ内容の通知は30分に1回までにまとめている（同じ不具合の連投でチャンネルが埋まると、
+かえって気づけなくなるため）。通知に失敗した場合は `notifiedAt` を更新しないので次回また試す。
+
 ### 外部依存はセクション単位で失敗させる
 
 1つの取得失敗でページ全体を落とさない。`Promise.allSettled` で個別に握りつぶし、

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportClientError } from "@/lib/report-client-error";
 import { AlertTriangle, RotateCw } from "lucide-react";
 
 // (main)配下以外（ログイン画面など）で例外が起きた時のフォールバック。
@@ -14,6 +15,7 @@ export default function RootError({
 }) {
   useEffect(() => {
     console.error("[RootError]", error);
+    reportClientError(error);
   }, [error]);
 
   return (
