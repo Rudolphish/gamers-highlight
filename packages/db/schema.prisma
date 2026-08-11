@@ -1,12 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   // アプリの実行時はSupavisorプーラー（6543番）。サーバーレスで接続数を食い潰さないため。
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
   // マイグレーション（db push / migrate）はプーラー経由だとアドバイザリロックが
   // 成立せず、エラーも出さずにハングする。Prismaにここを直接接続へ振り分けさせる。
   // これが無いと、スキーマを変えるたびに .env の DATABASE_URL を手で直接接続へ
@@ -77,17 +77,17 @@ model User {
   discordUserId String?  @unique
   createdAt     DateTime @default(now())
 
-  ownedAlbums      Album[]                @relation("AlbumOwner")
-  uploadedPhotos   Photo[]                @relation("PhotoUploader")
-  albumMemberships AlbumMember[]
-  channelMappings  DiscordChannelMapping[]
-  gameTags         DiscordGameTag[]
-  ownedGroups      Group[]                @relation("GroupOwner")
-  groupMemberships GroupMember[]
-  addedGroupGames  GroupGame[]            @relation("GroupGameAddedBy")
-  proposedGames    GroupGameProposal[]    @relation("ProposalProposedBy")
+  ownedAlbums       Album[]                     @relation("AlbumOwner")
+  uploadedPhotos    Photo[]                     @relation("PhotoUploader")
+  albumMemberships  AlbumMember[]
+  channelMappings   DiscordChannelMapping[]
+  gameTags          DiscordGameTag[]
+  ownedGroups       Group[]                     @relation("GroupOwner")
+  groupMemberships  GroupMember[]
+  addedGroupGames   GroupGame[]                 @relation("GroupGameAddedBy")
+  proposedGames     GroupGameProposal[]         @relation("ProposalProposedBy")
   proposalReactions GroupGameProposalReaction[]
-  gameInterests    GroupGameInterest[]
+  gameInterests     GroupGameInterest[]
 
   @@map("users")
 }
@@ -135,28 +135,28 @@ model ExternalGameCache {
 // 個人のウィッシュリスト/ライブラリはSteam自体で完結するため作らず、
 // あくまで「このグループとして」のステータスのみを管理する。
 model GroupGame {
-  id             String          @id @default(cuid())
-  groupId        String
-  steamAppId     Int
-  title          String
-  coverUrl       String?
-  status         GroupGameStatus @default(WISHLIST)
-  genres         String[]        @default([]) // Steam appdetailsの英語ジャンル名（例: "Action", "RPG"）
-  youtubeVideoId String? // 追加時に1回だけ検索して保存（YouTube APIの検索クォータ節約のため）
+  id                     String          @id @default(cuid())
+  groupId                String
+  steamAppId             Int
+  title                  String
+  coverUrl               String?
+  status                 GroupGameStatus @default(WISHLIST)
+  genres                 String[]        @default([]) // Steam appdetailsの英語ジャンル名（例: "Action", "RPG"）
+  youtubeVideoId         String? // 追加時に1回だけ検索して保存（YouTube APIの検索クォータ節約のため）
   hltbGameId             Int? // HowLongToBeatの数値ゲームID。ゲームページへの正確なリンクに使う
   hltbMainHours          Float? // HowLongToBeat: クリアのみ（時間）。追加時に1回だけ取得
   hltbMainExtraHours     Float? // やり込み要素込み
   hltbCompletionistHours Float? // 完全収集
   hltbAllStylesHours     Float? // 全プレイスタイル平均
-  albumId        String?         @unique // 紐付け元のアルバム（あれば）。1アルバム=最大1ゲームを想定
-  addedById      String
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  albumId                String?         @unique // 紐付け元のアルバム（あれば）。1アルバム=最大1ゲームを想定
+  addedById              String
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
 
   // 最安値更新通知（Discord）用。日次cronが前回記録との比較に使う。WISHLISTのみ対象。
-  lastKnownLowPrice   Float?
-  lastKnownLowShop    String?
-  lastPriceCheckedAt  DateTime?
+  lastKnownLowPrice  Float?
+  lastKnownLowShop   String?
+  lastPriceCheckedAt DateTime?
 
   group     Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
   album     Album?              @relation(fields: [albumId], references: [id], onDelete: SetNull)
@@ -249,7 +249,7 @@ model Album {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  owner              User                    @relation("AlbumOwner", fields: [ownerId], references: [id])
+  owner               User                    @relation("AlbumOwner", fields: [ownerId], references: [id])
   group               Group                   @relation(fields: [groupId], references: [id])
   photos              Photo[]
   members             AlbumMember[]
@@ -268,7 +268,7 @@ model Photo {
   mediaType        MediaType   @default(IMAGE)
   mediaUrl         String
   thumbnailUrl     String?
-  durationSeconds  Int?        // 動画のみ。IMAGE の場合は null
+  durationSeconds  Int? // 動画のみ。IMAGE の場合は null
   sizeBytes        Int?
   uploaderId       String
   albumId          String?
@@ -308,8 +308,8 @@ model AlbumMember {
 model DiscordGameTag {
   id           String   @id @default(cuid())
   guildId      String
-  tag          String   // 正規化済み（小文字・記号除去）のタグ文字列
-  gameTitle    String   // 表示用のゲーム名（初回投稿時のタグから生成、後でUIから改名可能）
+  tag          String // 正規化済み（小文字・記号除去）のタグ文字列
+  gameTitle    String // 表示用のゲーム名（初回投稿時のタグから生成、後でUIから改名可能）
   autoAlbumId  String
   registeredBy String
   createdAt    DateTime @default(now())
@@ -368,4 +368,34 @@ model ApiUsage {
 
   @@unique([service, date])
   @@map("api_usages")
+}
+
+// アプリ全体（グループ単位ではない）の設定を置く汎用のキー/バリュー。
+// 今のところエラー通知の投稿先チャンネルIDだけだが、この種の設定を足すたびに
+// 環境変数を増やすとデプロイし直さないと変えられないため、DBに持たせる。
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+// 画面で起きた例外の記録。Discord通知の重複抑制も兼ねる。
+//
+// 同じ不具合は同じfingerprintに集約してcountを積む。1件ごとに通知すると、
+// 壊れたページを何度も開かれた時にチャンネルが埋まって逆に気づけなくなるため、
+// 通知はfingerprintごとに一定間隔を空ける（notifiedAtで判定）。
+model ErrorReport {
+  id          String    @id @default(cuid())
+  fingerprint String    @unique // digest、無ければ message+path から作る
+  message     String
+  path        String
+  count       Int       @default(1)
+  firstSeenAt DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+  notifiedAt  DateTime? // 最後にDiscordへ通知した時刻。未通知ならnull
+
+  @@index([lastSeenAt])
+  @@map("error_reports")
 }

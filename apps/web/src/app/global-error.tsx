@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportClientError } from "@/lib/report-client-error";
 import "./globals.css";
 
 // ルートレイアウト自体で例外が起きた場合の最終フォールバック（自前でhtml/bodyを持つ必要がある）。
@@ -14,6 +15,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error("[GlobalError]", error);
+    reportClientError(error);
   }, [error]);
 
   return (
