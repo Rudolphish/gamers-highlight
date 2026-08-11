@@ -37,7 +37,11 @@ async function readLevels(): Promise<Partial<Record<ResourceKey, number>>> {
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw);
-    return typeof parsed === "object" && parsed !== null ? parsed : {};
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+    // 壊れた値が混ざっていても以降の比較を狂わせないよう、数値だけ受け入れる
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([, v]) => typeof v === "number")
+    ) as Partial<Record<ResourceKey, number>>;
   } catch {
     return {};
   }
@@ -70,8 +74,13 @@ export async function checkFreeTierUsage(): Promise<UsageAlertResult> {
   const rising = current.filter((c) => c.level > (previous[c.resource] ?? 0));
 
   // 上がっていなくても記録は更新する（下がった分を戻さないと、
-  // 一度90%に触れたリソースが二度と通知されなくなる）
-  const nextLevels: Record<string, number> = {};
+  // 一度90%に触れたリソースが二度と通知されなくなる）。
+  //
+  // ただし**今回取得できたリソースだけを上書きする**。取得に失敗したものまで
+  // 消してしまうと、R2が一時的に落ちた回を挟んだだけで記録が失われ、
+  // 次に成功した回に「0から上がった」と誤判定して同じ段階で鳴り直す。
+  // それはこの仕組みが防ごうとしている連投そのものになる。
+  const nextLevels: Record<string, number> = { ...previous };
   for (const c of current) nextLevels[c.resource] = c.level;
   await setAppSetting(APP_SETTING_KEYS.usageAlertLevels, JSON.stringify(nextLevels));
 
