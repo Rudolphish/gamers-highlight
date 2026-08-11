@@ -69,10 +69,21 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
   const canEditGames = isOwner || currentMembership?.role === "EDITOR";
   const likeThreshold = Math.floor((1 + group.members.length) / 2) + 1;
 
+  // 提案のcoverUrlは、以前は固定パスの組み立てをそのまま保存していたため新しめのタイトルで404になる。
+  // appdetails由来の確実なURLがキャッシュにあればそちらを優先する（古い提案の救済）。
+  const proposalHeaderImages = new Map(
+    (
+      await db.externalGameCache.findMany({
+        where: { steamAppId: { in: group.proposals.map((p) => p.steamAppId) } },
+        select: { steamAppId: true, headerImage: true },
+      })
+    ).map((c) => [c.steamAppId, c.headerImage])
+  );
+
   const proposalCards = group.proposals.map((p) => ({
     id: p.id,
     title: p.title,
-    coverUrl: p.coverUrl,
+    coverUrl: proposalHeaderImages.get(p.steamAppId) ?? p.coverUrl,
     proposedById: p.proposedById,
     proposedByName: p.proposedBy.name ?? p.proposedBy.email ?? "メンバー",
     reactions: p.reactions.map((r) => ({ userId: r.userId, type: r.type })),

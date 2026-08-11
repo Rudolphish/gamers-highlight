@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
+import { getSteamAppSummary } from "@/lib/steam";
 import { z } from "zod";
 
 const proposeGameSchema = z.object({
@@ -62,12 +63,21 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "このゲームは既に提案されています" }, { status: 409 });
   }
 
+  // クライアントが送ってくるcoverUrlは steam/apps/<id>/header.jpg という固定パスの組み立てで、
+  // Steamがアセットを store_item_assets/steam/apps/<id>/<ハッシュ>/header.jpg に移して以降、
+  // 新しめのタイトルでは404になる（ゲーム追加・提案の採用時は既にappdetailsの値を優先しているが、
+  // 提案の作成だけこの修正から漏れていた）。ここでもappdetailsが返す正しいURLを優先する。
+  // appdetailsはAPIキー不要・クォータ無しなので、提案1件につき1回問い合わせても問題ない。
+  const summary = await getSteamAppSummary(parsed.data.steamAppId).catch(() => ({
+    headerImage: null,
+  }));
+
   const proposal = await db.groupGameProposal.create({
     data: {
       groupId: params.id,
       steamAppId: parsed.data.steamAppId,
       title: parsed.data.title,
-      coverUrl: parsed.data.coverUrl,
+      coverUrl: summary.headerImage ?? parsed.data.coverUrl,
       proposedById: user.id,
     },
     include: { proposedBy: true, reactions: { include: { user: true } } },

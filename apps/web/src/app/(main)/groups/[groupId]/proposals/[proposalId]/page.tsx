@@ -83,7 +83,10 @@ export default async function ProposalDetailPage({
       ? cache.youtubeVideoId
       : null;
 
-  const coverUrl = proposal.coverUrl ?? steamHeaderImageUrl(proposal.steamAppId);
+  // キャッシュのheaderImageはappdetails由来の確実な値。提案作成時に固定パスを
+  // 保存してしまった古い提案でも、これがあれば正しい画像で表示できる。
+  const coverUrl =
+    cache?.headerImage ?? proposal.coverUrl ?? steamHeaderImageUrl(proposal.steamAppId);
 
   return (
     <main className="p-4 sm:p-6">
