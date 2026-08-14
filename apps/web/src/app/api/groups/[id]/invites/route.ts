@@ -3,7 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
-import { generateInviteToken, DEFAULT_EXPIRY_HOURS } from "@/lib/groupInvites";
+import {
+  generateInviteToken,
+  purgePendingInviteAllowlist,
+  DEFAULT_EXPIRY_HOURS,
+} from "@/lib/groupInvites";
 
 // GET/POST /api/groups/:id/invites … グループの招待リンクの一覧・発行
 //
@@ -28,6 +32,10 @@ async function requireOwner(groupId: string) {
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const { error } = await requireOwner(params.id);
   if (error) return error;
+
+  // 期限切れのリンクから作られた「ログインしただけで未加入」の許可リスト登録を回収する。
+  // 定期実行の枠（Vercel Hobbyは2つまで）が空いていないので、招待画面を開いたついでに片付ける。
+  await purgePendingInviteAllowlist();
 
   const invites = await db.groupInvite.findMany({
     where: { groupId: params.id },

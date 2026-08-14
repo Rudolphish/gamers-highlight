@@ -65,6 +65,14 @@ model AllowlistEntry {
   note          String? // 「たける」等、誰を許可したかわかるメモ
   createdAt     DateTime @default(now())
 
+  // 招待リンク経由で作られ、まだグループに加入していない登録だけがこれを持つ。
+  // 加入したらnullに戻す（＝正式なメンバーになったので、リンクの取り消しでは消さない）。
+  // これが残っている間は「リンクを踏んでログインしただけの人」なので、
+  // リンクが取り消された/期限切れになった時点で回収できる。
+  inviteId String?
+  invite   GroupInvite? @relation(fields: [inviteId], references: [id], onDelete: SetNull)
+
+  @@index([inviteId])
   @@map("allowlist_entries")
 }
 
@@ -424,9 +432,10 @@ model GroupInvite {
   revokedAt   DateTime? // 取り消し済みならその時刻
   createdAt   DateTime  @default(now())
 
-  group     Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  createdBy User             @relation("GroupInviteCreatedBy", fields: [createdById], references: [id])
-  uses      GroupInviteUse[]
+  group            Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy        User             @relation("GroupInviteCreatedBy", fields: [createdById], references: [id])
+  uses             GroupInviteUse[]
+  allowlistEntries AllowlistEntry[] // このリンク経由で登録され、まだ加入していない人
 
   @@index([groupId])
   @@map("group_invites")

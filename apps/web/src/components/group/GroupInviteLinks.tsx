@@ -45,6 +45,7 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -88,9 +89,19 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
     if (revokingId) return;
     setRevokingId(id);
     setError(null);
+    setNotice(null);
     try {
       const res = await fetch(`/api/groups/${groupId}/invites/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("取り消しに失敗しました");
+      const data = await res.json().catch(() => null);
+
+      // 「リンクを止めた」だけなのか「ログインできる人も減らした」のかは、
+      // 誤送信の後始末としては意味が違うので区別して伝える
+      setNotice(
+        data?.revokedAccess > 0
+          ? `リンクを取り消し、まだ加入していない${data.revokedAccess}人のログイン権限も取り消しました。`
+          : "リンクを取り消しました。"
+      );
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "取り消しに失敗しました");
@@ -168,6 +179,7 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
       </div>
 
       {error && <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{error}</p>}
+      {notice && <p className="mt-2 font-mono text-3xs text-steam-muted">{notice}</p>}
 
       <div className="mt-3 flex flex-col gap-2">
         {loading ? (

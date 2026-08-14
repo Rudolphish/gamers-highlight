@@ -3,7 +3,12 @@ import { getServerSession } from "next-auth";
 import { AlertTriangle, Users } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { findInviteByToken, validateInvite, INVALID_REASON_TEXT } from "@/lib/groupInvites";
+import {
+  findInviteByToken,
+  findInviteReservation,
+  validateInvite,
+  INVALID_REASON_TEXT,
+} from "@/lib/groupInvites";
 import { InviteAccept } from "@/components/invite/InviteAccept";
 
 // 招待リンクの受け取りページ。
@@ -14,12 +19,17 @@ export const dynamic = "force-dynamic";
 
 export default async function InvitePage({ params }: { params: { token: string } }) {
   const invite = await findInviteByToken(params.token);
-  const result = validateInvite(invite);
 
   const session = await getServerSession(authOptions);
   const currentUser = session?.user?.email
     ? await db.user.findUnique({ where: { email: session.user.email } })
     : null;
+
+  // ログインを終えた時点でトークンは1回分消費されている。素直に上限を見ると、
+  // 招待された本人が「使用済み」を見せられて加入できなくなるので、本人の分は除外する。
+  const reservation =
+    invite && currentUser ? await findInviteReservation(invite.id, currentUser.id) : null;
+  const result = validateInvite(invite, { reserved: Boolean(reservation) });
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-steam-bg p-6">
