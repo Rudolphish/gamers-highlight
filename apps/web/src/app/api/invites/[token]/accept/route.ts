@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { acceptInvite, clearInviteCookie, INVALID_REASON_TEXT } from "@/lib/groupInvites";
+import { dbErrorResponse } from "@/lib/dbError";
 
 // POST /api/invites/:token/accept … 招待リンクからグループに加入する。
 //
@@ -16,18 +17,23 @@ export async function POST(_req: Request, { params }: { params: { token: string 
     : null;
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const result = await acceptInvite(params.token, user.id);
+  try {
+    const result = await acceptInvite(params.token, user.id);
 
-  // 成否によらず、役目を終えたCookieは残さない
-  clearInviteCookie();
+    // 成否によらず、役目を終えたCookieは残さない
+    clearInviteCookie();
 
-  if (!result.ok) {
-    return NextResponse.json({ error: INVALID_REASON_TEXT[result.reason] }, { status: 400 });
+    if (!result.ok) {
+      return NextResponse.json({ error: INVALID_REASON_TEXT[result.reason] }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      groupId: result.groupId,
+      alreadyMember: result.alreadyMember,
+    });
+  } catch (e) {
+    clearInviteCookie();
+    return dbErrorResponse("invite:accept", e);
   }
-
-  return NextResponse.json({
-    ok: true,
-    groupId: result.groupId,
-    alreadyMember: result.alreadyMember,
-  });
 }

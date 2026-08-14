@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
+import { dbErrorResponse } from "@/lib/dbError";
 import {
   generateInviteToken,
   purgePendingInviteAllowlist,
@@ -33,23 +34,27 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const { error } = await requireOwner(params.id);
   if (error) return error;
 
-  // 期限切れのリンクから作られた「ログインしただけで未加入」の許可リスト登録を回収する。
-  // 定期実行の枠（Vercel Hobbyは2つまで）が空いていないので、招待画面を開いたついでに片付ける。
-  await purgePendingInviteAllowlist();
+  try {
+    // 期限切れのリンクから作られた「ログインしただけで未加入」の許可リスト登録を回収する。
+    // 定期実行の枠（Vercel Hobbyは2つまで）が空いていないので、招待画面を開いたついでに片付ける。
+    await purgePendingInviteAllowlist();
 
-  const invites = await db.groupInvite.findMany({
-    where: { groupId: params.id },
-    orderBy: { createdAt: "desc" },
-    include: {
-      createdBy: { select: { name: true, email: true } },
-      uses: {
-        orderBy: { usedAt: "asc" },
-        include: { user: { select: { name: true, email: true } } },
+    const invites = await db.groupInvite.findMany({
+      where: { groupId: params.id },
+      orderBy: { createdAt: "desc" },
+      include: {
+        createdBy: { select: { name: true, email: true } },
+        uses: {
+          orderBy: { usedAt: "asc" },
+          include: { user: { select: { name: true, email: true } } },
+        },
       },
-    },
-  });
+    });
 
-  return NextResponse.json({ invites });
+    return NextResponse.json({ invites });
+  } catch (e) {
+    return dbErrorResponse("invite:list", e);
+  }
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -68,16 +73,20 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const uses = Number(body.maxUses);
   const maxUses = Number.isInteger(uses) && uses >= 1 && uses <= MAX_USES ? uses : 1;
 
-  const invite = await db.groupInvite.create({
-    data: {
-      token: generateInviteToken(),
-      groupId: params.id,
-      role,
-      createdById: actor!.id,
-      expiresAt: new Date(Date.now() + expiresInHours * 60 * 60 * 1000),
-      maxUses,
-    },
-  });
+  try {
+    const invite = await db.groupInvite.create({
+      data: {
+        token: generateInviteToken(),
+        groupId: params.id,
+        role,
+        createdById: actor!.id,
+        expiresAt: new Date(Date.now() + expiresInHours * 60 * 60 * 1000),
+        maxUses,
+      },
+    });
 
-  return NextResponse.json({ invite }, { status: 201 });
+    return NextResponse.json({ invite }, { status: 201 });
+  } catch (e) {
+    return dbErrorResponse("invite:create", e);
+  }
 }

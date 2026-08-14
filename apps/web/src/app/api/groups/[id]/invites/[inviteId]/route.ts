@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 import { purgePendingInviteAllowlist } from "@/lib/groupInvites";
+import { dbErrorResponse } from "@/lib/dbError";
 
 // DELETE /api/groups/:id/invites/:inviteId … 招待リンクを取り消す（OWNERのみ）。
 //
@@ -28,17 +29,21 @@ export async function DELETE(
   const allowed = await hasGroupPermission(params.id, actor.id, "OWNER");
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  // グループを跨いだIDの取り違えで他グループの招待を消さないよう、groupIdでも絞る
-  const updated = await db.groupInvite.updateMany({
-    where: { id: params.inviteId, groupId: params.id, revokedAt: null },
-    data: { revokedAt: new Date() },
-  });
+  try {
+    // グループを跨いだIDの取り違えで他グループの招待を消さないよう、groupIdでも絞る
+    const updated = await db.groupInvite.updateMany({
+      where: { id: params.inviteId, groupId: params.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
 
-  if (updated.count === 0) {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
+    if (updated.count === 0) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+
+    const revokedAccess = await purgePendingInviteAllowlist();
+
+    return NextResponse.json({ ok: true, revokedAccess });
+  } catch (e) {
+    return dbErrorResponse("invite:revoke", e);
   }
-
-  const revokedAccess = await purgePendingInviteAllowlist();
-
-  return NextResponse.json({ ok: true, revokedAccess });
 }
