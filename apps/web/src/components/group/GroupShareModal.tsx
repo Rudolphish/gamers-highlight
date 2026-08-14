@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Users, X, UserPlus } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { GroupInviteLinks } from "@/components/group/GroupInviteLinks";
 
 type Member = {
   userId: string;
@@ -207,9 +208,11 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
                 </div>
                 {candidates.length === 0 && (
                   <p className="mt-2 font-mono text-3xs text-steam-muted/70">
-                    招待可能な未参加ユーザーがいません
+                    招待可能な未参加ユーザーがいません（まだ登録していない相手は下の招待リンクを使ってください）
                   </p>
                 )}
+
+                <GroupInviteLinks groupId={groupId} />
               </div>
             )}
 
