@@ -3,6 +3,7 @@ import DiscordProvider from "next-auth/providers/discord";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { db } from "./db";
 import { isAdminEmail } from "./admin";
+import { registerAllowlistFromInvite } from "./groupInvites";
 
 // VercelなどHTTPSホスティング環境で発生する「State cookie was missing」対策。
 // NEXTAUTH_URLがhttpsならセキュアCookie（__Secure-/__Host-プレフィックス）を明示的に使う。
@@ -104,6 +105,14 @@ export const authOptions: NextAuthOptions = {
 
       const discordUserId =
         account?.provider === "discord" ? account.providerAccountId : undefined;
+
+      // 招待リンク経由の初回ログインだけ、許可リストへの登録を代行する。
+      // **下の許可リスト判定には手を触れていない。** ここは AllowlistEntry を作るだけで、
+      // 有効な招待Cookieが無ければ何もしないため、通常のログインの挙動は変わらない
+      // （登録されなければ従来どおり下の判定で弾かれる）。
+      if (discordUserId) {
+        await registerAllowlistFromInvite(discordUserId);
+      }
 
       const allowed = await db.allowlistEntry.findFirst({
         where: {

@@ -88,6 +88,8 @@ model User {
   proposedGames     GroupGameProposal[]         @relation("ProposalProposedBy")
   proposalReactions GroupGameProposalReaction[]
   gameInterests     GroupGameInterest[]
+  createdInvites    GroupInvite[]               @relation("GroupInviteCreatedBy")
+  usedInvites       GroupInviteUse[]            @relation("GroupInviteUsedBy")
 
   @@map("users")
 }
@@ -108,6 +110,7 @@ model Group {
   members   GroupMember[]
   games     GroupGame[]
   proposals GroupGameProposal[]
+  invites   GroupInvite[]
 
   @@map("groups")
 }
@@ -398,4 +401,47 @@ model ErrorReport {
 
   @@index([lastSeenAt])
   @@map("error_reports")
+}
+
+// グループへの招待リンク。
+//
+// 従来の招待（`POST /api/groups/:id/members`）は「登録済みユーザーから選ぶ」形なので、
+// 未登録の友人を呼ぶには先に管理者が許可リストへ手で登録し、本人にログインしてもらい、
+// そのうえで招待する、という3段階が必要だった。このリンクはその全部を1本にまとめる。
+//
+// **このリンクは許可リストへの登録を代行する。** 許可リストの編集自体は管理者限定なので、
+// 発行できるのはグループのOWNERだけに絞り、有効期限・使用回数・取り消しを必須にしている。
+// 使用時はDiscordに通知する（リンクが漏れて見知らぬ相手が入った場合、気づく手段がこれしかない）。
+model GroupInvite {
+  id          String    @id @default(cuid())
+  token       String    @unique // URLに埋め込むランダム文字列
+  groupId     String
+  role        GroupRole @default(VIEWER) // 加入時に付与する権限。OWNERは指定できない
+  createdById String
+  expiresAt   DateTime
+  maxUses     Int       @default(1)
+  usedCount   Int       @default(0)
+  revokedAt   DateTime? // 取り消し済みならその時刻
+  createdAt   DateTime  @default(now())
+
+  group     Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy User             @relation("GroupInviteCreatedBy", fields: [createdById], references: [id])
+  uses      GroupInviteUse[]
+
+  @@index([groupId])
+  @@map("group_invites")
+}
+
+// 招待リンクが誰にいつ使われたかの記録。maxUsesが2以上のとき1レコードでは表せないため分離した。
+model GroupInviteUse {
+  id       String   @id @default(cuid())
+  inviteId String
+  userId   String
+  usedAt   DateTime @default(now())
+
+  invite GroupInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  user   User        @relation("GroupInviteUsedBy", fields: [userId], references: [id])
+
+  @@index([inviteId])
+  @@map("group_invite_uses")
 }
