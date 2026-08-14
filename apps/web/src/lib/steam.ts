@@ -276,6 +276,33 @@ export async function getSteamGenres(appId: number): Promise<string[]> {
   return (await getSteamAppSummary(appId)).genres;
 }
 
+/**
+ * 日本語のタイトルだけを引く。スクショのファイル名から判別したapp IDを
+ * 画面に出す名前へ変える用途に使う。
+ *
+ * `l=japanese` を付けているのは、`GroupGame.title`（日本語検索由来）と
+ * 見た目を揃えるため。英語名が要る場面（HowLongToBeat）とは用途が違う。
+ *
+ * アプリが既に知っているゲームなら呼ばれない（DBの値で足りる）。ここに来るのは
+ * 未登録のゲームだけなので、タイトル名は変わらない前提で1日キャッシュする。
+ */
+export async function getSteamAppNameJa(appId: number): Promise<string | null> {
+  const url = `https://store.steampowered.com/api/appdetails?appids=${appId}&cc=jp&l=japanese`;
+  const res = await fetch(url, {
+    next: { revalidate: 60 * 60 * 24, tags: [gameCacheTag(appId)] },
+  });
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  const entry = data?.[String(appId)];
+  // type が "game" 以外（DLC・サントラ等）は、スクショのタグとしては使えても
+  // 紛らわしいので弾かない。判別できた事実の方が有用なため。
+  if (!entry?.success) return null;
+
+  const name = entry.data?.name;
+  return typeof name === "string" && name.trim().length > 0 ? name.trim() : null;
+}
+
 export type SteamNewsItem = {
   id: string;
   title: string;
