@@ -69,8 +69,13 @@ model AllowlistEntry {
   // 加入したらnullに戻す（＝正式なメンバーになったので、リンクの取り消しでは消さない）。
   // これが残っている間は「リンクを踏んでログインしただけの人」なので、
   // リンクが取り消された/期限切れになった時点で回収できる。
+  //
+  // **SetNullにしてはいけない。** 招待が物理削除されるのはグループ削除のカスケードだけで、
+  // SetNullだと未加入の予約が「加入済み」と同じ姿（inviteId=null）になってしまい、
+  // 回収の対象から外れて恒久的なログイン権限として残る。
+  // グループが消えたなら、そのリンクを踏んだだけの人の権限も消えるのが招待制の筋。
   inviteId String?
-  invite   GroupInvite? @relation(fields: [inviteId], references: [id], onDelete: SetNull)
+  invite   GroupInvite? @relation(fields: [inviteId], references: [id], onDelete: Cascade)
 
   @@index([inviteId])
   @@map("allowlist_entries")
