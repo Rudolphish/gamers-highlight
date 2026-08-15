@@ -166,7 +166,13 @@ export async function resolveByNameAndCreate(
   query: string,
   groupId: string,
   ownerId: string
-): Promise<{ gameTitle: string; albumId: string; steamAppId: number } | null> {
+): Promise<{ gameTitle: string; albumId: string; steamAppId: number | null } | null> {
+  // **Steamに聞く前に、アプリが既に知っている名前と突き合わせる。**
+  // Discordのタグ（#apex）から自動生成されたアルバムはSteamの正式名称と一致しないため、
+  // 先にSteam検索してしまうと「Apex Legends」という別のアルバムがもう1つできてしまう。
+  const local = await findLocalByName(query, groupId, ownerId);
+  if (local) return local;
+
   const results = await searchSteamGames(query);
   const hit = results[0];
   if (!hit) return null;
@@ -177,6 +183,73 @@ export async function resolveByNameAndCreate(
   if (!resolved) return null;
 
   return { ...resolved, steamAppId: hit.appId };
+}
+
+/**
+ * ハッシュタグと同じ形に正規化する（apps/bot の normalizeGameTitleToTag と同じ規則）。
+ * 例: "Elden Ring" → "eldenring"
+ */
+function normalizeToTag(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}_]/gu, "");
+}
+
+/**
+ * 入力された名前が、アプリ側に既にあるもの（Discordのタグ・アルバム・ゲームリスト）と
+ * 一致しないかを探す。
+ *
+ * 探す順番:
+ *   1. Discordのタグ（`#apex` で作られたアルバム）… 表記が正式名称と違うのでここが要
+ *   2. アルバムのゲーム名・アルバム名
+ *   3. ゲームリストのタイトル
+ *
+ * 一致すればSteamに問い合わせないので、表記揺れで同じゲームのアルバムが
+ * 二重にできることを防げる。
+ */
+async function findLocalByName(
+  query: string,
+  groupId: string,
+  ownerId: string
+): Promise<{ gameTitle: string; albumId: string; steamAppId: number | null } | null> {
+  const insensitive = { equals: query, mode: "insensitive" as const };
+
+  const tag = await db.discordGameTag.findFirst({
+    where: { tag: normalizeToTag(query), autoAlbum: { groupId } },
+    select: { gameTitle: true, autoAlbumId: true },
+  });
+  if (tag) {
+    console.log(`[game] Discordのタグに一致: ${tag.gameTitle}`);
+    return { gameTitle: tag.gameTitle, albumId: tag.autoAlbumId, steamAppId: null };
+  }
+
+  const album = await db.album.findFirst({
+    where: { groupId, OR: [{ gameTitle: insensitive }, { title: insensitive }] },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, title: true, gameTitle: true, steamAppId: true },
+  });
+  if (album) {
+    console.log(`[game] 既存のアルバムに一致: ${album.title}`);
+    return {
+      gameTitle: album.gameTitle ?? album.title,
+      albumId: album.id,
+      steamAppId: album.steamAppId,
+    };
+  }
+
+  const game = await db.groupGame.findFirst({
+    where: { groupId, title: insensitive },
+    select: { steamAppId: true },
+  });
+  if (game) {
+    console.log(`[game] ゲームリストに一致: appId=${game.steamAppId}`);
+    // ゲームはあるがアルバムが無い場合は、ここで作られる
+    const resolved = await resolveOrCreateAlbum(game.steamAppId, groupId, ownerId);
+    return resolved ? { ...resolved, steamAppId: game.steamAppId } : null;
+  }
+
+  return null;
 }
 
 /**
