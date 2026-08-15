@@ -16,9 +16,11 @@ import { NotificationChannelSetting } from "@/components/group/NotificationChann
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { getSteamCoverUrls } from "@/lib/albumCover";
 
-// アルバム数がグループの活動量に応じて際限なく増えうるため、初期表示は最新分のみに絞る
-// （継続的にスクショを投稿するアプリの性質上、他のリレーション以上に増加が速いため）
-const ALBUM_PAGE_SIZE = 24;
+// サーバーから取る上限。**ここを超えた分はグループ画面から辿れなくなる**ので、
+// 数十件規模なら全部載る値にしておく（ゲーム1本につきアルバム1つ作られるため、
+// 遊ぶゲームが増えるとすぐ数十件になる。実際に42件になった）。
+// 画面に一度に出す件数は下のALBUM_INITIAL_VISIBLEで別に絞っている。
+const ALBUM_PAGE_SIZE = 100;
 
 // グループ画面はアルバムの下にゲームリストや提案が続くので、既定は絞って出す。
 // 残りは「さらに表示」で開く（取得済みなので押しても問い合わせは発生しない）。
