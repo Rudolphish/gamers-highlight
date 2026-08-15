@@ -37,7 +37,14 @@ export async function ingestPhoto(payload: IngestPayload): Promise<{ needsGame: 
   // 成功時もPhotoが実際に作られたか/skippedで無視されたかを常に可視化する
   console.log(`[apiClient] ingest ok: ${text}`);
   try {
-    const parsed = JSON.parse(text) as { needsGame?: boolean };
+    const parsed = JSON.parse(text) as { needsGame?: boolean; skipped?: string };
+    // needsGame自体が無い＝Web側がこの機能より前のまま。黙って質問されないと
+    // 「Botが壊れている」ように見えるので、原因が分かるようにログへ出す
+    if (parsed?.skipped === undefined && parsed?.needsGame === undefined) {
+      console.warn(
+        "[apiClient] 応答に needsGame がない。Web側のデプロイが古い可能性がある"
+      );
+    }
     return { needsGame: Boolean(parsed?.needsGame) };
   } catch {
     return { needsGame: false };
@@ -53,7 +60,10 @@ export async function fetchGroupGames(guildId: string): Promise<GroupGameOption[
       `${BASE_URL}/api/internal/group-games?guildId=${encodeURIComponent(guildId)}`,
       { headers: { "x-internal-secret": SECRET } }
     );
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.error(`[apiClient] fetchGroupGames failed: ${res.status}`);
+      return [];
+    }
     const data = (await res.json()) as { games?: GroupGameOption[] };
     return data.games ?? [];
   } catch (err) {

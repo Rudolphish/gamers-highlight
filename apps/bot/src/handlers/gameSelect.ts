@@ -29,8 +29,23 @@ export async function askForGame(message: Message) {
   if (!message.guildId) return;
 
   const games = await fetchGroupGames(message.guildId);
-  // 選択肢が無ければ聞くだけ無駄なので黙っておく（/tag や画面から後で付けられる）
-  if (games.length === 0) return;
+
+  // 選択肢が無いと「どのゲーム？」に答えようがない（Discordも空のメニューを受け付けない）。
+  // ただし黙って終わると原因が分からないので、付け方だけ伝える。
+  if (games.length === 0) {
+    console.log("[bot] グループのゲームリストが空のため選択肢を出せない");
+    await message
+      .reply({
+        content:
+          "ゲームが判別できませんでした。グループのゲームリストが空なので選択肢を出せません。" +
+          "アプリでゲームを追加するか、メッセージに `#ゲーム名` を付けて投稿してください。",
+        allowedMentions: { repliedUser: false },
+      })
+      .catch((err) => console.error("[bot] 返信できなかった", err));
+    return;
+  }
+
+  console.log(`[bot] ゲームを質問する（選択肢${games.length}件）`);
 
   const menu = new StringSelectMenuBuilder()
     .setCustomId(`${PREFIX}:${message.id}`)
@@ -43,11 +58,14 @@ export async function askForGame(message: Message) {
       }))
     );
 
-  await message.reply({
-    content: "どのゲームのスクショ？（選ばなくても投稿は保存されています）",
-    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],
-    allowedMentions: { repliedUser: false },
-  });
+  // 権限不足などで送れないことがある。落とさずログに残す
+  await message
+    .reply({
+      content: "どのゲームのスクショ？（選ばなくても投稿は保存されています）",
+      components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],
+      allowedMentions: { repliedUser: false },
+    })
+    .catch((err) => console.error("[bot] 質問を送れなかった", err));
 }
 
 export async function handleGameSelect(interaction: StringSelectMenuInteraction) {

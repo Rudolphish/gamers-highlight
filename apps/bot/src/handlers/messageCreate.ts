@@ -52,10 +52,13 @@ export async function handleMessageCreate(message: Message) {
       fileName: attachment.name,
     });
     if (needsGame) unresolved = true;
+    console.log(`[bot] ${attachment.name}: needsGame=${needsGame}`);
   }
 
   // 添付が複数あっても聞くのは1回。選択は同じメッセージの未分類の投稿すべてに反映される
   if (unresolved) {
     await askForGame(message);
+  } else {
+    console.log("[bot] 全ての添付でゲームが決まったため質問しない");
   }
 }
