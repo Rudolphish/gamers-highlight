@@ -8,6 +8,8 @@ import { extractGameTag } from "../lib/gameTag.js";
  * 30秒を超える動画はBot側で先に弾き、無駄なダウンロード/APIコールを避ける。
  * メッセージ本文に「#eldenring」のようなハッシュタグがあれば抽出して一緒に渡す
  * （1チャンネルに複数ゲームが混在する運用で、ゲームを判定するための主軸情報）。
+ * 添付のファイル名も渡す。Discordは元のファイル名を保つため、Steamのスクショなら
+ * タグを付け忘れていてもingest側でゲームを判別できる。
  */
 export async function handleMessageCreate(message: Message) {
   if (message.author.bot) return;
@@ -43,6 +45,7 @@ export async function handleMessageCreate(message: Message) {
       discordMessageId: `${message.id}:${attachment.id}`,
       postedAt: message.createdTimestamp,
       rawTag,
+      fileName: attachment.name,
     });
   }
 }

@@ -6,7 +6,20 @@ import { isManagedStorageUrl } from "@/lib/storage";
 import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/media-limits";
 
 // POST /api/photos … アップロード済みのオブジェクトに対してPhotoレコードを作る
-// body: { contentType, mediaUrl, sizeBytes?, durationSeconds?, thumbnailUrl?, albumId?, gameTitle? }
+// body: { contentType, mediaUrl, sizeBytes?, durationSeconds?, thumbnailUrl?, albumId?, gameTitle?, capturedAt? }
+
+/**
+ * 撮影日時（Steamのスクショはファイル名に入っている）。
+ * 未来や極端に古い値は誤読とみなして捨てる。無ければnullのままで困らない。
+ */
+function parseCapturedAt(raw: unknown): Date | null {
+  if (typeof raw !== "string") return null;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return null;
+  if (date.getTime() > Date.now() + 24 * 60 * 60 * 1000) return null;
+  if (date.getFullYear() < 2003) return null;
+  return date;
+}
 //
 // mediaUrl は先に POST /api/photos/upload-url で受け取った publicUrl。
 // 署名付きPOSTの発行とレコード作成を分けているのは、ストレージへのアップロードが
@@ -52,6 +65,21 @@ export async function POST(req: Request) {
     );
   }
 
+  // albumIdもクライアントの申告なので、自分が投稿できるアルバムかを確認する。
+  // ここが無いとIDさえ知っていれば他人のアルバムに写真を差し込めてしまう。
+  if (body.albumId != null) {
+    const album = await db.album.findFirst({
+      where: {
+        id: body.albumId,
+        OR: [{ ownerId: user.id }, { members: { some: { userId: user.id } } }],
+      },
+      select: { id: true },
+    });
+    if (!album) {
+      return NextResponse.json({ error: "invalid albumId" }, { status: 403 });
+    }
+  }
+
   const photo = await db.photo.create({
     data: {
       mediaType,
@@ -62,6 +90,7 @@ export async function POST(req: Request) {
       uploaderId: user.id,
       albumId: body.albumId ?? null,
       gameTitle: body.gameTitle ?? null,
+      capturedAt: parseCapturedAt(body.capturedAt),
       source: "MANUAL",
     },
   });

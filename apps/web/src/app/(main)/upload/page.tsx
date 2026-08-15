@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Upload as UploadIcon, Image as ImageIcon, Film, X, Check, AlertCircle } from "lucide-react";
+import { Upload as UploadIcon, Image as ImageIcon, Film, X, Check, AlertCircle, Wand2 } from "lucide-react";
 import { extractFirstFrame } from "@/lib/video-thumbnail";
+import { parseSteamScreenshotName } from "@/lib/steamScreenshot";
 
 // アップロード画面：画像 or 30秒以内の動画クリップを複数まとめてアップロード可能。
 //
@@ -32,6 +33,17 @@ type UploadItem = {
   mode: "image" | "video";
   status: "idle" | "uploading" | "done" | "error";
   error?: string;
+  /** ファイル名から読み取ったSteamのapp ID（Steamのスクショ以外はnull） */
+  appId: number | null;
+  /** 撮影日時。ファイル名に入っているので、投稿日とは別に残せる */
+  capturedAt: Date | null;
+};
+
+/** app IDを解決した結果。/api/photos/identify の返り */
+type IdentifiedGame = {
+  appId: number;
+  title: string | null;
+  album: { id: string; title: string } | null;
 };
 
 type AlbumOption = { id: string; title: string };
@@ -77,7 +89,31 @@ async function createPhotoRecord(body: Record<string, unknown>) {
   return (await res.json()).photo;
 }
 
-async function uploadOne(item: UploadItem, gameTag: string, albumId: string) {
+/**
+ * 1ファイル分の保存内容を決める。
+ *
+ * **手で入れた値を必ず優先する。** 自動判別はあくまで手間を省くためのもので、
+ * 入力を上書きしてしまうと「指定したのに違うタグが付く」ことになるため。
+ */
+function resolveTagging(
+  item: UploadItem,
+  identified: Map<number, IdentifiedGame>,
+  manualTag: string,
+  manualAlbumId: string
+) {
+  const detected = item.appId !== null ? identified.get(item.appId) : undefined;
+  return {
+    gameTitle: manualTag.trim() || detected?.title || undefined,
+    albumId: manualAlbumId || detected?.album?.id || undefined,
+  };
+}
+
+async function uploadOne(
+  item: UploadItem,
+  identified: Map<number, IdentifiedGame>,
+  gameTag: string,
+  albumId: string
+) {
   let thumbnailUrl: string | undefined;
 
   if (item.mode === "video") {
@@ -87,14 +123,16 @@ async function uploadOne(item: UploadItem, gameTag: string, albumId: string) {
   }
 
   const mediaUrl = await uploadToStorage(item.file);
+  const { gameTitle, albumId: resolvedAlbumId } = resolveTagging(item, identified, gameTag, albumId);
 
   await createPhotoRecord({
     contentType: item.file.type,
     mediaUrl,
     sizeBytes: item.file.size,
     thumbnailUrl,
-    gameTitle: gameTag.trim() || undefined,
-    albumId: albumId || undefined,
+    gameTitle,
+    albumId: resolvedAlbumId,
+    capturedAt: item.capturedAt?.toISOString(),
   });
 }
 
@@ -106,6 +144,8 @@ export default function UploadPage() {
   const [running, setRunning] = useState(false);
   const [albums, setAlbums] = useState<AlbumOption[]>([]);
   const [albumId, setAlbumId] = useState(""); // "" = 未分類のまま
+  const [identified, setIdentified] = useState<Map<number, IdentifiedGame>>(new Map());
+  const [identifying, setIdentifying] = useState(false);
 
   useEffect(() => {
     fetch("/api/albums")
@@ -117,13 +157,50 @@ export default function UploadPage() {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
-    setItems(
-      files.map((file) => ({
+
+    const next: UploadItem[] = files.map((file) => {
+      const info = parseSteamScreenshotName(file.name);
+      return {
         file,
         mode: file.type.startsWith("video/") ? "video" : "image",
         status: "idle",
-      }))
-    );
+        appId: info?.appId ?? null,
+        capturedAt: info?.capturedAt ?? null,
+      };
+    });
+    setItems(next);
+    identify(next);
+  }
+
+  /**
+   * ファイル名から読み取ったapp IDを、ゲーム名と既存アルバムに解決する。
+   * 判別できたものが1つも無ければ問い合わせない。
+   */
+  async function identify(list: UploadItem[]) {
+    const appIds = [...new Set(list.map((i) => i.appId).filter((n): n is number => n !== null))];
+    if (appIds.length === 0) {
+      setIdentified(new Map());
+      return;
+    }
+
+    setIdentifying(true);
+    try {
+      const res = await fetch("/api/photos/identify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appIds }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setIdentified(
+        new Map((data.results as IdentifiedGame[]).map((r) => [r.appId, r]))
+      );
+    } catch {
+      // 判別できなくてもアップロード自体は続けられるので、黙って手入力に任せる
+      setIdentified(new Map());
+    } finally {
+      setIdentifying(false);
+    }
   }
 
   function removeItem(index: number) {
@@ -140,7 +217,7 @@ export default function UploadPage() {
       if (items[i].status === "done") continue; // 既に完了したものは飛ばす（再試行時の重複防止）
       updateItem(i, { status: "uploading", error: undefined });
       try {
-        await uploadOne(items[i], gameTag, albumId);
+        await uploadOne(items[i], identified, gameTag, albumId);
         updateItem(i, { status: "done" });
       } catch (err) {
         updateItem(i, {
@@ -151,6 +228,11 @@ export default function UploadPage() {
     }
     setRunning(false);
   }
+
+  // 画面に出すのは「今選んでいるファイルに含まれるゲーム」だけ
+  const detectedGames = [...new Set(items.map((i) => i.appId).filter((n): n is number => n !== null))]
+    .map((appId) => identified.get(appId))
+    .filter((g): g is IdentifiedGame => Boolean(g));
 
   const allDone = items.length > 0 && items.every((it) => it.status === "done");
   const anyError = items.some((it) => it.status === "error");
@@ -199,8 +281,16 @@ export default function UploadPage() {
               ) : (
                 <Film size={14} className="flex-shrink-0 text-steam-blue" />
               )}
-              <span className="min-w-0 flex-1 truncate font-mono text-xs text-steam-text">
-                {item.file.name}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-mono text-xs text-steam-text">
+                  {item.file.name}
+                </span>
+                {item.appId !== null && (
+                  <span className="block truncate font-mono text-3xs text-[#a4d007]">
+                    {identified.get(item.appId)?.title ??
+                      (identifying ? "判別中…" : `Steam app ${item.appId}`)}
+                  </span>
+                )}
               </span>
               <span className="flex-shrink-0 font-mono text-3xs text-steam-muted">
                 {(item.file.size / 1024 / 1024).toFixed(1)}MB
@@ -233,6 +323,33 @@ export default function UploadPage() {
         </ul>
       )}
 
+      {detectedGames.length > 0 && (
+        <div className="mt-4 rounded-sm border border-[#a4d007]/40 bg-steam-panel p-3">
+          <p className="flex items-center gap-1.5 font-mono text-2xs text-steam-text">
+            <Wand2 size={12} className="text-[#a4d007]" />
+            ファイル名からゲームを判別しました
+          </p>
+          <ul className="mt-2 flex flex-col gap-1">
+            {detectedGames.map((g) => (
+              <li key={g.appId} className="font-mono text-3xs text-steam-muted">
+                <span className="text-steam-text">{g.title ?? `Steam app ${g.appId}`}</span>
+                {" … "}
+                {g.album ? (
+                  <span className="text-[#a4d007]">アルバム「{g.album.title}」に追加します</span>
+                ) : (
+                  <span className="text-steam-muted/70">
+                    このゲームのアルバムはまだありません（未分類で保存されます）
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 font-mono text-4xs text-steam-muted/70">
+            下でアルバムやタグを指定した場合は、そちらが優先されます。
+          </p>
+        </div>
+      )}
+
       <div className="mt-4">
         <label className="font-mono text-2xs text-steam-muted">追加先アルバム</label>
         <select
@@ -241,7 +358,11 @@ export default function UploadPage() {
           disabled={running}
           className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
         >
-          <option value="">未分類のまま（後でアルバムに振り分ける）</option>
+          <option value="">
+            {detectedGames.some((g) => g.album)
+              ? "判別結果にまかせる（該当アルバムへ／無ければ未分類）"
+              : "未分類のまま（後でアルバムに振り分ける）"}
+          </option>
           {albums.map((a) => (
             <option key={a.id} value={a.id}>
               {a.title}
@@ -253,6 +374,9 @@ export default function UploadPage() {
       <div className="mt-3">
         <label className="font-mono text-2xs text-steam-muted">
           ゲームタグ（任意・全ファイル共通）
+          {detectedGames.length > 0 && (
+            <span className="ml-1 text-steam-muted/70">— 空なら判別したゲーム名が入ります</span>
+          )}
         </label>
         <input
           value={gameTag}
