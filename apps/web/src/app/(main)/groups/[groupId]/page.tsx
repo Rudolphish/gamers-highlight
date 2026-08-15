@@ -22,7 +22,8 @@ const ALBUM_PAGE_SIZE = 24;
 
 // グループ画面はアルバムの下にゲームリストや提案が続くので、既定は絞って出す。
 // 残りは「さらに表示」で開く（取得済みなので押しても問い合わせは発生しない）。
-const ALBUM_INITIAL_VISIBLE = 5;
+// 4件なのは画面幅が広いときのグリッドが4列で、ちょうど1行に収まるため。
+const ALBUM_INITIAL_VISIBLE = 4;
 
 // グループ詳細画面：名前編集、メンバー管理、配下アルバム一覧
 export default async function GroupDetailPage({ params }: { params: { groupId: string } }) {

@@ -30,8 +30,8 @@ type Album = {
  */
 export function ExpandableAlbumGrid({
   albums,
-  initialCount = 5,
-  step = 5,
+  initialCount = 4,
+  step = 4,
 }: {
   albums: Album[];
   initialCount?: number;
