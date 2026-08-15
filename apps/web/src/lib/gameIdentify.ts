@@ -51,24 +51,62 @@ export async function resolveGamesByAppId(
     }),
   ]);
 
-  return Promise.all(
+  const resolved = await Promise.all(
     appIds.map(async (appId) => {
       const album = albums.find((a) => a.steamAppId === appId);
       const game = groupGames.find((g) => g.steamAppId === appId);
-
       const known = game?.title ?? album?.gameTitle ?? null;
 
       return {
         appId,
         title: known ?? (await getSteamAppNameJa(appId)),
-        album: album
-          ? { id: album.id, title: album.title }
-          : game?.album
-            ? { id: game.album.id, title: game.album.title }
-            : null,
+        byAppId: album ? { id: album.id, title: album.title } : null,
+        byGameLink: game?.album ? { id: game.album.id, title: game.album.title } : null,
       };
     })
   );
+
+  // ゲーム名で紐づくアルバムも探す。app IDを持たないアルバム（Discordのタグから
+  // 自動生成されたものなど）は、名前でしか辿れないため。
+  const byName = await findAlbumsByGameName(
+    resolved.map((r) => r.title).filter((t): t is string => Boolean(t)),
+    scope
+  );
+
+  return resolved.map((r) => ({
+    appId: r.appId,
+    title: r.title,
+    // 探す順番：ゲーム名が一致するアルバム → app IDが入っているアルバム → ゲーム連携のアルバム
+    album:
+      (r.title ? byName.get(r.title.toLowerCase()) ?? null : null) ??
+      r.byAppId ??
+      r.byGameLink,
+  }));
+}
+
+/** ゲーム名（Album.gameTitle）が一致するアルバムを引く。大文字小文字は区別しない */
+async function findAlbumsByGameName(
+  titles: string[],
+  scope: IdentifyScope
+): Promise<Map<string, { id: string; title: string }>> {
+  const found = new Map<string, { id: string; title: string }>();
+  if (titles.length === 0) return found;
+
+  const albums = await db.album.findMany({
+    where: {
+      OR: titles.map((t) => ({ gameTitle: { equals: t, mode: "insensitive" as const } })),
+      ...scope.albumWhere,
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, title: true, gameTitle: true },
+  });
+
+  // 同名が複数あれば、更新が新しい方を残す（orderByの並び順に依存）
+  for (const a of albums) {
+    const key = a.gameTitle?.toLowerCase();
+    if (key && !found.has(key)) found.set(key, { id: a.id, title: a.title });
+  }
+  return found;
 }
 
 /** 手動アップロード用。自分が所有しているか参加しているものだけを見る */
