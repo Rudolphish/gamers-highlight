@@ -3,7 +3,7 @@ import { Inbox, Plus } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { AlbumGrid } from "@/components/album/AlbumGrid";
+import { AlbumSearch } from "@/components/album/AlbumSearch";
 import { getSteamCoverUrls } from "@/lib/albumCover";
 
 // アルバム一覧画面：自分のアルバム一覧＋未分類の投稿への導線
@@ -78,6 +78,7 @@ export default async function AlbumsPage() {
       memberCount: album._count.members + 1,
       updatedAt: album.updatedAt,
       groupName: album.group.name,
+      gameTitle: album.gameTitle,
     };
   });
 
@@ -117,9 +118,7 @@ export default async function AlbumsPage() {
           まだアルバムがありません。作成するか、Discordに投稿してみましょう。
         </p>
       ) : (
-        <div className="mt-6">
-          <AlbumGrid albums={albumCards} />
-        </div>
+        <AlbumSearch albums={albumCards} />
       )}
     </main>
   );
