@@ -230,9 +230,11 @@ export default function UploadPage() {
   }
 
   // 画面に出すのは「今選んでいるファイルに含まれるゲーム」だけ
+  // ゲーム名が確定したものだけ出す。ファイル名がたまたま `123_456.jpg` だった場合に
+  // 「Steam app 123」のような当てにならない表示を出さないため。
   const detectedGames = [...new Set(items.map((i) => i.appId).filter((n): n is number => n !== null))]
     .map((appId) => identified.get(appId))
-    .filter((g): g is IdentifiedGame => Boolean(g));
+    .filter((g): g is IdentifiedGame => Boolean(g?.title));
 
   const allDone = items.length > 0 && items.every((it) => it.status === "done");
   const anyError = items.some((it) => it.status === "error");
@@ -285,10 +287,9 @@ export default function UploadPage() {
                 <span className="block truncate font-mono text-xs text-steam-text">
                   {item.file.name}
                 </span>
-                {item.appId !== null && (
+                {item.appId !== null && (identifying || identified.get(item.appId)?.title) && (
                   <span className="block truncate font-mono text-3xs text-[#a4d007]">
-                    {identified.get(item.appId)?.title ??
-                      (identifying ? "判別中…" : `Steam app ${item.appId}`)}
+                    {identified.get(item.appId)?.title ?? "判別中…"}
                   </span>
                 )}
               </span>
