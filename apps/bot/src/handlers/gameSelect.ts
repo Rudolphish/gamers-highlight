@@ -37,8 +37,9 @@ export async function askForGame(message: Message) {
     await message
       .reply({
         content:
-          "ゲームが判別できませんでした。グループのゲームリストが空なので選択肢を出せません。" +
-          "アプリでゲームを追加するか、メッセージに `#ゲーム名` を付けて投稿してください。",
+          "ゲームが判別できませんでした。グループのゲームリストが空なので選択肢を出せません。\n" +
+          "`/tag game:<ゲーム名>` で直前の投稿に付けられます" +
+          "（メッセージに `#ゲーム名` を付けて投稿するのでも可）。",
         allowedMentions: { repliedUser: false },
       })
       .catch((err) => console.error("[bot] 返信できなかった", err));
