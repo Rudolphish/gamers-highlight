@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
-import { AlbumGrid } from "@/components/album/AlbumGrid";
+import { ExpandableAlbumGrid } from "@/components/album/ExpandableAlbumGrid";
 import { GroupShareModal } from "@/components/group/GroupShareModal";
 import { GroupNameEditor } from "@/components/group/GroupNameEditor";
 import { DeleteGroupButton } from "@/components/group/DeleteGroupButton";
@@ -19,6 +19,10 @@ import { getSteamCoverUrls } from "@/lib/albumCover";
 // アルバム数がグループの活動量に応じて際限なく増えうるため、初期表示は最新分のみに絞る
 // （継続的にスクショを投稿するアプリの性質上、他のリレーション以上に増加が速いため）
 const ALBUM_PAGE_SIZE = 24;
+
+// グループ画面はアルバムの下にゲームリストや提案が続くので、既定は絞って出す。
+// 残りは「さらに表示」で開く（取得済みなので押しても問い合わせは発生しない）。
+const ALBUM_INITIAL_VISIBLE = 5;
 
 // グループ詳細画面：名前編集、メンバー管理、配下アルバム一覧
 export default async function GroupDetailPage({ params }: { params: { groupId: string } }) {
@@ -209,10 +213,10 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
             </p>
           ) : (
             <>
-              <AlbumGrid albums={albumCards} />
+              <ExpandableAlbumGrid albums={albumCards} initialCount={ALBUM_INITIAL_VISIBLE} />
               {group._count.albums > albumCards.length && (
                 <p className="mt-3 font-mono text-3xs text-steam-muted">
-                  更新が新しい{albumCards.length}件を表示中（全{group._count.albums}件）。
+                  更新が新しい{albumCards.length}件まで表示できます（全{group._count.albums}件）。
                   古いアルバムは<Link href="/albums" className="text-steam-blue hover:underline">アルバム一覧</Link>から探せます。
                 </p>
               )}
