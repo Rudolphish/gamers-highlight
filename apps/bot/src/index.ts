@@ -2,7 +2,12 @@ import "./env.js";
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import { handleMessageCreate } from "./handlers/messageCreate.js";
 import * as tagCommand from "./commands/tag.js";
-import { isGameSelect, handleGameSelect } from "./handlers/gameSelect.js";
+import {
+  isGameSelect,
+  handleGameSelect,
+  isGameModal,
+  handleGameModal,
+} from "./handlers/gameSelect.js";
 import { sendHeartbeat } from "./lib/apiClient.js";
 
 const HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000; // 15分おき
@@ -33,6 +38,13 @@ client.on(Events.InteractionCreate, (interaction) => {
   if (interaction.isStringSelectMenu() && isGameSelect(interaction.customId)) {
     handleGameSelect(interaction).catch((err) => {
       console.error("[bot] failed to handle game select", err);
+    });
+    return;
+  }
+
+  if (interaction.isModalSubmit() && isGameModal(interaction.customId)) {
+    handleGameModal(interaction).catch((err) => {
+      console.error("[bot] failed to handle game modal", err);
     });
     return;
   }

@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
-import { getSteamAppNameJa } from "./steam";
+import { getSteamAppNameJa, searchSteamGames } from "./steam";
+import { getOrFetchExternalGameData } from "./externalGameCache";
 
 export type IdentifiedGame = {
   appId: number;
@@ -143,7 +144,76 @@ export async function resolveOrCreateAlbum(
   });
   console.log(`[album] ゲーム名からアルバムを自動作成: ${result.title} (${created.id})`);
 
+  // ゲーム詳細からアルバムへ辿れるようにする。既に別のアルバムと紐付いている場合は触らない
+  await db.groupGame.updateMany({
+    where: { groupId, steamAppId: appId, albumId: null },
+    data: { albumId: created.id },
+  });
+
   return { gameTitle: result.title, albumId: created.id };
+}
+
+/**
+ * ゲーム名で検索して、必要ならゲームリストへの登録とアルバム作成まで行う。
+ *
+ * Botの「どのゲーム？」で自由入力が選ばれたときの経路。まだグループのゲームリストに
+ * 無いゲームでも、名前を打てばそのまま置き場所まで用意できるようにする。
+ *
+ * `searchSteamGames` は `type: "app"` 以外（パッケージ・バンドル）を除いてくれるので、
+ * app IDでない別体系のIDが紛れ込むことはない。
+ */
+export async function resolveByNameAndCreate(
+  query: string,
+  groupId: string,
+  ownerId: string
+): Promise<{ gameTitle: string; albumId: string; steamAppId: number } | null> {
+  const results = await searchSteamGames(query);
+  const hit = results[0];
+  if (!hit) return null;
+
+  await ensureGroupGame(hit.appId, hit.name, groupId, ownerId);
+
+  const resolved = await resolveOrCreateAlbum(hit.appId, groupId, ownerId);
+  if (!resolved) return null;
+
+  return { ...resolved, steamAppId: hit.appId };
+}
+
+/**
+ * グループのゲームリストにまだ無ければ追加する。
+ *
+ * カバー画像は必ず appdetails の値を使う（`getOrFetchExternalGameData` 経由）。
+ * `steam/apps/<id>/header.jpg` の組み立ては新しめのタイトルで404になる。
+ *
+ * ステータスをPLAYINGにしているのは、スクショが上がっている＝今遊んでいるため。
+ * 既定のWISHLIST（欲しいものリスト）では実態と合わない。
+ */
+async function ensureGroupGame(
+  steamAppId: number,
+  title: string,
+  groupId: string,
+  addedById: string
+): Promise<void> {
+  const existing = await db.groupGame.findUnique({
+    where: { groupId_steamAppId: { groupId, steamAppId } },
+    select: { id: true },
+  });
+  if (existing) return;
+
+  const { headerImage, ...external } = await getOrFetchExternalGameData(steamAppId, title);
+
+  await db.groupGame.create({
+    data: {
+      groupId,
+      steamAppId,
+      title,
+      coverUrl: headerImage,
+      status: "PLAYING",
+      addedById,
+      ...external,
+    },
+  });
+  console.log(`[game] ゲームリストに追加: ${title} (${steamAppId})`);
 }
 
 /** 手動アップロード用。自分が所有しているか参加しているものだけを見る */

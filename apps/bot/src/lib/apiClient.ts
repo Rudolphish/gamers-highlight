@@ -77,7 +77,10 @@ export async function assignGame(payload: {
   guildId: string;
   messageId: string;
   discordUserId: string;
-  steamAppId: number;
+  /** 候補から選ばれた場合 */
+  steamAppId?: number;
+  /** 自由入力の場合。Web側でSteam検索→ゲーム登録→アルバム作成まで行う */
+  query?: string;
 }): Promise<{ ok: boolean; gameTitle?: string; updated?: number }> {
   try {
     const res = await fetch(`${BASE_URL}/api/internal/assign-game`, {
