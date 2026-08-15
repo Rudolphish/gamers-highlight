@@ -227,7 +227,8 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       </div>
 
       <div className="mt-8">
-        <CollapsibleSection title="気になっているゲーム">
+        {/* プレイ中・クリア済みも含むので「気になっている」ではなくグループ全体のゲーム置き場として扱う */}
+        <CollapsibleSection title="みんなのゲーム">
           <PlayStatusSummary groupId={group.id} games={gameCards} />
           <GroupGameList
             groupId={group.id}
