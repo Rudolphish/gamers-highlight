@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Plus, X, Search, ThumbsUp, HelpCircle, ThumbsDown, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 
 type ReactionType = "LIKE" | "MAYBE" | "PASS";
 
@@ -159,19 +160,20 @@ export function GameProposals({
   }
 
   return (
-    <div className="mt-4 border-t border-steam-border pt-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
-          ゲーム提案
-        </h3>
-        <button
-          onClick={() => setOpen(true)}
-          className="flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 font-mono text-3xs text-steam-text transition hover:border-steam-blue"
-        >
-          <Plus size={12} /> 提案する
-        </button>
-      </div>
-
+    <div>
+      {/* 提案は「みんなのゲーム」とは別の話（まだリストに入っていない候補）なので独立させる。
+          モーダルは畳んでも操作できるよう、開閉するセクションの外に置く。 */}
+      <CollapsibleSection
+        title="ゲーム提案"
+        headerAction={
+          <button
+            onClick={() => setOpen(true)}
+            className="flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 font-mono text-3xs text-steam-text transition hover:border-steam-blue"
+          >
+            <Plus size={12} /> 提案する
+          </button>
+        }
+      >
       {localProposals.length === 0 ? (
         <p className="mt-2 font-mono text-3xs text-steam-muted/70">まだ提案はありません。</p>
       ) : (
@@ -261,6 +263,7 @@ export function GameProposals({
       )}
 
       {error && <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{error}</p>}
+      </CollapsibleSection>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">

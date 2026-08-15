@@ -236,14 +236,17 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
             canEdit={canEditGames}
             currentUserId={currentUser.id}
           />
-          <GameProposals
-            groupId={group.id}
-            proposals={proposalCards}
-            currentUserId={currentUser.id}
-            likeThreshold={likeThreshold}
-            canManage={canEditGames}
-          />
         </CollapsibleSection>
+      </div>
+
+      <div className="mt-8">
+        <GameProposals
+          groupId={group.id}
+          proposals={proposalCards}
+          currentUserId={currentUser.id}
+          likeThreshold={likeThreshold}
+          canManage={canEditGames}
+        />
       </div>
     </main>
   );
