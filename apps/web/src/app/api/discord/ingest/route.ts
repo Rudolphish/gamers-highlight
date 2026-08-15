@@ -172,7 +172,8 @@ async function identifyByFileName(
   if (typeof fileName !== "string") return empty;
 
   const info = parseSteamScreenshotName(fileName);
-  if (!info) return empty;
+  // 日時だけの名前（PCのSteamフォルダ内の形）はゲームが分からない。撮影日時は別途使う
+  if (info?.appId == null) return empty;
 
   const group = await db.group.findUnique({ where: { guildId }, select: { id: true } });
   if (!group) return empty;

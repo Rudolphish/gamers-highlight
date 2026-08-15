@@ -1,16 +1,21 @@
 /**
  * Steamのスクリーンショットのファイル名から、どのゲームのものかを読み取る。
  *
- * **保存元によって名前の形が2つある**（実測）:
- *   - PCのSteamフォルダ内 : `<appId>_<YYYYMMDDHHMMSS>_<連番>.jpg`
- *   - Steamからダウンロード: `<appId>_<連番>.jpg`（例: デルタフォースの `2507950_205.jpg`）
+ * **保存元で名前の形が違う**（実測）:
+ *   | 経路                   | 例                        | app ID | 撮影日時 |
+ *   | Steamからダウンロード  | `2507950_205.jpg`         | あり   | なし     |
+ *   | PCのSteamフォルダ内    | `20260528235035_1.jpg`    | なし   | あり     |
+ *   | クリップボードから貼付 | `2026052.jpg`             | なし   | なし     |
  *
- * 後者は日時を含まないため、`123_456.jpg` のようなありふれた名前と字面で区別できない。
- * そこで確信度を返し、低い方は**app IDが実在するゲームだと確認できたときだけ**採用する
- * （呼び出し側でゲーム名が解決できたかを見る）。ここで甘くすると、無関係の画像に
- * 別のゲーム名が勝手に付く。
+ * **フォルダ内のファイル名にapp IDは入っていない。** app IDが入っているのは
+ * `userdata/<id>/760/remote/<appId>/screenshots/` という**フォルダ側**で、
+ * ブラウザのファイル選択ではフォルダ名を取れないため、ここからゲームは判別できない。
+ * それでも日時は「遊んだ時刻」として意味があるので拾う。
  *
- * GeForce ExperienceやWindowsのGame Barで撮ったものは命名規則が違うので当たらない。
+ * app IDが取れる形（`<appId>_<連番>`）は、`123_456.jpg` のようなありふれた名前と
+ * 字面で区別できない。そこで確信度を返し、低い方は**実在するゲームだと確認できたときだけ**
+ * 採用する（呼び出し側でゲーム名が解決できたかを見る）。ここで甘くすると、
+ * 無関係の画像に別のゲーム名が勝手に付く。
  */
 
 /** app IDの下限。Steamの最小appIdは10（Counter-Strike） */
@@ -26,21 +31,26 @@ const MAX_APP_ID = 10_000_000;
 export type ScreenshotConfidence = "high" | "low";
 
 export type SteamScreenshotInfo = {
-  appId: number;
+  /** ファイル名から取れたapp ID。取れない形式ではnull */
+  appId: number | null;
   /** 撮影日時。ファイル名に日時を含む形式のときだけ入る */
   capturedAt: Date | null;
   /**
-   * high: 日時つき＝Steamのスクショとほぼ断定できる
+   * app IDの確からしさ。appIdがnullのときはnull。
+   * high: 日時も伴う＝Steamのスクショとほぼ断定できる
    * low : 連番のみ＝偶然一致した可能性があるので、実在するゲームか確認してから使う
    */
-  confidence: ScreenshotConfidence;
+  confidence: ScreenshotConfidence | null;
 };
 
-/** PCのSteamフォルダ内の形式 */
+/** app IDと日時の両方を含む形式（Steamの版や設定によってはこの形になる） */
 const WITH_TIMESTAMP = /^(\d{2,8})_(\d{14})(?:_(\d+))?\.(?:jpe?g|png)$/i;
 
 /** Steamからダウンロードした形式。連番が長すぎるものは別物とみなす */
 const WITH_INDEX = /^(\d{2,8})_(\d{1,6})\.(?:jpe?g|png)$/i;
+
+/** PCのSteamフォルダ内の形式。日時だけでゲームは分からない */
+const TIMESTAMP_ONLY = /^(\d{14})(?:_(\d+))?\.(?:jpe?g|png)$/i;
 
 /**
  * 14桁（YYYYMMDDHHMMSS）を日時にする。
@@ -94,6 +104,15 @@ export function parseSteamScreenshotName(fileName: string): SteamScreenshotInfo 
     const appId = validAppId(indexed[1]);
     if (appId !== null) {
       return { appId, capturedAt: null, confidence: "low" };
+    }
+  }
+
+  // 日時だけの形。ゲームは分からないが、撮影時刻は使える
+  const timeOnly = TIMESTAMP_ONLY.exec(base);
+  if (timeOnly) {
+    const capturedAt = parseTimestamp(timeOnly[1]);
+    if (capturedAt) {
+      return { appId: null, capturedAt, confidence: null };
     }
   }
 
