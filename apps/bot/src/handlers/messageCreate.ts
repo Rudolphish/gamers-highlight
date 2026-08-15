@@ -1,6 +1,7 @@
 import type { Message } from "discord.js";
 import { ingestPhoto } from "../lib/apiClient.js";
 import { extractGameTag } from "../lib/gameTag.js";
+import { askForGame } from "./gameSelect.js";
 
 /**
  * Discordに画像・動画が投稿されるたびに呼ばれる。
@@ -8,8 +9,10 @@ import { extractGameTag } from "../lib/gameTag.js";
  * 30秒を超える動画はBot側で先に弾き、無駄なダウンロード/APIコールを避ける。
  * メッセージ本文に「#eldenring」のようなハッシュタグがあれば抽出して一緒に渡す
  * （1チャンネルに複数ゲームが混在する運用で、ゲームを判定するための主軸情報）。
- * 添付のファイル名も渡す。Discordは元のファイル名を保つため、Steamのスクショなら
- * タグを付け忘れていてもingest側でゲームを判別できる。
+ * 添付のファイル名も渡す。Steamからダウンロードしたスクショならファイル名に
+ * app IDが入っているため、ingest側でゲームを判別できる。
+ * クリップボードから貼り付けた場合はファイル名に手掛かりが残らないので、
+ * その場合は投稿後に「どのゲーム？」と聞く。
  */
 export async function handleMessageCreate(message: Message) {
   if (message.author.bot) return;
@@ -17,6 +20,7 @@ export async function handleMessageCreate(message: Message) {
   if (!message.guildId) return; // DMは対象外
 
   const rawTag = extractGameTag(message.content);
+  let unresolved = false;
   console.log(
     `[bot] message with ${message.attachments.size} attachment(s) from ${message.author.tag}`
   );
@@ -35,7 +39,7 @@ export async function handleMessageCreate(message: Message) {
       continue;
     }
 
-    await ingestPhoto({
+    const { needsGame } = await ingestPhoto({
       discordUserId: message.author.id,
       channelId: message.channelId,
       guildId: message.guildId,
@@ -47,5 +51,11 @@ export async function handleMessageCreate(message: Message) {
       rawTag,
       fileName: attachment.name,
     });
+    if (needsGame) unresolved = true;
+  }
+
+  // 添付が複数あっても聞くのは1回。選択は同じメッセージの未分類の投稿すべてに反映される
+  if (unresolved) {
+    await askForGame(message);
   }
 }

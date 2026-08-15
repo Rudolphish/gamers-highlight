@@ -18,7 +18,7 @@ type IngestPayload = {
 };
 
 /** Webアプリ側の /api/discord/ingest に画像取り込みを依頼する */
-export async function ingestPhoto(payload: IngestPayload) {
+export async function ingestPhoto(payload: IngestPayload): Promise<{ needsGame: boolean }> {
   const res = await fetch(`${BASE_URL}/api/discord/ingest`, {
     method: "POST",
     headers: {
@@ -31,11 +31,63 @@ export async function ingestPhoto(payload: IngestPayload) {
   const text = await res.text();
   if (!res.ok) {
     console.error(`[apiClient] ingest failed: ${res.status} ${text}`);
-  } else {
-    // 成功時もPhotoが実際に作られたか/skippedで無視されたかを常に可視化する
-    console.log(`[apiClient] ingest ok: ${text}`);
+    return { needsGame: false };
   }
-  return res.ok;
+
+  // 成功時もPhotoが実際に作られたか/skippedで無視されたかを常に可視化する
+  console.log(`[apiClient] ingest ok: ${text}`);
+  try {
+    const parsed = JSON.parse(text) as { needsGame?: boolean };
+    return { needsGame: Boolean(parsed?.needsGame) };
+  } catch {
+    return { needsGame: false };
+  }
+}
+
+export type GroupGameOption = { steamAppId: number; title: string };
+
+/** 「どのゲーム？」の選択肢（グループのゲームリスト）を取る */
+export async function fetchGroupGames(guildId: string): Promise<GroupGameOption[]> {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/api/internal/group-games?guildId=${encodeURIComponent(guildId)}`,
+      { headers: { "x-internal-secret": SECRET } }
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as { games?: GroupGameOption[] };
+    return data.games ?? [];
+  } catch (err) {
+    console.error("[apiClient] fetchGroupGames failed", err);
+    return [];
+  }
+}
+
+/** 選ばれたゲームを、そのメッセージの未分類の投稿に反映する */
+export async function assignGame(payload: {
+  guildId: string;
+  messageId: string;
+  discordUserId: string;
+  steamAppId: number;
+}): Promise<{ ok: boolean; gameTitle?: string; updated?: number }> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/internal/assign-game`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-secret": SECRET },
+      body: JSON.stringify(payload),
+    });
+    const data = (await res.json().catch(() => null)) as {
+      gameTitle?: string;
+      updated?: number;
+    } | null;
+    if (!res.ok) {
+      console.error(`[apiClient] assign-game failed: ${res.status}`);
+      return { ok: false };
+    }
+    return { ok: true, gameTitle: data?.gameTitle, updated: data?.updated };
+  } catch (err) {
+    console.error("[apiClient] assignGame failed", err);
+    return { ok: false };
+  }
 }
 
 type TagPayload = {
