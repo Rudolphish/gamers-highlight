@@ -12,6 +12,9 @@ type IngestPayload = {
   discordMessageId: string;
   postedAt: number;
   rawTag?: string | null; // メッセージ本文から抽出した正規化済みハッシュタグ
+  // 添付ファイルの元のファイル名。Steamのスクショは <appId>_<日時>_<連番>.jpg なので、
+  // タグもチャンネル設定も無いときのゲーム判定に使える
+  fileName?: string | null;
 };
 
 /** Webアプリ側の /api/discord/ingest に画像取り込みを依頼する */

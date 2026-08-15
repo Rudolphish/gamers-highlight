@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { uploadFromUrlToStorage } from "@/lib/storage";
 import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/media-limits";
+import { parseSteamScreenshotName } from "@/lib/steamScreenshot";
+import { resolveGamesByAppId, scopeForGroup } from "@/lib/gameIdentify";
 
 /**
  * Discord Botからのみ呼ばれる内部API。
@@ -10,7 +12,7 @@ import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/
  * POST /api/discord/ingest
  * body: {
  *   discordUserId, channelId, guildId, attachmentUrl, contentType,
- *   sizeBytes, durationSeconds?, discordMessageId, postedAt, rawTag?
+ *   sizeBytes, durationSeconds?, discordMessageId, postedAt, rawTag?, fileName?
  * }
  * durationSeconds は動画のみ。Botがdiscord.jsのAttachment#durationから取得して渡す。
  *
@@ -18,7 +20,9 @@ import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/
  *   1. rawTag（メッセージ本文の #eldenring 等）が指定されていれば最優先
  *      → 初出のタグなら自動でゲーム/アルバムを新規登録する（設定不要）
  *   2. rawTagが無ければチャンネルマッピング（ゲームごとにチャンネルが分かれている運用向け）
- *   3. どちらも無ければ未分類（albumId/gameTitle は null のまま保存）
+ *   3. それも無ければ添付のファイル名（Steamのスクショは <appId>_<日時>_<連番>.jpg）
+ *      → 手動アップロードと同じ判定を使う。アルバムは既にある場合だけ紐付ける
+ *   4. どれも当たらなければ未分類（albumId/gameTitle は null のまま保存）
  */
 export async function POST(req: Request) {
   const secret = req.headers.get("x-internal-secret");
@@ -38,6 +42,7 @@ export async function POST(req: Request) {
     discordMessageId,
     postedAt,
     rawTag,
+    fileName,
   } = body;
 
   const mediaType = resolveMediaType(contentType);
@@ -105,8 +110,18 @@ export async function POST(req: Request) {
       gameTitle = mapping.gameTitle;
       albumId = mapping.autoAlbumId;
     }
-    // どちらも無ければ未分類のまま保存（後からUIで手動振り分け可能）
+    // どちらも無ければファイル名から判別する（Discordは元のファイル名を保つ）。
+    // タグの付け忘れやチャンネル未設定でも、Steamのスクショなら拾える。
+    if (!gameTitle) {
+      const detected = await identifyByFileName(fileName, guildId);
+      gameTitle = detected.gameTitle;
+      albumId = detected.albumId;
+    }
+    // それでも当たらなければ未分類のまま保存（後からUIで手動振り分け可能）
   }
+
+  // 撮影日時はファイル名の方が正確（投稿がプレイ後になることの方が多い）
+  const screenshot = typeof fileName === "string" ? parseSteamScreenshotName(fileName) : null;
 
   // Discordの添付URLは失効するため、即座に永続ストレージへ移送する
   const { publicUrl, sizeBytes: storedSize } = await uploadFromUrlToStorage(
@@ -125,9 +140,35 @@ export async function POST(req: Request) {
       gameTitle,
       source: "DISCORD",
       discordMessageId,
-      capturedAt: postedAt ? new Date(postedAt) : undefined,
+      capturedAt: screenshot?.capturedAt ?? (postedAt ? new Date(postedAt) : undefined),
     },
   });
 
   return NextResponse.json({ photo }, { status: 201 });
+}
+
+/**
+ * 添付のファイル名からゲームを判別する。手動アップロードと同じ仕組みを使うので、
+ * どちらの経路から入れても同じゲーム名・同じアルバムに落ちる。
+ *
+ * アルバムは**既にある場合だけ**紐付ける。ここで勝手に作ると、スクショを1枚上げた
+ * だけでアルバムが乱立するため（rawTag経由は本人が明示したタグなので作ってよい）。
+ */
+async function identifyByFileName(
+  fileName: unknown,
+  guildId: string
+): Promise<{ gameTitle: string | null; albumId: string | null }> {
+  const empty = { gameTitle: null, albumId: null };
+  if (typeof fileName !== "string") return empty;
+
+  const info = parseSteamScreenshotName(fileName);
+  if (!info) return empty;
+
+  const group = await db.group.findUnique({ where: { guildId }, select: { id: true } });
+  if (!group) return empty;
+
+  const [result] = await resolveGamesByAppId([info.appId], scopeForGroup(group.id));
+  if (!result) return empty;
+
+  return { gameTitle: result.title, albumId: result.album?.id ?? null };
 }
