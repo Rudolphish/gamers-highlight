@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AlbumGrid } from "@/components/album/AlbumGrid";
-import { steamHeaderImageUrl } from "@/lib/steam";
+import { getSteamCoverUrls } from "@/lib/albumCover";
 
 // アルバム一覧画面：自分のアルバム一覧＋未分類の投稿への導線
 export default async function AlbumsPage() {
@@ -41,6 +41,9 @@ export default async function AlbumsPage() {
     },
   });
 
+  // 組み立てURLは新しいタイトルで404になるため、appdetails由来の値を先に引く
+  const steamCovers = await getSteamCoverUrls(albums.map((a) => a.steamAppId));
+
   const unclassifiedCount = await db.photo.count({
     where: { albumId: null, uploaderId: user.id },
   });
@@ -62,7 +65,7 @@ export default async function AlbumsPage() {
         })),
     ].slice(0, 4);
 
-    const steamCoverUrl = album.steamAppId ? steamHeaderImageUrl(album.steamAppId) : null;
+    const steamCoverUrl = album.steamAppId ? steamCovers.get(album.steamAppId) ?? null : null;
 
     return {
       id: album.id,
