@@ -7,6 +7,8 @@ import {
   handleGameSelect,
   isGameModal,
   handleGameModal,
+  isGameButton,
+  handleGameButton,
 } from "./handlers/gameSelect.js";
 import { sendHeartbeat } from "./lib/apiClient.js";
 
@@ -45,6 +47,13 @@ client.on(Events.InteractionCreate, (interaction) => {
   if (interaction.isModalSubmit() && isGameModal(interaction.customId)) {
     handleGameModal(interaction).catch((err) => {
       console.error("[bot] failed to handle game modal", err);
+    });
+    return;
+  }
+
+  if (interaction.isButton() && isGameButton(interaction.customId)) {
+    handleGameButton(interaction).catch((err) => {
+      console.error("[bot] failed to handle game button", err);
     });
     return;
   }
