@@ -14,7 +14,7 @@ import { PlayStatusSummary } from "@/components/group/PlayStatusSummary";
 import { GameProposals } from "@/components/group/GameProposals";
 import { NotificationChannelSetting } from "@/components/group/NotificationChannelSetting";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
-import { steamHeaderImageUrl } from "@/lib/steam";
+import { getSteamCoverUrls } from "@/lib/albumCover";
 
 // アルバム数がグループの活動量に応じて際限なく増えうるため、初期表示は最新分のみに絞る
 // （継続的にスクショを投稿するアプリの性質上、他のリレーション以上に増加が速いため）
@@ -127,6 +127,9 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
     : [];
   const inviteCandidates = allUsers.filter((u) => !existingIds.has(u.id));
 
+  // 組み立てURLは新しいタイトルで404になるため、appdetails由来の値を先に引く
+  const steamCovers = await getSteamCoverUrls(group.albums.map((a) => a.steamAppId));
+
   const albumCards = group.albums.map((album) => {
     const latestPhoto = album.photos[0];
     const memberList = [
@@ -144,7 +147,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
         })),
     ].slice(0, 4);
 
-    const steamCoverUrl = album.steamAppId ? steamHeaderImageUrl(album.steamAppId) : null;
+    const steamCoverUrl = album.steamAppId ? steamCovers.get(album.steamAppId) ?? null : null;
 
     return {
       id: album.id,

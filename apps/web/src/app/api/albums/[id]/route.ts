@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasAlbumPermission } from "@/lib/permissions";
+import { cacheSteamHeaderImage } from "@/lib/albumCover";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -50,6 +51,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       steamAppId: body.steamAppId,
     },
   });
+
+  // サムネイルに使う正しいURLを控えておく（無いと組み立てURLに落ちて空表示になる）
+  if (typeof body.steamAppId === "number") {
+    await cacheSteamHeaderImage(body.steamAppId);
+  }
 
   return NextResponse.json({ album });
 }
