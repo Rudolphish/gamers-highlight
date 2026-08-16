@@ -4,6 +4,7 @@ import { ArrowLeft, Gamepad2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasAlbumPermission } from "@/lib/permissions";
+import { getAlbumContent, getAlbumPhotos, getAlbumTags } from "@/lib/albumData";
 import { PhotoGrid } from "@/components/photo/PhotoGrid";
 import { AlbumTagManager } from "@/components/discord/AlbumTagManager";
 import { ShareModal } from "@/components/album/ShareModal";
@@ -27,27 +28,15 @@ export default async function AlbumDetailPage({
   const allowed = await hasAlbumPermission(params.albumId, currentUser.id, "VIEWER");
   if (!allowed) notFound();
 
-  const album = await db.album.findUnique({
-    where: { id: params.albumId },
-    include: {
-      members: { include: { user: true } },
-      owner: true,
-      groupGame: true,
-      group: true,
-    },
-  });
+  // ここから先はキャッシュ済みの中身（権限は上で判定済み）。
+  // 中身は「誰が見ても同じ」なのでユーザーをキーに含めない。無効化は lib/cacheTags.ts から。
+  const album = await getAlbumContent(params.albumId);
   if (!album) notFound();
 
-  const photos = await db.photo.findMany({
-    where: { albumId: album.id },
-    orderBy: { createdAt: "desc" },
-    include: { uploader: true },
-  });
-
-  const tags = await db.discordGameTag.findMany({
-    where: { autoAlbumId: album.id },
-    orderBy: { createdAt: "asc" },
-  });
+  const [photos, tags] = await Promise.all([
+    getAlbumPhotos(album.id),
+    getAlbumTags(album.id),
+  ]);
 
   const memberNames = [
     album.owner.name ?? album.owner.email ?? "オーナー",
@@ -145,9 +134,9 @@ export default async function AlbumDetailPage({
               thumbnailUrl: p.thumbnailUrl,
               durationSeconds: p.durationSeconds,
               canDelete: isOwner || p.uploaderId === currentUser?.id,
-              capturedAt: p.capturedAt?.toISOString() ?? null,
+              capturedAt: p.capturedAt,
               gameTitle: p.gameTitle,
-              uploaderName: p.uploader.name ?? p.uploader.email,
+              uploaderName: p.uploaderName,
               albumTitle: album.title,
             }))}
           />

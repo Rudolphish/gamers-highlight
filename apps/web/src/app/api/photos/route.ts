@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { invalidateAlbumPhotos } from "@/lib/cacheTags";
 import { isManagedStorageUrl } from "@/lib/storage";
 import { hasAlbumPermission } from "@/lib/permissions";
 import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/media-limits";
@@ -90,6 +91,15 @@ export async function POST(req: Request) {
       source: "MANUAL",
     },
   });
+
+  // アルバム詳細とグループ詳細の中身を取り直させる（呼ばないと投稿が出ない）
+  if (photo.albumId) {
+    const album = await db.album.findUnique({
+      where: { id: photo.albumId },
+      select: { groupId: true },
+    });
+    invalidateAlbumPhotos(photo.albumId, album?.groupId);
+  }
 
   return NextResponse.json({ photo }, { status: 201 });
 }

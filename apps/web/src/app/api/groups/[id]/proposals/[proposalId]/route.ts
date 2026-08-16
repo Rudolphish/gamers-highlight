@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 
 // DELETE /api/groups/:id/proposals/:proposalId … 提案の却下/取り下げ。
@@ -24,5 +25,6 @@ export async function DELETE(
   }
 
   await db.groupGameProposal.delete({ where: { id: params.proposalId } });
+  invalidateGroup(params.id);
   return NextResponse.json({ ok: true });
 }

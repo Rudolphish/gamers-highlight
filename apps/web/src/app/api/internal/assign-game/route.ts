@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { invalidateAlbumPhotos } from "@/lib/cacheTags";
 import { resolveOrCreateAlbum, resolveByNameAndCreate } from "@/lib/gameIdentify";
 
 /**
@@ -66,6 +67,10 @@ export async function POST(req: Request) {
     where: { id: { in: targets.map((t) => t.id) } },
     data: { gameTitle: resolved.gameTitle, albumId: resolved.albumId },
   });
+
+  if (resolved.albumId) {
+    invalidateAlbumPhotos(resolved.albumId, group.id);
+  }
 
   return NextResponse.json({
     ok: true,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 import { getOrFetchExternalGameData } from "@/lib/externalGameCache";
 import { z } from "zod";
@@ -94,5 +95,6 @@ export async function POST(
     include: { proposedBy: true, reactions: { include: { user: true } } },
   });
 
+  invalidateGroup(params.id);
   return NextResponse.json({ proposal: updated, promoted });
 }

@@ -4,6 +4,7 @@ import { ArrowLeft, Plus } from "lucide-react";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
+import { getGroupContent, getProposalHeaderImages } from "@/lib/groupData";
 import { ExpandableAlbumGrid } from "@/components/album/ExpandableAlbumGrid";
 import { GroupShareModal } from "@/components/group/GroupShareModal";
 import { GroupNameEditor } from "@/components/group/GroupNameEditor";
@@ -38,33 +39,9 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
   const allowed = await hasGroupPermission(params.groupId, currentUser.id, "VIEWER");
   if (!allowed) notFound();
 
-  const group = await db.group.findUnique({
-    where: { id: params.groupId },
-    include: {
-      owner: true,
-      members: { include: { user: true } },
-      albums: {
-        orderBy: { updatedAt: "desc" },
-        take: ALBUM_PAGE_SIZE,
-        include: {
-          owner: true,
-          members: { take: 4, orderBy: { invitedAt: "asc" }, include: { user: true } },
-          photos: { orderBy: { createdAt: "desc" }, take: 1 },
-          _count: { select: { photos: true, members: true } },
-        },
-      },
-      _count: { select: { albums: true } },
-      games: {
-        orderBy: { createdAt: "desc" },
-        include: { addedBy: true, interests: { include: { user: true } } },
-      },
-      proposals: {
-        where: { status: "PENDING" },
-        orderBy: { createdAt: "desc" },
-        include: { proposedBy: true, reactions: true },
-      },
-    },
-  });
+  // ここから先はキャッシュ済みの中身（権限は上で判定済み）。
+  // 中身は「誰が見ても同じ」なのでユーザーをキーに含めない。無効化は lib/cacheTags.ts から。
+  const group = await getGroupContent(params.groupId, ALBUM_PAGE_SIZE);
   if (!group) notFound();
 
   const isOwner = currentUser?.id === group.ownerId;
@@ -75,12 +52,10 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
   // 提案のcoverUrlは、以前は固定パスの組み立てをそのまま保存していたため新しめのタイトルで404になる。
   // appdetails由来の確実なURLがキャッシュにあればそちらを優先する（古い提案の救済）。
   const proposalHeaderImages = new Map(
-    (
-      await db.externalGameCache.findMany({
-        where: { steamAppId: { in: group.proposals.map((p) => p.steamAppId) } },
-        select: { steamAppId: true, headerImage: true },
-      })
-    ).map((c) => [c.steamAppId, c.headerImage])
+    (await getProposalHeaderImages(group.proposals.map((p) => p.steamAppId))).map((c) => [
+      c.steamAppId,
+      c.headerImage,
+    ])
   );
 
   const proposalCards = group.proposals.map((p) => ({

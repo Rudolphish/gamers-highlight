@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { invalidateAlbum } from "@/lib/cacheTags";
 import { hasAlbumPermission } from "@/lib/permissions";
 import { cacheSteamHeaderImage } from "@/lib/albumCover";
 
@@ -16,6 +17,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     include: { members: true },
   });
   if (!album) return NextResponse.json({ error: "not found" }, { status: 404 });
+
   return NextResponse.json({ album });
 }
 
@@ -50,6 +52,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     await cacheSteamHeaderImage(body.steamAppId);
   }
 
+  // タイトル・カバーはアルバム詳細にもグループ詳細にも出るので両方飛ばす
+  invalidateAlbum(album.id, album.groupId);
+
   return NextResponse.json({ album });
 }
 
@@ -61,6 +66,12 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   const allowed = await hasAlbumPermission(params.id, user.id, "OWNER");
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
+  // 削除後には辿れないので、先にグループを控える（グループ詳細のアルバム一覧を飛ばすため）
+  const target = await db.album.findUnique({
+    where: { id: params.id },
+    select: { groupId: true },
+  });
+
   // ハッシュタグ/チャンネルマッピングがこのアルバムをautoAlbumIdとして参照している場合、
   // 外部キー制約で削除がブロックされるため、アルバムと一緒に紐付けも削除する
   await db.$transaction([
@@ -68,5 +79,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     db.discordChannelMapping.deleteMany({ where: { autoAlbumId: params.id } }),
     db.album.delete({ where: { id: params.id } }),
   ]);
+  invalidateAlbum(params.id, target?.groupId);
+
   return NextResponse.json({ ok: true });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { invalidateAlbumPhotos } from "@/lib/cacheTags";
 import { uploadFromUrlToStorage } from "@/lib/storage";
 import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/media-limits";
 import { parseSteamScreenshotName } from "@/lib/steamScreenshot";
@@ -146,6 +147,15 @@ export async function POST(req: Request) {
   });
 
   // ゲームが分からないままなら、Botが投稿者に聞けるよう知らせる
+  // Botからの投稿もアルバム詳細・グループ詳細に出るので取り直させる
+  if (photo.albumId) {
+    const album = await db.album.findUnique({
+      where: { id: photo.albumId },
+      select: { groupId: true },
+    });
+    invalidateAlbumPhotos(photo.albumId, album?.groupId);
+  }
+
   return NextResponse.json({ photo, needsGame: !gameTitle }, { status: 201 });
 }
 

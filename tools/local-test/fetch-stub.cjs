@@ -18,6 +18,7 @@ const APP_NAMES = {
   271590: { ja: "グランド・セフト・オートV", en: "Grand Theft Auto V" },
   570: { ja: "Dota 2", en: "Dota 2" },
   1091500: { ja: "サイバーパンク2077", en: "Cyberpunk 2077" },
+  1174180: { ja: "レッド・デッド・リデンプション2", en: "Red Dead Redemption 2" },
 };
 
 function appdetails(url) {

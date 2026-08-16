@@ -279,6 +279,28 @@ Prismaの既定（`relationLoadStrategy: "query"`）は、`include` のリレー
 
 測り直すときは `tools/local-test/query-count.mjs`。**見るべきは所要時間ではなくクエリ数。**
 
+### `unstable_cache` は Date を文字列にして返す
+
+キャッシュされた値はJSONで保存されるため、Prismaが返す `Date` は**ISO文字列**になって戻る。
+`.toISOString()` を呼んでいると落ちるが、**落ちるのはキャッシュヒットの回だけ**。
+1回目の描画は素の `Date` が返るので通ってしまい、テストで1回しか開いていないと見逃す
+（実際に `capturedAt?.toISOString()` がこれで壊れ、権限マトリクスの確認で初めて出た）。
+
+キャッシュする関数は、**返す形をそのまま契約にする**（日付は関数の中で文字列へ直しておく）。
+確認するときは**必ず2回開く**こと（`tools/local-test/flows.mjs` の F62b・F64b がそれ）。
+
+### ページのキャッシュと権限は分ける
+
+`lib/albumData.ts` / `lib/groupData.ts` がキャッシュするのは「そのアルバム／グループの中身」で、
+**「この人が見てよいか」は毎回サーバーで判定する**（`hasAlbumPermission` / `hasGroupPermission`）。
+
+**キャッシュキーにユーザーを入れない。** 入れると、キーを間違えた瞬間に他人の中身が出る。
+権限を毎回引き直す代わりに中身の取得だけを省く形にしてあるので、キャッシュが温まっていても
+権限の無い人には出ない（`tools/local-test/flows.mjs` の F63・F65 で確認している）。
+
+無効化は `lib/cacheTags.ts` の関数だけを呼ぶ。**`revalidateTag` を直接書かない。**
+1箇所でも呼び忘れると「投稿したのに一覧に出ない」が起き、しかも時間では直らない。
+
 ### セッションはユーザーIDを持っている
 
 `getCurrentUser()`（`lib/currentUser.ts`）を使うこと。`db.user.findUnique({ where: { email } })`

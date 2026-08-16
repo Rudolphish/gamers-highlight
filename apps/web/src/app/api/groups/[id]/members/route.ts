@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 
 // POST /api/groups/:id/members … メンバー招待（権限指定）
@@ -23,5 +24,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     create: { groupId: params.id, userId: invitee.id, role: body.role },
   });
 
+  invalidateGroup(params.id);
   return NextResponse.json({ member }, { status: 201 });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 import { z } from "zod";
 
@@ -31,6 +32,7 @@ export async function PATCH(
     include: { addedBy: true },
   });
 
+  invalidateGroup(params.id);
   return NextResponse.json({ game });
 }
 
@@ -49,5 +51,6 @@ export async function DELETE(
     where: { id: params.gameId, groupId: params.id },
   });
 
+  invalidateGroup(params.id);
   return NextResponse.json({ ok: true });
 }
