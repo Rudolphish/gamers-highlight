@@ -4,6 +4,7 @@ import { ArrowLeft, Gamepad2 } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { hasAlbumPermission } from "@/lib/permissions";
 import { PhotoGrid } from "@/components/photo/PhotoGrid";
 import { AlbumTagManager } from "@/components/discord/AlbumTagManager";
 import { ShareModal } from "@/components/album/ShareModal";
@@ -20,6 +21,15 @@ export default async function AlbumDetailPage({
   const currentUser = session?.user?.email
     ? await db.user.findUnique({ where: { email: session.user.email } })
     : null;
+
+  if (!currentUser) notFound();
+
+  // グループページ・ゲーム詳細ページと同じく、ページ側でもVIEWER権限を必須にする。
+  // ここが無いと、ログインさえしていればURLを知っているだけで他人のグループの
+  // アルバム（写真・メンバー名）が見えてしまっていた。APIは以前から403を返していたが、
+  // このページはDBを直接読むためAPIの判定を通らない（実際に200で中身が出ることを確認済み）。
+  const allowed = await hasAlbumPermission(params.albumId, currentUser.id, "VIEWER");
+  if (!allowed) notFound();
 
   const album = await db.album.findUnique({
     where: { id: params.albumId },
