@@ -40,6 +40,9 @@ const STATUS_BADGE_CLASS: Record<GameStatus, string> = {
 
 const STATUS_ORDER: GameStatus[] = ["PLAYING", "WISHLIST", "BACKLOG", "COMPLETED"];
 
+/** 画面を開いた直後に選ばれているステータス（いま話題になるものだけ出す） */
+const DEFAULT_STATUS_FILTER: GameStatus[] = ["PLAYING", "WISHLIST"];
+
 export function GroupGameList({
   groupId,
   games,
@@ -56,7 +59,13 @@ export function GroupGameList({
   // ステータス・ジャンルとも複数選択できる。空＝絞り込みなし（＝すべて）。
   // 同じ枠の中はOR（「気になる」＋「プレイ中」でどちらかに当てはまるもの）、
   // ステータス枠とジャンル枠の間はANDで効く。
-  const [statusFilter, setStatusFilter] = useState<Set<GameStatus>>(new Set());
+  //
+  // 初期状態は「プレイ中」と「気になる」だけを表示する。いま話題になるのはこの2つで、
+  // 積みゲーとクリア済みは溜まる一方なので、既定で全部出すと本数が増えるほど埋もれる。
+  // 絞り込み中は件数と「条件をクリア」が出るので、すべて見たいときは1回押せば戻せる。
+  const [statusFilter, setStatusFilter] = useState<Set<GameStatus>>(
+    () => new Set<GameStatus>(DEFAULT_STATUS_FILTER)
+  );
   const [genreFilter, setGenreFilter] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");

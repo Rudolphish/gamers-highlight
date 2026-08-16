@@ -164,6 +164,39 @@ async function main() {
     },
   });
 
+  // フィルタの初期状態（プレイ中・気になるだけ出る）を確認するための状態違い。
+  // app IDは flows が追加に使うもの（1091500 / 570 / 1174180 / 271590）と重ならないものにする。
+  await db.groupGame.create({
+    data: {
+      groupId: group.id,
+      steamAppId: 292030,
+      title: "ウィッチャー3",
+      status: "PLAYING",
+      genres: ["RPG"],
+      addedById: admin.id,
+    },
+  });
+  await db.groupGame.create({
+    data: {
+      groupId: group.id,
+      steamAppId: 379720,
+      title: "DOOM（積みゲー）",
+      status: "BACKLOG",
+      genres: ["Action"],
+      addedById: admin.id,
+    },
+  });
+  await db.groupGame.create({
+    data: {
+      groupId: group.id,
+      steamAppId: 220,
+      title: "Half-Life 2（クリア済み）",
+      status: "COMPLETED",
+      genres: ["Action"],
+      addedById: admin.id,
+    },
+  });
+
   const proposal = await db.groupGameProposal.create({
     data: {
       groupId: group.id,
