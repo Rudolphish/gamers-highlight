@@ -22,7 +22,18 @@ const cookies = {
 // 未ログインは (main) 配下なら必ずログインへ飛ばされる（middlewareのmatcher漏れの検出）
 const LOGIN = "307:/api/auth/signin";
 const OK = 200;
-const NF = 404;
+
+/**
+ * 「見えないこと」の期待値。**ステータスだけで判定してはいけない。**
+ *
+ * `loading.tsx` があるルートはNext.jsがストリーミングを始め、ヘッダーを先に送ってしまうため、
+ * ページ関数が後から `notFound()` してもHTTPステータスは200のまま、
+ * 本文の途中でnot-found画面に差し替わる（#33で loading.tsx を入れた際に
+ * 権限拒否のページが軒並み200になり、実際にこれで引っかかった）。
+ *
+ * 中身が出ていないかどうかが本題なので、not-found画面が返っていれば合格とする。
+ */
+const NF = "見えない";
 
 // [ID, 説明, パス, {役割: 期待}]
 const cases = [
@@ -68,16 +79,22 @@ for (const [id, label, path, expects] of cases) {
     });
 
     let actual = String(res.status);
+    let note = "";
+
     if (res.status >= 300 && res.status < 400) {
       actual = `307:${(res.headers.get("location") ?? "").replace(BASE, "").split("?")[0]}`;
-    }
-
-    // 200のときはエラーバウンダリが出ていないことも見る
-    let note = "";
-    if (res.status === 200) {
+    } else {
       const body = await res.text();
-      if (body.includes("問題が発生しました") || body.includes("Application error")) {
-        note = "エラーバウンダリが表示された";
+      const notFoundShown = res.status === 404 || body.includes("NEXT_NOT_FOUND");
+      if (res.status === 200) {
+        actual = notFoundShown ? "200（not-found画面）" : "200";
+        if (body.includes("問題が発生しました") || body.includes("Application error")) {
+          note = "エラーバウンダリが表示された";
+        }
+      }
+      if (expected === NF) {
+        // ステータスが404でも、ストリーミングで200＋not-found画面でも「見えない」で合格
+        actual = notFoundShown ? NF : `見えている（${res.status}）`;
       }
     }
 
