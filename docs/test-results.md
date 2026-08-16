@@ -1,0 +1,280 @@
+# テスト項目と結果
+
+`tools/local-test/` の各スイートが出力した結果をそのまま表にしたもの。
+**この表は手で書き換えない。** 項目を足すときはスクリプト側に足して、
+`node tools/local-test/run-all.mjs` で作り直す（手順は
+[`tools/local-test/README.md`](../tools/local-test/README.md)）。
+
+最終実行: **2026/8/16 16:58:33**（JST） / 合計 **216** 件 / NG **0** 件
+
+| スイート | 内容 | 件数 | NG |
+|---|---|---:|---:|
+| pages | P: ページの到達性と権限 | 87 | 0 |
+| api | R: APIの権限 | 53 | 0 |
+| flows | F: 主要導線 | 52 | 0 |
+| external-failure | X: 外部APIが落ちている状態 | 5 | 0 |
+| browser | B: 実ブラウザでの描画 | 19 | 0 |
+
+外部サービスはすべてスタブなので、**先方の仕様変更で壊れる類の不具合はここには出ない**。
+実機でしか確認できないことは `docs/handoff.md` の「実機でしか確認できていないこと」にある。
+
+---
+
+## P: ページの到達性と権限
+
+87 件 / NG 0 件
+
+| ID | 項目 | 期待 | 実際 | 結果 | 備考 |
+|---|---|---|---|---|---|
+| P01/anon | ホーム（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P01/admin | ホーム（admin） | 200 | 200 | OK |  |
+| P01/member | ホーム（member） | 200 | 200 | OK |  |
+| P01/outsider | ホーム（outsider） | 200 | 200 | OK |  |
+| P02/anon | ログイン画面（anon） | 200 | 200 | OK |  |
+| P02/admin | ログイン画面（admin） | 200 | 200 | OK |  |
+| P03/anon | アルバム一覧（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P03/admin | アルバム一覧（admin） | 200 | 200 | OK |  |
+| P03/member | アルバム一覧（member） | 200 | 200 | OK |  |
+| P03/outsider | アルバム一覧（outsider） | 200 | 200 | OK |  |
+| P04/anon | アルバム作成（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P04/admin | アルバム作成（admin） | 200 | 200 | OK |  |
+| P05/anon | 未分類の投稿（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P05/admin | 未分類の投稿（admin） | 200 | 200 | OK |  |
+| P05/member | 未分類の投稿（member） | 200 | 200 | OK |  |
+| P06/anon | アルバム詳細（自分が見られるもの）（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P06/admin | アルバム詳細（自分が見られるもの）（admin） | 200 | 200 | OK |  |
+| P06/member | アルバム詳細（自分が見られるもの）（member） | 200 | 200 | OK |  |
+| P06/outsider | アルバム詳細（自分が見られるもの）（outsider） | 404 | 404 | OK |  |
+| P07/anon | アルバム詳細（他人のもの）（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P07/admin | アルバム詳細（他人のもの）（admin） | 404 | 404 | OK |  |
+| P07/member | アルバム詳細（他人のもの）（member） | 404 | 404 | OK |  |
+| P07/outsider | アルバム詳細（他人のもの）（outsider） | 200 | 200 | OK |  |
+| P08/anon | グループ一覧（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P08/admin | グループ一覧（admin） | 200 | 200 | OK |  |
+| P08/member | グループ一覧（member） | 200 | 200 | OK |  |
+| P08/outsider | グループ一覧（outsider） | 200 | 200 | OK |  |
+| P09/anon | グループ作成（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P09/admin | グループ作成（admin） | 200 | 200 | OK |  |
+| P10/anon | グループ詳細（自分のグループ）（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P10/admin | グループ詳細（自分のグループ）（admin） | 200 | 200 | OK |  |
+| P10/member | グループ詳細（自分のグループ）（member） | 200 | 200 | OK |  |
+| P10/outsider | グループ詳細（自分のグループ）（outsider） | 404 | 404 | OK |  |
+| P11/anon | グループ詳細（他人のグループ）（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P11/admin | グループ詳細（他人のグループ）（admin） | 404 | 404 | OK |  |
+| P11/member | グループ詳細（他人のグループ）（member） | 404 | 404 | OK |  |
+| P11/outsider | グループ詳細（他人のグループ）（outsider） | 200 | 200 | OK |  |
+| P12/anon | グループ内アルバム作成（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P12/admin | グループ内アルバム作成（admin） | 200 | 200 | OK |  |
+| P12/member | グループ内アルバム作成（member） | 200 | 200 | OK |  |
+| P13/anon | ゲーム詳細（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P13/admin | ゲーム詳細（admin） | 200 | 200 | OK |  |
+| P13/member | ゲーム詳細（member） | 200 | 200 | OK |  |
+| P13/outsider | ゲーム詳細（outsider） | 404 | 404 | OK |  |
+| P14/anon | 提案詳細（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P14/admin | 提案詳細（admin） | 200 | 200 | OK |  |
+| P14/member | 提案詳細（member） | 200 | 200 | OK |  |
+| P14/outsider | 提案詳細（outsider） | 404 | 404 | OK |  |
+| P15/anon | マニュアル（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P15/admin | マニュアル（admin） | 200 | 200 | OK |  |
+| P16/anon | 検索（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P16/admin | 検索（admin） | 200 | 200 | OK |  |
+| P16/member | 検索（member） | 200 | 200 | OK |  |
+| P17/anon | アップロード（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P17/admin | アップロード（admin） | 200 | 200 | OK |  |
+| P17/member | アップロード（member） | 200 | 200 | OK |  |
+| P18/anon | 設定・プロフィール（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P18/admin | 設定・プロフィール（admin） | 200 | 200 | OK |  |
+| P18/member | 設定・プロフィール（member） | 200 | 200 | OK |  |
+| P19/anon | 設定・許可リスト（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P19/admin | 設定・許可リスト（admin） | 200 | 200 | OK |  |
+| P19/member | 設定・許可リスト（member） | 200 | 200 | OK |  |
+| P20/anon | 設定・Discord連携（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P20/admin | 設定・Discord連携（admin） | 200 | 200 | OK |  |
+| P21/anon | 設定・チャンネル対応（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P21/admin | 設定・チャンネル対応（admin） | 200 | 200 | OK |  |
+| P22/anon | 管理・使用量（管理者のみ）（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P22/admin | 管理・使用量（管理者のみ）（admin） | 200 | 200 | OK |  |
+| P22/member | 管理・使用量（管理者のみ）（member） | 404 | 404 | OK |  |
+| P22/outsider | 管理・使用量（管理者のみ）（outsider） | 404 | 404 | OK |  |
+| P23/anon | 管理・エラー（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P23/admin | 管理・エラー（admin） | 200 | 200 | OK |  |
+| P23/member | 管理・エラー（member） | 404 | 404 | OK |  |
+| P24/anon | 管理・招待リンク（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P24/admin | 管理・招待リンク（admin） | 200 | 200 | OK |  |
+| P24/member | 管理・招待リンク（member） | 404 | 404 | OK |  |
+| P25/anon | 管理・メディア一覧（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P25/admin | 管理・メディア一覧（admin） | 200 | 200 | OK |  |
+| P25/member | 管理・メディア一覧（member） | 404 | 404 | OK |  |
+| P26/anon | 管理・ユーザー（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
+| P26/admin | 管理・ユーザー（admin） | 200 | 200 | OK |  |
+| P26/member | 管理・ユーザー（member） | 404 | 404 | OK |  |
+| P27/anon | 招待リンク（有効・未ログインでも開ける）（anon） | 200 | 200 | OK |  |
+| P27/admin | 招待リンク（有効・未ログインでも開ける）（admin） | 200 | 200 | OK |  |
+| P28/anon | 招待リンク（期限切れ）（anon） | 200 | 200 | OK |  |
+| P29/anon | 招待リンク（取り消し済み）（anon） | 200 | 200 | OK |  |
+| P30/anon | 招待リンク（存在しない）（anon） | 200 | 200 | OK |  |
+
+---
+
+## R: APIの権限
+
+53 件 / NG 0 件
+
+| ID | 項目 | 期待 | 実際 | 結果 | 備考 |
+|---|---|---|---|---|---|
+| R01/anon | アルバム取得（他人のアルバム）（anon） | 401 | 401 | OK |  |
+| R01/admin | アルバム取得（他人のアルバム）（admin） | 403 | 403 | OK |  |
+| R01/member | アルバム取得（他人のアルバム）（member） | 403 | 403 | OK |  |
+| R01/outsider | アルバム取得（他人のアルバム）（outsider） | 200 | 200 | OK |  |
+| R02/anon | アルバムの写真一覧（他人のアルバム）（anon） | 401 | 401 | OK |  |
+| R02/admin | アルバムの写真一覧（他人のアルバム）（admin） | 403 | 403 | OK |  |
+| R02/outsider | アルバムの写真一覧（他人のアルバム）（outsider） | 200 | 200 | OK |  |
+| R03/admin | アルバム取得（自分が見られるもの）（admin） | 200 | 200 | OK |  |
+| R03/member | アルバム取得（自分が見られるもの）（member） | 200 | 200 | OK |  |
+| R03/outsider | アルバム取得（自分が見られるもの）（outsider） | 403 | 403 | OK |  |
+| R04/outsider | アルバム削除（権限なし）（outsider） | 403 | 403 | OK |  |
+| R05/outsider | アルバム更新（権限なし）（outsider） | 403 | 403 | OK |  |
+| R06/outsider | 他人のグループにアルバム作成（outsider） | 403 | 403 | OK |  |
+| R07/anon | グループ一覧（自分の所属だけ返る）（anon） | 401 | 401 | OK |  |
+| R07/admin | グループ一覧（自分の所属だけ返る）（admin） | 200 | 200 | OK |  |
+| R07/outsider | グループ一覧（自分の所属だけ返る）（outsider） | 200 | 200 | OK |  |
+| R08/outsider | グループ取得（他人のグループ）（outsider） | 403 | 403 | OK |  |
+| R09/outsider | グループのゲーム一覧（他人のグループ）（outsider） | 403 | 403 | OK |  |
+| R10/outsider | 提案一覧（他人のグループ）（outsider） | 403 | 403 | OK |  |
+| R11/outsider | 提案へのリアクション（他人のグループ）（outsider） | 403 | 403 | OK |  |
+| R12/outsider | ゲームに「気になる」（他人のグループ）（outsider） | 403 | 403 | OK |  |
+| R13/member | 招待リンク発行はOWNERのみ（member） | 403 | 403 | OK |  |
+| R13/outsider | 招待リンク発行はOWNERのみ（outsider） | 403 | 403 | OK |  |
+| R14/outsider | メンバー追加（権限なし）（outsider） | 403 | 403 | OK |  |
+| R15/member | 写真削除（管理者は他人の写真も消せる＝仕様）（member） | 403 | 403 | OK |  |
+| R15/admin | 写真削除（管理者は他人の写真も消せる＝仕様）（admin） | 200 | 200 | OK |  |
+| R16/anon | 許可リスト一覧は管理者のみ（anon） | 403 | 403 | OK |  |
+| R16/admin | 許可リスト一覧は管理者のみ（admin） | 200 | 200 | OK |  |
+| R16/member | 許可リスト一覧は管理者のみ（member） | 403 | 403 | OK |  |
+| R16/outsider | 許可リスト一覧は管理者のみ（outsider） | 403 | 403 | OK |  |
+| R17/member | 許可リスト追加は管理者のみ（member） | 403 | 403 | OK |  |
+| R17/outsider | 許可リスト追加は管理者のみ（outsider） | 403 | 403 | OK |  |
+| R18/member | エラー通知先の変更は管理者のみ（member） | 403 | 403 | OK |  |
+| R18/outsider | エラー通知先の変更は管理者のみ（outsider） | 403 | 403 | OK |  |
+| R19/member | 招待の取り消し（管理者API）は管理者のみ（member） | 403 | 403 | OK |  |
+| R19/outsider | 招待の取り消し（管理者API）は管理者のみ（outsider） | 403 | 403 | OK |  |
+| R20/anon | cron（価格チェック）はシークレット必須（anon） | 401 | 401 | OK |  |
+| R21/anon | cron（Bot死活）はシークレット必須（anon） | 401 | 401 | OK |  |
+| R22/anon | 内部API（ゲーム一覧）はシークレット必須（anon） | 401 | 401 | OK |  |
+| R23/anon | Discord取り込みはシークレット必須（anon） | 401 | 401 | OK |  |
+| R24/anon | ゲーム判別（内部API）はシークレット必須（anon） | 401 | 401 | OK |  |
+| R25/anon | Steam検索は要ログイン（anon） | 401 | 401 | OK |  |
+| R25/admin | Steam検索は要ログイン（admin） | 200 | 200 | OK |  |
+| R26/anon | 写真検索は要ログイン（anon） | 401 | 401 | OK |  |
+| R26/admin | 写真検索は要ログイン（admin） | 200 | 200 | OK |  |
+| R27/anon | ゲーム横断検索は要ログイン（anon） | 401 | 401 | OK |  |
+| R27/admin | ゲーム横断検索は要ログイン（admin） | 200 | 200 | OK |  |
+| R28/anon | ユーザー一覧は要ログイン（anon） | 401 | 401 | OK |  |
+| R28/admin | ユーザー一覧は要ログイン（admin） | 200 | 200 | OK |  |
+| R29/anon | 自分の情報は要ログイン（anon） | 401 | 401 | OK |  |
+| R29/admin | 自分の情報は要ログイン（admin） | 200 | 200 | OK |  |
+| R30/anon | アップロードURL発行は要ログイン（anon） | 401 | 401 | OK |  |
+| R30/admin | アップロードURL発行は要ログイン（admin） | 201 | 201 | OK |  |
+
+---
+
+## F: 主要導線
+
+52 件 / NG 0 件
+
+| ID | 項目 | 期待 | 実際 | 結果 | 備考 |
+|---|---|---|---|---|---|
+| F01 | 署名付きURLが発行される | 成功 | 成功 | OK |  |
+| F02 | 署名にチェックサムが混入していない（x-amz-checksum-） | 成功 | 成功 | OK |  |
+| F03 | 署名付きPUTである（POSTポリシーではない） | 成功 | 成功 | OK |  |
+| F04 | ストレージへの署名付きPUTが通る | 成功 | 成功 | OK |  |
+| F05 | content-lengthが署名対象に含まれる（サイズ上限の担保） | 成功 | 成功 | OK |  |
+| F06 | POSTは501（R2非対応の再現） | 成功 | 成功 | OK |  |
+| F07 | アップロード後にPhotoが作られる | 成功 | 成功 | OK |  |
+| F08 | 外部URLのmediaUrlは400で拒否 | 成功 | 成功 | OK |  |
+| F09 | 権限の無いアルバムへの投稿は403 | 成功 | 成功 | OK |  |
+| F10 | 共有アルバムへメンバーが投稿できる（#34） | 成功 | 成功 | OK |  |
+| F11 | 長すぎる動画は413 | 成功 | 成功 | OK |  |
+| F12 | OWNER以外は招待リンクを発行できない | 成功 | 成功 | OK |  |
+| F13 | OWNERは招待リンクを発行できる | 成功 | 成功 | OK |  |
+| F14 | claimが成功する | 成功 | 成功 | OK |  |
+| F15 | 期限切れリンクのclaimは拒否 | 成功 | 成功 | OK |  |
+| F16 | 取り消し済みリンクのclaimは拒否 | 成功 | 成功 | OK |  |
+| F17 | acceptでグループに加入できる | 成功 | 成功 | OK |  |
+| F18 | GroupMemberが作られている | 成功 | 成功 | OK |  |
+| F19 | usedCountが増えている | 成功 | 成功 | OK |  |
+| F20 | 使用履歴（GroupInviteUse）が残る | 成功 | 成功 | OK |  |
+| F21 | 使用上限に達したリンクは拒否 | 成功 | 成功 | OK |  |
+| F22 | リアクションを付けられる | 成功 | 成功 | OK |  |
+| F23 | LIKEが過半数に達すると自動でACCEPTED＋GroupGame化 | 成功 | 成功 | OK |  |
+| F24 | 昇格したゲームのカバーがappdetails由来（組み立てURLでない） | 成功 | 成功 | OK |  |
+| F25 | 同じ人のリアクションは1件のまま | 成功 | 成功 | OK |  |
+| F26 | Steam検索が結果を返す | 成功 | 成功 | OK |  |
+| F27 | 検索結果からsub/bundleが除外されている | 成功 | 成功 | OK |  |
+| F28 | ゲームを追加できる | 成功 | 成功 | OK |  |
+| F29 | カバー画像がappdetailsのheader_image | 成功 | 成功 | OK |  |
+| F30 | ジャンルが保存される | 成功 | 成功 | OK |  |
+| F31 | YouTubeの動画IDが1回の検索で保存される | 成功 | 成功 | OK |  |
+| F32 | HowLongToBeatの時間が保存される | 成功 | 成功 | OK |  |
+| F33 | ExternalGameCacheに載る（2グループ目以降の再取得を防ぐ） | 成功 | 成功 | OK |  |
+| F34 | YouTubeのクォータ消費が記録される | 成功 | 成功 | OK |  |
+| F35 | 同じゲームの二重追加は弾かれる | 成功 | 成功 | OK |  |
+| F36 | 「気になる」を付けられる | 成功 | 成功 | OK |  |
+| F37 | シークレット無しの取り込みは401 | 成功 | 成功 | OK |  |
+| F38 | Discordからの取り込みが成功する | 成功 | 成功 | OK |  |
+| F39 | Photoが作られる（source=DISCORD） | 成功 | 成功 | OK |  |
+| F40 | メディアが自前ストレージへコピーされている | 成功 | 成功 | OK |  |
+| F41 | ハッシュタグからアルバムが自動作成される | 成功 | 成功 | OK |  |
+| F42 | 同じメッセージの再取り込みで重複しない | 成功 | 成功 | OK |  |
+| F43 | 判別APIが応答する | 成功 | 成功 | OK |  |
+| F44 | app IDがゲーム名とアルバムに解決される | 成功 | 成功 | OK |  |
+| F45 | 判別結果に既存アルバムが紐づく | 成功 | 成功 | OK |  |
+| F46 | 未ログインからのエラー通報は401（通知の埋め立て対策） | 成功 | 成功 | OK |  |
+| F47 | エラー通報を受け付ける | 成功 | 成功 | OK |  |
+| F48 | ErrorReportに記録される | 成功 | 成功 | OK |  |
+| F49 | 同じ不具合はcountに集約される | 成功 | 成功 | OK |  |
+| F50 | cronはシークレット無しで401 | 成功 | 成功 | OK |  |
+| F51 | cron（価格チェック）が完走する | 成功 | 成功 | OK |  |
+| F52 | cron（Bot死活）が完走する | 成功 | 成功 | OK |  |
+
+---
+
+## X: 外部APIが落ちている状態
+
+5 件 / NG 0 件
+
+| ID | 項目 | 期待 | 実際 | 結果 | 備考 |
+|---|---|---|---|---|---|
+| X01 | 外部API全滅時でも描画される: ホーム | 200 | 200 | OK |  |
+| X02 | 外部API全滅時でも描画される: グループ詳細 | 200 | 200 | OK |  |
+| X03 | 外部API全滅時でも描画される: ゲーム詳細（Steam・ITAD・YouTubeを全部引く） | 200 | 200 | OK |  |
+| X04 | 外部API全滅時でも描画される: アルバム一覧（Steamのカバーを引く） | 200 | 200 | OK |  |
+| X05 | 外部API全滅時でも描画される: 管理・使用量（R2とDBを実測する） | 200 | 200 | OK |  |
+
+---
+
+## B: 実ブラウザでの描画
+
+19 件 / NG 0 件
+
+| ID | 項目 | 期待 | 実際 | 結果 | 備考 |
+|---|---|---|---|---|---|
+| B01 | ブラウザで開いて例外が出ない: ホーム | 200 / 例外なし | 200 / 0件 | OK |  |
+| B02 | ブラウザで開いて例外が出ない: アルバム一覧 | 200 / 例外なし | 200 / 0件 | OK |  |
+| B03 | ブラウザで開いて例外が出ない: アルバム詳細 | 200 / 例外なし | 200 / 0件 | OK |  |
+| B04 | ブラウザで開いて例外が出ない: 未分類の投稿 | 200 / 例外なし | 200 / 0件 | OK |  |
+| B05 | ブラウザで開いて例外が出ない: グループ一覧 | 200 / 例外なし | 200 / 0件 | OK |  |
+| B06 | ブラウザで開いて例外が出ない: グループ詳細 | 200 / 例外なし | 200 / 0件 | OK |  |
+| B07 | ブラウザで開いて例外が出ない: ゲーム詳細 | 200 / 例外なし | 200 / 0件 | OK |  |
+| B08 | ブラウザで開いて例外が出ない: 提案詳細 | 200 / 例外なし | 200 / 0件 | OK |  |
+| B09 | ブラウザで開いて例外が出ない: アップロード | 200 / 例外なし | 200 / 0件 | OK |  |
+| B10 | ブラウザで開いて例外が出ない: 検索 | 200 / 例外なし | 200 / 0件 | OK |  |
+| B11 | ブラウザで開いて例外が出ない: マニュアル | 200 / 例外なし | 200 / 0件 | OK |  |
+| B12 | ブラウザで開いて例外が出ない: 設定・プロフィール | 200 / 例外なし | 200 / 0件 | OK |  |
+| B13 | ブラウザで開いて例外が出ない: 設定・許可リスト | 200 / 例外なし | 200 / 0件 | OK |  |
+| B14 | ブラウザで開いて例外が出ない: 設定・Discord連携 | 200 / 例外なし | 200 / 0件 | OK |  |
+| B15 | ブラウザで開いて例外が出ない: 管理・使用量 | 200 / 例外なし | 200 / 0件 | OK |  |
+| B16 | ブラウザで開いて例外が出ない: 管理・ユーザー | 200 / 例外なし | 200 / 0件 | OK |  |
+| B17 | ブラウザで開いて例外が出ない: 管理・招待リンク | 200 / 例外なし | 200 / 0件 | OK |  |
+| B18 | ブラウザで開いて例外が出ない: 管理・メディア一覧 | 200 / 例外なし | 200 / 0件 | OK |  |
+| B19 | ブラウザで開いて例外が出ない: 管理・エラー | 200 / 例外なし | 200 / 0件 | OK |  |

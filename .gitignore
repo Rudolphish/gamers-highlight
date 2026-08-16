@@ -37,3 +37,5 @@ docs/review-log/
 # ファイルごと失われ、記録されていたはずの落とし穴（プーラー経由のdb pushがハングする件）を
 # 後日もう一度踏むことになった。共有される場所に置かないと記録の意味がない。
 GOAL.txt
+# ローカル総合テストの中間出力（docs/test-results.md が成果物）
+tools/local-test/results/

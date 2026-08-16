@@ -96,6 +96,20 @@ App Router のオプション無し `fetch` は `force-cache`。何も指定し�
 漏れると未ログインでも描画まで進む。実際に `/groups` と `/manual` が漏れており、
 `/groups/new` は未ログインで作成フォームが出て、`/groups/[groupId]/albums/new` は500になっていた。
 
+### ページはAPIの権限判定を通らない
+
+Server Componentのページは `db` を直接読むため、**同じリソースのAPIが403を返していても
+ページからは素通りで見える**。middlewareが見るのは「ログインしているか」だけで、
+「そのアルバム／グループを見てよいか」は判定しない。
+
+`/albums/[albumId]` がこれで、ログインさえしていれば**URLを知っているだけで他人のグループの
+アルバム（写真・メンバー名）が見えていた**。`GET /api/albums/:id` は最初から403を返しており、
+APIだけを見ていると塞がっているように錯覚する。
+
+IDを受け取るページを足したら、`hasAlbumPermission` / `hasGroupPermission` を**ページ側でも**
+呼んで `notFound()` すること（`/groups/[groupId]` と配下のゲーム詳細・提案詳細はそうなっている）。
+権限が無いときに403ではなく404を返しているのは、存在の有無自体を伏せるため。
+
 ### 画面のエラーは /admin/errors に集まる
 
 エラーバウンダリ（`app/error.tsx`・`app/(main)/error.tsx`・`app/global-error.tsx`）が
