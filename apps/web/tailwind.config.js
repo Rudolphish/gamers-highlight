@@ -31,9 +31,15 @@ module.exports = {
           "50%": { transform: "translateX(20%)" },
           "100%": { transform: "translateX(100%)" },
         },
+        // 読み込み中のプレースホルダ。点滅より横に流れる方が「進んでいる」感じが出る
+        shimmer: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
       },
       animation: {
         "route-progress": "route-progress 1s ease-in-out infinite",
+        shimmer: "shimmer 1.4s ease-in-out infinite",
       },
     },
   },
