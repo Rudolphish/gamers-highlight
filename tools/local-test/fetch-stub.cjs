@@ -190,6 +190,12 @@ globalThis.fetch = async function stubbedFetch(input, init) {
 
   calls.push({ url, method: init?.method ?? "GET" });
 
+  // テスト側から「外部を何回引いたか」を見るための記録（クォータ節約が効いているかの確認用）。
+  // サーバーとテストは別プロセスなので、ファイル経由で渡す。
+  try {
+    require("node:fs").appendFileSync("/tmp/stub-calls.log", `${host}\n`);
+  } catch {}
+
   // 外部が落ちている状況を再現する。/tmp/stub-fail にホスト名を書くとそのホストが500を返す
   // （1件の取得失敗でページ全体が落ちないかの確認用）。
   try {
