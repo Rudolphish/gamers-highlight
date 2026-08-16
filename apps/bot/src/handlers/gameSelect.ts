@@ -67,11 +67,18 @@ export function isGameButton(customId: string): boolean {
   return customId.startsWith(`${RETRY_PREFIX}:`) || customId.startsWith(`${SKIP_PREFIX}:`);
 }
 
-/** 未分類の投稿に対して、直近のゲーム候補＋自由入力から選ばせる */
+/**
+ * Discordのセレクトメニューは選択肢が最大25個。「その他（入力する）」で1つ使うので
+ * ゲームに回せるのは24個まで。**超えるとメニューの送信ごと失敗して質問が出なくなる**ので、
+ * APIが多く返してきた場合に備えてこちら側でも切る。
+ */
+const MAX_GAME_OPTIONS = 24;
+
+/** 未分類の投稿に対して、プレイ中のゲーム候補＋自由入力から選ばせる */
 export async function askForGame(message: Message) {
   if (!message.guildId) return;
 
-  const games = await fetchGroupGames(message.guildId);
+  const games = (await fetchGroupGames(message.guildId)).slice(0, MAX_GAME_OPTIONS);
   console.log(`[bot] ゲームを質問する（候補${games.length}件）`);
 
   const menu = new StringSelectMenuBuilder()
