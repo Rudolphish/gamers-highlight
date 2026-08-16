@@ -6,7 +6,9 @@ import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 import {
   refreshExternalGameData,
+  missingSources,
   REFRESH_INTERVAL_MS,
+  RETRY_MISSING_INTERVAL_MS,
   EXTERNAL_SOURCE_LABEL,
 } from "@/lib/externalGameCache";
 import { gameCacheTag } from "@/lib/steam";
@@ -24,6 +26,10 @@ import { gameCacheTag } from "@/lib/steam";
 // 持っていても、外部APIを叩くのは全体で1日1回に収まる）。
 // YouTubeのsearch.listはクォータ消費が大きい（無料枠は実質100検索/日）ので、
 // この制限が無いと連打で簡単に枯れる。
+//
+// ただし**まだ取れていない項目が残っている間は短い間隔（6時間）にする**。
+// 全部埋まっている状態での連打とは事情が違い、外部が一時的に落ちていた時の空欄を
+// 24時間直せないほうが困る。引き直すのは不足分だけなのでクォータも食わない。
 export async function POST(
   _req: Request,
   { params }: { params: { id: string; gameId: string } }
@@ -46,13 +52,26 @@ export async function POST(
 
   const cache = await db.externalGameCache.findUnique({
     where: { steamAppId: game.steamAppId },
-    select: { updatedAt: true },
+    select: {
+      updatedAt: true,
+      genres: true,
+      headerImage: true,
+      youtubeVideoId: true,
+      hltbGameId: true,
+    },
   });
 
   if (cache) {
+    // **取れていない項目が残っているなら、24時間も待たせない。**
+    // 間隔はupdatedAtで見ているが、これは@updatedAtなので「何も取れなかった書き込み」でも
+    // 更新される。つまり外部が落ちている時の追加が、自分で24時間のロックをかけてしまい、
+    // 直したくてリフレッシュを押しても429で弾かれる状態になっていた。
+    // 埋まっている項目は引き直さないので、短い間隔でもクォータは食わない。
+    const interval =
+      missingSources(cache).length > 0 ? RETRY_MISSING_INTERVAL_MS : REFRESH_INTERVAL_MS;
     const elapsed = Date.now() - cache.updatedAt.getTime();
-    if (elapsed < REFRESH_INTERVAL_MS) {
-      const nextAvailableAt = new Date(cache.updatedAt.getTime() + REFRESH_INTERVAL_MS);
+    if (elapsed < interval) {
+      const nextAvailableAt = new Date(cache.updatedAt.getTime() + interval);
       return NextResponse.json(
         {
           error: "このゲームの情報は最近更新されています。しばらく待ってから試してください。",
@@ -68,6 +87,8 @@ export async function POST(
     game.steamAppId,
     game.title
   );
+  // まだ取れていないものが残っているなら、次に試せるのも短い間隔のほう
+  const nextInterval = missing.length > 0 ? RETRY_MISSING_INTERVAL_MS : REFRESH_INTERVAL_MS;
 
   await db.groupGame.update({
     where: { id: game.id },
@@ -89,7 +110,7 @@ export async function POST(
   return NextResponse.json({
     ok: true,
     refreshedAt: refreshedAt.toISOString(),
-    nextAvailableAt: new Date(refreshedAt.getTime() + REFRESH_INTERVAL_MS).toISOString(),
+    nextAvailableAt: new Date(refreshedAt.getTime() + nextInterval).toISOString(),
     missing: missing.map((source) => EXTERNAL_SOURCE_LABEL[source]),
   });
 }

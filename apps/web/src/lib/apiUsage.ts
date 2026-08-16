@@ -29,6 +29,19 @@ export async function recordApiUsage(service: TrackedService, units: number): Pr
   }
 }
 
+/** 今日ここまでに消費したユニット数。記録できていなければ0として扱う（計測で本処理を止めない） */
+export async function usedUnitsToday(service: TrackedService): Promise<number> {
+  try {
+    const row = await db.apiUsage.findUnique({
+      where: { service_date: { service, date: utcDate() } },
+    });
+    return row?.units ?? 0;
+  } catch (e) {
+    console.error(`[apiUsage] failed to read ${service}`, e);
+    return 0;
+  }
+}
+
 export type DailyUsage = { date: string; calls: number; units: number };
 
 /** 直近days日ぶんの日別使用量を新しい順で返す */

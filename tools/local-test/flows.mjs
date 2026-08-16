@@ -403,6 +403,113 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   check("F52 cron（Bot死活）が完走する", health.status === 200, health.text);
 }
 
+// ───────────────────────────────────────────────────────────
+// H. 外部APIが一時的に落ちていた場合の埋め直し
+//    （落ちている間に追加したゲームの空欄が焼き付かないこと）
+// ───────────────────────────────────────────────────────────
+{
+  const { writeFileSync, unlinkSync, readFileSync } = await import("node:fs");
+  const APP_ID = 570; // Dota 2（他のケースと衝突しないapp ID）
+
+  /** スタブが記録した外部呼び出しの累計（サーバーとは別プロセスなのでファイル経由） */
+  const externalCallCount = () => {
+    try {
+      return readFileSync("/tmp/stub-calls.log", "utf8").split("\n").filter(Boolean).length;
+    } catch {
+      return 0;
+    }
+  };
+
+  await db.groupGame.deleteMany({ where: { steamAppId: APP_ID } });
+  await db.externalGameCache.deleteMany({ where: { steamAppId: APP_ID } });
+
+  async function addGame() {
+    return api(`/api/groups/${group.id}/games`, {
+      method: "POST",
+      cookie: adminCookie,
+      body: { steamAppId: APP_ID, title: "Dota 2" },
+    });
+  }
+
+  // YouTubeとHowLongToBeatが落ちている間に追加する
+  writeFileSync("/tmp/stub-fail", "www.googleapis.com howlongtobeat.com");
+  const added = await addGame();
+  const brokenCache = await db.externalGameCache.findUnique({ where: { steamAppId: APP_ID } });
+  check(
+    "F53 外部が落ちていてもゲーム自体は追加できる",
+    (added.status === 200 || added.status === 201) && !!brokenCache,
+    added.text
+  );
+  check(
+    "F54 落ちている間は値が入らない（前提の確認）",
+    brokenCache?.youtubeVideoId === null && brokenCache?.hltbGameId === null,
+    `YT=${brokenCache?.youtubeVideoId} HLTB=${brokenCache?.hltbGameId}`
+  );
+
+  // 外部が復旧
+  unlinkSync("/tmp/stub-fail");
+
+  // 再試行の間隔を過ぎた状態にする（本番では6時間。テストでは時計を戻す）
+  await db.$executeRaw`UPDATE external_game_caches SET "updatedAt" = NOW() - INTERVAL '7 hours' WHERE "steamAppId" = ${APP_ID}`;
+
+  await db.groupGame.deleteMany({ where: { steamAppId: APP_ID } });
+  await addGame();
+  const healed = await db.externalGameCache.findUnique({ where: { steamAppId: APP_ID } });
+  check(
+    "F55 復旧後は不足分だけ引き直して埋まる（失敗が焼き付かない）",
+    healed?.youtubeVideoId !== null && healed?.hltbGameId !== null,
+    `YT=${healed?.youtubeVideoId} HLTB=${healed?.hltbGameId}`
+  );
+
+  // 埋まった後は、間隔内なら外部を引かない（クォータ節約が効いていること）。
+  // スタブが /tmp/stub-calls.log に外部呼び出しを1行ずつ記録しているのでそれを数える。
+  const before = externalCallCount();
+  await db.groupGame.deleteMany({ where: { steamAppId: APP_ID } });
+  await addGame();
+  const spent = externalCallCount() - before;
+  check("F56 埋まっているゲームは間隔内なら外部を引かない", spent === 0, `外部呼び出しが ${spent} 回発生した`);
+
+  // 取れていない項目が残っている間は、手動リフレッシュが24時間ロックされない
+  await db.externalGameCache.update({
+    where: { steamAppId: APP_ID },
+    data: { youtubeVideoId: null, hltbGameId: null },
+  });
+  await db.$executeRaw`UPDATE external_game_caches SET "updatedAt" = NOW() - INTERVAL '7 hours' WHERE "steamAppId" = ${APP_ID}`;
+  const game570 = await db.groupGame.findFirst({ where: { groupId: group.id, steamAppId: APP_ID } });
+  const refreshed = await api(`/api/groups/${group.id}/games/${game570.id}/refresh`, {
+    method: "POST",
+    cookie: adminCookie,
+  });
+  check(
+    "F57 未取得が残っていれば6時間で手動リフレッシュできる（429にならない）",
+    refreshed.status === 200,
+    `${refreshed.status} ${refreshed.text.slice(0, 120)}`
+  );
+
+  // 埋め直しはYouTubeの枠を半分までしか使わない（ユーザーの追加操作ぶんを残す）
+  await db.apiUsage.upsert({
+    where: { service_date: { service: "youtube", date: new Date(new Date().toISOString().slice(0, 10)) } },
+    create: { service: "youtube", date: new Date(new Date().toISOString().slice(0, 10)), calls: 60, units: 6000 },
+    update: { calls: 60, units: 6000 },
+  });
+  await db.externalGameCache.update({
+    where: { steamAppId: APP_ID },
+    data: { youtubeVideoId: null },
+  });
+  await db.$executeRaw`UPDATE external_game_caches SET "updatedAt" = NOW() - INTERVAL '7 hours' WHERE "steamAppId" = ${APP_ID}`;
+
+  const beforeBudget = externalCallCount();
+  await db.groupGame.deleteMany({ where: { steamAppId: APP_ID } });
+  await addGame();
+  const afterCache = await db.externalGameCache.findUnique({ where: { steamAppId: APP_ID } });
+  const usage = await db.apiUsage.findFirst({ where: { service: "youtube" } });
+  check(
+    "F58 枠を半分使っていたら埋め直しのYouTube検索は行わない",
+    afterCache?.youtubeVideoId === null && usage?.units === 6000,
+    `YT=${afterCache?.youtubeVideoId} units=${usage?.units} 外部呼び出し=${externalCallCount() - beforeBudget}`
+  );
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();
