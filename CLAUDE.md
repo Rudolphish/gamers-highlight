@@ -137,6 +137,37 @@ App Router のオプション無し `fetch` は `force-cache`。何も指定し�
 URLの出どころがクライアントになるので、`/api/photos` は `mediaUrl` / `thumbnailUrl` が
 自前のストレージ上のものかを `isManagedStorageUrl` で必ず検証する。
 
+### R2は署名付きPOSTに対応していない
+
+ブラウザから直接アップロードする経路は**署名付きPUT**でなければならない。
+`createPresignedPost`（S3のPOST Object）を使うと、R2は **501 Not Implemented** を返す。
+
+厄介なのは、**その501にCORSヘッダーが付かない**こと。ブラウザには
+
+```
+No 'Access-Control-Allow-Origin' header is present on the requested resource.
+```
+
+と出るため、CORS設定の問題にしか見えない。バケットのCORSをいくら直しても直らない
+（実際にこれで時間を溶かした）。コンソールの `501 (Not Implemented)` が本当の手掛かり。
+
+Discord経由の取り込みはサーバー側から`PutObject`しているのでCORSを通らず、
+**手動アップロードだけが失敗する**という出方をする。
+
+POSTを使っていた理由は、`content-length-range` でサイズ上限をストレージ側に
+強制できるからだった。PUTでは署名に `ContentLength` を含めることで代替している
+（1バイトでも違えば署名が一致しない）。
+
+### 署名付きURLに勝手にチェックサムが付く
+
+AWS SDK v3は既定（`requestChecksumCalculation: "WHEN_SUPPORTED"`）で
+`x-amz-checksum-crc32` を署名に含める。**署名を作る時点では本文が無いので、
+その値は空データのCRC32（`AAAAAA==`）になる。** ブラウザが実ファイルを送ると
+値が食い違い、ストレージ側でチェックサム不一致として弾かれる。
+
+`S3Client` に `requestChecksumCalculation: "WHEN_REQUIRED"` を渡して止める。
+署名付きURLに `x-amz-checksum-` が入っていたらこれを疑う。
+
 ### R2のトークンには list 権限が要る
 
 `/admin` の使用量はバケットを列挙して実測している。read/write だけのトークンだと

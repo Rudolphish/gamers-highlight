@@ -4,9 +4,8 @@ import {
   DeleteObjectCommand,
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
-import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
-import { maxSizeFor } from "./media-limits";
 
 function getS3Client() {
   const accessKeyId = process.env.STORAGE_ACCESS_KEY_ID;
@@ -21,20 +20,35 @@ function getS3Client() {
       accessKeyId,
       secretAccessKey,
     },
+    // **署名付きURLにチェックサムを載せない。** 既定（WHEN_SUPPORTED）だと
+    // 署名時に x-amz-checksum-crc32 が付くが、その値は本文が無い時点で計算された
+    // 空のCRC32になる。ブラウザが実際のファイルを送ると値が食い違い、
+    // ストレージ側でチェックサム不一致として弾かれる。
+    requestChecksumCalculation: "WHEN_REQUIRED",
   });
 }
 
 /**
- * クライアントが直接ストレージへPOSTするための署名付きPOSTポリシーを発行する。
+ * クライアントが直接ストレージへ送るための署名付きPUT URLを発行する。
  * サーバーをバイナリが経由しないため、画像・動画どちらでもサーバー負荷が増えない。
  * mediaType に応じて保存先プレフィックスを分けておくと、後の集計・ライフサイクル管理がしやすい。
  *
- * 署名付きPUT URLではなくPOSTポリシーを使うのは、content-length-range条件で
- * ストレージ側に実際のファイルサイズ上限を強制させるため。PUT URLだとサイズ制約を
- * 埋め込めず、クライアントが申告するsizeBytesをDB保存時にチェックするだけになり、
- * 実際のアップロード自体は上限を超えても素通りしてしまう。
+ * **R2は署名付きPOST（S3のPOST Object）に対応していない。** 以前は
+ * createPresignedPost を使っており、`content-length-range` でサイズ上限を
+ * ストレージ側に強制できる利点があったが、R2は POST に 501 Not Implemented を返す。
+ * しかも501にはCORSヘッダーが付かないため、ブラウザ上は
+ * 「No 'Access-Control-Allow-Origin' header」というCORSエラーに見え、
+ * 原因がストレージ側の非対応だと分かりにくい（実際にこれで詰まった）。
+ *
+ * サイズ上限は署名にContentLengthを含めることで担保する。署名対象に入るので、
+ * 実際に送られるサイズが申告と1バイトでも違えば署名が一致せず弾かれる。
+ * 申告値そのものは発行前にサーバー側で上限と突き合わせる。
  */
-export async function createUploadUrl(contentType: string, mediaType: "IMAGE" | "VIDEO") {
+export async function createUploadUrl(
+  contentType: string,
+  mediaType: "IMAGE" | "VIDEO",
+  sizeBytes?: number
+) {
   const prefix = mediaType === "VIDEO" ? "videos" : "photos";
   const key = `${prefix}/${randomUUID()}`;
   const bucket = process.env.STORAGE_BUCKET;
@@ -43,24 +57,26 @@ export async function createUploadUrl(contentType: string, mediaType: "IMAGE" | 
   if (!s3 || !bucket) {
     console.warn("[storage] STORAGE credentials not set — returning fallback mock URL");
     return {
-      post: null,
+      upload: null,
       key,
       publicUrl: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80",
     };
   }
 
-  const post = await createPresignedPost(s3, {
-    Bucket: bucket,
-    Key: key,
-    Conditions: [
-      ["content-length-range", 0, maxSizeFor(mediaType)],
-      ["eq", "$Content-Type", contentType],
-    ],
-    Fields: { "Content-Type": contentType },
-    Expires: 300, // 5分で失効
-  });
+  const url = await getSignedUrl(
+    s3,
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: contentType,
+      // サイズが分かっているときは署名に含めて、上限超過を送れないようにする
+      ContentLength: typeof sizeBytes === "number" ? sizeBytes : undefined,
+    }),
+    { expiresIn: 300 } // 5分で失効
+  );
+
   const publicUrl = `${process.env.STORAGE_PUBLIC_URL || ""}/${key}`;
-  return { post, key, publicUrl };
+  return { upload: { url, contentType }, key, publicUrl };
 }
 
 /**
