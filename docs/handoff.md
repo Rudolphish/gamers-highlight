@@ -101,7 +101,18 @@ git 操作ができるのは、**claude.ai/code からリポジトリを指定�
 - コミット署名鍵
 
 **リポジトリを指定し忘れて作ったセッションでも、後から追加できる。**
-「`Rudolphish/gamers-highlight` を追加して」と頼めば、`add_repo` で認証付きのクローンができる。
+ただし「追加して」だけだと**何に追加するのか伝わらず聞き返される**ので、こう頼む。
+
+> `add_repo` で `owner=Rudolphish` `repo=gamers-highlight` を `access=push` で追加して、
+> 案内されたコマンドでクローンし、`register_repo_root` まで済ませて。
+
+- **`access=push` を明示する。** 既定は `read` で、取得はできても**pushとPR作成ができない**
+- `add_repo` は登録するだけなので、**クローンは別に実行する**必要がある
+- **`register_repo_root` を忘れない。** 呼ばないと `CLAUDE.md` が読み込まれず、
+  ここに書いた落とし穴の知識が効かない
+
+「そんなツールは無い」と言われたら、そのセッションはリモート実行環境ではない。
+claude.ai/code からリポジトリを選択して作り直す。
 
 ローカルCLI（自分のPCの `claude`）はこの仕組みを持たない。素直に `gh auth login` か
 SSH鍵で認証する。真似る必要は無い。
