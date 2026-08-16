@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { isManagedStorageUrl } from "@/lib/storage";
 import { hasAlbumPermission } from "@/lib/permissions";
@@ -30,10 +29,7 @@ function parseCapturedAt(raw: unknown): Date | null {
 // thumbnailUrl は動画の場合のみ使用。クライアント側で1フレーム目 or 任意画像を
 // 先にアップロードし、その公開URLをここに渡す想定。
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = await req.json();

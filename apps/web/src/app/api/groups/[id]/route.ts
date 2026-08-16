@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const allowed = await hasGroupPermission(params.id, user.id, "VIEWER");
@@ -35,10 +31,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 // PATCH /api/groups/:id … 名前変更はOWNER/EDITOR、通知先チャンネルの変更はOWNERのみ
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = await req.json();
@@ -71,10 +64,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
 // DELETE /api/groups/:id … OWNERのみ削除可。配下にアルバムが残っている場合はブロックする
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const allowed = await hasGroupPermission(params.id, user.id, "OWNER");

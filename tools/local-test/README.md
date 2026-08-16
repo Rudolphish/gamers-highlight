@@ -56,6 +56,12 @@ node tools/local-test/build-report.mjs      # 表だけ作り直す
 IDの頭文字はスイートを表す: `P`=ページ、`R`=API権限、`F`=主要導線、
 `X`=外部API全滅時、`B`=実ブラウザ。
 
+**`results/` 直下にはスイートの結果以外を置かない。** `build-report.mjs` はここのJSONを
+読んで表を作る。形の違うJSONを置くと拾われて表が壊れる（実際に `query-count.mjs` の
+計測結果を置いてしまい、「合計NaN件」「undefined」が並ぶ表をコミットした）。
+いまは `ORDER` に載っているスイートだけを読み、それ以外は警告して飛ばす。
+クエリ数の計測結果は `results/queries/` に分けてある。
+
 `dev` ではなく **`next build && next start` で確認すること**。`dev` だとNext.js自身の
 エラーオーバーレイが出て、アプリ側のエラーバウンダリの挙動が見えない。
 
@@ -73,6 +79,7 @@ IDの頭文字はスイートを表す: `P`=ページ、`R`=API権限、`F`=主�
 | `flows.mjs` | **F**: アップロード・招待・提案・ゲーム追加・Discord取り込み・エラー通報・cron を通しで確認 |
 | `external-failure.mjs` | **X**: 外部APIを全滅させてもページが500にならないこと |
 | `browser.mjs` | **B**: 実ブラウザ（Chromium）で開いて例外が出ないこと。`playwright-core` が無ければスキップ |
+| `query-count.mjs` | 1ページの描画で何回DBを引いているかを数える（`--save` / `--compare`）。本番はネットワーク越しで1クエリ＝1往復なので、**見るべきは所要時間ではなくクエリ数** |
 | `run-all.mjs` | 上を全部流して表を作り直す |
 | `build-report.mjs` | `results/*.json` から `docs/test-results.md` を組み立てる |
 | `_results.mjs` | 各スイートが結果を書き出す共通処理 |

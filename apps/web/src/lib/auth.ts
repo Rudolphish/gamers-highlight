@@ -145,13 +145,40 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
+    /**
+     * DBの User.id をトークンに載せる。**サインイン時に1回だけ**引く。
+     *
+     * これが無かったときは、全ページ・全APIの先頭で毎回
+     * `db.user.findUnique({ where: { email } })` を実行してidを解決していた（57箇所）。
+     * 他の判定すべての前段にあるため必ず直列に待つ1往復で、本番（Vercel→Supabase）では
+     * そのぶんが全ページに乗っていた。
+     *
+     * `user` が入るのはサインインの回だけで、以降の呼び出しでは token をそのまま返すため、
+     * ここでDBを引き続けることはない。
+     *
+     * **これは権限判定ではない。** 許可リストから外してもUserレコードは消さない運用
+     * （`/api/allowlist/:id` のコメント参照）なので、毎回引いていた頃も
+     * 「存在するか」を見ていただけで、締め出しの役には立っていなかった。
+     */
+    async jwt({ token, user }) {
+      if (user?.email && !token.userId) {
+        const dbUser = await db.user.findUnique({
+          where: { email: user.email },
+          select: { id: true },
+        });
+        if (dbUser) token.userId = dbUser.id;
+      }
+      return token;
+    },
     async session({ session, token }) {
-      // TODO: session.user.id にDBのUser.idを詰める
-
-      // 管理者かどうかをセッションに載せておく。設定画面のタブ（クライアント
-      // コンポーネント）から出し分けるための表示用フラグで、権限判定そのものは
-      // 常にサーバー側（API・ページ）で isAdminEmail を呼んで行う。
       if (session.user) {
+        // idを載せる前に発行されたトークンにはこれが無い。呼び出し側は
+        // lib/currentUser.ts の getCurrentUser() を使い、無ければDBに落とすこと。
+        session.user.id = token.userId;
+
+        // 管理者かどうかをセッションに載せておく。設定画面のタブ（クライアント
+        // コンポーネント）から出し分けるための表示用フラグで、権限判定そのものは
+        // 常にサーバー側（API・ページ）で isAdminEmail を呼んで行う。
         session.user.isAdmin = isAdminEmail(session.user.email);
       }
       return session;

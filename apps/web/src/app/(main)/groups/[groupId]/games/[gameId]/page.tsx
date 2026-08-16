@@ -2,8 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 import { steamHeaderImageUrl } from "@/lib/steam";
@@ -38,10 +37,7 @@ export default async function GroupGameDetailPage({
 }: {
   params: { groupId: string; gameId: string };
 }) {
-  const session = await getServerSession(authOptions);
-  const currentUser = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const currentUser = await getCurrentUser();
   if (!currentUser) notFound();
 
   const allowed = await hasGroupPermission(params.groupId, currentUser.id, "VIEWER");

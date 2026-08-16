@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Inbox, Plus } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { AlbumSearch } from "@/components/album/AlbumSearch";
 import { getSteamCoverUrls } from "@/lib/albumCover";
@@ -11,7 +12,7 @@ export default async function AlbumsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return null;
 
-  const user = await db.user.findUnique({ where: { email: session.user.email } });
+  const user = await getCurrentUser();
   if (!user) return null;
 
   const albums = await db.album.findMany({

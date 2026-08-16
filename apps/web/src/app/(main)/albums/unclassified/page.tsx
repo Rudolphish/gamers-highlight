@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { UnclassifiedPhotoManager } from "@/components/photo/UnclassifiedPhotoManager";
 
@@ -9,7 +10,7 @@ export default async function UnclassifiedPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return null;
 
-  const user = await db.user.findUnique({ where: { email: session.user.email } });
+  const user = await getCurrentUser();
   if (!user) return null;
 
   const photos = await db.photo.findMany({

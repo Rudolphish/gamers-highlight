@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/currentUser";
 import { createUploadUrl } from "@/lib/storage";
 import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/media-limits";
 
@@ -13,10 +11,7 @@ import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/
 // 「ファイルは無いのにPhotoだけ存在する」状態が残り、404のURLを指したまま
 // ホームやアルバムに壊れた画像として出続けていた（電波の悪い場所で普通に起きる）。
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = await req.json();

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { RecentActivity } from "@/components/home/RecentActivity";
 import { formatRelativeTime } from "@/lib/relative-time";
@@ -13,7 +14,7 @@ export default async function HomePage() {
     return null; // middlewareで弾かれるはずなのでここには来ない想定
   }
 
-  const user = await db.user.findUnique({ where: { email: session.user.email } });
+  const user = await getCurrentUser();
   if (!user) return null;
 
   const groups = await db.group.findMany({
