@@ -14,6 +14,11 @@ import { encode } from "next-auth/jwt";
 import { PrismaClient } from "@prisma/client";
 import { RESULTS_DIR } from "./_results.mjs";
 
+// **スイート結果（results/*.json）と同じ場所に置かない。**
+// build-report.mjs は results/ 直下のJSONをスイートとして読むので、
+// 形の違うこのファイルが混ざると docs/test-results.md が壊れる（実際に壊した）。
+const QUERIES_DIR = join(RESULTS_DIR, "queries");
+
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3000";
 const SECRET = process.env.NEXTAUTH_SECRET ?? "local-integration-test-secret";
 const PG_LOG = process.env.PG_LOG ?? "/tmp/pg.log";
@@ -23,7 +28,7 @@ const args = process.argv.slice(2);
 // ── 比較モード ──
 if (args[0] === "--compare") {
   const [, before, after] = args;
-  const load = (n) => JSON.parse(readFileSync(join(RESULTS_DIR, `queries-${n}.json`), "utf8"));
+  const load = (n) => JSON.parse(readFileSync(join(QUERIES_DIR, `${n}.json`), "utf8"));
   const b = load(before);
   const a = load(after);
   const rows = b.rows.map((row) => {
@@ -125,12 +130,12 @@ console.log(`合計 ${rows.reduce((n, r) => n + r.queries, 0)} クエリ`);
 const saveIdx = args.indexOf("--save");
 if (saveIdx !== -1) {
   const name = args[saveIdx + 1];
-  if (!existsSync(RESULTS_DIR)) mkdirSync(RESULTS_DIR, { recursive: true });
+  if (!existsSync(QUERIES_DIR)) mkdirSync(QUERIES_DIR, { recursive: true });
   writeFileSync(
-    join(RESULTS_DIR, `queries-${name}.json`),
+    join(QUERIES_DIR, `${name}.json`),
     JSON.stringify({ name, measuredAt: new Date().toISOString(), rows }, null, 2)
   );
-  console.log(`results/queries-${name}.json に保存した`);
+  console.log(`results/queries/${name}.json に保存した`);
 }
 
 await db.$disconnect();

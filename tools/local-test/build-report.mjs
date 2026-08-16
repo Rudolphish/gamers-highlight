@@ -16,10 +16,29 @@ if (!existsSync(RESULTS_DIR)) {
   process.exit(1);
 }
 
+// **ORDERに載っているスイートだけを読む。** results/ 直下に別の用途のJSON
+// （query-count.mjs の計測結果など）が置かれても、静かに壊れた表を出さないため。
+// 実際に queries-*.json を拾って「合計NaN件」「undefined」の行が並ぶ表を出したことがある。
 const files = readdirSync(RESULTS_DIR).filter((f) => f.endsWith(".json"));
-const suites = files
-  .map((f) => JSON.parse(readFileSync(join(RESULTS_DIR, f), "utf8")))
-  .sort((a, b) => ORDER.indexOf(a.suite) - ORDER.indexOf(b.suite));
+const suites = [];
+const skipped = [];
+for (const f of files) {
+  const parsed = JSON.parse(readFileSync(join(RESULTS_DIR, f), "utf8"));
+  if (ORDER.includes(parsed.suite) && Array.isArray(parsed.rows)) {
+    suites.push(parsed);
+  } else {
+    skipped.push(f);
+  }
+}
+suites.sort((a, b) => ORDER.indexOf(a.suite) - ORDER.indexOf(b.suite));
+
+if (skipped.length > 0) {
+  console.warn(`スイートとして扱わないファイル: ${skipped.join(", ")}`);
+}
+if (suites.length === 0) {
+  console.error("スイートの結果が1件も無い。先に各スイートを実行すること（run-all.mjs）");
+  process.exit(1);
+}
 
 const totals = suites.reduce(
   (acc, s) => ({ total: acc.total + s.total, failed: acc.failed + s.failed }),
