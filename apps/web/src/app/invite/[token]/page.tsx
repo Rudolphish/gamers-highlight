@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { getServerSession } from "next-auth";
 import { AlertTriangle, Users } from "lucide-react";
-import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/currentUser";
 import {
   findInviteByToken,
   findInviteReservation,
@@ -20,10 +18,7 @@ export const dynamic = "force-dynamic";
 export default async function InvitePage({ params }: { params: { token: string } }) {
   const invite = await findInviteByToken(params.token);
 
-  const session = await getServerSession(authOptions);
-  const currentUser = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const currentUser = await getCurrentUser();
 
   // ログインを終えた時点でトークンは1回分消費されている。素直に上限を見ると、
   // 招待された本人が「使用済み」を見せられて加入できなくなるので、本人の分は除外する。

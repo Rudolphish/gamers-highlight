@@ -1,6 +1,18 @@
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  // include を1回のJOINで取る。**これを入れるとPostgreSQLでは既定の戦略が join になり、
+  // アプリ全体の include 付きクエリが対象になる**（個別に指定して回る必要は無い）。
+  //
+  // 既定（"query" 戦略）はリレーションごとに別クエリを投げるため、include が深いページほど
+  // 往復が増える。実測でグループ詳細ページは22回、うち9回が users への問い合わせだった。
+  // 本番は Vercel → Supabase のネットワーク越しで1クエリ＝1往復ぶんの待ち時間になるので、
+  // 往復の数がそのまま体感に効く（全ページ合計 71 → 32 クエリ）。
+  //
+  // **エンジンの種別（library）は変えていない。** 変わるのはクライアントが組み立てるSQLだけで、
+  // DBのスキーマには影響しないため prisma db push も不要。
+  // 個別に元の挙動へ戻したいクエリがあれば relationLoadStrategy: "query" を指定する。
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {

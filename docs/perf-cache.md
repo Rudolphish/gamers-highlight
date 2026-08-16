@@ -34,25 +34,26 @@ Next.js 14.2 のクライアントルーターキャッシュ（`experimental.st
 
 | ページ | クエリ数 | ローカル所要 |
 |---|---:|---:|
-| `/groups/<id>` | **20** | 36ms |
-| `/albums/<id>` | 12 | 31ms |
-| `/albums` | 10 | 31ms |
-| `/groups/<id>/games/<id>` | 9 | 31ms |
-| `/admin` | 7 | 52ms |
-| `/`（ホーム） | 5 | 27ms |
-| `/groups` | 2 | 25ms |
+| `/groups/<id>` | **22** | 20ms |
+| `/albums/<id>` | 12 | 25ms |
+| `/albums` | 10 | 24ms |
+| `/groups/<id>/games/<id>` | 9 | 16ms |
+| `/admin` | 7 | 25ms |
+| `/`（ホーム） | 5 | 29ms |
+| `/albums/unclassified` | 4 | 24ms |
+| `/groups` | 2 | 23ms |
 
 **ローカルが速いのは当てにならない。** ローカルはUnixソケット越しなので1クエリ0.1ms程度だが、
 本番は Vercel → Supabaseプーラーのネットワーク越し。1往復が数msから十数msかかるため、
 **20クエリのページは往復だけで数百msになりうる**。ここが2回目以降も毎回かかっている。
 
-### `/groups/<id>` の20クエリの内訳
+### `/groups/<id>` の22クエリの内訳
 
 | テーブル | 回数 |
 |---|---:|
-| `users` | **8** |
-| `photos` / `groups` / `group_games` / `external_game_caches` / `albums` / `album_members` | 各2 |
-| `group_members` / `group_game_proposals` / `group_game_interests` | 各1 |
+| `users` | **9** |
+| `groups` / `group_games` | 各2 |
+| その他（`albums` / `album_members` / `photos` / `group_members` / `group_game_proposals` / `group_game_interests` / `external_game_caches`） | 各1〜2 |
 
 **半分近くが `users` への問い合わせ。** セッションからユーザーを引く1回に加えて、
 オーナー・メンバー・投稿者を関連ごとに読み直している。
@@ -75,7 +76,7 @@ Next.js 14.2 のクライアントルーターキャッシュ（`experimental.st
 ### A. セッションからユーザーIDを引けるようにする（`lib/auth.ts` のTODO）
 
 いまは**全ページ・全APIの先頭で** `db.user.findUnique({ where: { email } })` を実行している。
-該当箇所は**56箇所**（ページ10・API 33ほか）。
+該当箇所は**57箇所**（ページ10・API 33ほか）。
 
 これは他の判定すべての前段にあり、**必ず直列で待つ**1往復。
 `auth.ts:149` に `// TODO: session.user.id にDBのUser.idを詰める` として既に宿題になっている。
@@ -83,7 +84,7 @@ Next.js 14.2 のクライアントルーターキャッシュ（`experimental.st
 - 効果: 全ページ・全APIで1往復減。直列なので体感に直結する
 - リスク: 低。ただし**発行済みのトークンにはidが入っていない**ため、
   移行期間はidが無ければ従来どおりDBに落とすフォールバックが要る
-- 工数: 中（56箇所だが機械的）
+- 工数: 中（57箇所だが機械的）
 
 ### B. クエリそのものを減らす
 
@@ -132,25 +133,55 @@ experimental: {
 
 ---
 
-## 4. 推奨する順番
+## 4. 着手した順番と結果
 
-1. **D**（設定だけ。今回の要望に直接効く。まず入れて様子を見る）
-2. **A**（全ページ・全APIに効く。TODOとして既に認識されている）
-3. **B**（`/groups/<id>` の20クエリを減らす。効果が見えやすい）
-4. **C**（いちばん効くが、権限の切り分けを設計してから。単独のPRで）
+**Dは入れないことにした。** リアルタイムに同期したいのに、他人の投稿が最大5分見えないのは
+用途に合わないため。今の30秒の既定はそのまま。
 
-DとAは独立していて、片方が失敗してももう片方に影響しない。
-Cは**必ず単独で**入れる（権限の事故が混ざると原因の切り分けができなくなる）。
+AとBを入れて実測した（`tools/local-test/query-count.mjs`）。
 
-## 5. 測り直すとき
+| ページ | 変更前 | 変更後 | 増減 |
+|---|---:|---:|---:|
+| グループ詳細 | 22 | 6 | **-16** |
+| アルバム詳細 | 12 | 5 | -7 |
+| アルバム一覧 | 10 | 4 | -6 |
+| ゲーム詳細 | 9 | 4 | -5 |
+| ホーム | 5 | 2 | -3 |
+| 未分類の投稿 | 4 | 3 | -1 |
+| グループ一覧 | 2 | 1 | -1 |
+| 管理・使用量 | 7 | 7 | ±0 |
+| **合計** | **71** | **32** | **-39** |
 
-`tools/local-test/` の環境で、PostgreSQLの `log_statement = 'all'` を入れると
-1リクエストあたりのクエリ数が数えられる。
+内訳:
+
+- **A（セッションにユーザーIDを載せる）で -7。** ユーザーを解決するページ・APIから1往復ずつ消えた。
+  全ページの先頭にあり必ず直列で待つ1回なので、数のわりに効く
+- **B（`relationJoins`）で -32。** `include` のリレーションごとに別クエリを投げる既定を、
+  JOIN 1回にまとめた
+
+`/admin` が変わらないのは、`include` を使わず個別に集計しているため（写真5回など）。
+ここはクエリの書き方を変える話になるので、今回は触っていない。
+
+**ローカルの所要時間はどれも20〜35msのままで、意味のある差は出ない。**
+Unixソケット越しでは1クエリが0.1ms程度なので当然で、効くのは本番の
+ネットワーク越し（1クエリ＝1往復）。**この変更の効果は本番でしか測れない。**
+
+## 5. 残っている手
+
+- **C（`unstable_cache`）** — いちばん効くが、権限の切り分けを設計してから。**必ず単独のPRで**
+  （権限の事故が混ざると原因の切り分けができなくなる）
+- **`/admin` のクエリ削減** — 7回のうち5回が photos。集計の書き方次第で減らせる
+- **cold start（4.87秒）** — 上のEのとおり打つ手が無い
+
+## 6. 測り直すとき
+
+`tools/local-test/query-count.mjs` が計測する。PostgreSQLの `log_statement` を
+一時的に入れて、1リクエストあたりの `LOG:  execute` を数えている。
 
 ```bash
-su postgres -c "psql -p 5433 -h /tmp -U postgres -d gh -c \"ALTER SYSTEM SET log_statement = 'all';\""
-su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D /var/lib/postgresql/ghdata reload"
-# リクエストを投げ、/tmp/pg.log の "LOG:  execute" を数える
+node tools/local-test/query-count.mjs                    # 計測して表を出す
+node tools/local-test/query-count.mjs --save 名前         # 結果を保存
+node tools/local-test/query-count.mjs --compare 前 後      # 保存済みの2つを比較
 ```
 
 **ローカルの所要時間は本番の目安にならない**（Unixソケットとネットワーク越しの差）。

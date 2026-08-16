@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 
 // GET /api/search/group-games?q=… 自分が所属するグループの「ゲームリスト」「ゲーム提案」を
 // タイトルであいまい検索する（/searchページの「ゲームタイトル」欄と連動）。
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);

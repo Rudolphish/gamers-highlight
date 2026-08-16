@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 import { z } from "zod";
@@ -14,10 +13,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: { id: string; gameId: string } }
 ) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const allowed = await hasGroupPermission(params.id, user.id, "EDITOR");
@@ -43,10 +39,7 @@ export async function DELETE(
   _req: Request,
   { params }: { params: { id: string; gameId: string } }
 ) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const allowed = await hasGroupPermission(params.id, user.id, "EDITOR");

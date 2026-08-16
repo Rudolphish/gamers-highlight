@@ -510,6 +510,34 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 }
 
+// ───────────────────────────────────────────────────────────
+// I. セッションにユーザーIDが入る前のトークンでも動くこと
+//    （getCurrentUser のDBフォールバック。既存のログインを切らさないため）
+// ───────────────────────────────────────────────────────────
+{
+  const legacyCookie = `next-auth.session-token=${await encode({
+    // userId を入れない＝IDを載せる前に発行されたトークンと同じ形
+    token: { name: "admin", email: "admin@example.com", sub: "admin@example.com" },
+    secret: SECRET,
+    maxAge: 3600,
+  })}`;
+
+  const page = await api(`/groups/${group.id}`, { cookie: legacyCookie });
+  check(
+    "F59 旧トークン（userIdなし）でもページが見える",
+    page.status === 200 && page.text.includes("テストグループ"),
+    `${page.status}`
+  );
+
+  const list = await api("/api/groups", { cookie: legacyCookie });
+  check("F60 旧トークンでもAPIが通る", list.status === 200, `${list.status} ${list.text.slice(0, 80)}`);
+
+  const denied = await api(`/api/albums/${(await db.album.findFirst({ where: { title: "部外者のアルバム" } })).id}`, {
+    cookie: legacyCookie,
+  });
+  check("F61 旧トークンでも権限判定は効く（他人のアルバムは403）", denied.status === 403, `${denied.status}`);
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

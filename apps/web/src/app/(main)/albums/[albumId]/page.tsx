@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Gamepad2 } from "lucide-react";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasAlbumPermission } from "@/lib/permissions";
 import { PhotoGrid } from "@/components/photo/PhotoGrid";
@@ -17,10 +16,7 @@ export default async function AlbumDetailPage({
 }: {
   params: { albumId: string };
 }) {
-  const session = await getServerSession(authOptions);
-  const currentUser = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const currentUser = await getCurrentUser();
 
   if (!currentUser) notFound();
 

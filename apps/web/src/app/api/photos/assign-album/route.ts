@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasAlbumPermission } from "@/lib/permissions";
 
@@ -9,10 +8,7 @@ import { hasAlbumPermission } from "@/lib/permissions";
 // - 対象の写真は「自分がアップロードした未分類の投稿」のみ許可（他人の投稿を勝手に移動できないようにする）
 // - 移動先アルバムはEDITOR以上の権限が必要
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = await req.json();

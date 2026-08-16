@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 import { dbErrorResponse } from "@/lib/dbError";
@@ -18,10 +17,7 @@ const MAX_EXPIRY_HOURS = 24 * 30;
 const MAX_USES = 20;
 
 async function requireOwner(groupId: string) {
-  const session = await getServerSession(authOptions);
-  const actor = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const actor = await getCurrentUser();
   if (!actor) return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
 
   const allowed = await hasGroupPermission(groupId, actor.id, "OWNER");

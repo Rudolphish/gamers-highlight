@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/currentUser";
 import { acceptInvite, clearInviteCookie, INVALID_REASON_TEXT } from "@/lib/groupInvites";
 import { dbErrorResponse } from "@/lib/dbError";
 
@@ -11,10 +9,7 @@ import { dbErrorResponse } from "@/lib/dbError";
 // 許可リストへの登録が代行される（lib/groupInvites.ts の registerAllowlistFromInvite）。
 // ここに来る時点では既にログイン済みなので、あとはグループに入れるだけ。
 export async function POST(_req: Request, { params }: { params: { token: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   try {

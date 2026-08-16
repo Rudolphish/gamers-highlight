@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { CheckCircle2, AlertCircle } from "lucide-react";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { SettingsNav } from "@/components/settings/SettingsNav";
 
@@ -9,9 +8,11 @@ import { SettingsNav } from "@/components/settings/SettingsNav";
 // 判定ロジックは /api/discord/link (GET) と同じ（user.discordUserIdの有無）。
 // サーバーコンポーネントなので自前のAPIへフェッチせず、他画面と同様にdbを直接参照している。
 export default async function DiscordSettingsPage() {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
+  // ここだけは discordUserId が要る。セッションが持つのは id と email だけなので
+  // 直接引く（この1ページのためにセッションへ載せる値を増やさない）。
+  const current = await getCurrentUser();
+  const user = current
+    ? await db.user.findUnique({ where: { id: current.id }, select: { discordUserId: true } })
     : null;
 
   const linked = Boolean(user?.discordUserId);

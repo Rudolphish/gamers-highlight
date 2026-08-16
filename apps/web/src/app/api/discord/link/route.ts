@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 
 /**
@@ -9,11 +8,15 @@ import { db } from "@/lib/db";
  * このエンドポイントは「現在の連携状況を確認する」用途で使う。
  */
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
+  const current = await getCurrentUser();
+  if (!current) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const user = await db.user.findUnique({ where: { email: session.user.email } });
+  // discordUserId はセッションに載せていないので、ここだけ引く
+  const user = await db.user.findUnique({
+    where: { id: current.id },
+    select: { discordUserId: true },
+  });
   return NextResponse.json({ linked: Boolean(user?.discordUserId) });
 }

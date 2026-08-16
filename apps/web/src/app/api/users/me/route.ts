@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { z } from "zod";
 
@@ -14,6 +15,9 @@ export async function GET() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  // ここは getCurrentUser() で済ませられない。返すのが name を含むプロフィールで、
+  // セッションのトークンは PATCH で改名しても古い名前を持ったままだから
+  // （トークンはサインイン時にしか作り直されない）。表示名は必ずDBから読む。
   const user = await db.user.findUnique({
     where: { email: session.user.email },
     select: { id: true, name: true, email: true },
@@ -30,7 +34,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const user = await db.user.findUnique({ where: { email: session.user.email } });
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   try {

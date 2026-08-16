@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 import { getSteamAppSummary } from "@/lib/steam";
@@ -14,10 +13,7 @@ const proposeGameSchema = z.object({
 
 // GET /api/groups/:id/proposals … 未決着（PENDING）の提案一覧
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const allowed = await hasGroupPermission(params.id, user.id, "VIEWER");
@@ -34,10 +30,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 // POST /api/groups/:id/proposals … ゲームを提案する（グループメンバーなら誰でも）
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const allowed = await hasGroupPermission(params.id, user.id, "VIEWER");

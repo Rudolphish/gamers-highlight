@@ -1,5 +1,4 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { ChannelMappingManager } from "@/components/settings/ChannelMappingManager";
 import { SettingsNav } from "@/components/settings/SettingsNav";
@@ -7,10 +6,7 @@ import { SettingsNav } from "@/components/settings/SettingsNav";
 // チャンネルマッピング管理画面：
 // 「#elden-ring」チャンネル→「エルデンリング」のようにチャンネルとゲーム/アルバムを紐付け設定
 export default async function ChannelMappingPage() {
-  const session = await getServerSession(authOptions);
-  const user = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const user = await getCurrentUser();
   if (!user) return null;
 
   const groups = await db.group.findMany({

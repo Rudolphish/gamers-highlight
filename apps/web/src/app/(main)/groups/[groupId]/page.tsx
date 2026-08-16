@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Plus } from "lucide-react";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 import { ExpandableAlbumGrid } from "@/components/album/ExpandableAlbumGrid";
@@ -29,10 +28,7 @@ const ALBUM_INITIAL_VISIBLE = 4;
 
 // グループ詳細画面：名前編集、メンバー管理、配下アルバム一覧
 export default async function GroupDetailPage({ params }: { params: { groupId: string } }) {
-  const session = await getServerSession(authOptions);
-  const currentUser = session?.user?.email
-    ? await db.user.findUnique({ where: { email: session.user.email } })
-    : null;
+  const currentUser = await getCurrentUser();
   if (!currentUser) notFound();
 
   // このページは`/groups`がmiddlewareのmatcher対象外のため、未ログインでも素通りして

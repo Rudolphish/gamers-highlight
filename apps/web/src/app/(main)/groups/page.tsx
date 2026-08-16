@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Plus, Users, Film } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { formatRelativeTime } from "@/lib/relative-time";
 
@@ -10,7 +11,7 @@ export default async function GroupsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return null;
 
-  const user = await db.user.findUnique({ where: { email: session.user.email } });
+  const user = await getCurrentUser();
   if (!user) return null;
 
   const groups = await db.group.findMany({
