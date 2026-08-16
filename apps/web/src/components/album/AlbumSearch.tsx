@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, LayoutGrid, List } from "lucide-react";
 import { AlbumGrid } from "./AlbumGrid";
+import { AlbumRows } from "./AlbumRows";
 
 type Member = { id: string; name?: string | null; avatarUrl?: string | null };
 
@@ -18,7 +19,10 @@ type Album = {
   groupName?: string | null;
   /** 絞り込み用。画面には出さない */
   gameTitle?: string | null;
+  groupId?: string | null;
 };
+
+type View = "grid" | "list";
 
 /**
  * アルバムの絞り込み付き一覧。
@@ -34,9 +38,12 @@ type Album = {
 export function AlbumSearch({ albums }: { albums: Album[] }) {
   const [query, setQuery] = useState("");
   const [onlyWithPhotos, setOnlyWithPhotos] = useState(false);
+  const [groupId, setGroupId] = useState("");
+  const [view, setView] = useState<View>("grid");
 
   const keyword = query.trim().toLowerCase();
   const filtered = albums.filter((a) => {
+    if (groupId && a.groupId !== groupId) return false;
     if (onlyWithPhotos && a.photoCount === 0) return false;
     if (!keyword) return true;
     return (
@@ -47,6 +54,15 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
   });
 
   const emptyCount = albums.filter((a) => a.photoCount === 0).length;
+
+  // 所属グループの選択肢。1つしか無いなら絞る意味が無いので出さない
+  const groups = [
+    ...new Map(
+      albums
+        .filter((a) => a.groupId && a.groupName)
+        .map((a) => [a.groupId as string, a.groupName as string])
+    ),
+  ];
 
   return (
     <div className="mt-6">
@@ -73,6 +89,21 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
           )}
         </div>
 
+        {groups.length > 1 && (
+          <select
+            value={groupId}
+            onChange={(e) => setGroupId(e.target.value)}
+            className="rounded-sm border border-steam-border bg-steam-bg px-2 py-2 font-mono text-3xs text-steam-text outline-none focus:border-steam-blue"
+          >
+            <option value="">すべてのグループ</option>
+            {groups.map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
+
         {emptyCount > 0 && (
           <button
             onClick={() => setOnlyWithPhotos((v) => !v)}
@@ -86,6 +117,27 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
           </button>
         )}
 
+        <span className="mx-1 h-4 w-px bg-steam-border" />
+
+        {([
+          { value: "grid", label: "サムネイル", icon: LayoutGrid },
+          { value: "list", label: "一覧", icon: List },
+        ] as const).map((v) => (
+          <button
+            key={v.value}
+            onClick={() => setView(v.value)}
+            aria-label={v.label}
+            title={v.label}
+            className={`inline-flex items-center gap-1 rounded-sm border px-2 py-2 font-mono text-3xs transition ${
+              view === v.value
+                ? "border-steam-blue text-steam-blue"
+                : "border-steam-border text-steam-muted hover:border-steam-blue"
+            }`}
+          >
+            <v.icon size={12} />
+          </button>
+        ))}
+
         <span className="font-mono text-3xs text-steam-muted">
           {filtered.length === albums.length
             ? `${albums.length}件`
@@ -97,7 +149,7 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
         <p className="mt-6 font-mono text-sm text-steam-muted">該当するアルバムがありません。</p>
       ) : (
         <div className="mt-4">
-          <AlbumGrid albums={filtered} />
+          {view === "grid" ? <AlbumGrid albums={filtered} /> : <AlbumRows albums={filtered} />}
         </div>
       )}
     </div>

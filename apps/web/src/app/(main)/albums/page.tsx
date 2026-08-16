@@ -25,7 +25,7 @@ export default async function AlbumsPage() {
     orderBy: { updatedAt: "desc" },
     include: {
       owner: true,
-      group: { select: { name: true } },
+      group: { select: { id: true, name: true } },
       members: {
         orderBy: { invitedAt: "asc" },
         take: 4,
@@ -78,6 +78,7 @@ export default async function AlbumsPage() {
       memberCount: album._count.members + 1,
       updatedAt: album.updatedAt,
       groupName: album.group.name,
+      groupId: album.group.id,
       gameTitle: album.gameTitle,
     };
   });
