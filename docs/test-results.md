@@ -5,15 +5,19 @@
 `node tools/local-test/run-all.mjs` で作り直す（手順は
 [`tools/local-test/README.md`](../tools/local-test/README.md)）。
 
-最終実行: **2026/8/16 16:58:33**（JST） / 合計 **216** 件 / NG **0** 件
+最終実行: **2026/8/16 17:12:42**（JST） / 合計 **216** 件 / NG **0** 件
 
-| スイート | 内容 | 件数 | NG |
-|---|---|---:|---:|
-| pages | P: ページの到達性と権限 | 87 | 0 |
-| api | R: APIの権限 | 53 | 0 |
-| flows | F: 主要導線 | 52 | 0 |
-| external-failure | X: 外部APIが落ちている状態 | 5 | 0 |
-| browser | B: 実ブラウザでの描画 | 19 | 0 |
+スイートは個別に流せるので、**実行時刻はスイートごとに違うことがある**
+（変更に関係する箇所だけ流し直す使い方を想定している）。
+実行時刻が古いスイートは、その時点のコードに対する結果でしかない。
+
+| スイート | 内容 | 件数 | NG | 実行時刻(JST) |
+|---|---|---:|---:|---|
+| pages | P: ページの到達性と権限 | 87 | 0 | 2026/8/16 17:12:42 |
+| api | R: APIの権限 | 53 | 0 | 2026/8/16 17:06:43 |
+| flows | F: 主要導線 | 52 | 0 | 2026/8/16 17:06:44 |
+| external-failure | X: 外部APIが落ちている状態 | 5 | 0 | 2026/8/16 17:06:44 |
+| browser | B: 実ブラウザでの描画 | 19 | 0 | 2026/8/16 16:58:33 |
 
 外部サービスはすべてスタブなので、**先方の仕様変更で壊れる類の不具合はここには出ない**。
 実機でしか確認できないことは `docs/handoff.md` の「実機でしか確認できていないこと」にある。
@@ -22,7 +26,7 @@
 
 ## P: ページの到達性と権限
 
-87 件 / NG 0 件
+87 件 / NG 0 件 ・ 実行 2026/8/16 17:12:42
 
 | ID | 項目 | 期待 | 実際 | 結果 | 備考 |
 |---|---|---|---|---|---|
@@ -44,10 +48,10 @@
 | P06/anon | アルバム詳細（自分が見られるもの）（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
 | P06/admin | アルバム詳細（自分が見られるもの）（admin） | 200 | 200 | OK |  |
 | P06/member | アルバム詳細（自分が見られるもの）（member） | 200 | 200 | OK |  |
-| P06/outsider | アルバム詳細（自分が見られるもの）（outsider） | 404 | 404 | OK |  |
+| P06/outsider | アルバム詳細（自分が見られるもの）（outsider） | 見えない | 見えない | OK |  |
 | P07/anon | アルバム詳細（他人のもの）（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
-| P07/admin | アルバム詳細（他人のもの）（admin） | 404 | 404 | OK |  |
-| P07/member | アルバム詳細（他人のもの）（member） | 404 | 404 | OK |  |
+| P07/admin | アルバム詳細（他人のもの）（admin） | 見えない | 見えない | OK |  |
+| P07/member | アルバム詳細（他人のもの）（member） | 見えない | 見えない | OK |  |
 | P07/outsider | アルバム詳細（他人のもの）（outsider） | 200 | 200 | OK |  |
 | P08/anon | グループ一覧（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
 | P08/admin | グループ一覧（admin） | 200 | 200 | OK |  |
@@ -58,10 +62,10 @@
 | P10/anon | グループ詳細（自分のグループ）（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
 | P10/admin | グループ詳細（自分のグループ）（admin） | 200 | 200 | OK |  |
 | P10/member | グループ詳細（自分のグループ）（member） | 200 | 200 | OK |  |
-| P10/outsider | グループ詳細（自分のグループ）（outsider） | 404 | 404 | OK |  |
+| P10/outsider | グループ詳細（自分のグループ）（outsider） | 見えない | 見えない | OK |  |
 | P11/anon | グループ詳細（他人のグループ）（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
-| P11/admin | グループ詳細（他人のグループ）（admin） | 404 | 404 | OK |  |
-| P11/member | グループ詳細（他人のグループ）（member） | 404 | 404 | OK |  |
+| P11/admin | グループ詳細（他人のグループ）（admin） | 見えない | 見えない | OK |  |
+| P11/member | グループ詳細（他人のグループ）（member） | 見えない | 見えない | OK |  |
 | P11/outsider | グループ詳細（他人のグループ）（outsider） | 200 | 200 | OK |  |
 | P12/anon | グループ内アルバム作成（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
 | P12/admin | グループ内アルバム作成（admin） | 200 | 200 | OK |  |
@@ -69,11 +73,11 @@
 | P13/anon | ゲーム詳細（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
 | P13/admin | ゲーム詳細（admin） | 200 | 200 | OK |  |
 | P13/member | ゲーム詳細（member） | 200 | 200 | OK |  |
-| P13/outsider | ゲーム詳細（outsider） | 404 | 404 | OK |  |
+| P13/outsider | ゲーム詳細（outsider） | 見えない | 見えない | OK |  |
 | P14/anon | 提案詳細（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
 | P14/admin | 提案詳細（admin） | 200 | 200 | OK |  |
 | P14/member | 提案詳細（member） | 200 | 200 | OK |  |
-| P14/outsider | 提案詳細（outsider） | 404 | 404 | OK |  |
+| P14/outsider | 提案詳細（outsider） | 見えない | 見えない | OK |  |
 | P15/anon | マニュアル（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
 | P15/admin | マニュアル（admin） | 200 | 200 | OK |  |
 | P16/anon | 検索（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
@@ -94,20 +98,20 @@
 | P21/admin | 設定・チャンネル対応（admin） | 200 | 200 | OK |  |
 | P22/anon | 管理・使用量（管理者のみ）（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
 | P22/admin | 管理・使用量（管理者のみ）（admin） | 200 | 200 | OK |  |
-| P22/member | 管理・使用量（管理者のみ）（member） | 404 | 404 | OK |  |
-| P22/outsider | 管理・使用量（管理者のみ）（outsider） | 404 | 404 | OK |  |
+| P22/member | 管理・使用量（管理者のみ）（member） | 見えない | 見えない | OK |  |
+| P22/outsider | 管理・使用量（管理者のみ）（outsider） | 見えない | 見えない | OK |  |
 | P23/anon | 管理・エラー（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
 | P23/admin | 管理・エラー（admin） | 200 | 200 | OK |  |
-| P23/member | 管理・エラー（member） | 404 | 404 | OK |  |
+| P23/member | 管理・エラー（member） | 見えない | 見えない | OK |  |
 | P24/anon | 管理・招待リンク（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
 | P24/admin | 管理・招待リンク（admin） | 200 | 200 | OK |  |
-| P24/member | 管理・招待リンク（member） | 404 | 404 | OK |  |
+| P24/member | 管理・招待リンク（member） | 見えない | 見えない | OK |  |
 | P25/anon | 管理・メディア一覧（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
 | P25/admin | 管理・メディア一覧（admin） | 200 | 200 | OK |  |
-| P25/member | 管理・メディア一覧（member） | 404 | 404 | OK |  |
+| P25/member | 管理・メディア一覧（member） | 見えない | 見えない | OK |  |
 | P26/anon | 管理・ユーザー（anon） | 307:/api/auth/signin | 307:/api/auth/signin | OK |  |
 | P26/admin | 管理・ユーザー（admin） | 200 | 200 | OK |  |
-| P26/member | 管理・ユーザー（member） | 404 | 404 | OK |  |
+| P26/member | 管理・ユーザー（member） | 見えない | 見えない | OK |  |
 | P27/anon | 招待リンク（有効・未ログインでも開ける）（anon） | 200 | 200 | OK |  |
 | P27/admin | 招待リンク（有効・未ログインでも開ける）（admin） | 200 | 200 | OK |  |
 | P28/anon | 招待リンク（期限切れ）（anon） | 200 | 200 | OK |  |
@@ -118,7 +122,7 @@
 
 ## R: APIの権限
 
-53 件 / NG 0 件
+53 件 / NG 0 件 ・ 実行 2026/8/16 17:06:43
 
 | ID | 項目 | 期待 | 実際 | 結果 | 備考 |
 |---|---|---|---|---|---|
@@ -180,7 +184,7 @@
 
 ## F: 主要導線
 
-52 件 / NG 0 件
+52 件 / NG 0 件 ・ 実行 2026/8/16 17:06:44
 
 | ID | 項目 | 期待 | 実際 | 結果 | 備考 |
 |---|---|---|---|---|---|
@@ -241,7 +245,7 @@
 
 ## X: 外部APIが落ちている状態
 
-5 件 / NG 0 件
+5 件 / NG 0 件 ・ 実行 2026/8/16 17:06:44
 
 | ID | 項目 | 期待 | 実際 | 結果 | 備考 |
 |---|---|---|---|---|---|
@@ -255,7 +259,7 @@
 
 ## B: 実ブラウザでの描画
 
-19 件 / NG 0 件
+19 件 / NG 0 件 ・ 実行 2026/8/16 16:58:33
 
 | ID | 項目 | 期待 | 実際 | 結果 | 備考 |
 |---|---|---|---|---|---|

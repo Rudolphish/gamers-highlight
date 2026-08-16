@@ -110,6 +110,19 @@ IDを受け取るページを足したら、`hasAlbumPermission` / `hasGroupPerm
 呼んで `notFound()` すること（`/groups/[groupId]` と配下のゲーム詳細・提案詳細はそうなっている）。
 権限が無いときに403ではなく404を返しているのは、存在の有無自体を伏せるため。
 
+### `loading.tsx` があると notFound() でも200が返る
+
+`loading.tsx` を置いたルートはNext.jsがストリーミングを始め、**本文より先にヘッダーを送る**。
+ページ関数がその後で `notFound()` しても、もうステータスは変えられない。
+**200のまま本文の途中でnot-found画面に差し替わる**（`NEXT_NOT_FOUND` がペイロードに入る）。
+
+画面としては正しく「見つかりません」になり、**中身は漏れない**。壊れるのは
+「権限が無ければ404が返るはず」という前提で書いた確認だけで、実際に骨格表示（#33）を
+入れた直後に権限拒否のページが軒並み200になり、テストが14件落ちた。
+
+権限まわりを確認するときは**ステータスではなく本文で見ること**
+（`tools/local-test/sweep.mjs` と `verify-album-access.mjs` はそうしてある）。
+
 ### 画面のエラーは /admin/errors に集まる
 
 エラーバウンダリ（`app/error.tsx`・`app/(main)/error.tsx`・`app/global-error.tsx`）が

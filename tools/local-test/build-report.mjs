@@ -43,10 +43,15 @@ lines.push("[`tools/local-test/README.md`](../tools/local-test/README.md)）。"
 lines.push("");
 lines.push(`最終実行: **${jstDate}**（JST） / 合計 **${totals.total}** 件 / NG **${totals.failed}** 件`);
 lines.push("");
-lines.push("| スイート | 内容 | 件数 | NG |");
-lines.push("|---|---|---:|---:|");
+lines.push("スイートは個別に流せるので、**実行時刻はスイートごとに違うことがある**");
+lines.push("（変更に関係する箇所だけ流し直す使い方を想定している）。");
+lines.push("実行時刻が古いスイートは、その時点のコードに対する結果でしかない。");
+lines.push("");
+lines.push("| スイート | 内容 | 件数 | NG | 実行時刻(JST) |");
+lines.push("|---|---|---:|---:|---|");
 for (const s of suites) {
-  lines.push(`| ${s.suite} | ${esc(s.title)} | ${s.total} | ${s.failed} |`);
+  const at = new Date(s.ranAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
+  lines.push(`| ${s.suite} | ${esc(s.title)} | ${s.total} | ${s.failed} | ${at} |`);
 }
 lines.push("");
 lines.push("外部サービスはすべてスタブなので、**先方の仕様変更で壊れる類の不具合はここには出ない**。");
@@ -58,7 +63,9 @@ for (const s of suites) {
   lines.push("");
   lines.push(`## ${esc(s.title)}`);
   lines.push("");
-  lines.push(`${s.total} 件 / NG ${s.failed} 件`);
+  lines.push(
+    `${s.total} 件 / NG ${s.failed} 件 ・ 実行 ${new Date(s.ranAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}`
+  );
   lines.push("");
   lines.push("| ID | 項目 | 期待 | 実際 | 結果 | 備考 |");
   lines.push("|---|---|---|---|---|---|");
