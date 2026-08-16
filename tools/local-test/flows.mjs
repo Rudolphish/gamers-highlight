@@ -671,6 +671,50 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 }
 
+// ───────────────────────────────────────────────────────────
+// K. Botのゲーム候補（プレイ中だけを返す）
+// ───────────────────────────────────────────────────────────
+{
+  const internal = { "x-internal-secret": INTERNAL_SECRET };
+  const res = await api(`/api/internal/group-games?guildId=${group.guildId}`, { headers: internal });
+  const titles = (res.json?.games ?? []).map((g) => g.title);
+
+  check("F70 候補APIが応答する", res.status === 200, `${res.status} ${res.text.slice(0, 80)}`);
+  check(
+    "F71 プレイ中のゲームが候補に出る",
+    titles.includes("ウィッチャー3"),
+    JSON.stringify(titles)
+  );
+  check(
+    "F72 プレイ中以外（気になる・積みゲー・クリア済み）は出ない",
+    !titles.some((t) => ["ELDEN RING", "DOOM（積みゲー）", "Half-Life 2（クリア済み）"].includes(t)),
+    JSON.stringify(titles)
+  );
+
+  // 上限（Discordのセレクトメニューは25個まで。「その他」で1つ使うので24件）
+  const extra = [];
+  for (let i = 0; i < 30; i++) {
+    extra.push(
+      db.groupGame.create({
+        data: {
+          groupId: group.id,
+          steamAppId: 900000 + i,
+          title: `上限確認用ゲーム${i}`,
+          status: "PLAYING",
+          addedById: (await db.user.findUnique({ where: { email: "admin@example.com" } })).id,
+        },
+      })
+    );
+  }
+  await Promise.all(extra);
+
+  const many = await api(`/api/internal/group-games?guildId=${group.guildId}`, { headers: internal });
+  const count = (many.json?.games ?? []).length;
+  check("F73 候補は24件で頭打ちになる（Discordの25個制限）", count === 24, `${count}件`);
+
+  await db.groupGame.deleteMany({ where: { steamAppId: { gte: 900000, lt: 900030 } } });
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

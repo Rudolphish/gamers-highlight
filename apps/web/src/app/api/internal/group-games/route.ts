@@ -7,11 +7,23 @@ import { db } from "@/lib/db";
  *
  * GET /api/internal/group-games?guildId=...
  *
- * **直近に投稿があったゲームを優先して返す。** 選択肢を全部並べても選ぶのが面倒なだけで、
- * 実際に貼るのは「今遊んでいるゲーム」がほとんどのため。投稿が無いゲームは
- * ゲームリストの更新順で埋める。
+ * **返すのはステータスが「プレイ中」のゲームだけ。**
+ * 以前はアルバムの更新順で埋めていたが、古いアルバムに手動でアップロードすると
+ * そのゲームが「直近」として上がってきてしまい、いま遊んでいないものが候補に出ていた。
+ * 貼られるスクショは基本的に今遊んでいるゲームなので、そこだけを候補にする。
+ *
+ * 並び順は「直近に投稿があったもの」を先にする（数が多いときに上から選べるように）。
+ *
+ * プレイ中が1本も無ければ空で返す。Bot側は「その他（入力する）」を必ず足すので、
+ * メニュー自体は出るし、そこからSteam検索→登録まで通る。
  */
-const MAX_OPTIONS = 3;
+
+/**
+ * Discordのセレクトメニューは**選択肢が最大25個**。Botが「その他（入力する）」を
+ * 1つ足すので、ゲームに使えるのは24個まで。プレイ中がこれを超えることは
+ * まず無いが、超えたら並び順の上から24件になる。
+ */
+const MAX_OPTIONS = 24;
 
 export async function GET(req: Request) {
   const secret = req.headers.get("x-internal-secret");
@@ -29,7 +41,7 @@ export async function GET(req: Request) {
   }
 
   const games = await db.groupGame.findMany({
-    where: { groupId: group.id },
+    where: { groupId: group.id, status: "PLAYING" },
     orderBy: { updatedAt: "desc" },
     select: {
       steamAppId: true,
