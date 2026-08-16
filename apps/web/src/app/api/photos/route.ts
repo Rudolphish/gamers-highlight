@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isManagedStorageUrl } from "@/lib/storage";
+import { hasAlbumPermission } from "@/lib/permissions";
 import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/media-limits";
 
 // POST /api/photos … アップロード済みのオブジェクトに対してPhotoレコードを作る
@@ -67,15 +68,14 @@ export async function POST(req: Request) {
 
   // albumIdもクライアントの申告なので、自分が投稿できるアルバムかを確認する。
   // ここが無いとIDさえ知っていれば他人のアルバムに写真を差し込めてしまう。
+  //
+  // **判定は hasAlbumPermission に任せる。** 自前で「所有者かアルバムメンバーか」だけを
+  // 見ていたため、グループの共有アルバム（所有者が別のメンバー）への投稿が403になっていた。
+  // 自動判別が返すアルバムはグループ経由で辿るので、判別が当たるほど失敗するという
+  // 分かりにくい壊れ方をしていた。見られるアルバムには投稿できる、で揃える。
   if (body.albumId != null) {
-    const album = await db.album.findFirst({
-      where: {
-        id: body.albumId,
-        OR: [{ ownerId: user.id }, { members: { some: { userId: user.id } } }],
-      },
-      select: { id: true },
-    });
-    if (!album) {
+    const allowed = await hasAlbumPermission(body.albumId, user.id, "VIEWER");
+    if (!allowed) {
       return NextResponse.json({ error: "invalid albumId" }, { status: 403 });
     }
   }
