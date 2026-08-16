@@ -58,8 +58,24 @@ async function postFileToStorage(post: { url: string; fields: Record<string, str
   }
   formData.append("file", file);
 
-  const postRes = await fetch(post.url, { method: "POST", body: formData });
-  if (!postRes.ok) throw new Error("ストレージへのアップロードに失敗しました");
+  // ストレージは別ドメインなので、CORSで弾かれるとfetch自体が例外になる。
+  // 「失敗しました」だけだと原因（CORS設定・署名切れ・容量超過）を切り分けられないため、
+  // 応答が取れたときは状態コードと本文を、取れなかったときはCORSの可能性を出す。
+  let postRes: Response;
+  try {
+    postRes = await fetch(post.url, { method: "POST", body: formData });
+  } catch (e) {
+    throw new Error(
+      `ストレージへ接続できませんでした（CORS設定またはネットワークの可能性）: ${
+        e instanceof Error ? e.message : String(e)
+      }`
+    );
+  }
+
+  if (!postRes.ok) {
+    const detail = (await postRes.text().catch(() => "")).slice(0, 200);
+    throw new Error(`ストレージへのアップロードに失敗しました（${postRes.status}）${detail ? `: ${detail}` : ""}`);
+  }
 }
 
 /**
@@ -73,7 +89,10 @@ async function uploadToStorage(file: File, extra: Record<string, unknown> = {}):
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ contentType: file.type, sizeBytes: file.size, ...extra }),
   });
-  if (!res.ok) throw new Error((await res.text()) || "アップロードリクエストに失敗しました");
+  if (!res.ok) {
+    const detail = (await res.text().catch(() => "")).slice(0, 200);
+    throw new Error(`署名の取得に失敗しました（${res.status}）${detail ? `: ${detail}` : ""}`);
+  }
   const { post, publicUrl } = await res.json();
   await postFileToStorage(post, file);
   return publicUrl;
@@ -85,7 +104,10 @@ async function createPhotoRecord(body: Record<string, unknown>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error((await res.text()) || "投稿の保存に失敗しました");
+  if (!res.ok) {
+    const detail = (await res.text().catch(() => "")).slice(0, 200);
+    throw new Error(`投稿の保存に失敗しました（${res.status}）${detail ? `: ${detail}` : ""}`);
+  }
   return (await res.json()).photo;
 }
 
