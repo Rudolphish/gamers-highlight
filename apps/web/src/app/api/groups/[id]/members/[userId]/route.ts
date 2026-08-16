@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 
 // PATCH /api/groups/:id/members/:userId … 権限変更
@@ -21,6 +22,7 @@ export async function PATCH(
     data: { role: body.role },
   });
 
+  invalidateGroup(params.id);
   return NextResponse.json({ member });
 }
 
@@ -39,5 +41,6 @@ export async function DELETE(
     where: { groupId_userId: { groupId: params.id, userId: params.userId } },
   });
 
+  invalidateGroup(params.id);
   return NextResponse.json({ ok: true });
 }

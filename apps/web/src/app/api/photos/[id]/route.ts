@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { invalidateAlbumPhotos } from "@/lib/cacheTags";
 import { hasAlbumPermission } from "@/lib/permissions";
 import { deleteStoredObjects } from "@/lib/storage";
 import { isAdminEmail } from "@/lib/admin";
@@ -50,6 +51,14 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   );
 
   await deleteStoredObjects(urls.filter((u) => !stillReferenced.has(u)));
+
+  if (photo.albumId) {
+    const album = await db.album.findUnique({
+      where: { id: photo.albumId },
+      select: { groupId: true },
+    });
+    invalidateAlbumPhotos(photo.albumId, album?.groupId);
+  }
 
   return NextResponse.json({ ok: true });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -59,6 +60,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     data,
   });
 
+  invalidateGroup(params.id);
   return NextResponse.json({ group });
 }
 
@@ -79,5 +81,6 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   }
 
   await db.group.delete({ where: { id: params.id } });
+  invalidateGroup(params.id);
   return NextResponse.json({ ok: true });
 }

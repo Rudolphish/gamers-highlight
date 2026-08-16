@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
+import { invalidateGroup } from "./cacheTags";
 import { getSteamAppNameJa, searchSteamGames } from "./steam";
 import { getOrFetchExternalGameData } from "./externalGameCache";
 
@@ -143,6 +144,9 @@ export async function resolveOrCreateAlbum(
     },
   });
   console.log(`[album] ゲーム名からアルバムを自動作成: ${result.title} (${created.id})`);
+
+  // グループ詳細のアルバム一覧に出す
+  invalidateGroup(groupId);
 
   // ゲーム詳細からアルバムへ辿れるようにする。既に別のアルバムと紐付いている場合は触らない
   await db.groupGame.updateMany({

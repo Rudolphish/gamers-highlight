@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 import { z } from "zod";
 
@@ -61,6 +62,8 @@ export async function POST(req: Request) {
       groupId: parsed.data.groupId,
     },
   });
+
+  invalidateGroup(album.groupId);
 
   return NextResponse.json({ album }, { status: 201 });
 }

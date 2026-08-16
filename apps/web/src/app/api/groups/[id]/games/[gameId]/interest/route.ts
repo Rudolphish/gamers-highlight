@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 
 // POST /api/groups/:id/games/:gameId/interest … 「気になってる」マークをトグルする。
@@ -41,5 +42,6 @@ export async function POST(
 
   const count = await db.groupGameInterest.count({ where: { groupGameId: game.id } });
 
+  invalidateGroup(params.id);
   return NextResponse.json({ interested, count });
 }

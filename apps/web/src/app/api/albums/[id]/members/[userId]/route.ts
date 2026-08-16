@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
+import { invalidateAlbum } from "@/lib/cacheTags";
 import { db } from "@/lib/db";
 import { hasAlbumPermission } from "@/lib/permissions";
+
+/** グループ詳細にもアルバム名が出るので、グループのタグも一緒に飛ばす */
+async function invalidateAlbumWithGroup(albumId: string) {
+  const album = await db.album.findUnique({ where: { id: albumId }, select: { groupId: true } });
+  invalidateAlbum(albumId, album?.groupId);
+}
 
 // PATCH /api/albums/:id/members/:userId … 権限変更
 export async function PATCH(
@@ -21,6 +28,7 @@ export async function PATCH(
     data: { role: body.role },
   });
 
+  await invalidateAlbumWithGroup(params.id);
   return NextResponse.json({ member });
 }
 
@@ -39,5 +47,6 @@ export async function DELETE(
     where: { albumId_userId: { albumId: params.id, userId: params.userId } },
   });
 
+  await invalidateAlbumWithGroup(params.id);
   return NextResponse.json({ ok: true });
 }

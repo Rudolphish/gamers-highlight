@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { invalidateAlbumPhotos } from "@/lib/cacheTags";
 
 /**
  * Discord Botの/tagコマンドからのみ呼ばれる内部API。
@@ -76,6 +77,12 @@ export async function POST(req: Request) {
     where: { id: photo.id },
     data: { gameTitle: gameTag.gameTitle, albumId: gameTag.autoAlbumId },
   });
+
+  // 付け替え前後の両方を飛ばす（元のアルバムからは消え、先のアルバムに出る）
+  for (const id of new Set([photo.albumId, updated.albumId].filter(Boolean) as string[])) {
+    const album = await db.album.findUnique({ where: { id }, select: { groupId: true } });
+    invalidateAlbumPhotos(id, album?.groupId);
+  }
 
   return NextResponse.json({ photo: updated });
 }

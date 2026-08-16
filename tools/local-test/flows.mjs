@@ -538,6 +538,128 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   check("F61 旧トークンでも権限判定は効く（他人のアルバムは403）", denied.status === 403, `${denied.status}`);
 }
 
+// ───────────────────────────────────────────────────────────
+// J. ページのキャッシュ（unstable_cache）
+//    「他人のものが見える」と「投稿したのに出ない」の両方を見る
+// ───────────────────────────────────────────────────────────
+{
+  const albumUrl = `/albums/${album.id}`;
+  const groupUrl = `/groups/${group.id}`;
+
+  // まず管理者で開いてキャッシュを作る
+  const warm = await api(albumUrl, { cookie: adminCookie });
+  check("F62 アルバム詳細が開ける（キャッシュ作成）", warm.status === 200 && warm.text.includes("エルデンリング"), warm.status);
+
+  // **2回目（キャッシュヒット）も同じ中身が出ること。**
+  // unstable_cache は値をJSONにして保存するので、Dateは文字列に化ける。
+  // 1回目は素のDateが返るため通ってしまい、**ヒットした回だけ落ちる**。
+  // 実際に capturedAt?.toISOString() がこれで壊れ、1回目しか見ていなかったため見逃した。
+  const hit = await api(albumUrl, { cookie: adminCookie });
+  check(
+    "F62b アルバム詳細はキャッシュヒット時も壊れない",
+    hit.status === 200 &&
+      hit.text.includes("エルデンリング") &&
+      !hit.text.includes("問題が発生しました"),
+    `${hit.status} エラー画面=${hit.text.includes("問題が発生しました")}`
+  );
+
+  // ── 権限: キャッシュが温まっていても、権限の無い人には出ない ──
+  const byOutsider = await api(albumUrl, { cookie: outsiderCookie });
+  check(
+    "F63 キャッシュ済みでも権限の無い人には出ない",
+    !byOutsider.text.includes("エルデンリング") && byOutsider.text.includes("NEXT_NOT_FOUND"),
+    `${byOutsider.status}`
+  );
+
+  const groupWarm = await api(groupUrl, { cookie: adminCookie });
+  check("F64 グループ詳細が開ける（キャッシュ作成）", groupWarm.status === 200 && groupWarm.text.includes("テストグループ"), groupWarm.status);
+
+  const groupHit = await api(groupUrl, { cookie: adminCookie });
+  check(
+    "F64b グループ詳細はキャッシュヒット時も壊れない",
+    groupHit.status === 200 &&
+      groupHit.text.includes("テストグループ") &&
+      !groupHit.text.includes("問題が発生しました"),
+    `${groupHit.status} エラー画面=${groupHit.text.includes("問題が発生しました")}`
+  );
+
+  const groupByOutsider = await api(groupUrl, { cookie: outsiderCookie });
+  check(
+    "F65 グループもキャッシュ済みで権限の無い人には出ない",
+    !groupByOutsider.text.includes("テストグループ") && groupByOutsider.text.includes("NEXT_NOT_FOUND"),
+    `${groupByOutsider.status}`
+  );
+
+  // ── 無効化: 写真を上げたら、次に開いたとき出ていること ──
+  const signed = await api("/api/photos/upload-url", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { contentType: "image/png", sizeBytes: 12 },
+  });
+  const uploaded = await api("/api/photos", {
+    method: "POST",
+    cookie: adminCookie,
+    body: {
+      contentType: "image/png",
+      mediaUrl: signed.json.publicUrl,
+      sizeBytes: 12,
+      albumId: album.id,
+      gameTitle: "キャッシュ確認用",
+    },
+  });
+  const afterUpload = await api(albumUrl, { cookie: adminCookie });
+  check(
+    "F66 写真を上げたらアルバム詳細に即出る（無効化）",
+    uploaded.status === 201 && afterUpload.text.includes(uploaded.json.photo.id),
+    `upload=${uploaded.status}`
+  );
+
+  // ── 無効化: 写真を消したら、次に開いたとき消えていること ──
+  const removed = await api(`/api/photos/${uploaded.json.photo.id}`, {
+    method: "DELETE",
+    cookie: adminCookie,
+  });
+  const afterDelete = await api(albumUrl, { cookie: adminCookie });
+  check(
+    "F67 写真を消したらアルバム詳細から即消える（無効化）",
+    removed.status === 200 && !afterDelete.text.includes(uploaded.json.photo.id),
+    `delete=${removed.status}`
+  );
+
+  // ── 無効化: アルバム名を変えたら、グループ詳細にも即反映されること ──
+  const renamed = await api(`/api/albums/${album.id}`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { title: "改名したアルバム" },
+  });
+  const groupAfterRename = await api(groupUrl, { cookie: adminCookie });
+  check(
+    "F68 アルバム改名がグループ詳細にも即反映される（無効化）",
+    renamed.status === 200 && groupAfterRename.text.includes("改名したアルバム"),
+    `patch=${renamed.status}`
+  );
+  await api(`/api/albums/${album.id}`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { title: "エルデンリング" },
+  });
+
+  // ── 無効化: ゲームを足したら、グループ詳細に即出ること ──
+  const addedGame = await api(`/api/groups/${group.id}/games`, {
+    method: "POST",
+    cookie: adminCookie,
+    // 他のケースで使っていないapp ID（衝突すると409になる）
+    body: { steamAppId: 1174180, title: "レッド・デッド・リデンプション2" },
+  });
+  const groupAfterGame = await api(groupUrl, { cookie: adminCookie });
+  check(
+    "F69 ゲーム追加がグループ詳細に即出る（無効化）",
+    (addedGame.status === 200 || addedGame.status === 201) &&
+      groupAfterGame.text.includes("レッド・デッド・リデンプション2"),
+    `add=${addedGame.status} 出た=${groupAfterGame.text.includes("レッド・デッド")}`
+  );
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

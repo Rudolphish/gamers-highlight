@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getCurrentUser } from "@/lib/currentUser";
+import { invalidateGroup } from "@/lib/cacheTags";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 import {
@@ -99,6 +100,8 @@ export async function POST(
     select: { updatedAt: true },
   });
   const refreshedAt = updated?.updatedAt ?? new Date();
+
+  invalidateGroup(params.id);
 
   // 一部のソースだけ取れなかった場合も200で返す（保存済みの値は更新されているため）。
   // ただし「更新しました」とだけ伝えると、何も増えていないのに成功したように見えてしまい、

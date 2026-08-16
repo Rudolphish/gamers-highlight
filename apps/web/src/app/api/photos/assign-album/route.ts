@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { invalidateAlbumPhotos } from "@/lib/cacheTags";
 import { hasAlbumPermission } from "@/lib/permissions";
 
 // POST /api/photos/assign-album … 未分類（albumId無し）の投稿を、既存アルバムへまとめて追加する。
@@ -32,7 +33,13 @@ export async function POST(req: Request) {
   });
 
   // アルバムのupdatedAtを更新して、ホーム画面の並び順に反映させる
-  await db.album.update({ where: { id: albumId }, data: {} });
+  const album = await db.album.update({
+    where: { id: albumId },
+    data: {},
+    select: { groupId: true },
+  });
+
+  invalidateAlbumPhotos(albumId, album.groupId);
 
   return NextResponse.json({ movedCount: result.count });
 }

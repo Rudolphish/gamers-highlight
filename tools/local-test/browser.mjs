@@ -22,10 +22,15 @@ try {
 //     httpのlocalhostを許可していないため必ず400になる。本番のR2は https の pub-*.r2.dev で
 //     許可済みなので、**これはローカル環境の都合であってアプリの問題ではない**。
 //     そのぶん「画像が実際に表示されるか」はローカルでは確認できない（README参照）。
+//   - 「Failed to fetch RSC payload ... Falling back to browser navigation」:
+//     先読みが中断されたときに出る。このハーネスはページを次々に開いて閉じるので、
+//     飛ばした先読みが途中で切れる。Next.js側は通常のページ遷移に切り替えて処理を続けるため
+//     ユーザーには影響しない（実際に出たり出なかったりで、再実行すると消えた）。
 const IGNORED = [
   /fonts\.googleapis\.com/,
   /fonts\.gstatic\.com/,
   /_next\/image\?url=http%3A%2F%2F127\.0\.0\.1%3A9100/,
+  /Failed to fetch RSC payload/,
 ];
 
 const targets = [
@@ -82,6 +87,9 @@ for (const [id, label, path] of targets) {
   const res = await page
     .goto(BASE + path, { waitUntil: "networkidle", timeout: 30000 })
     .catch((e) => (problems.push(`遷移失敗: ${e.message}`.slice(0, 120)), null));
+
+  // 遅れて出るエラー（ハイドレーション後の例外など）も拾えるよう、判定の前に少し待つ
+  await page.waitForTimeout(500);
 
   rows.push({
     id,

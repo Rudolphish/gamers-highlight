@@ -20,6 +20,7 @@ console.log(JSON.stringify({
   albumId: album.id, otherAlbumId: otherAlbum.id,
   gameId: game.id, proposalId: proposal.id, inviteId: invite.id,
   inviteToken: "test-invite-token-0001",
-  outsiderPhotoId: outsiderPhoto.id, memberPhotoId: memberPhoto.id,
+  // スイートを流した後は消えていることがある（api-sweep が仕様確認で削除する）ので null 許容
+  outsiderPhotoId: outsiderPhoto?.id ?? null, memberPhotoId: memberPhoto?.id ?? null,
 }));
 await db.$disconnect();
