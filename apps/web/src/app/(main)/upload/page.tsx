@@ -48,22 +48,24 @@ type IdentifiedGame = {
 
 type AlbumOption = { id: string; title: string };
 
-// post が無い場合はストレージ未設定のモック環境（ローカル開発時のフォールバック）。
+// upload が無い場合はストレージ未設定のモック環境（ローカル開発時のフォールバック）。
 // 実際のオブジェクトアップロードは発生せず、既に返ってきているモックURLをそのまま使う。
-async function postFileToStorage(post: { url: string; fields: Record<string, string> } | null, file: File) {
-  if (!post) return;
-  const formData = new FormData();
-  for (const [key, value] of Object.entries(post.fields)) {
-    formData.append(key, value);
-  }
-  formData.append("file", file);
+//
+// **PUTで送る。** R2は署名付きPOSTに対応しておらず、POSTすると501が返る。
+// 501にはCORSヘッダーが付かないので、ブラウザ上はCORSエラーに見える。
+async function putFileToStorage(upload: { url: string; contentType: string } | null, file: File) {
+  if (!upload) return;
 
   // ストレージは別ドメインなので、CORSで弾かれるとfetch自体が例外になる。
   // 「失敗しました」だけだと原因（CORS設定・署名切れ・容量超過）を切り分けられないため、
   // 応答が取れたときは状態コードと本文を、取れなかったときはCORSの可能性を出す。
   let postRes: Response;
   try {
-    postRes = await fetch(post.url, { method: "POST", body: formData });
+    postRes = await fetch(upload.url, {
+      method: "PUT",
+      headers: { "Content-Type": upload.contentType },
+      body: file,
+    });
   } catch (e) {
     throw new Error(
       `ストレージへ接続できませんでした（CORS設定またはネットワークの可能性）: ${
@@ -93,8 +95,8 @@ async function uploadToStorage(file: File, extra: Record<string, unknown> = {}):
     const detail = (await res.text().catch(() => "")).slice(0, 200);
     throw new Error(`署名の取得に失敗しました（${res.status}）${detail ? `: ${detail}` : ""}`);
   }
-  const { post, publicUrl } = await res.json();
-  await postFileToStorage(post, file);
+  const { upload, publicUrl } = await res.json();
+  await putFileToStorage(upload, file);
   return publicUrl;
 }
 

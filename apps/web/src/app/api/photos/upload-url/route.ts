@@ -40,7 +40,12 @@ export async function POST(req: Request) {
     );
   }
 
-  // 実際のサイズ上限はここで発行するポリシーのcontent-length-rangeがストレージ側に強制する
-  const { post, publicUrl } = await createUploadUrl(body.contentType, mediaType);
-  return NextResponse.json({ post, publicUrl }, { status: 201 });
+  // 申告サイズは上で上限と突き合わせ済み。それを署名に含めるので、
+  // 実際に送られるサイズが申告と違えば署名が一致せずストレージ側で弾かれる。
+  const { upload, publicUrl } = await createUploadUrl(
+    body.contentType,
+    mediaType,
+    typeof body.sizeBytes === "number" ? body.sizeBytes : undefined
+  );
+  return NextResponse.json({ upload, publicUrl }, { status: 201 });
 }
