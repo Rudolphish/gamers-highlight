@@ -45,7 +45,12 @@ node tools/local-test/flows.mjs             # F: 主要導線
 node tools/local-test/external-failure.mjs  # X: 外部API全滅時
 node tools/local-test/browser.mjs           # B: 実ブラウザ（任意）
 node tools/local-test/build-report.mjs      # 表だけ作り直す
+node tools/local-test/audit-invalidation.mjs  # キャッシュ無効化の静的チェック（サーバー不要）
 ```
+
+**キャッシュ（`unstable_cache`）を触ったら `audit-invalidation.mjs` を流すこと。**
+書き込みハンドラの無効化の呼び忘れと、GETへの混入（読むたびにキャッシュを捨てる）を見る。
+どちらも実際にやって、目視では見落とした。
 
 ## テスト項目表
 
@@ -80,6 +85,7 @@ IDの頭文字はスイートを表す: `P`=ページ、`R`=API権限、`F`=主�
 | `external-failure.mjs` | **X**: 外部APIを全滅させてもページが500にならないこと |
 | `browser.mjs` | **B**: 実ブラウザ（Chromium）で開いて例外が出ないこと。`playwright-core` が無ければスキップ |
 | `query-count.mjs` | 1ページの描画で何回DBを引いているかを数える（`--save` / `--compare`）。本番はネットワーク越しで1クエリ＝1往復なので、**見るべきは所要時間ではなくクエリ数** |
+| `audit-invalidation.mjs` | キャッシュ無効化の呼び忘れ・GETへの混入を静的に洗い出す（サーバー不要） |
 | `run-all.mjs` | 上を全部流して表を作り直す |
 | `build-report.mjs` | `results/*.json` から `docs/test-results.md` を組み立てる |
 | `_results.mjs` | 各スイートが結果を書き出す共通処理 |

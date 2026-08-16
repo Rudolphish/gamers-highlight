@@ -17,7 +17,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     include: { members: true },
   });
   if (!album) return NextResponse.json({ error: "not found" }, { status: 404 });
-  invalidateAlbum(album.id, album.groupId);
 
   return NextResponse.json({ album });
 }
@@ -52,6 +51,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (typeof body.steamAppId === "number") {
     await cacheSteamHeaderImage(body.steamAppId);
   }
+
+  // タイトル・カバーはアルバム詳細にもグループ詳細にも出るので両方飛ばす
+  invalidateAlbum(album.id, album.groupId);
 
   return NextResponse.json({ album });
 }

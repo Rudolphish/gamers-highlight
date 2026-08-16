@@ -591,6 +591,8 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 
   // ── 無効化: 写真を上げたら、次に開いたとき出ていること ──
+  // 直前に開いてキャッシュを温めてから変更する（温めないと偶然通る）
+  await api(albumUrl, { cookie: adminCookie });
   const signed = await api("/api/photos/upload-url", {
     method: "POST",
     cookie: adminCookie,
@@ -615,6 +617,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 
   // ── 無効化: 写真を消したら、次に開いたとき消えていること ──
+  await api(albumUrl, { cookie: adminCookie });
   const removed = await api(`/api/photos/${uploaded.json.photo.id}`, {
     method: "DELETE",
     cookie: adminCookie,
@@ -627,6 +630,13 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 
   // ── 無効化: アルバム名を変えたら、グループ詳細にも即反映されること ──
+  //
+  // **直前にグループ詳細を開いてキャッシュを温めてから変更する。**
+  // これを挟まないと、前のケースが飛ばしたタグのおかげで偶然通ってしまい、
+  // PATCHが無効化を呼んでいなくてもOKになる（実際にそうなっていて、
+  // 自動レビューに「PATCHに無効化が無い」と指摘されるまで気づけなかった）。
+  await api(groupUrl, { cookie: adminCookie });
+
   const renamed = await api(`/api/albums/${album.id}`, {
     method: "PATCH",
     cookie: adminCookie,
@@ -645,6 +655,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   });
 
   // ── 無効化: ゲームを足したら、グループ詳細に即出ること ──
+  await api(groupUrl, { cookie: adminCookie });
   const addedGame = await api(`/api/groups/${group.id}/games`, {
     method: "POST",
     cookie: adminCookie,
