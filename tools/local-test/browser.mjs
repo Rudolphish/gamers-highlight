@@ -102,6 +102,59 @@ for (const [id, label, path] of targets) {
   await page.close();
 }
 
+// ── ゲーム一覧のフィルタ初期状態 ──
+// サーバーは全件を描画し、絞り込みはハイドレーション後にクライアントで効く。
+// curlでは確認できないのでここで見る。
+{
+  const page = await context.newPage();
+  await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+
+  const visible = await page.evaluate(() =>
+    [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "")
+  );
+  const text = visible.join(" ");
+
+  const pressed = await page.evaluate(() =>
+    [...document.querySelectorAll('button[aria-pressed="true"]')].map((b) => b.textContent?.trim())
+  );
+
+  rows.push({
+    id: "B20",
+    item: "ゲーム一覧の初期フィルタが「プレイ中」「気になる」だけ",
+    expected: "プレイ中・気になるが選択済み",
+    actual: pressed.join(",") || "なし",
+    ok: pressed.includes("プレイ中") && pressed.includes("気になる") && !pressed.includes("積みゲー"),
+    note: "",
+  });
+
+  rows.push({
+    id: "B21",
+    item: "初期状態で積みゲー・クリア済みは出ない",
+    expected: "出ない",
+    actual: text.includes("積みゲー") || text.includes("クリア済み") ? "出ている" : "出ていない",
+    ok: !text.includes("積みゲー") && !text.includes("クリア済み") && text.includes("ウィッチャー3"),
+    note: text.slice(0, 120),
+  });
+
+  // 「すべて」を押せば戻せること
+  await page.getByRole("button", { name: "すべて" }).click();
+  await page.waitForTimeout(300);
+  const afterAll = await page.evaluate(() =>
+    [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "").join(" ")
+  );
+  rows.push({
+    id: "B22",
+    item: "「すべて」を押すと積みゲー・クリア済みも出る",
+    expected: "出る",
+    actual: afterAll.includes("積みゲー") ? "出た" : "出ない",
+    ok: afterAll.includes("積みゲー") && afterAll.includes("クリア済み"),
+    note: afterAll.slice(0, 120),
+  });
+
+  await page.close();
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));
