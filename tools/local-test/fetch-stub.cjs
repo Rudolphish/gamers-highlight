@@ -163,6 +163,20 @@ function discord(url, init) {
   return json({ id: "stub-message-id", channel_id: "stub-channel" });
 }
 
+// 1x1の透過PNG。next/imageはサーバー側から画像を取りに行くので、
+// これを返さないと「外部呼び出しが未処理」としてブラウザ側に500系が出る。
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64"
+);
+
+function image() {
+  return new Response(TINY_PNG, {
+    status: 200,
+    headers: { "content-type": "image/png", "content-length": String(TINY_PNG.length) },
+  });
+}
+
 globalThis.fetch = async function stubbedFetch(input, init) {
   const url = typeof input === "string" ? input : input?.url ?? String(input);
   let host = "";
@@ -186,6 +200,15 @@ globalThis.fetch = async function stubbedFetch(input, init) {
   } catch {}
 
   try {
+    // 画像のホスト（next/imageがサーバー側から取りに行く先）
+    if (
+      host.endsWith(".steamstatic.com") ||
+      host.endsWith(".akamaihd.net") ||
+      host === "cdn.discordapp.com" ||
+      host === "images.unsplash.com"
+    ) {
+      return image();
+    }
     if (host === "store.steampowered.com") {
       if (url.includes("/api/appdetails")) return appdetails(url);
       if (url.includes("/api/storesearch")) return storesearch(url);
