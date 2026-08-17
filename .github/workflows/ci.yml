@@ -1,0 +1,197 @@
+name: CI
+
+# `tools/local-test/` に252項目あるのに、これまで実行するのは開発中の手作業だけで、
+# しかも「変更に関係するスイートだけ」という運用だった。つまり**関係すると思わなかった
+# 箇所の回帰は誰も見ていない**。実際にキャッシュ無効化のテスト（F68）が別のテストの
+# 副作用で偶然通っていた例があり、危うく見逃すところだった。
+#
+# 外部サービス（Steam・YouTube・HowLongToBeat・ITAD・Discord・R2）は
+# `tools/local-test/fetch-stub.cjs` と `mock-r2.mjs` で全部差し替わるので、
+# 秘密情報は一切要らない。DBだけサービスコンテナで立てる。
+#
+# **これが通ることは本番が動くことの証明にはならない**（外部は全部スタブなので）。
+# 確認しているのは「壊れていないことの下限」。README にも同じことが書いてある。
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+# 同じブランチへ続けて push したときは古い実行を打ち切る
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── サーバーを立てずに済む確認。数分で終わるので、重い方より先に落ちてほしい ──
+  checks:
+    name: 型とキャッシュ無効化の確認
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # バージョンは直書きする。`with:` で `${{ env.* }}` を使うと、
+      # 参照できるかどうかが文脈依存になり、外したときの壊れ方が分かりにくい
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # `npm install` を使ってはいけない（pnpmワークスペースなので node_modules が壊れる）
+      - run: pnpm install --frozen-lockfile
+
+      - name: Prisma Client を生成
+        run: npx prisma generate --schema=packages/db/schema.prisma
+
+      - name: 型チェック
+        run: npx tsc --noEmit
+        working-directory: apps/web
+
+      # 書き込みハンドラでのキャッシュ無効化の呼び忘れと、GETへの混入を静的に見る。
+      # どちらも実際にやって目視では見落とした（#43）。サーバー不要なのでここで流す。
+      - name: キャッシュ無効化の静的チェック
+        run: node tools/local-test/audit-invalidation.mjs
+
+  # ── 本番ビルドを立てて通しで確認する ──
+  integration:
+    name: ローカル総合テスト
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gh
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/gh
+      # マイグレーションは直接接続で流す。ローカルにプーラーは無いので同じ値でよい
+      DATABASE_DIRECT_CONNECT: postgresql://postgres:postgres@127.0.0.1:5432/gh
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # バージョンは直書きする。`with:` で `${{ env.* }}` を使うと、
+      # 参照できるかどうかが文脈依存になり、外したときの壊れ方が分かりにくい
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `prisma db push` は使わない（ローカル手順と同じ理由。README参照）
+      - name: スキーマを流す
+        run: |
+          npx prisma migrate diff --from-empty \
+            --to-schema-datamodel packages/db/schema.prisma --script > /tmp/gh-schema.sql
+          PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d gh -v ON_ERROR_STOP=1 -f /tmp/gh-schema.sql
+
+      # 値は全部ローカル専用のダミー。外部へは fetch-stub.cjs / mock-r2.mjs が
+      # 差し替わるので実際には使われない（キーが存在しないとコードが早期returnする箇所があるため置く）
+      - name: apps/web/.env.local を作る
+        run: |
+          cat > apps/web/.env.local <<'EOF'
+          DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/gh"
+          DATABASE_DIRECT_CONNECT="postgresql://postgres:postgres@127.0.0.1:5432/gh"
+          NEXTAUTH_SECRET="local-integration-test-secret"
+          NEXTAUTH_URL="http://localhost:3000"
+          DISCORD_CLIENT_ID="local-client-id"
+          DISCORD_CLIENT_SECRET="local-client-secret"
+          ADMIN_EMAILS="admin@example.com"
+          STORAGE_ENDPOINT="http://127.0.0.1:9100"
+          STORAGE_BUCKET="gh-local"
+          STORAGE_ACCESS_KEY_ID="local-access-key"
+          STORAGE_SECRET_ACCESS_KEY="local-secret-key"
+          STORAGE_PUBLIC_URL="http://127.0.0.1:9100/gh-local"
+          INTERNAL_API_BASE_URL="http://127.0.0.1:3000"
+          INTERNAL_API_SECRET="local-internal-secret"
+          DISCORD_BOT_TOKEN="local-token"
+          ITAD_API_KEY="local-itad-key"
+          YOUTUBE_API_KEY="local-youtube-key"
+          CRON_SECRET="local-cron-secret"
+          EOF
+
+      # `dev` ではなく本番ビルドで確認する。`dev` だとNext.js自身のエラーオーバーレイが出て
+      # アプリ側のエラーバウンダリの挙動が見えない（README参照）
+      - name: ビルド
+        run: pnpm --filter web build
+
+      # ステップが終わってもプロセスを残す必要があるので nohup で切り離す。
+      # ログは成果物として持ち帰りたいので、ワークスペース内に置く
+      # （upload-artifact はワークスペース外の絶対パスを混ぜると扱いが変わるため）。
+      - name: 模擬R2を起動
+        run: |
+          mkdir -p ci-logs
+          nohup node tools/local-test/mock-r2.mjs > ci-logs/mock-r2.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://127.0.0.1:9100/ && exit 0
+            sleep 1
+          done
+          echo "模擬R2が起動しませんでした"; cat ci-logs/mock-r2.log; exit 1
+
+      - name: アプリを起動（外部APIはスタブ）
+        run: |
+          mkdir -p ci-logs
+          NODE_OPTIONS="--require $PWD/tools/local-test/fetch-stub.cjs" \
+            nohup pnpm --filter web start > ci-logs/web.log 2>&1 &
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/ || true)
+            case "$code" in
+              200|307) echo "起動しました ($code)"; exit 0 ;;
+            esac
+            sleep 2
+          done
+          echo "アプリが起動しませんでした"; tail -50 ci-logs/web.log; exit 1
+
+      - name: テストデータを入れる
+        run: |
+          node tools/local-test/seed.mjs
+          echo "SEED_IDS=$(node tools/local-test/ids.mjs)" >> "$GITHUB_ENV"
+
+      # スイートは個別に流す。run-all.mjs を使うと browser.mjs が
+      # 「playwright-core が無いのでスキップ」で exit 0 になり、**流していないのに OK と出る**。
+      # ここで一番避けたいのがそれなので、実際に流すものだけを並べる。
+      # ブラウザ確認は playwright-core が依存に無いためCIでは行わない（手元で流す）。
+      - name: P ページの到達性と権限
+        run: node tools/local-test/sweep.mjs
+
+      - name: R APIの権限
+        run: node tools/local-test/api-sweep.mjs
+
+      - name: F 主要導線
+        run: node tools/local-test/flows.mjs
+
+      - name: X 外部API全滅時
+        run: node tools/local-test/external-failure.mjs
+
+      # 落ちたときに「どの項目がどうNGだったか」を持ち帰れるようにする。
+      # ログだけだと表が読めず、再現に時間がかかる
+      - name: 結果を残す
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            tools/local-test/results/
+            docs/test-results.md
+            ci-logs/
+          if-no-files-found: warn
+          retention-days: 7
