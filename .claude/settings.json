@@ -102,6 +102,16 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "startup|resume|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-brief.mjs\"",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "Stop": [
