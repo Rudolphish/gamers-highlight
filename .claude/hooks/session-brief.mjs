@@ -35,6 +35,19 @@ const git = (...args) => {
 
 const out = [];
 
+// ── 自動レビューが止まっていないか ──
+// `.review-off` は「止まらなくなった時の逃げ道」だが、置いたことを誰も通知しない。
+// 消し忘れると**以後ずっとレビューされないまま、見た目は今までと何も変わらない**。
+// 走らなかったことが見えない状態を作らない、というのがこの一連の修正の主旨なので、
+// キルスイッチ自体も見えるようにしておく。
+const SKIP_FILE = join(HERE, ".review-off");
+if (existsSync(SKIP_FILE)) {
+  out.push(
+    `> ⚠ **自動レビューは停止中です**（\`.claude/hooks/.review-off\` があります）。\n` +
+      `> 意図的でなければ削除してください。置いたままだとコミットは一切レビューされません。\n`
+  );
+}
+
 // ── 進め方の記録 ──
 if (existsSync(LESSONS)) {
   const text = readFileSync(LESSONS, "utf8");
