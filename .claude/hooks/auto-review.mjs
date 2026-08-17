@@ -634,9 +634,95 @@ function finishPending(state, from, to, shas) {
   return { from, to, shas };
 }
 
+// 任意の範囲を手でレビューする入口。
+//
+//   node .claude/hooks/auto-review.mjs --range <from>..<to>
+//   node .claude/hooks/auto-review.mjs --range <sha>        … そのコミット1件（<sha>^..<sha>）
+//
+// フックとしての自動実行では拾えなかった分を後から掛け直すためのもの。
+// **.review-state.json は触らない**（手動実行がセッションの起点を動かすと、
+// そのセッションで本来レビューされるはずだった範囲が飛ぶ）。
+// 判定に関わらずexit 0で返す。手動実行はStopをブロックする文脈に無い。
+function reviewRangeManually(spec, sessionId) {
+  let from;
+  let to;
+  if (spec.includes("..")) {
+    [from, to] = spec.split("..");
+  } else {
+    from = `${spec}^`;
+    to = spec;
+  }
+
+  let fromSha;
+  let toSha;
+  let shas;
+  try {
+    fromSha = git(["rev-parse", `${from}^{commit}`]);
+    toSha = git(["rev-parse", `${to}^{commit}`]);
+    shas = git(["rev-list", `${fromSha}..${toSha}`]).split("\n").filter(Boolean);
+  } catch (e) {
+    console.error(`[auto-review] 範囲 ${spec} を解決できませんでした: ${e.message}`);
+    process.exit(1);
+  }
+
+  if (shas.length === 0) {
+    console.error(`[auto-review] 範囲 ${spec} にコミットがありません。`);
+    process.exit(1);
+  }
+
+  const target = getDiff(`${fromSha}..${toSha}`);
+  if (target === null || !target.text) {
+    recordSkip({ sessionId, from: fromSha, to: toSha, shas, reason: "レビュー対象の差分が実質空です" });
+    process.exit(0);
+  }
+
+  const ledgerBase = {
+    timestamp: new Date().toISOString(),
+    sessionId: sessionId ?? "",
+    target: `${fromSha.slice(0, 7)}..${toSha.slice(0, 7)}`,
+    commits: shas.join(";"),
+  };
+
+  let output;
+  try {
+    output = runReviewer(target);
+  } catch (e) {
+    recordSkip({ sessionId, from: fromSha, to: toSha, shas, reason: `レビュー担当の起動に失敗: ${e.message}`.slice(0, 200) });
+    process.exit(1);
+  }
+
+  const logPath = saveReviewLog(output);
+  const logFile = logPath.split("\\").join("/").split("/").pop();
+  const verdictMatch = output.match(/VERDICT:\s*(PASS|FAIL)/i);
+  if (!verdictMatch) {
+    appendLedgerRow({ ...ledgerBase, verdict: "NO_VERDICT", findings: "", logFile });
+    console.log(`NO_VERDICT ${ledgerBase.target} → docs/review-log/${logFile}`);
+    process.exit(0);
+  }
+  const isPass = verdictMatch[1].toUpperCase() === "PASS";
+  const findingCount = isPass ? 0 : (output.match(/^\s*(?:[-*]|\d+\.|\*\*\d+\.)\s+/gm) ?? []).length;
+  appendLedgerRow({ ...ledgerBase, verdict: isPass ? "PASS" : "FAIL", findings: String(findingCount), logFile });
+  console.log(
+    `${isPass ? "PASS" : `FAIL 指摘${findingCount}件`} ${ledgerBase.target} → docs/review-log/${logFile}`
+  );
+  process.exit(0);
+}
+
 function main() {
   const input = readStdinJson();
   const sessionId = typeof input.session_id === "string" ? input.session_id : null;
+
+  // --range は人が明示的に叩く入口なので、キルスイッチ（.review-off）より前に処理する。
+  // .review-off が止めたいのは「勝手に走るレビュー」であって、頼まれたレビューではない。
+  const rangeIndex = process.argv.indexOf("--range");
+  if (rangeIndex !== -1) {
+    const spec = process.argv[rangeIndex + 1];
+    if (!spec) {
+      console.error("[auto-review] --range には <from>..<to> または <sha> を渡してください。");
+      process.exit(1);
+    }
+    reviewRangeManually(spec, sessionId);
+  }
 
   // キルスイッチの判定は最初に行う。--record-session-baseより後ろに置くと、
   // 「置けば何もしない」と説明しているのにSessionStart経路だけ素通りして
