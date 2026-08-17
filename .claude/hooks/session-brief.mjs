@@ -68,29 +68,28 @@ if (head && existsSync(LEDGER)) {
   }
 
   if (base) {
-    const reviewed = new Set();
-    const failed = new Map();
+    // コミットごとに**最後の判定**を持つ。PASSとFAILを別の集合で持つと、
+    // 一度PASSしたあとに再レビューでFAILしたコミットが「レビュー済み」に吸収されて消える。
+    // SKIP行は判定として扱わない（見送りは「レビューしていない」の記録なので、
+    // これを済み扱いにすると見落としがそのまま固定化する）。
+    const verdictOf = new Map();
     for (const line of readFileSync(LEDGER, "utf8").split("\n")) {
       const cols = parseCsvLine(line);
       if (cols.length < 6) continue;
       const [, , , commits, verdict] = cols;
-      for (const sha of commits.split(";").filter(Boolean)) {
-        if (verdict === "PASS") {
-          reviewed.add(sha);
-          failed.delete(sha);
-        } else if (verdict === "FAIL") {
-          failed.set(sha, true);
-        }
-      }
+      if (verdict !== "PASS" && verdict !== "FAIL") continue;
+      for (const sha of commits.split(";").filter(Boolean)) verdictOf.set(sha, verdict);
     }
 
     const commits = (git("rev-list", `${base}..${head}`) ?? "").split("\n").filter(Boolean);
-    const pending = commits.filter((c) => !reviewed.has(c));
+    const pending = commits.filter((c) => verdictOf.get(c) !== "PASS");
     if (pending.length > 0) {
       out.push(`\n## いまのブランチ（${branch}）に未レビューのコミットが ${pending.length} 件あります\n`);
       for (const c of pending.slice(0, 10)) {
         const subject = git("log", "-1", "--format=%s", c) ?? "";
-        out.push(`- ${failed.has(c) ? "FAIL" : "未レビュー"} ${c.slice(0, 7)} ${subject.slice(0, 60)}`);
+        out.push(
+          `- ${verdictOf.get(c) === "FAIL" ? "FAIL" : "未レビュー"} ${c.slice(0, 7)} ${subject.slice(0, 60)}`
+        );
       }
       out.push(`\nマージ前に \`node .claude/hooks/review-status.mjs --range\` で確認してください。`);
     }
