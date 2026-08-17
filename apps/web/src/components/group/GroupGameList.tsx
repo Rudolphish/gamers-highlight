@@ -43,6 +43,24 @@ const STATUS_ORDER: GameStatus[] = ["PLAYING", "WISHLIST", "BACKLOG", "COMPLETED
 /** 画面を開いた直後に選ばれているステータス（いま話題になるものだけ出す） */
 const DEFAULT_STATUS_FILTER: GameStatus[] = ["PLAYING", "WISHLIST"];
 
+/**
+ * 絞り込みの保存先（ブラウザのlocalStorage）。
+ *
+ * **キーはグループ単位。** ジャンルはそのグループのゲームから作られるので、
+ * 全グループで共有すると「別のグループには存在しないジャンル」が選ばれたままになり、
+ * 開いた瞬間に0件、という状態になる。
+ *
+ * **末尾の版番号を上げると、保存済みの設定を捨てて既定からやり直せる。**
+ * 保存を始めた以上 DEFAULT_STATUS_FILTER は「初めてそのグループを開いた人」にしか
+ * 効かないので、既定を変えて全員に配り直したくなったらここを上げる。
+ */
+const FILTER_STORAGE_VERSION = "v1";
+const filterStorageKey = (groupId: string) => `gh:game-filter:${FILTER_STORAGE_VERSION}:${groupId}`;
+
+function isGameStatus(value: unknown): value is GameStatus {
+  return typeof value === "string" && STATUS_ORDER.includes(value as GameStatus);
+}
+
 export function GroupGameList({
   groupId,
   games,
@@ -67,6 +85,8 @@ export function GroupGameList({
     () => new Set<GameStatus>(DEFAULT_STATUS_FILTER)
   );
   const [genreFilter, setGenreFilter] = useState<Set<string>>(new Set());
+  // 保存済みの設定を読み終えたか。読む前に保存すると、既定値で上書きしてしまう
+  const [restored, setRestored] = useState(false);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SteamResult[]>([]);
@@ -77,6 +97,51 @@ export function GroupGameList({
 
   // サーバーから最新データが届いたら（router.refresh()完了時など）楽観的な値を正に置き換える
   useEffect(() => setItems(games), [games]);
+
+  /**
+   * 前回の絞り込みを復元する。
+   *
+   * **描画中にlocalStorageを読んではいけない。** サーバー側には無い値なので、
+   * サーバーが描いたHTMLと最初のクライアント描画が食い違い、ハイドレーションのずれになる。
+   * マウント後に読んで、後から反映する（一瞬だけ既定の絞り込みが見えるのは許容する）。
+   */
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(filterStorageKey(groupId));
+      if (raw) {
+        const saved = JSON.parse(raw) as { status?: unknown; genres?: unknown };
+        if (Array.isArray(saved.status)) {
+          setStatusFilter(new Set(saved.status.filter(isGameStatus)));
+        }
+        if (Array.isArray(saved.genres)) {
+          // そのグループに今あるジャンルだけを残す。ゲームが消えて存在しなくなった
+          // ジャンルが選ばれたままだと、開いた瞬間に0件になって理由が分からない
+          const available = new Set(games.flatMap((g) => g.genres));
+          setGenreFilter(
+            new Set(saved.genres.filter((g): g is string => typeof g === "string" && available.has(g)))
+          );
+        }
+      }
+    } catch {
+      // 保存が壊れている／localStorageが使えない（プライベートモード等）。既定のまま進む
+    }
+    setRestored(true);
+    // グループが変われば読み直す。gamesは初回の判定にだけ使う
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId]);
+
+  /** 絞り込みを変えたら保存する。復元前に走らせると既定値で上書きしてしまう */
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      localStorage.setItem(
+        filterStorageKey(groupId),
+        JSON.stringify({ status: [...statusFilter], genres: [...genreFilter] })
+      );
+    } catch {
+      // 保存できなくても表示には影響しない（次に開くと既定に戻るだけ）
+    }
+  }, [restored, groupId, statusFilter, genreFilter]);
 
   const allGenres = Array.from(new Set(items.flatMap((g) => g.genres))).sort();
 
