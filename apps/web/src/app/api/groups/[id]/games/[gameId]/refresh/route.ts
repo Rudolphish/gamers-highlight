@@ -7,9 +7,11 @@ import { hasGroupPermission } from "@/lib/permissions";
 import {
   refreshExternalGameData,
   missingSources,
+  needOnly,
   REFRESH_INTERVAL_MS,
   RETRY_MISSING_INTERVAL_MS,
   EXTERNAL_SOURCE_LABEL,
+  type ExternalSource,
 } from "@/lib/externalGameCache";
 import { gameCacheTag } from "@/lib/steam";
 
@@ -58,15 +60,26 @@ export async function POST(
     },
   });
 
+  // 短縮した間隔で来た場合に「落ちていたぶんだけ」引き直すための対象。
+  // nullなら全ソースを引く（通常の24時間リフレッシュ）。
+  let retryOnly: ExternalSource[] | null = null;
+
   if (cache) {
     // **取れていない項目が残っているなら、24時間も待たせない。**
     // 間隔はupdatedAtで見ているが、これは@updatedAtなので「何も取れなかった書き込み」でも
     // 更新される。つまり外部が落ちている時の追加が、自分で24時間のロックをかけてしまい、
     // 直したくてリフレッシュを押しても429で弾かれる状態になっていた。
-    // 埋まっている項目は引き直さないので、短い間隔でもクォータは食わない。
-    const interval =
-      missingSources(cache).length > 0 ? RETRY_MISSING_INTERVAL_MS : REFRESH_INTERVAL_MS;
+    // 埋まっている項目は引き直さないので、短い間隔でもクォータは食わない
+    // （そのために下で retryOnly を組み立てて refreshExternalGameData に渡している。
+    //   渡し忘れると全ソースを引くため、この短縮がそのままクォータ消費になる）。
+    const missing = missingSources(cache);
+    const interval = missing.length > 0 ? RETRY_MISSING_INTERVAL_MS : REFRESH_INTERVAL_MS;
     const elapsed = Date.now() - cache.updatedAt.getTime();
+
+    // 通常の間隔（24時間）も過ぎているなら、これは「不足分の埋め直し」ではなく
+    // 普通のリフレッシュ。動画も価格も変わりうるので全ソースを引き直す。
+    if (missing.length > 0 && elapsed < REFRESH_INTERVAL_MS) retryOnly = missing;
+
     if (elapsed < interval) {
       const nextAvailableAt = new Date(cache.updatedAt.getTime() + interval);
       return NextResponse.json(
@@ -82,10 +95,19 @@ export async function POST(
 
   const { headerImage, missing, ...external } = await refreshExternalGameData(
     game.steamAppId,
-    game.title
+    game.title,
+    retryOnly ? needOnly(retryOnly) : undefined
   );
-  // まだ取れていないものが残っているなら、次に試せるのも短い間隔のほう
-  const nextInterval = missing.length > 0 ? RETRY_MISSING_INTERVAL_MS : REFRESH_INTERVAL_MS;
+  // まだ取れていないものが残っているなら、次に試せるのも短い間隔のほう。
+  // 判定は保存後の実際の中身で行う（fetchExternalのmissingは「今回引いたソース」の
+  // 成否しか見ないため、引かなかったソースが空のままでも空を返してしまう）。
+  const stillMissing = missingSources({
+    genres: external.genres,
+    headerImage,
+    youtubeVideoId: external.youtubeVideoId,
+    hltbGameId: external.hltbGameId,
+  });
+  const nextInterval = stillMissing.length > 0 ? RETRY_MISSING_INTERVAL_MS : REFRESH_INTERVAL_MS;
 
   await db.groupGame.update({
     where: { id: game.id },

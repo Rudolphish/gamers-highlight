@@ -250,15 +250,41 @@ function appendLedgerRow(row) {
 // 台帳に載っている＝過去にレビュー済みのコミットSHA全部。
 // .review-state.jsonのreviewedCommitsはセッションが変わると消えるため、
 // セッションを跨いだ「二度レビューしない」判定はこちらで行う。
+//
+// **SKIP行は数えないこと。** スキップは「レビューしていない」の記録なので、
+// ここに含めるとスキップした瞬間にそのコミットが恒久的にレビュー対象から外れ、
+// 可視化のために足した行が逆に見落としを固定化してしまう。
 function reviewedShasFromLedger() {
   const set = new Set();
   for (const row of readLedgerRows()) {
-    if (!row.commits) continue;
+    if (!row.commits || row.verdict === SKIP_VERDICT) continue;
     for (const sha of row.commits.split(";")) {
       if (sha) set.add(sha);
     }
   }
   return set;
+}
+
+// レビューを見送った時も台帳に1行残す。
+//
+// 以前は「レビューが実際に走った時だけ記録する」方針だったが、そのせいで
+// **スキップは台帳にもログにも残らず、console.errorに出るだけで誰にも見えなかった**。
+// 未レビューのままマージされたコミットが実際に7件あり、後から数えるまで気づけなかった。
+// findings列には件数の代わりに理由を入れる（SKIP行だけの扱い。
+// consecutiveFailsForSessionはPASS/FAILしか見ないので影響しない）。
+const SKIP_VERDICT = "SKIP";
+
+function recordSkip({ sessionId, from, to, shas, reason }) {
+  appendLedgerRow({
+    timestamp: new Date().toISOString(),
+    sessionId: sessionId ?? "",
+    target: from && to ? `${from.slice(0, 7)}..${to.slice(0, 7)}` : to ? `?..${to.slice(0, 7)}` : "worktree",
+    commits: (shas ?? []).join(";"),
+    verdict: SKIP_VERDICT,
+    findings: reason,
+    logFile: "",
+  });
+  console.error(`[auto-review] レビューを見送りました: ${reason}（台帳に SKIP として記録しました）`);
 }
 
 // 同一セッションで直近何回FAILが続いているか。差分が毎回変わっても数えられるので、
@@ -530,6 +556,50 @@ function recordSessionBase(sessionId) {
   });
 }
 
+// 既定ブランチの先端。fromが辿れなくなった時の代わりの起点を求めるのに使う。
+// origin/HEAD が張られていない環境もあるので候補を順に試す。
+const DEFAULT_BRANCH_CANDIDATES = ["origin/HEAD", "origin/master", "origin/main", "master", "main"];
+
+function defaultBranchTip() {
+  for (const ref of DEFAULT_BRANCH_CANDIDATES) {
+    try {
+      return git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]);
+    } catch {
+      // この候補は存在しない
+    }
+  }
+  return null;
+}
+
+// baseCommitがHEADから辿れない時の代わりの起点＝既定ブランチとの分岐点。
+//
+// **この経路が無いと、新しいブランチの最初のコミットが必ずレビューされない。**
+// このリポジトリの進め方は「squashマージ → origin/masterから新しくブランチを切る」なので、
+// 前のセッションのbaseCommit（squashで消えたブランチ上のコミット）は新しいHEADの祖先に
+// ならない。旧実装はこの状態を「追えないので起点を引き直す」で片付けており、
+// 実測で10ブランチ中9本の初回コミットが黙って飛ばされていた（うち6本はブランチ全体が未レビュー）。
+//
+// 分岐点からHEADまでを対象にすれば、レビュー範囲はそのままPRの中身と一致する。
+// 既にレビュー済みのコミットが混じることはあるが、二度読むのは飛ばすより遥かに安い。
+// 戻り値: 範囲 / "merged"（HEADが既定ブランチに含まれる＝レビューすべき差分が無い） / null（求められない）
+function forkPointRange(head) {
+  const tip = defaultBranchTip();
+  if (!tip) return null;
+  try {
+    const fork = git(["merge-base", head, tip]);
+    if (!fork) return null;
+    // 分岐点＝HEAD。既定ブランチ側に取り込まれているだけで、未レビューの差分は無い
+    // （masterへ戻った直後などにここへ来る）。見送りとして記録すると、
+    // マージ済みのコミットが毎回「未レビュー」に見えてしまう。
+    if (fork === head) return "merged";
+    const shas = git(["rev-list", `${fork}..${head}`]).split("\n").filter(Boolean);
+    if (shas.length === 0) return "merged";
+    return { from: fork, to: head, shas };
+  } catch {
+    return null;
+  }
+}
+
 // baseCommit..HEAD のうち、まだレビューしていないコミットがあるかを調べる。
 // 無ければnull。範囲が広すぎる場合は{tooMany:true}を返す（レビューはせず起点だけ進める）。
 function getPendingCommits(state) {
@@ -540,20 +610,24 @@ function getPendingCommits(state) {
   // rebase/reset/ブランチ切り替えで起点がHEADの祖先でなくなっているかを明示的に確かめる。
   // `git rev-list A..B` はAが祖先でなくても（オブジェクトさえ残っていれば）throwせずに
   // 成功してしまい、無関係なコミット群をレビュー対象にしてしまうため、例外任せにはしない。
-  try {
-    git(["merge-base", "--is-ancestor", state.baseCommit, head]);
-  } catch {
-    return { unreachable: true, to: head, shas: [] };
-  }
-
   let shas;
   try {
+    git(["merge-base", "--is-ancestor", state.baseCommit, head]);
     shas = git(["rev-list", `${state.baseCommit}..${head}`]).split("\n").filter(Boolean);
   } catch {
-    // 起点のオブジェクト自体が消えている（gc済み等）。追いかけようがないので引き直す。
-    return { unreachable: true, to: head, shas: [] };
+    // 起点が辿れない（別ブランチへ切り替えた／rebase／reset／gcで消えた）。
+    // 諦めずに既定ブランチとの分岐点を代わりの起点にする。
+    const fallback = forkPointRange(head);
+    if (fallback === "merged") return null;
+    if (!fallback) return { unreachable: true, to: head, shas: [head] };
+    return finishPending(state, fallback.from, fallback.to, fallback.shas);
   }
 
+  return finishPending(state, state.baseCommit, head, shas);
+}
+
+// 範囲が決まった後の共通判定（既にレビュー済みか／広すぎないか）。
+function finishPending(state, from, to, shas) {
   if (shas.length === 0) return null;
 
   // セッションを跨いでも二度レビューしないよう、台帳側の記録も突き合わせる
@@ -562,13 +636,99 @@ function getPendingCommits(state) {
   const ledgerReviewed = reviewedShasFromLedger();
   if (shas.every((s) => state.reviewedCommits.includes(s) || ledgerReviewed.has(s))) return null;
 
-  if (shas.length > MAX_COMMITS_TO_REVIEW) return { tooMany: true, to: head, shas };
-  return { from: state.baseCommit, to: head, shas };
+  if (shas.length > MAX_COMMITS_TO_REVIEW) return { tooMany: true, from, to, shas };
+  return { from, to, shas };
+}
+
+// 任意の範囲を手でレビューする入口。
+//
+//   node .claude/hooks/auto-review.mjs --range <from>..<to>
+//   node .claude/hooks/auto-review.mjs --range <sha>        … そのコミット1件（<sha>^..<sha>）
+//
+// フックとしての自動実行では拾えなかった分を後から掛け直すためのもの。
+// **.review-state.json は触らない**（手動実行がセッションの起点を動かすと、
+// そのセッションで本来レビューされるはずだった範囲が飛ぶ）。
+// 判定に関わらずexit 0で返す。手動実行はStopをブロックする文脈に無い。
+function reviewRangeManually(spec, sessionId) {
+  let from;
+  let to;
+  if (spec.includes("..")) {
+    [from, to] = spec.split("..");
+  } else {
+    from = `${spec}^`;
+    to = spec;
+  }
+
+  let fromSha;
+  let toSha;
+  let shas;
+  try {
+    fromSha = git(["rev-parse", `${from}^{commit}`]);
+    toSha = git(["rev-parse", `${to}^{commit}`]);
+    shas = git(["rev-list", `${fromSha}..${toSha}`]).split("\n").filter(Boolean);
+  } catch (e) {
+    console.error(`[auto-review] 範囲 ${spec} を解決できませんでした: ${e.message}`);
+    process.exit(1);
+  }
+
+  if (shas.length === 0) {
+    console.error(`[auto-review] 範囲 ${spec} にコミットがありません。`);
+    process.exit(1);
+  }
+
+  const target = getDiff(`${fromSha}..${toSha}`);
+  if (target === null || !target.text) {
+    recordSkip({ sessionId, from: fromSha, to: toSha, shas, reason: "レビュー対象の差分が実質空です" });
+    process.exit(0);
+  }
+
+  const ledgerBase = {
+    timestamp: new Date().toISOString(),
+    sessionId: sessionId ?? "",
+    target: `${fromSha.slice(0, 7)}..${toSha.slice(0, 7)}`,
+    commits: shas.join(";"),
+  };
+
+  let output;
+  try {
+    output = runReviewer(target);
+  } catch (e) {
+    recordSkip({ sessionId, from: fromSha, to: toSha, shas, reason: `レビュー担当の起動に失敗: ${e.message}`.slice(0, 200) });
+    process.exit(1);
+  }
+
+  const logPath = saveReviewLog(output);
+  const logFile = logPath.split("\\").join("/").split("/").pop();
+  const verdictMatch = output.match(/VERDICT:\s*(PASS|FAIL)/i);
+  if (!verdictMatch) {
+    appendLedgerRow({ ...ledgerBase, verdict: "NO_VERDICT", findings: "", logFile });
+    console.log(`NO_VERDICT ${ledgerBase.target} → docs/review-log/${logFile}`);
+    process.exit(0);
+  }
+  const isPass = verdictMatch[1].toUpperCase() === "PASS";
+  const findingCount = isPass ? 0 : (output.match(/^\s*(?:[-*]|\d+\.|\*\*\d+\.)\s+/gm) ?? []).length;
+  appendLedgerRow({ ...ledgerBase, verdict: isPass ? "PASS" : "FAIL", findings: String(findingCount), logFile });
+  console.log(
+    `${isPass ? "PASS" : `FAIL 指摘${findingCount}件`} ${ledgerBase.target} → docs/review-log/${logFile}`
+  );
+  process.exit(0);
 }
 
 function main() {
   const input = readStdinJson();
   const sessionId = typeof input.session_id === "string" ? input.session_id : null;
+
+  // --range は人が明示的に叩く入口なので、キルスイッチ（.review-off）より前に処理する。
+  // .review-off が止めたいのは「勝手に走るレビュー」であって、頼まれたレビューではない。
+  const rangeIndex = process.argv.indexOf("--range");
+  if (rangeIndex !== -1) {
+    const spec = process.argv[rangeIndex + 1];
+    if (!spec) {
+      console.error("[auto-review] --range には <from>..<to> または <sha> を渡してください。");
+      process.exit(1);
+    }
+    reviewRangeManually(spec, sessionId);
+  }
 
   // キルスイッチの判定は最初に行う。--record-session-baseより後ろに置くと、
   // 「置けば何もしない」と説明しているのにSessionStart経路だけ素通りして
@@ -627,11 +787,15 @@ function main() {
     }
 
     if (pending.unreachable || pending.tooMany) {
-      console.error(
-        pending.unreachable
-          ? "[auto-review] セッション開始地点が現在のHEADから辿れないため（rebase/reset等）、レビューはせず起点を引き直しました。"
-          : `[auto-review] 未レビューのコミットが${pending.shas.length}件と多すぎるため（上限${MAX_COMMITS_TO_REVIEW}件）、レビューはせず起点を引き直しました。`
-      );
+      recordSkip({
+        sessionId,
+        from: pending.from,
+        to: pending.to,
+        shas: pending.shas,
+        reason: pending.unreachable
+          ? "起点が現在のHEADから辿れず、既定ブランチとの分岐点も求められませんでした"
+          : `未レビューのコミットが${pending.shas.length}件と多すぎます（上限${MAX_COMMITS_TO_REVIEW}件）`,
+      });
       saveState({ ...state, sessionId, baseCommit: pending.to });
       process.exit(0);
     }
@@ -639,6 +803,13 @@ function main() {
     const commitDiff = getDiff(`${pending.from}..${pending.to}`);
     if (commitDiff === null || !commitDiff.text) {
       // 差分が取れない/実質空（docs/review-log等だけのコミット）。起点だけ進めて終わる。
+      recordSkip({
+        sessionId,
+        from: pending.from,
+        to: pending.to,
+        shas: pending.shas,
+        reason: commitDiff === null ? "差分の取得に失敗しました" : "レビュー対象の差分が実質空です",
+      });
       saveState({ ...state, sessionId, baseCommit: pending.to });
       process.exit(0);
     }
@@ -648,8 +819,16 @@ function main() {
   // 指摘が収束しないまま回り続けている状態の打ち切り。差分が毎回変わるため
   // lastDiffHash方式では検出できず、MAX_TOTAL_RUNSに達するまで止まらなかった。
   // 台帳のFAIL連続回数で見ると、これを早い段階で捕まえられる。
+  const skipContext = {
+    sessionId,
+    from: pending?.from,
+    to: pending?.to ?? safeHead(),
+    shas: pending?.shas ?? [],
+  };
+
   const fails = consecutiveFailsForSession(sessionId);
   if (fails >= MAX_CONSECUTIVE_FAILS) {
+    recordSkip({ ...skipContext, reason: `同一セッションで${fails}回連続FAILしたため打ち切りました` });
     console.error(
       `[auto-review] このセッションで自動レビューが${fails}回連続FAILしています（上限${MAX_CONSECUTIVE_FAILS}回）。` +
         `指摘のたびに差分は変わっているのに収束していないため、コード品質ではなく設計判断の問題である可能性が高いです。` +
@@ -665,6 +844,7 @@ function main() {
     // （更新してもしなくてもこのセッション中の挙動は変わらないが、更新しない方が
     //   ファイルへの書き込み回数を減らせる）。次にセッションが変われば上の
     //   sessionIdチェックで自動的に復帰する。
+    recordSkip({ ...skipContext, reason: `1セッションの通算実行回数が上限（${MAX_TOTAL_RUNS}回）に達しました` });
     console.error(
       `[auto-review] このセッションでの自動レビュー通算実行回数が上限（${MAX_TOTAL_RUNS}回）に達したため、以後このセッション中は自動レビューを行いません。差分が毎回変化していてもレビュアーの指摘が収束していない可能性があります。docs/review-log/ の最新ログを確認してください。`
     );
@@ -676,6 +856,7 @@ function main() {
 
   // 前回と全く同じ差分で既にMAX_ITERATIONS回試している場合は諦めて人間に渡す
   if (nextCount > MAX_ITERATIONS) {
+    recordSkip({ ...skipContext, reason: `同一差分で${MAX_ITERATIONS}回連続FAILしたため打ち切りました` });
     console.error(
       `[auto-review] 同一差分での自動レビューが${MAX_ITERATIONS}回連続でFAILしたため、これ以上は自動修正せず終了します。docs/review-log/ の最新ログを確認してください。`
     );
@@ -700,6 +881,7 @@ function main() {
     // レビュー担当プロセスの起動失敗はインフラ障害であり、コードの問題ではない。
     // VERDICT: FAILとして開発側Claudeに「直せない指摘」を渡すと無駄な作業をさせてしまうため、
     // ログには残しつつStopはブロックしない（totalRunsだけ進めておく）。
+    recordSkip({ ...skipContext, reason: `レビュー担当（claude -p）の起動に失敗しました: ${e.message}`.slice(0, 200) });
     console.error(
       `[auto-review] レビュー担当（claude -p）の起動に失敗しました。インフラ的な問題の可能性があります: ${e.message}`
     );
