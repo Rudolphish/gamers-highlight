@@ -715,6 +715,48 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   await db.groupGame.deleteMany({ where: { steamAppId: { gte: 900000, lt: 900030 } } });
 }
 
+// ───────────────────────────────────────────────────────────
+// L. 提案したゲームでもクリア時間・関連動画が出ること
+//    （提案ページは ExternalGameCache にある場合だけ出す作りなので、
+//     作成時に埋めていないと採用されるまで空のままになる）
+// ───────────────────────────────────────────────────────────
+{
+  const APP_ID = 1174180; // まだ誰も追加・提案していないapp ID
+  await db.groupGameProposal.deleteMany({ where: { steamAppId: APP_ID } });
+  await db.groupGame.deleteMany({ where: { steamAppId: APP_ID } });
+  await db.externalGameCache.deleteMany({ where: { steamAppId: APP_ID } });
+
+  const proposed = await api(`/api/groups/${group.id}/proposals`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { steamAppId: APP_ID, title: "レッド・デッド・リデンプション2" },
+  });
+  check("F74 ゲームを提案できる", proposed.status === 201, `${proposed.status} ${proposed.text.slice(0, 80)}`);
+
+  const cache = await db.externalGameCache.findUnique({ where: { steamAppId: APP_ID } });
+  check(
+    "F75 提案の作成でクリア時間と関連動画がキャッシュに入る",
+    cache?.hltbGameId != null && cache?.youtubeVideoId != null,
+    `HLTB=${cache?.hltbGameId} YT=${cache?.youtubeVideoId}`
+  );
+  check(
+    "F76 提案のカバーがappdetails由来（組み立てURLでない）",
+    !!cache?.headerImage && cache.headerImage.includes("store_item_assets"),
+    cache?.headerImage
+  );
+
+  // 実際に提案ページへ出ること
+  const proposalId = proposed.json?.proposal?.id;
+  const page = await api(`/groups/${group.id}/proposals/${proposalId}`, { cookie: adminCookie });
+  check(
+    "F77 提案ページにクリア時間と関連動画が出る",
+    page.status === 200 && page.text.includes("stubVideoId") && page.text.includes("クリア"),
+    `${page.status} 動画=${page.text.includes("stubVideoId")} 時間=${page.text.includes("クリア")}`
+  );
+
+  await db.groupGameProposal.deleteMany({ where: { steamAppId: APP_ID } });
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

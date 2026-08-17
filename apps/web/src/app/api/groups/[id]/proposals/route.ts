@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
-import { getSteamAppSummary } from "@/lib/steam";
+import { getOrFetchExternalGameData } from "@/lib/externalGameCache";
 import { z } from "zod";
 
 const proposeGameSchema = z.object({
@@ -57,14 +57,24 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "このゲームは既に提案されています" }, { status: 409 });
   }
 
+  // 外部データ（カバー画像・ジャンル・クリア時間・関連動画）をここで取ってキャッシュに載せる。
+  //
   // クライアントが送ってくるcoverUrlは steam/apps/<id>/header.jpg という固定パスの組み立てで、
   // Steamがアセットを store_item_assets/steam/apps/<id>/<ハッシュ>/header.jpg に移して以降、
-  // 新しめのタイトルでは404になる（ゲーム追加・提案の採用時は既にappdetailsの値を優先しているが、
-  // 提案の作成だけこの修正から漏れていた）。ここでもappdetailsが返す正しいURLを優先する。
-  // appdetailsはAPIキー不要・クォータ無しなので、提案1件につき1回問い合わせても問題ない。
-  const summary = await getSteamAppSummary(parsed.data.steamAppId).catch(() => ({
-    headerImage: null,
-  }));
+  // 新しめのタイトルでは404になる。appdetailsが返す正しいURLを優先する。
+  //
+  // **クリア時間と関連動画も、ここで埋めておく必要がある。**
+  // 提案の詳細ページは ExternalGameCache に既にある場合だけこれらを出す作りで、
+  // ページから外部APIを引きに行かない（描画のたびにYouTubeのクォータを消費しないため）。
+  // 作成時に埋めていなかったので、**初めて提案されたゲームは採用されるまで
+  // クリア時間と動画が空のまま**だった。
+  //
+  // 費用は提案1件につき1回。ゲームをリストに追加したときと同じで、キャッシュは
+  // steamAppId単位で共有されるため、後で採用されても取り直しは起きない。
+  const summary = await getOrFetchExternalGameData(
+    parsed.data.steamAppId,
+    parsed.data.title
+  ).catch(() => ({ headerImage: null }));
 
   const proposal = await db.groupGameProposal.create({
     data: {
