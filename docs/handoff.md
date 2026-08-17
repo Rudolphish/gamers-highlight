@@ -228,7 +228,8 @@ DATABASE_URL="postgresql://postgres@localhost:5433/gh?host=/tmp"
 4. マージはユーザーの指示を待つ
 5. スキーマを変えたら、PRに **`prisma db push` が必要**と明記する
    （Vercelはコードしかデプロイしないため）
-6. **マージ前に全件は流さない。** 変更に関係するスイートだけを流す
+6. **マージ前に全件は流さない。** 変更に関係するスイートだけを流す。
+   全件はCI（`.github/workflows/ci.yml`）がPRで流すので、手元で回す必要は無い
    （`tools/local-test/` は個別に実行できる。`docs/test-results.md` には
    スイートごとの実行時刻が入るので、どこが古いかは表を見れば分かる）
 7. **マージ前にレビュー済みか確認する**（下記）
