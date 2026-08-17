@@ -30,16 +30,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # バージョンは直書きする。`with:` で `${{ env.* }}` を使うと、
-      # 参照できるかどうかが文脈依存になり、外したときの壊れ方が分かりにくい
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+
+      # **pnpm/action-setup は使わない。** 最初の実行が
+      # `Failed to download action 'pnpm/action-setup' ... 429 (Too Many Requests)` で
+      # 両ジョブとも落ちた（3回リトライして力尽きる。テストは1つも走っていない）。
+      # corepack は Node に同梱なので落ちようがなく、しかもバージョンは
+      # package.json の `packageManager`（pnpm@9.0.0）から取るので二重管理も消える。
+      - name: pnpm を有効にする
+        run: corepack enable pnpm
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+      # setup-node の `cache: pnpm` は使えない（pnpmがまだPATHに無い時点で評価されるため）。
+      # ストアの場所を自分で調べて actions/cache に渡す
+      - name: pnpm ストアの場所を調べる
+        run: echo "PNPM_STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.PNPM_STORE_PATH }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       # `npm install` を使ってはいけない（pnpmワークスペースなので node_modules が壊れる）
       - run: pnpm install --frozen-lockfile
@@ -84,16 +98,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # バージョンは直書きする。`with:` で `${{ env.* }}` を使うと、
-      # 参照できるかどうかが文脈依存になり、外したときの壊れ方が分かりにくい
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+
+      # checks ジョブと同じ理由で corepack を使う（pnpm/action-setup は 429 で落ちた）
+      - name: pnpm を有効にする
+        run: corepack enable pnpm
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+      - name: pnpm ストアの場所を調べる
+        run: echo "PNPM_STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.PNPM_STORE_PATH }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - run: pnpm install --frozen-lockfile
 
