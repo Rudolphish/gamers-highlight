@@ -630,7 +630,7 @@ function finishPending(state, from, to, shas) {
   const ledgerReviewed = reviewedShasFromLedger();
   if (shas.every((s) => state.reviewedCommits.includes(s) || ledgerReviewed.has(s))) return null;
 
-  if (shas.length > MAX_COMMITS_TO_REVIEW) return { tooMany: true, to, shas };
+  if (shas.length > MAX_COMMITS_TO_REVIEW) return { tooMany: true, from, to, shas };
   return { from, to, shas };
 }
 
@@ -697,6 +697,7 @@ function main() {
     if (pending.unreachable || pending.tooMany) {
       recordSkip({
         sessionId,
+        from: pending.from,
         to: pending.to,
         shas: pending.shas,
         reason: pending.unreachable
