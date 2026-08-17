@@ -84,45 +84,51 @@ if (uncommitted) {
   console.log("⚠ 未コミットの変更があります。レビュー対象はコミット後に確定します。\n");
 }
 
-// --range の起点。auto-review.mjs と同じ決め方にしないと、
-// 「フックがレビューした範囲」と「このコマンドが確認する範囲」がずれる。
-// baseCommitがHEADから辿れない（squashマージ後にブランチを切り直した等）場合は、
-// `rev-list <dead>..HEAD` が無関係なコミット群を返してしまうので使ってはいけない。
+// --range の起点＝既定ブランチとの分岐点。つまり「このブランチで足したコミット全部」。
+//
+// セッション開始地点(baseCommit)ではなくこちらを使う。**確認したいのはマージ直前で、
+// その時点ではフックが baseCommit を HEAD まで進め終えている。** baseCommitを起点にすると
+// 「対象コミットがありません」としか出ず、一番確認したいタイミングで何も分からなかった。
+// 分岐点ならレビュー範囲もマージされる中身も同じになる（auto-review.mjs 側の起点と一致）。
 function rangeBase() {
-  if (state.baseCommit) {
-    try {
-      git("merge-base", "--is-ancestor", state.baseCommit, head);
-      return state.baseCommit;
-    } catch {
-      // 辿れない。既定ブランチとの分岐点に落とす（＝いまのブランチの中身）
-    }
-  }
   for (const ref of ["origin/HEAD", "origin/master", "origin/main", "master", "main"]) {
     try {
-      return git("merge-base", head, git("rev-parse", "--verify", "--quiet", `${ref}^{commit}`));
+      const fork = git("merge-base", head, git("rev-parse", "--verify", "--quiet", `${ref}^{commit}`));
+      if (fork && fork !== head) return { base: fork, from: `既定ブランチとの分岐点` };
     } catch {
       // この候補は無い
     }
   }
-  return head;
+  // 分岐点が求められない（既定ブランチ上にいる等）。セッション開始地点に戻る。
+  // ただしHEADから辿れない起点は使わない（無関係なコミット群が返るため）。
+  if (state.baseCommit) {
+    try {
+      git("merge-base", "--is-ancestor", state.baseCommit, head);
+      return { base: state.baseCommit, from: "セッション開始地点" };
+    } catch {
+      // 辿れない
+    }
+  }
+  return { base: head, from: "起点なし" };
 }
 
 const rangeMode = process.argv.includes("--range");
-const wanted = rangeMode ? git("rev-list", `${rangeBase()}..HEAD`).split("\n").filter(Boolean) : [head];
+const range = rangeMode ? rangeBase() : null;
+const wanted = rangeMode ? git("rev-list", `${range.base}..HEAD`).split("\n").filter(Boolean) : [head];
 
 // **空を「問題なし」と表示してはいけない。** ここで黙って通すと、
-// 「レビュー済み」と「そもそも対象が無い（＝基準点がHEADまで進んでしまった）」が
-// 区別できず、このコマンドを作った理由そのものを再現してしまう。
+// 「レビュー済み」と「そもそも対象が無い」が区別できず、
+// このコマンドを作った理由そのものを再現してしまう。
 if (rangeMode && wanted.length === 0) {
   console.log(
-    `対象コミットがありません。\n` +
-      `  セッション開始地点(baseCommit) = ${(state.baseCommit ?? "未記録").slice(0, 7)}\n` +
-      `  HEAD                          = ${headShort}\n\n` +
-      `この2つが同じなら、基準点がHEADまで進んでいます。それ以前のコミットは\n` +
-      `レビュー対象から外れているので、個別に確認してください（--range なしで実行）。`
+    `対象コミットがありません（起点: ${range.from} ${range.base.slice(0, 7)} = HEAD ${headShort}）。\n\n` +
+      `既定ブランチ上にいるか、まだ何もコミットしていない状態です。\n` +
+      `マージ前の確認は、対象のブランチに切り替えてから実行してください。`
   );
   process.exit(1);
 }
+
+if (rangeMode) console.log(`起点: ${range.from} ${range.base.slice(0, 7)} → HEAD ${headShort}\n`);
 
 let worst = 0;
 for (const commit of wanted) {

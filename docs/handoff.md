@@ -242,8 +242,12 @@ Stopフック（`.claude/hooks/auto-review.mjs`）が別プロセスの `claude 
 
 ```bash
 node .claude/hooks/review-status.mjs          # HEADの状態
-node .claude/hooks/review-status.mjs --range  # セッション開始地点からの全コミット
+node .claude/hooks/review-status.mjs --range  # このブランチで足したコミット全部
 ```
+
+`--range` の起点は**既定ブランチとの分岐点**（＝マージされる中身と同じ範囲）。
+セッション開始地点ではない。確認したいのはマージ直前で、その時点ではフックが
+起点をHEADまで進め終えており、それを見ても「対象コミットがありません」としか出ないため。
 
 終了コード 0=PASS / 1=未レビュー / 2=指摘あり。表示は3種類:
 
