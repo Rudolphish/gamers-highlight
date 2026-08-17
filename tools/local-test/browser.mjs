@@ -155,6 +155,76 @@ for (const [id, label, path] of targets) {
   await page.close();
 }
 
+// ── 絞り込みの保存（localStorage） ──
+{
+  const page = await context.newPage();
+  const url = `${BASE}/groups/${ids.groupId}`;
+  const hydrationErrors = [];
+  page.on("console", (m) => {
+    const t = m.text();
+    if (/hydrat|did not match|Text content does not match/i.test(t)) hydrationErrors.push(t.slice(0, 140));
+  });
+
+  await page.goto(url, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+
+  // 「すべて」を押して既定と違う状態にする
+  await page.getByRole("button", { name: "すべて" }).click();
+  await page.waitForTimeout(400);
+
+  const stored = await page.evaluate((gid) => localStorage.getItem(`gh:game-filter:v1:${gid}`), ids.groupId);
+  rows.push({
+    id: "B23",
+    item: "絞り込みがグループ単位のキーで保存される",
+    expected: "保存される",
+    actual: stored ?? "なし",
+    ok: !!stored && JSON.parse(stored).status.length === 0,
+    note: "",
+  });
+
+  // リロードしても「すべて」のまま（既定に戻らない）
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(700);
+  const afterReload = await page.evaluate(() =>
+    [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "").join(" ")
+  );
+  rows.push({
+    id: "B24",
+    item: "リロードしても前回の絞り込みが復元される",
+    expected: "積みゲーも出る",
+    actual: afterReload.includes("積みゲー") ? "出た" : "既定に戻った",
+    ok: afterReload.includes("積みゲー") && afterReload.includes("クリア済み"),
+    note: "",
+  });
+
+  // 保存を消せば既定に戻る
+  await page.evaluate((gid) => localStorage.removeItem(`gh:game-filter:v1:${gid}`), ids.groupId);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(700);
+  const afterClear = await page.evaluate(() =>
+    [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "").join(" ")
+  );
+  rows.push({
+    id: "B25",
+    item: "保存を消すと既定（プレイ中・気になる）に戻る",
+    expected: "積みゲーは出ない",
+    actual: afterClear.includes("積みゲー") ? "出ている" : "出ていない",
+    ok: !afterClear.includes("積みゲー") && afterClear.includes("ウィッチャー3"),
+    note: "",
+  });
+
+  rows.push({
+    id: "B26",
+    item: "復元でハイドレーションのずれが出ない",
+    expected: "0件",
+    actual: `${hydrationErrors.length}件`,
+    ok: hydrationErrors.length === 0,
+    note: hydrationErrors.join(" | ").slice(0, 160),
+  });
+
+  await page.close();
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));
