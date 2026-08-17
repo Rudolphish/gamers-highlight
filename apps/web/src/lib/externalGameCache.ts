@@ -125,16 +125,36 @@ export function missingSources(row: CacheRow): ExternalSource[] {
   return missing;
 }
 
+/** ソース配列を fetchExternal の need 形式に直す */
+export function needOnly(sources: ExternalSource[]): Record<ExternalSource, boolean> {
+  return {
+    steam: sources.includes("steam"),
+    youtube: sources.includes("youtube"),
+    hltb: sources.includes("hltb"),
+  };
+}
+
 /**
  * キャッシュを無視して外部APIを引き直し、保存し直す（手動リフレッシュ用）。
  * 呼び出し側で間隔制限を判定してから呼ぶこと。
+ *
+ * `need` を渡すとそのソースだけを引く。**短縮した間隔（RETRY_MISSING_INTERVAL_MS）で
+ * 呼ぶときは必ず渡すこと。** 渡さないと全ソースを引くため、HowLongToBeatに該当が無い
+ * ゲーム（`hltbGameId`が正当に永久にnull）では6時間ごとの再取得が恒久化し、
+ * 既に埋まっているYouTubeまで毎回引き直してクォータを削る。短い間隔にした目的が
+ * 「落ちていたぶんだけ拾い直す」ことなので、それでは本末転倒になる。
  */
 export async function refreshExternalGameData(
   steamAppId: number,
-  title: string
+  title: string,
+  need?: Record<ExternalSource, boolean>
 ): Promise<ExternalGameResult & { missing: ExternalSource[] }> {
   // 取得に失敗した項目で既存の値を潰さない（一時的な障害で情報が消えるのを防ぐ）
-  const { data: result, headerImage: fetchedHeader, missing } = await fetchExternal(steamAppId, title);
+  const {
+    data: result,
+    headerImage: fetchedHeader,
+    missing,
+  } = await fetchExternal(steamAppId, title, need);
 
   const existing = await db.externalGameCache.findUnique({ where: { steamAppId } });
   const merged: ExternalGameData = existing
@@ -174,15 +194,10 @@ export async function getOrFetchExternalGameData(
     // （どちらも一時的に失敗するのが普通のサービスなので、これは必ず起きる）。
     // 不足しているソースだけを、間隔を空けて引き直す。
     if (toRetry.length > 0 && elapsed >= RETRY_MISSING_INTERVAL_MS) {
-      const need: Record<ExternalSource, boolean> = {
-        steam: toRetry.includes("steam"),
-        youtube: toRetry.includes("youtube"),
-        hltb: toRetry.includes("hltb"),
-      };
       const { data: fetched, headerImage: fetchedHeader } = await fetchExternal(
         steamAppId,
         title,
-        need,
+        needOnly(toRetry),
         YOUTUBE_BACKFILL_BUDGET
       );
 

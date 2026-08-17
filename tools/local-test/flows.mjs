@@ -412,13 +412,16 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const APP_ID = 570; // Dota 2（他のケースと衝突しないapp ID）
 
   /** スタブが記録した外部呼び出しの累計（サーバーとは別プロセスなのでファイル経由） */
-  const externalCallCount = () => {
+  // スタブが記録した外部呼び出しの行。件数だけでなく「どのサービスを引いたか」も見たいので
+  // 行そのものを返す（F57b/F57cはYouTubeを引いたかどうかで判定する）。
+  const externalCalls = () => {
     try {
-      return readFileSync("/tmp/stub-calls.log", "utf8").split("\n").filter(Boolean).length;
+      return readFileSync("/tmp/stub-calls.log", "utf8").split("\n").filter(Boolean);
     } catch {
-      return 0;
+      return [];
     }
   };
+  const externalCallCount = () => externalCalls().length;
 
   await db.groupGame.deleteMany({ where: { steamAppId: APP_ID } });
   await db.externalGameCache.deleteMany({ where: { steamAppId: APP_ID } });
@@ -484,6 +487,41 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     "F57 未取得が残っていれば6時間で手動リフレッシュできる（429にならない）",
     refreshed.status === 200,
     `${refreshed.status} ${refreshed.text.slice(0, 120)}`
+  );
+
+  // **短縮した間隔で来たリフレッシュは、落ちていたぶんだけ引くこと。**
+  // ここが全ソース取得のままだと、HowLongToBeatに該当が無いゲーム（hltbGameIdが
+  // 正当に永久nullになる）で6時間ごとの全件取得が恒久化し、埋まっているYouTubeまで
+  // 毎回引き直す。短い間隔にした目的（落ちていたぶんの回収）と正反対の結果になる。
+  await db.externalGameCache.update({
+    where: { steamAppId: APP_ID },
+    data: { hltbGameId: null },
+  });
+  await db.$executeRaw`UPDATE external_game_caches SET "updatedAt" = NOW() - INTERVAL '7 hours' WHERE "steamAppId" = ${APP_ID}`;
+  const beforePartial = externalCalls();
+  await api(`/api/groups/${group.id}/games/${game570.id}/refresh`, {
+    method: "POST",
+    cookie: adminCookie,
+  });
+  const spentPartial = externalCalls().slice(beforePartial.length);
+  check(
+    "F57b 短縮間隔のリフレッシュは埋まっているYouTubeを引き直さない",
+    spentPartial.every((line) => !line.includes("googleapis.com")),
+    `外部呼び出し: ${spentPartial.join(" | ").slice(0, 200) || "なし"}`
+  );
+
+  // 24時間も過ぎているなら、それは普通のリフレッシュ。全部引き直してよい
+  await db.$executeRaw`UPDATE external_game_caches SET "updatedAt" = NOW() - INTERVAL '25 hours' WHERE "steamAppId" = ${APP_ID}`;
+  const beforeFull = externalCalls();
+  await api(`/api/groups/${group.id}/games/${game570.id}/refresh`, {
+    method: "POST",
+    cookie: adminCookie,
+  });
+  const spentFull = externalCalls().slice(beforeFull.length);
+  check(
+    "F57c 24時間経っていれば全ソースを引き直す",
+    spentFull.some((line) => line.includes("googleapis.com")),
+    `外部呼び出し: ${spentFull.join(" | ").slice(0, 200) || "なし"}`
   );
 
   // 埋め直しはYouTubeの枠を半分までしか使わない（ユーザーの追加操作ぶんを残す）
