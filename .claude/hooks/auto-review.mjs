@@ -581,14 +581,19 @@ function defaultBranchTip() {
 //
 // 分岐点からHEADまでを対象にすれば、レビュー範囲はそのままPRの中身と一致する。
 // 既にレビュー済みのコミットが混じることはあるが、二度読むのは飛ばすより遥かに安い。
+// 戻り値: 範囲 / "merged"（HEADが既定ブランチに含まれる＝レビューすべき差分が無い） / null（求められない）
 function forkPointRange(head) {
   const tip = defaultBranchTip();
   if (!tip) return null;
   try {
     const fork = git(["merge-base", head, tip]);
-    if (!fork || fork === head) return null;
+    if (!fork) return null;
+    // 分岐点＝HEAD。既定ブランチ側に取り込まれているだけで、未レビューの差分は無い
+    // （masterへ戻った直後などにここへ来る）。見送りとして記録すると、
+    // マージ済みのコミットが毎回「未レビュー」に見えてしまう。
+    if (fork === head) return "merged";
     const shas = git(["rev-list", `${fork}..${head}`]).split("\n").filter(Boolean);
-    if (shas.length === 0) return null;
+    if (shas.length === 0) return "merged";
     return { from: fork, to: head, shas };
   } catch {
     return null;
@@ -613,6 +618,7 @@ function getPendingCommits(state) {
     // 起点が辿れない（別ブランチへ切り替えた／rebase／reset／gcで消えた）。
     // 諦めずに既定ブランチとの分岐点を代わりの起点にする。
     const fallback = forkPointRange(head);
+    if (fallback === "merged") return null;
     if (!fallback) return { unreachable: true, to: head, shas: [head] };
     return finishPending(state, fallback.from, fallback.to, fallback.shas);
   }
