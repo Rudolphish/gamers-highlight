@@ -928,8 +928,16 @@ function main() {
   saveState({ count: nextCount, lastDiffHash: diffHash, totalRuns, sessionId, ...reviewedFields });
 
   // FAIL。exit code 2 でStopをブロックし、修正指示をClaudeに渡して続行させる。
+  // 直した後に学びを残させる。**指摘が出た瞬間が、その学びが存在している唯一の時点**で、
+  // ここを逃すと次のセッションには何も残らない（レビューログはgitignoreで20件で間引かれる）。
+  // 手で書きに行く前提のファイルは風化する実績がある（review-decisions.csvは
+  // 作った日から1行も増えていない）ので、指示はこの経路に埋め込んでおく。
   console.error(
-    `[auto-review] レビューでNGが出ました（${pending ? `コミット${pending.shas.length}件分` : "未コミットの差分"}、同一差分${nextCount}/${MAX_ITERATIONS}回目、通算${totalRuns}/${MAX_TOTAL_RUNS}回目）。以下の指摘を修正してください:\n\n${reviewOutput}\n\n(詳細ログ: ${logPath})`
+    `[auto-review] レビューでNGが出ました（${pending ? `コミット${pending.shas.length}件分` : "未コミットの差分"}、同一差分${nextCount}/${MAX_ITERATIONS}回目、通算${totalRuns}/${MAX_TOTAL_RUNS}回目）。以下の指摘を修正してください:\n\n${reviewOutput}\n\n(詳細ログ: ${logPath})\n\n` +
+      `修正が済んだら、同じ種類の失敗を繰り返さないための項目を1つ書き足してください。\n` +
+      `  - 進め方の話（確認の仕方・道具の使い方・判断の順序）なら docs/lessons.md\n` +
+      `  - コードの落とし穴（この関数はこう呼ぶ、この順序で書く）なら CLAUDE.md\n` +
+      `どちらも「何が起きたか」を具体的に書くこと。「〜に注意」だけでは次に読んだとき判断に使えません。`
   );
   process.exit(2);
 }
