@@ -23,15 +23,25 @@ const STATE = join(HERE, ".review-state.json");
 
 const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 
-/** 台帳を「コミット → 直近の判定」に畳む（同じコミットが再レビューされたら後勝ち） */
+/**
+ * 台帳を「コミット → 直近の判定」に畳む（同じコミットが再レビューされたら後勝ち）。
+ *
+ * **commits列は複数のSHAをセミコロンで連ねた形になりうる。**
+ * auto-review.mjs は範囲にコミットが複数あればまとめて1回でレビューし、
+ * `pending.shas.join(";")` で1行に書く。ここを単一SHAとして扱うと、
+ * まとめてレビューされたコミットが軒並み「未レビュー」に見える
+ * （＝レビュー済みを未レビューと誤検知する。このコマンドの信頼を落とす一番まずい壊れ方）。
+ */
 function loadVerdicts() {
   if (!existsSync(LEDGER)) return new Map();
   const map = new Map();
   for (const line of readFileSync(LEDGER, "utf8").split("\n")) {
     const cols = line.split(",");
     if (cols.length < 6) continue;
-    const [at, , range, commit, verdict, findings, logFile] = cols;
-    map.set(commit, { at, range, verdict, findings, logFile });
+    const [at, , range, commits, verdict, findings, logFile] = cols;
+    for (const commit of commits.split(";").filter(Boolean)) {
+      map.set(commit, { at, range, verdict, findings, logFile });
+    }
   }
   return map;
 }
