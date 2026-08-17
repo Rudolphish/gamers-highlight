@@ -36,14 +36,41 @@ function loadVerdicts() {
   if (!existsSync(LEDGER)) return new Map();
   const map = new Map();
   for (const line of readFileSync(LEDGER, "utf8").split("\n")) {
-    const cols = line.split(",");
+    const cols = parseCsvLine(line);
     if (cols.length < 6) continue;
     const [at, , range, commits, verdict, findings, logFile] = cols;
     for (const commit of commits.split(";").filter(Boolean)) {
+      // 実際に走ったレビュー（PASS/FAIL）が既にあるなら、後から来たSKIPで上書きしない。
+      // まとめてスキップされた範囲に、個別にレビュー済みのコミットが混じることがあるため。
+      if (verdict === "SKIP" && map.has(commit) && map.get(commit).verdict !== "SKIP") continue;
       map.set(commit, { at, range, verdict, findings, logFile });
     }
   }
   return map;
+}
+
+// findings列にはSKIP行だけ理由（自由記述）が入り、カンマを含みうるので
+// 単純なsplit(",")では列がずれる。auto-review.mjs側と同じ解釈をする。
+function parseCsvLine(line) {
+  const cells = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c !== '"') cur += c;
+      else if (line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else inQuotes = false;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ",") {
+      cells.push(cur);
+      cur = "";
+    } else cur += c;
+  }
+  cells.push(cur);
+  return cells;
 }
 
 const verdicts = loadVerdicts();
@@ -83,6 +110,10 @@ for (const commit of wanted) {
   const found = verdicts.get(commit);
   if (!found) {
     console.log(`✗ ${short} ${title}\n    未レビュー（台帳に記録がありません）`);
+    worst = Math.max(worst, 1);
+  } else if (found.verdict === "SKIP") {
+    // レビューは走らなかった。PASSと混ぜないこと（混ぜたら見送りが見えなくなる）。
+    console.log(`✗ ${short} ${title}\n    未レビュー（見送り: ${found.findings}）`);
     worst = Math.max(worst, 1);
   } else if (found.verdict === "PASS") {
     console.log(`✓ ${short} ${title}\n    PASS（${found.at}）`);
