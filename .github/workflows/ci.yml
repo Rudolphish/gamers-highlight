@@ -84,8 +84,12 @@ jobs:
           POSTGRES_DB: gh
         ports:
           - 5432:5432
+        # `-U postgres` を付ける。省くとヘルスチェックがOSユーザー（root）で接続を試み、
+        # コンテナのログが `FATAL: role "root" does not exist` で10秒おきに埋まる。
+        # pg_isready 自体は応答があれば成功を返すのでCIは通るが、**本当の異常が
+        # このノイズに紛れる**（落ちたときに読むのがこのログなので、綺麗にしておく）。
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres -d gh"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -205,7 +209,11 @@ jobs:
         run: node tools/local-test/external-failure.mjs
 
       # 落ちたときに「どの項目がどうNGだったか」を持ち帰れるようにする。
-      # ログだけだと表が読めず、再現に時間がかかる
+      # ログだけだと表が読めず、再現に時間がかかる。
+      #
+      # **docs/test-results.md は入れない。** CIでは build-report.mjs を流していないので、
+      # 入れるとリポジトリにコミットされている（＝この実行とは無関係な）表がそのまま
+      # 成果物に紛れ込み、実行結果だと誤読される。実際の結果は results/*.json の方。
       - name: 結果を残す
         if: always()
         uses: actions/upload-artifact@v4
@@ -213,7 +221,6 @@ jobs:
           name: test-results
           path: |
             tools/local-test/results/
-            docs/test-results.md
             ci-logs/
           if-no-files-found: warn
           retention-days: 7
