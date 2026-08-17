@@ -84,10 +84,31 @@ if (uncommitted) {
   console.log("⚠ 未コミットの変更があります。レビュー対象はコミット後に確定します。\n");
 }
 
+// --range の起点。auto-review.mjs と同じ決め方にしないと、
+// 「フックがレビューした範囲」と「このコマンドが確認する範囲」がずれる。
+// baseCommitがHEADから辿れない（squashマージ後にブランチを切り直した等）場合は、
+// `rev-list <dead>..HEAD` が無関係なコミット群を返してしまうので使ってはいけない。
+function rangeBase() {
+  if (state.baseCommit) {
+    try {
+      git("merge-base", "--is-ancestor", state.baseCommit, head);
+      return state.baseCommit;
+    } catch {
+      // 辿れない。既定ブランチとの分岐点に落とす（＝いまのブランチの中身）
+    }
+  }
+  for (const ref of ["origin/HEAD", "origin/master", "origin/main", "master", "main"]) {
+    try {
+      return git("merge-base", head, git("rev-parse", "--verify", "--quiet", `${ref}^{commit}`));
+    } catch {
+      // この候補は無い
+    }
+  }
+  return head;
+}
+
 const rangeMode = process.argv.includes("--range");
-const wanted = rangeMode
-  ? git("rev-list", `${state.baseCommit ?? head}..HEAD`).split("\n").filter(Boolean)
-  : [head];
+const wanted = rangeMode ? git("rev-list", `${rangeBase()}..HEAD`).split("\n").filter(Boolean) : [head];
 
 // **空を「問題なし」と表示してはいけない。** ここで黙って通すと、
 // 「レビュー済み」と「そもそも対象が無い（＝基準点がHEADまで進んでしまった）」が
