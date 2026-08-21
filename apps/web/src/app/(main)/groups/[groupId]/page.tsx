@@ -137,6 +137,8 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       members: memberList,
       memberCount: album._count.members + 1,
       updatedAt: album.updatedAt,
+      // 並び替えの「新着順」で使う。updatedAtと違い、写真が増えても動かない
+      createdAt: album.createdAt,
     };
   });
 
@@ -191,6 +193,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
               {group._count.albums > albumCards.length && (
                 <p className="mt-3 font-mono text-3xs text-steam-muted">
                   更新が新しい{albumCards.length}件まで表示できます（全{group._count.albums}件）。
+                  並び替えもこの{albumCards.length}件の中で効きます。
                   古いアルバムは<Link href="/albums" className="text-steam-blue hover:underline">アルバム一覧</Link>から探せます。
                 </p>
               )}

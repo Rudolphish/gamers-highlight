@@ -105,6 +105,31 @@ async function main() {
     },
   });
 
+  // 並び替え（B27〜）の確認用。**4つの並び順がそれぞれ違う結果になるように仕込む。**
+  // どれか2つが同じ順序になると、テストが通っても「その並びが効いている」証拠にならない。
+  //
+  //   更新順  : エルデンリング → ゼルダ → あつまれ
+  //   新着順  : ゼルダ → あつまれ → エルデンリング
+  //   名前順  : あつまれ(あ) → エルデンリング(エ) → ゼルダ(ゼ)
+  //   写真順  : ゼルダ(3) → エルデンリング(2) → あつまれ(0)
+  const zelda = await db.album.create({
+    data: {
+      title: "ゼルダの伝説",
+      ownerId: admin.id,
+      groupId: group.id,
+      members: { create: [{ userId: admin.id, role: "OWNER", acceptedAt: new Date() }] },
+    },
+  });
+
+  const animalCrossing = await db.album.create({
+    data: {
+      title: "あつまれ どうぶつの森",
+      ownerId: member.id,
+      groupId: group.id,
+      members: { create: [{ userId: member.id, role: "OWNER", acceptedAt: new Date() }] },
+    },
+  });
+
   await db.photo.createMany({
     data: [
       {
@@ -147,8 +172,30 @@ async function main() {
         albumId: otherAlbum.id,
         source: "MANUAL",
       },
+      // ゼルダに3枚（「写真の多い順」でエルデンリングの2枚より上に来る）
+      ...[1, 2, 3].map((n) => ({
+        mediaType: "IMAGE",
+        mediaUrl: `http://127.0.0.1:9100/gh-local/photos/zelda${n}.png`,
+        uploaderId: admin.id,
+        albumId: zelda.id,
+        sizeBytes: 1000 + n,
+        source: "MANUAL",
+      })),
     ],
   });
+
+  // createdAt / updatedAt を狙った値に固定する。
+  // **Prismaからは書けない**（updatedAt は @updatedAt で自動管理、createdAt も
+  //  @default(now()) が入る）ので、生SQLで上書きする。
+  // ここが効いていないと「更新順」と「新着順」が同じ並びになり、
+  // createdAt を渡し忘れていても気づけない。
+  for (const [id, createdAt, updatedAt] of [
+    [album.id, "2026-07-01", "2026-08-10"],
+    [zelda.id, "2026-07-20", "2026-08-05"],
+    [animalCrossing.id, "2026-07-10", "2026-08-01"],
+  ]) {
+    await db.$executeRaw`UPDATE albums SET "createdAt" = ${new Date(`${createdAt}T00:00:00Z`)}, "updatedAt" = ${new Date(`${updatedAt}T00:00:00Z`)} WHERE id = ${id}`;
+  }
 
   const game = await db.groupGame.create({
     data: {
