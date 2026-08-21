@@ -4,7 +4,7 @@ import { ArrowLeft, Gamepad2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasAlbumPermission } from "@/lib/permissions";
-import { getAlbumContent, getAlbumPhotos, getAlbumTags } from "@/lib/albumData";
+import { getAlbumContent, getAlbumPhotos, getAlbumTags, getPhotoReactions } from "@/lib/albumData";
 import { PhotoGrid } from "@/components/photo/PhotoGrid";
 import { AlbumTagManager } from "@/components/discord/AlbumTagManager";
 import { ShareModal } from "@/components/album/ShareModal";
@@ -33,10 +33,21 @@ export default async function AlbumDetailPage({
   const album = await getAlbumContent(params.albumId);
   if (!album) notFound();
 
-  const [photos, tags] = await Promise.all([
+  const [photos, tags, reactions] = await Promise.all([
     getAlbumPhotos(album.id),
     getAlbumTags(album.id),
+    // **リアクションだけはキャッシュしない**（albumData.ts の getPhotoReactions を参照）。
+    // 写真のキャッシュに混ぜると、1回押すたびにアルバムの写真キャッシュが飛ぶ
+    getPhotoReactions(album.id, currentUser.id),
   ]);
+
+  // ❤️を押したときに名前の一覧へ自分を足すのに使う（サーバーの値が返るまでの表示用）
+  const currentUserName =
+    album.owner.id === currentUser.id
+      ? album.owner.name ?? album.owner.email
+      : album.members.find((m) => m.user.id === currentUser.id)?.user.name ??
+        album.members.find((m) => m.user.id === currentUser.id)?.user.email ??
+        null;
 
   const memberNames = [
     album.owner.name ?? album.owner.email ?? "オーナー",
@@ -127,6 +138,7 @@ export default async function AlbumDetailPage({
           </p>
         ) : (
           <PhotoGrid
+            currentUserName={currentUserName}
             photos={photos.map((p) => ({
               id: p.id,
               mediaType: p.mediaType,
@@ -138,6 +150,11 @@ export default async function AlbumDetailPage({
               gameTitle: p.gameTitle,
               uploaderName: p.uploaderName,
               albumTitle: album.title,
+              reaction: {
+                count: reactions.countByPhotoId.get(p.id) ?? 0,
+                reacted: reactions.reactedPhotoIds.has(p.id),
+                names: reactions.namesByPhotoId.get(p.id) ?? [],
+              },
             }))}
           />
         )}

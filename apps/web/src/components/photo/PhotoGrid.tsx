@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Play } from "lucide-react";
 import { Lightbox } from "@/components/photo/Lightbox";
 import { LoadingImage } from "@/components/ui/LoadingImage";
+import { PhotoReactionButton, type ReactionState } from "@/components/photo/PhotoReactionButton";
 
 type Media = {
   id: string;
@@ -17,11 +18,27 @@ type Media = {
   gameTitle?: string | null;
   uploaderName?: string | null;
   albumTitle?: string | null;
+  /** 渡されたときだけ❤️を出す。/search のように権限が混ざる画面では渡さない */
+  reaction?: ReactionState;
 };
 
-export function PhotoGrid({ photos }: { photos: Media[] }) {
+export function PhotoGrid({
+  photos,
+  currentUserName,
+}: {
+  photos: Media[];
+  currentUserName?: string | null;
+}) {
   const router = useRouter();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  // ❤️の数はグリッドとLightboxの両方に出るので、押したときに両方へ反映させる。
+  // 元データ（props）は書き換えず、変更があったぶんだけここで上書きする。
+  // **名前まで持つこと。** count だけ持つとグリッドで押してからLightboxを開いたときに
+  // 「❤️ 1」なのに誰の名前も出ない、という見え方になる
+  const [overrides, setOverrides] = useState<Record<string, ReactionState>>({});
+  const reactionOf = (item: Media): ReactionState | undefined =>
+    item.reaction ? overrides[item.id] ?? item.reaction : undefined;
 
   const selectedPhoto = selectedIndex !== null ? photos[selectedIndex] : null;
 
@@ -39,10 +56,7 @@ export function PhotoGrid({ photos }: { photos: Media[] }) {
         {photos.map((item, index) => (
           <div
             key={item.id}
-            onClick={() => {
-              setSelectedIndex(index);
-              console.log("Selected photo index:", index);
-            }}
+            onClick={() => setSelectedIndex(index)}
             className="relative aspect-square overflow-hidden rounded-sm border border-steam-border cursor-pointer hover:border-steam-blue hover:brightness-110 hover:shadow-[0_0_16px_-2px_rgba(102,192,244,0.5)] transition"
           >
             {item.mediaType === "VIDEO" ? (
@@ -71,6 +85,16 @@ export function PhotoGrid({ photos }: { photos: Media[] }) {
                 <Play size={8} fill="white" /> {item.durationSeconds ?? "?"}s
               </span>
             )}
+            {item.reaction && (
+              <div className="absolute left-1 top-1">
+                <PhotoReactionButton
+                  photoId={item.id}
+                  initial={reactionOf(item)!}
+                  currentUserName={currentUserName}
+                  onChange={(next) => setOverrides((o) => ({ ...o, [item.id]: next }))}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -90,6 +114,11 @@ export function PhotoGrid({ photos }: { photos: Media[] }) {
           }}
           hasPrev={selectedIndex > 0}
           hasNext={selectedIndex < photos.length - 1}
+          reaction={reactionOf(selectedPhoto)}
+          currentUserName={currentUserName}
+          onReactionChange={(next) =>
+            setOverrides((o) => ({ ...o, [selectedPhoto.id]: next }))
+          }
           meta={
             hasMeta
               ? {

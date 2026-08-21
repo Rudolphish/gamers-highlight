@@ -795,6 +795,88 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   await db.groupGameProposal.deleteMany({ where: { steamAppId: APP_ID } });
 }
 
+// ───────────────────────────────────────────────────────────
+// K. 写真へのリアクション（❤️）
+// ───────────────────────────────────────────────────────────
+{
+  const { readFileSync } = await import("node:fs");
+  const album = await db.album.findFirst({ where: { title: "エルデンリング" } });
+  const photo = await db.photo.findFirst({ where: { albumId: album.id } });
+  const admin = await db.user.findUnique({ where: { email: "admin@example.com" } });
+  await db.photoReaction.deleteMany({ where: { photoId: photo.id } });
+
+  const react = () =>
+    api(`/api/photos/${photo.id}/reactions`, { method: "POST", cookie: adminCookie });
+
+  const on = await react();
+  check(
+    "F78 写真に❤️を付けられる",
+    on.status === 200 && on.json?.count === 1 && on.json?.reacted === true,
+    `${on.status} ${on.text.slice(0, 80)}`
+  );
+
+  const off = await react();
+  check(
+    "F79 もう一度押すと取り消される（トグル）",
+    off.status === 200 && off.json?.count === 0 && off.json?.reacted === false,
+    `${off.status} ${off.text.slice(0, 80)}`
+  );
+
+  // 別の人も押せる＝人数で数える。1人1回なので同じ人が二重に入らないことも見る
+  await react();
+  await api(`/api/photos/${photo.id}/reactions`, { method: "POST", cookie: memberCookie });
+  const rows = await db.photoReaction.findMany({ where: { photoId: photo.id } });
+  check(
+    "F80 別のメンバーも押せて、1人1回に収まる",
+    rows.length === 2 && new Set(rows.map((r) => r.userId)).size === 2,
+    `${rows.length}件 / ユーザー${new Set(rows.map((r) => r.userId)).size}人`
+  );
+
+  // **写真のキャッシュを飛ばしていないこと。**
+  // ここで飛ばすと、押すたびにアルバムの写真キャッシュが無効になり #43 の効果が消える。
+  // アルバムページを2回開いて、2回目がキャッシュヒット（＝クエリが減る）ままかを見る。
+  // 直接の観測は難しいので、ここでは「押した後もページが200で開けて❤️の数が出る」ことと、
+  // ルートが cacheTags を import していないことの2点で担保する（後者は下のF82）。
+  const page = await api(`/albums/${album.id}`, { cookie: adminCookie });
+  check(
+    "F81 アルバムページに❤️の数が出る",
+    page.status === 200 && page.text.includes("リアクション"),
+    `${page.status} ${page.text.includes("リアクション")}`
+  );
+
+  const routeSource = readFileSync(
+    new URL("../../apps/web/src/app/api/photos/[id]/reactions/route.ts", import.meta.url),
+    "utf8"
+  );
+  // **コメント中の言及に引っかからないよう、実際のimport文と呼び出しだけを見る。**
+  // 最初 routeSource.includes("cacheTags") で書いたら、
+  // 「なぜ呼ばないか」を説明したコメントに当たって落ちた
+  const importsCacheTags = /from\s+["']@\/lib\/cacheTags["']/.test(routeSource);
+  const callsRevalidate = /\brevalidateTag\s*\(/.test(routeSource);
+  check(
+    "F82 リアクションのAPIは写真のキャッシュを飛ばさない",
+    !importsCacheTags && !callsRevalidate,
+    `import=${importsCacheTags} revalidateTag=${callsRevalidate}`
+  );
+
+  // 写真を消したらリアクションも消える（onDelete: Cascade）
+  const doomed = await db.photo.create({
+    data: {
+      mediaType: "IMAGE",
+      mediaUrl: "http://127.0.0.1:9100/gh-local/photos/doomed.png",
+      uploaderId: admin.id,
+      albumId: album.id,
+      source: "MANUAL",
+    },
+  });
+  await api(`/api/photos/${doomed.id}/reactions`, { method: "POST", cookie: adminCookie });
+  await db.photo.delete({ where: { id: doomed.id } });
+  const orphans = await db.photoReaction.count({ where: { photoId: doomed.id } });
+  check("F83 写真を消すとリアクションも消える", orphans === 0, `${orphans}件残った`);
+
+  await db.photoReaction.deleteMany({ where: { photoId: photo.id } });
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

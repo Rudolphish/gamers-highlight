@@ -73,6 +73,54 @@ export function getAlbumPhotos(albumId: string): Promise<CachedAlbumPhoto[]> {
   )();
 }
 
+export type PhotoReactionSummary = {
+  /** 写真IDごとの合計 */
+  countByPhotoId: Map<string, number>;
+  /** その人が押した写真IDの集合 */
+  reactedPhotoIds: Set<string>;
+  /** 写真IDごとの、押した人の表示名（Lightboxで出す） */
+  namesByPhotoId: Map<string, string[]>;
+};
+
+/**
+ * アルバム内の写真に付いた❤️。
+ *
+ * **意図的にキャッシュしていない。** `getAlbumPhotos` と同じ `unstable_cache` に載せると、
+ * 誰かが1回押すたびに写真のキャッシュ（`albumPhotosTag`）が飛び、#43 で入れた効果が
+ * 活発なアルバムほど消える。写真は滅多に変わらないのでキャッシュ、
+ * 反応は毎回引く、という切り分けにしてある（反応は即座に他の人へ伝わってほしい情報でもある）。
+ *
+ * 引くのは `{photoId, userId, 表示名}` だけなので、写真本体の取得に比べれば軽い。
+ */
+export async function getPhotoReactions(
+  albumId: string,
+  currentUserId: string | null
+): Promise<PhotoReactionSummary> {
+  const rows = await db.photoReaction.findMany({
+    where: { photo: { albumId } },
+    orderBy: { createdAt: "asc" },
+    select: {
+      photoId: true,
+      userId: true,
+      user: { select: { name: true, email: true } },
+    },
+  });
+
+  const countByPhotoId = new Map<string, number>();
+  const reactedPhotoIds = new Set<string>();
+  const namesByPhotoId = new Map<string, string[]>();
+
+  for (const row of rows) {
+    countByPhotoId.set(row.photoId, (countByPhotoId.get(row.photoId) ?? 0) + 1);
+    if (currentUserId && row.userId === currentUserId) reactedPhotoIds.add(row.photoId);
+    const names = namesByPhotoId.get(row.photoId) ?? [];
+    names.push(row.user.name ?? row.user.email ?? "メンバー");
+    namesByPhotoId.set(row.photoId, names);
+  }
+
+  return { countByPhotoId, reactedPhotoIds, namesByPhotoId };
+}
+
 export function getAlbumTags(albumId: string) {
   return unstable_cache(
     async () =>
