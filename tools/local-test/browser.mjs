@@ -225,6 +225,142 @@ for (const [id, label, path] of targets) {
   await page.close();
 }
 
+// ── アルバムの並び替え ──
+// サーバーは「更新が新しい順」で渡すだけで、並び替えはハイドレーション後に
+// クライアントで効く。curlでは確認できないのでここで見る。
+// seed.mjs が4つの並び順すべてで違う結果になるようデータを仕込んである。
+//
+// **他のスイートが同じグループにアルバムを足す**（flowsがDiscordタグ経由で
+// "eldenring" を作る）ので、**位置で判定してはいけない**。最初これで書いたら
+// run-all 経由のときだけ落ちた。seedで仕込んだ3件の**相対順序**だけを見る。
+{
+  const page = await context.newPage();
+  await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+
+  // 既定では4件までしか出ないので、全部出してから並びを見る
+  async function expandAll() {
+    for (let i = 0; i < 10; i++) {
+      const more = page.getByRole("button", { name: /さらに表示/ });
+      if ((await more.count()) === 0) break;
+      await more.first().click();
+      await page.waitForTimeout(150);
+    }
+  }
+
+  const SEEDED = ["エルデンリング", "ゼルダの伝説", "あつまれ どうぶつの森"];
+
+  // 表示順のタイトル一覧。seedで仕込んだ3件だけに絞る
+  async function seededOrder() {
+    await expandAll();
+    const all = await page.evaluate(() =>
+      [...document.querySelectorAll('a[href^="/albums/"]')]
+        .map((a) => a.querySelector("p.font-display")?.textContent?.trim() ?? "")
+        .filter(Boolean)
+    );
+    return all.filter((t) => SEEDED.includes(t));
+  }
+
+  const pressedSort = () =>
+    page.evaluate(() => {
+      const labels = ["更新順", "新着順", "名前順", "写真の多い順"];
+      return [...document.querySelectorAll('button[aria-pressed="true"]')]
+        .map((b) => b.textContent?.trim() ?? "")
+        .filter((t) => labels.includes(t));
+    });
+
+  const initial = await seededOrder();
+  rows.push({
+    id: "B27",
+    item: "アルバムの初期の並びは更新順",
+    expected: "エルデンリング → ゼルダの伝説 → あつまれ どうぶつの森",
+    actual: initial.join(" → "),
+    ok: initial.join("|") === "エルデンリング|ゼルダの伝説|あつまれ どうぶつの森",
+    note: "",
+  });
+
+  const pressed = await pressedSort();
+  rows.push({
+    id: "B28",
+    item: "「更新順」が選択済みとして表示される",
+    expected: "更新順",
+    actual: pressed.join(",") || "なし",
+    ok: pressed.includes("更新順"),
+    note: "",
+  });
+
+  // **新着順は更新順と別の並びになること。** ここが同じだと、createdAt を渡し忘れて
+  // updatedAt で並べていても気づけない（seed が別の順序になるよう仕込んである）
+  await page.getByRole("button", { name: "新着順" }).click();
+  await page.waitForTimeout(300);
+  const byCreated = await seededOrder();
+  rows.push({
+    id: "B29",
+    item: "「新着順」は作成日時で並ぶ（更新順とは別の並び）",
+    expected: "ゼルダの伝説 → あつまれ どうぶつの森 → エルデンリング",
+    actual: byCreated.join(" → "),
+    ok: byCreated.join("|") === "ゼルダの伝説|あつまれ どうぶつの森|エルデンリング",
+    note: "",
+  });
+
+  await page.getByRole("button", { name: "名前順" }).click();
+  await page.waitForTimeout(300);
+  const byTitle = await seededOrder();
+  rows.push({
+    id: "B30",
+    item: "「名前順」は日本語の読みで並ぶ（あ→エ→ゼ）",
+    expected: "あつまれ どうぶつの森 → エルデンリング → ゼルダの伝説",
+    actual: byTitle.join(" → "),
+    ok: byTitle.join("|") === "あつまれ どうぶつの森|エルデンリング|ゼルダの伝説",
+    note: "",
+  });
+
+  await page.getByRole("button", { name: "写真の多い順" }).click();
+  await page.waitForTimeout(300);
+  await expandAll();
+  // 枚数バッジは数字だけで、**0枚のアルバムには描画されない**ので、無い＝0とみなす
+  const counts = await page.evaluate(() =>
+    [...document.querySelectorAll('a[href^="/albums/"]')].map((a) =>
+      Number(a.querySelector("div.absolute")?.textContent?.trim() ?? "0")
+    )
+  );
+  rows.push({
+    id: "B31",
+    item: "「写真の多い順」は枚数が減る順に並ぶ",
+    expected: "降順",
+    actual: counts.join(" → "),
+    ok: counts.length > 1 && counts.every((n, i) => i === 0 || counts[i - 1] >= n),
+    note: "",
+  });
+
+  // 枚数は他のスイートの写真追加・削除で動くが、**ゼルダ(3枚)があつまれ(0枚)より
+  // 前に来る**ことは常に成り立つ（あつまれはどこからも触られない）
+  const byPhotos = await seededOrder();
+  rows.push({
+    id: "B31b",
+    item: "「写真の多い順」で0枚のアルバムが3枚のアルバムより後ろに来る",
+    expected: "ゼルダの伝説 が あつまれ どうぶつの森 より前",
+    actual: byPhotos.join(" → "),
+    ok: byPhotos.indexOf("ゼルダの伝説") < byPhotos.indexOf("あつまれ どうぶつの森"),
+    note: "",
+  });
+
+  // 更新順に戻せること（既定へ復帰できないと、他の並びに固定されて見える）
+  await page.getByRole("button", { name: "更新順" }).click();
+  await page.waitForTimeout(300);
+  const backToUpdated = await seededOrder();
+  rows.push({
+    id: "B32",
+    item: "「更新順」に戻せる",
+    expected: initial.join(" → "),
+    actual: backToUpdated.join(" → "),
+    ok: backToUpdated.join("|") === initial.join("|"),
+    note: "",
+  });
+
+  await page.close();
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));
