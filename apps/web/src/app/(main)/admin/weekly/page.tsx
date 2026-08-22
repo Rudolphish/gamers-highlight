@@ -13,6 +13,8 @@ import {
 } from "@/lib/weeklySummary";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { SectionError } from "@/components/admin/SectionError";
+import { WeeklyNotifySetting } from "@/components/admin/WeeklyNotifySetting";
+import { APP_SETTING_KEYS, getAppSetting } from "@/lib/appSettings";
 
 // 管理者ページ（週次まとめ）：Discordへ流す文面を、送る前にここで確認する。
 //
@@ -49,8 +51,10 @@ export default async function AdminWeeklyPage({
   // 集計に失敗してもページ全体は落とさない（/admin でテーブル未作成の500をやらかしている）
   let groups: { id: string; name: string }[] = [];
   let summary: WeeklySummary | null = null;
+  let notifyChannelId: string | null = null;
   let error: string | null = null;
   try {
+    notifyChannelId = await getAppSetting(APP_SETTING_KEYS.weeklySummaryChannelId);
     groups = await db.group.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
     const groupId = groups.some((g) => g.id === searchParams.group)
       ? searchParams.group!
@@ -111,6 +115,12 @@ export default async function AdminWeeklyPage({
               ))}
             </div>
           </div>
+
+          <WeeklyNotifySetting
+            channelId={notifyChannelId}
+            week={week}
+            weekLabel={jstWeekRange(week).label}
+          />
 
           {summary && (
             <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">

@@ -161,6 +161,14 @@ function hltb(url, init) {
 }
 
 function discord(url, init) {
+  // **本文まで残す。** ホスト名だけだと「送ったこと」は分かっても
+  // 「何を送ったか」が確認できない（週次まとめの文面の確認に要る）。
+  try {
+    require("node:fs").appendFileSync(
+      "/tmp/stub-discord.log",
+      JSON.stringify({ url, method: init?.method ?? "GET", body: init?.body ?? null }) + "\n"
+    );
+  } catch {}
   return json({ id: "stub-message-id", channel_id: "stub-channel" });
 }
 

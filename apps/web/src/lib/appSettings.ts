@@ -12,6 +12,18 @@ export const APP_SETTING_KEYS = {
    * 同じ段階で毎日鳴り続けないように、段階が上がった時だけ通知するために持つ。
    */
   usageAlertLevels: "usageAlertLevels",
+  /**
+   * 週次まとめの投稿先DiscordチャンネルID。未設定なら送らない。
+   * **エラー通知先とは別に持つ。** いまは管理者が様子を見るための機能なので、
+   * グループの通知先（Group.notificationChannelId）にも送らない。
+   */
+  weeklySummaryChannelId: "weeklySummaryChannelId",
+  /**
+   * 最後に週次まとめを送った週の月曜日（JST、`YYYY-MM-DD`）。
+   * 曜日で送るのではなく「完了した週がこれより新しければ送る」と判定するために持つ
+   * （cronが飛んでも取りこぼさず、二重にも送らない）。
+   */
+  weeklySummaryLastSentWeek: "weeklySummaryLastSentWeek",
 } as const;
 
 export type AppSettingKey = (typeof APP_SETTING_KEYS)[keyof typeof APP_SETTING_KEYS];
