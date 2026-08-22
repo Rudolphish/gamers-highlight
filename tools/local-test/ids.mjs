@@ -14,6 +14,8 @@ const proposal = await db.groupGameProposal.findFirst({ where: { groupId: group.
 const invite = await db.groupInvite.findFirst({ where: { token: "test-invite-token-0001" } });
 const outsiderPhoto = await db.photo.findFirst({ where: { uploaderId: outsider.id } });
 const memberPhoto = await db.photo.findFirst({ where: { uploaderId: member.id } });
+// 未分類（アルバム未所属）の写真。リアクションが拒否されることの確認に使う
+const unclassifiedPhoto = await db.photo.findFirst({ where: { albumId: null } });
 console.log(JSON.stringify({
   adminId: admin.id, memberId: member.id, outsiderId: outsider.id,
   groupId: group.id, otherGroupId: otherGroup.id,
@@ -22,5 +24,6 @@ console.log(JSON.stringify({
   inviteToken: "test-invite-token-0001",
   // スイートを流した後は消えていることがある（api-sweep が仕様確認で削除する）ので null 許容
   outsiderPhotoId: outsiderPhoto?.id ?? null, memberPhotoId: memberPhoto?.id ?? null,
+  unclassifiedPhotoId: unclassifiedPhoto?.id ?? null,
 }));
 await db.$disconnect();

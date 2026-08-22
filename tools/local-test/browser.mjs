@@ -361,6 +361,101 @@ for (const [id, label, path] of targets) {
   await page.close();
 }
 
+// ── 写真へのリアクション（❤️） ──
+// 押した瞬間の表示更新も、Lightboxを開いたときのボタンも、クライアント側でしか動かない。
+{
+  const page = await context.newPage();
+  await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+
+  // グリッド上の❤️（サムネイルの左上）。押す前は0件なので数字は出ない
+  const gridHearts = page.locator('[aria-label="リアクションする"], [aria-label="リアクションを取り消す"]');
+  const heartCount = await gridHearts.count();
+  rows.push({
+    id: "B33",
+    item: "グリッドの各写真に❤️ボタンが出る",
+    expected: "1つ以上",
+    actual: `${heartCount}個`,
+    ok: heartCount > 0,
+    note: "",
+  });
+
+  // 押すとその場で数が増える（往復を待たずに変わること）
+  await gridHearts.first().click();
+  await page.waitForTimeout(600);
+  const pressed = await page.evaluate(
+    () => document.querySelectorAll('[aria-label="リアクションを取り消す"]').length
+  );
+  const firstText = (await gridHearts.first().textContent())?.trim() ?? "";
+  rows.push({
+    id: "B34",
+    item: "❤️を押すと押した状態になり件数が出る",
+    expected: "押した状態 / 1",
+    actual: `押した状態=${pressed} / 表示=${firstText}`,
+    ok: pressed === 1 && firstText.includes("1"),
+    note: "",
+  });
+
+  // もう一度押すと取り消せる
+  await gridHearts.first().click();
+  await page.waitForTimeout(600);
+  const afterUndo = await page.evaluate(
+    () => document.querySelectorAll('[aria-label="リアクションを取り消す"]').length
+  );
+  rows.push({
+    id: "B35",
+    item: "もう一度押すと取り消せる",
+    expected: "0",
+    actual: `${afterUndo}`,
+    ok: afterUndo === 0,
+    note: "",
+  });
+
+  // Lightbox を開くと大きい❤️と、押した人の名前が出る。
+  // **Lightboxの中だけを見ること。** 背後のグリッドはDOMに残ったままなので、
+  // document 全体を数えるとグリッドのボタンまで混ざる（最初これで判定を誤った）。
+  const LIGHTBOX = "div.fixed.inset-0.z-50";
+  await gridHearts.first().click();
+  await page.waitForTimeout(600);
+  await page.locator("div.aspect-square").first().click();
+  await page.waitForTimeout(700);
+
+  const inLightbox = await page.locator(`${LIGHTBOX} [aria-label="リアクションを取り消す"]`).count();
+  const lightboxText = (await page.locator(LIGHTBOX).first().textContent()) ?? "";
+  // 名前は seed の表示名（ログイン用のメールではなく User.name）。
+  // ここを "admin" で書いて落とした——押した本人の表示名が出る仕様なので "管理者ユーザー"
+  const REACTOR = "管理者ユーザー";
+  rows.push({
+    id: "B36",
+    item: "Lightboxに❤️と押した人の名前が出る",
+    expected: `ボタンあり / ${REACTOR}`,
+    actual: `ボタン=${inLightbox}個 / 名前=${lightboxText.includes(REACTOR)}`,
+    ok: inLightbox > 0 && lightboxText.includes(REACTOR),
+    note: lightboxText.replace(/\s+/g, " ").slice(0, 120),
+  });
+
+  // **前へ/次へで写真を切り替えたとき、前の写真の❤️の状態が残らないこと。**
+  // PhotoReactionButton に key を付けていないとここが壊れる（切り替えた後だけ壊れる）
+  const next = page.getByRole("button", { name: "次の写真" });
+  if ((await next.count()) > 0 && (await next.first().isEnabled())) {
+    await next.first().click();
+    await page.waitForTimeout(600);
+    const stillPressed = await page
+      .locator(`${LIGHTBOX} [aria-label="リアクションを取り消す"]`)
+      .count();
+    rows.push({
+      id: "B37",
+      item: "次の写真へ移ると❤️の状態が引き継がれない",
+      expected: "0（この写真にはまだ付いていない）",
+      actual: `${stillPressed}`,
+      ok: stillPressed === 0,
+      note: "",
+    });
+  }
+
+  await page.close();
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));

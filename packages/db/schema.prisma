@@ -1,6 +1,6 @@
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "rhel-openssl-3.0.x"]
   // include を1回のJOINで取る。**これを入れるとPostgreSQLでは既定の戦略が join になり、
   // アプリ全体の include 付きクエリが対象になる**（個別に指定して回る必要は無い）。
   //
@@ -113,6 +113,7 @@ model User {
   proposedGames     GroupGameProposal[]         @relation("ProposalProposedBy")
   proposalReactions GroupGameProposalReaction[]
   gameInterests     GroupGameInterest[]
+  photoReactions    PhotoReaction[]
   createdInvites    GroupInvite[]               @relation("GroupInviteCreatedBy")
   usedInvites       GroupInviteUse[]            @relation("GroupInviteUsedBy")
 
@@ -306,13 +307,35 @@ model Photo {
   discordMessageId String?     @unique
   createdAt        DateTime    @default(now())
 
-  uploader User   @relation("PhotoUploader", fields: [uploaderId], references: [id])
-  album    Album? @relation(fields: [albumId], references: [id])
+  uploader  User            @relation("PhotoUploader", fields: [uploaderId], references: [id])
+  album     Album?          @relation(fields: [albumId], references: [id])
+  reactions PhotoReaction[]
 
   @@index([albumId])
   @@index([gameTitle])
   @@index([mediaType])
   @@map("photos")
+}
+
+/// 写真への❤️。1人1回のトグルで、種類は持たない。
+///
+/// **これは `getAlbumPhotos` のキャッシュには載せない。** 載せると1回押すたびに
+/// 写真のキャッシュ（`albumPhotosTag`）が飛び、#43 で入れた効果が
+/// 活発なアルバムほど消える。写真は滅多に変わらないのでキャッシュ、
+/// 反応は毎回引く、という切り分けにしてある。
+model PhotoReaction {
+  id        String   @id @default(cuid())
+  photoId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  photo Photo @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 1人1回。押し直しは削除（トグル）で表現する
+  @@unique([photoId, userId])
+  @@index([photoId])
+  @@map("photo_reactions")
 }
 
 model AlbumMember {

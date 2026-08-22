@@ -42,6 +42,10 @@ const cases = [
   ["R18", "エラー通知先の変更は管理者のみ", "POST", "/api/admin/error-notify", { channelId: "123" }, { member: 403, outsider: 403 }],
   ["R19", "招待の取り消し（管理者API）は管理者のみ", "DELETE", `/api/admin/invites/${ids.inviteId}`, null, { member: 403, outsider: 403 }],
   ["R20", "cron（価格チェック）はシークレット必須", "GET", "/api/cron/check-wishlist-prices", null, { anon: 401 }],
+  // 写真リアクション。閲覧できる人（VIEWER以上）なら誰でも押せる＝memberは200。
+  // 部外者はそのアルバムを見られないので403、未ログインは401
+  ["R21", "写真リアクションは閲覧できる人なら押せる", "POST", `/api/photos/${ids.memberPhotoId}/reactions`, null, { anon: 401, outsider: 403, member: 200 }],
+  ["R22", "未分類の写真にはリアクションできない", "POST", `/api/photos/${ids.unclassifiedPhotoId}/reactions`, null, { admin: 400 }],
   ["R21", "cron（Bot死活）はシークレット必須", "GET", "/api/cron/check-bot-health", null, { anon: 401 }],
   ["R22", "内部API（ゲーム一覧）はシークレット必須", "GET", "/api/internal/group-games?guildId=1", null, { anon: 401 }],
   ["R23", "Discord取り込みはシークレット必須", "POST", "/api/discord/ingest", {}, { anon: 401 }],

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, ChevronLeft, ChevronRight, Trash2, Info } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { PhotoReactionButton, type ReactionState } from "@/components/photo/PhotoReactionButton";
 
 // メディア詳細（拡大表示）。IMAGE/VIDEO両対応。将来的にコメント機能もここに追加予定。
 type LightboxProps = {
@@ -22,6 +23,10 @@ type LightboxProps = {
     uploaderName?: string | null;
     albumTitle?: string | null;
   };
+  /** 渡されたときだけ❤️を出す */
+  reaction?: ReactionState;
+  currentUserName?: string | null;
+  onReactionChange?: (next: ReactionState) => void;
 };
 
 export function Lightbox({
@@ -36,6 +41,9 @@ export function Lightbox({
   hasPrev = true,
   hasNext = true,
   meta,
+  reaction,
+  currentUserName,
+  onReactionChange,
 }: LightboxProps) {
   const [loaded, setLoaded] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -173,6 +181,26 @@ export function Lightbox({
         >
           <ChevronRight size={28} />
         </button>
+      )}
+
+      {/* ❤️。メタ情報パネルは右下なので、こちらは左下に置いて重ならないようにする */}
+      {reaction && photoId && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute bottom-4 left-4 z-10 max-w-[16rem] rounded-sm border border-steam-border bg-steam-surface/95 p-2"
+        >
+          <PhotoReactionButton
+            // **key が要る。** 前へ/次へで写真を切り替えてもコンポーネントは使い回されるため、
+            // これが無いと前の写真の❤️の状態が残ったまま表示される（切り替えた後だけ壊れる）
+            key={photoId}
+            photoId={photoId}
+            initial={reaction}
+            currentUserName={currentUserName}
+            showNames
+            size="lg"
+            onChange={onReactionChange}
+          />
+        </div>
       )}
 
       {/* メタ情報サイドパネル */}
