@@ -10,7 +10,8 @@
     "migrate": "prisma migrate dev",
     "studio": "prisma studio",
     "seed:allowlist": "tsx seed-allowlist.ts",
-    "backfill:activity": "tsx backfill-activity-log.ts"
+    "backfill:activity": "tsx backfill-activity-log.ts",
+    "rollup:all": "tsx rollup-daily-activity.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.18.0"

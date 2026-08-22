@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { postDiscordMessage } from "@/lib/discord";
 import { checkFreeTierUsage } from "@/lib/usageAlerts";
+import { runActivityMaintenance } from "@/lib/activityRollup";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,9 @@ const STALE_THRESHOLD_MS = 3 * 60 * 60 * 1000; // 3時間
 //
 // 1. Discord Bot（apps/bot、PM2常駐プロセス）のハートビートが途絶えていないか
 // 2. 無料枠（R2・DB）の使用率が閾値を超えていないか
+// 3. 活動ログの日次ロールアップと、1年より古い生ログの掃除
 //
-// **パス名はBotの死活監視だけを指しているが、実際は上の2つを行う。**
+// **パス名はBotの死活監視だけを指しているが、実際は上の3つを行う。**
 // Hobbyプランのcronは2本までで既に埋まっており（もう1本はcheck-wishlist-prices）、
 // 3本目を足せないため日次の処理をここに相乗りさせている。
 // 日次の見張りを増やす場合もここに足すこと。
@@ -25,9 +27,16 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // 片方が落ちてももう片方は動かす（見張りが見張りを巻き込まないように）
+  // 1つが落ちても他は動かす（見張りが見張りを巻き込まないように）
   const usage = await checkFreeTierUsage().catch((e) => {
     console.error("[cron] free tier usage check failed", e);
+    return null;
+  });
+
+  // 活動ログの手入れ。**集計してから消す**順序は runActivityMaintenance の中で守っている。
+  // ここが落ちてもBotの死活監視は続ける（そちらの方が気づけないと困る）。
+  const activity = await runActivityMaintenance().catch((e) => {
+    console.error("[cron] activity maintenance failed", e);
     return null;
   });
 
@@ -37,7 +46,13 @@ export async function GET(req: Request) {
   const isDown = staleMs === null || staleMs > STALE_THRESHOLD_MS;
 
   if (!isDown) {
-    return NextResponse.json({ ok: true, down: false, lastSeenAt: heartbeat!.lastSeenAt, usage });
+    return NextResponse.json({
+      ok: true,
+      down: false,
+      lastSeenAt: heartbeat!.lastSeenAt,
+      usage,
+      activity,
+    });
   }
 
   const groups = await db.group.findMany({
@@ -59,5 +74,6 @@ export async function GET(req: Request) {
     lastSeenAt: heartbeat?.lastSeenAt ?? null,
     notified,
     usage,
+    activity,
   });
 }

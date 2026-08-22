@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { JST_OFFSET_MS } from "./jst";
 import type { ActivityKind } from "./activityLog";
 
 /**
@@ -10,8 +11,6 @@ import type { ActivityKind } from "./activityLog";
  * 今週の投稿として数えたい。`occurredAt`（撮影日時）で数えるのはカレンダーの側。
  */
 
-/** JSTの固定オフセット。日本には夏時間が無いので固定値でよい */
-const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type WeekRange = { start: Date; end: Date; label: string };
