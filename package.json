@@ -13,6 +13,7 @@
     "lint": "pnpm -r lint"
   },
   "devDependencies": {
+    "playwright-core": "^1.62.1",
     "typescript": "^5.5.0"
   },
   "pnpm": {

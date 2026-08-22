@@ -192,10 +192,10 @@ jobs:
           node tools/local-test/seed.mjs
           echo "SEED_IDS=$(node tools/local-test/ids.mjs)" >> "$GITHUB_ENV"
 
-      # スイートは個別に流す。run-all.mjs を使うと browser.mjs が
-      # 「playwright-core が無いのでスキップ」で exit 0 になり、**流していないのに OK と出る**。
-      # ここで一番避けたいのがそれなので、実際に流すものだけを並べる。
-      # ブラウザ確認は playwright-core が依存に無いためCIでは行わない（手元で流す）。
+      # スイートは個別のステップに分ける。run-all.mjs でまとめて流すこともできるが、
+      # ステップを分けておくと Actions の画面で「どのスイートで落ちたか」が一目で分かる。
+      # （以前ここに「run-all は browser.mjs をスキップして exit 0 にするから使わない」と
+      # 書いていた。その穴は browser.mjs 側を落とすように直したので、理由としては消えている）
       - name: P ページの到達性と権限
         run: node tools/local-test/sweep.mjs
 
@@ -207,6 +207,36 @@ jobs:
 
       - name: X 外部API全滅時
         run: node tools/local-test/external-failure.mjs
+
+      # ブラウザは**ランナーに最初から入っているものを使う**（ubuntu-latest には
+      # Google Chrome と Chromium が同梱されている）。`playwright-core install chromium` だと
+      # 実行のたびに cdn.playwright.dev から数百MBを取りに行くことになり、
+      # **自分のコードと無関係な場所で落ちる要因が増える**（pnpm/action-setup が 429 で
+      # 落ちてテストが1件も走らなかったのと同じ形）。playwright-core 自体は devDependency
+      # なので lockfile で固定されている。
+      #
+      # ここで落ちたら executablePath の互換性を疑うこと。逃げ道は
+      # `npx playwright-core install chromium` でPlaywright同梱のビルドを入れて
+      # CHROMIUM_PATH をそれに向けること。
+      - name: ブラウザを探す
+        run: |
+          for c in "$CHROME_BIN" google-chrome google-chrome-stable chromium chromium-browser; do
+            [ -n "$c" ] || continue
+            p=$(command -v "$c" || true)
+            if [ -n "$p" ]; then
+              echo "CHROMIUM_PATH=$p" >> "$GITHUB_ENV"
+              echo "使うブラウザ: $p ($("$p" --version 2>/dev/null || echo '版数不明'))"
+              exit 0
+            fi
+          done
+          echo "ブラウザが見つかりませんでした。ランナーの構成が変わった可能性があります。"
+          exit 1
+
+      # UIの回帰はここでしか見ていない（P/R/F/X はいずれもHTTP越しで、
+      # ハイドレーション後にクライアントで効く挙動——初期フィルタ・並び替え・
+      # localStorageへの保存など——は素通りする）。
+      - name: B 実ブラウザでの描画
+        run: node tools/local-test/browser.mjs
 
       # 落ちたときに「どの項目がどうNGだったか」を持ち帰れるようにする。
       # ログだけだと表が読めず、再現に時間がかかる。

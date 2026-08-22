@@ -12,12 +12,15 @@ Vercelにも本番にも一切影響しない。外部サービスをスタブ�
 （外部は全部スタブ、DBはサービスコンテナ、環境変数はローカル専用のダミーを workflow 内で作る）。
 
 - `checks` … 型チェックと `audit-invalidation.mjs`。サーバー不要なので数分で終わる
-- `integration` … Postgres 16 を立てて本番ビルドを起動し、`sweep` / `api-sweep` / `flows` / `external-failure`
+- `integration` … Postgres 16 を立てて本番ビルドを起動し、
+  `sweep` / `api-sweep` / `flows` / `external-failure` / `browser`（**5スイート全部**）
 
-**`run-all.mjs` はCIでは使っていない。** `browser.mjs` が playwright-core 未導入の環境では
-「スキップして exit 0」になるため、run-all 経由だと**流していないのに OK と出る**。
-CI では実際に流すスイートだけを個別のステップに並べてある。
-ブラウザ確認（`B`）はCIでは行わないので、UIを触ったら手元で流すこと。
+**`run-all.mjs` はCIでは使っていない**が、理由は「まとめて流すと落ちた場所が分かりにくい」だけで、
+スイートごとにステップを分けてある（Actionsの画面でどれがNGかを一目で見るため）。
+
+ブラウザ（`B`）はランナーに同梱の Chrome を使う。`playwright-core install chromium` は
+使わない——実行のたびに数百MBを外部から取りに行くことになり、**自分のコードと無関係な場所で
+落ちる要因が増える**（`pnpm/action-setup` が 429 で落ちてテストが1件も走らなかった前例がある）。
 
 落ちたときは Actions の成果物（`test-results`）に `results/*.json`・`docs/test-results.md`・
 サーバーのログが入っている。どの項目がどうNGだったかは表を見るのが速い。
@@ -59,7 +62,7 @@ node tools/local-test/sweep.mjs             # P: ページの到達性と権限
 node tools/local-test/api-sweep.mjs         # R: APIの権限
 node tools/local-test/flows.mjs             # F: 主要導線
 node tools/local-test/external-failure.mjs  # X: 外部API全滅時
-node tools/local-test/browser.mjs           # B: 実ブラウザ（任意）
+node tools/local-test/browser.mjs           # B: 実ブラウザ（CHROMIUM_PATH で使うブラウザを指定）
 node tools/local-test/build-report.mjs      # 表だけ作り直す
 node tools/local-test/audit-invalidation.mjs  # キャッシュ無効化の静的チェック（サーバー不要）
 ```
@@ -99,7 +102,7 @@ IDの頭文字はスイートを表す: `P`=ページ、`R`=API権限、`F`=主�
 | `api-sweep.mjs` | **R**: APIの権限を役割ごとに期待値と突き合わせる |
 | `flows.mjs` | **F**: アップロード・招待・提案・ゲーム追加・Discord取り込み・エラー通報・cron を通しで確認 |
 | `external-failure.mjs` | **X**: 外部APIを全滅させてもページが500にならないこと |
-| `browser.mjs` | **B**: 実ブラウザ（Chromium）で開いて例外が出ないこと。`playwright-core` が無ければスキップ |
+| `browser.mjs` | **B**: 実ブラウザ（Chromium）で開いて例外が出ないこと。ブラウザは `CHROMIUM_PATH` で指定する |
 | `query-count.mjs` | 1ページの描画で何回DBを引いているかを数える（`--save` / `--compare`）。本番はネットワーク越しで1クエリ＝1往復なので、**見るべきは所要時間ではなくクエリ数** |
 | `audit-invalidation.mjs` | キャッシュ無効化の呼び忘れ・GETへの混入を静的に洗い出す（サーバー不要） |
 | `run-all.mjs` | 上を全部流して表を作り直す |
@@ -108,19 +111,28 @@ IDの頭文字はスイートを表す: `P`=ページ、`R`=API権限、`F`=主�
 | `verify-album-access.mjs` | アルバム詳細ページの権限マトリクス（単発の確認用） |
 | `repro-album-leak.mjs` | 権限の無いアルバムがページから見えていた不具合の再現用 |
 
-`browser.mjs` は `playwright-core` を使うが、**このリポジトリの依存には入れていない**
-（本番のビルドに要らないものを増やしたくないため）。無ければ自動でスキップする。
+`browser.mjs` が使う `playwright-core` は**ルートの devDependencies に入っている**ので、
+`pnpm install` だけで揃う。ブラウザの実体は含まれない（`playwright-core` は
+`playwright` と違って postinstall でダウンロードしない）ため、**使うブラウザは自分で指定する**。
+
+```bash
+export CHROMIUM_PATH=/path/to/chrome    # 未設定ならPlaywrightの既定の置き場所を探す
+node tools/local-test/browser.mjs
+```
+
+手元にブラウザが無ければ `npx playwright-core install chromium` でPlaywright同梱の
+ビルドを入れられる（`PLAYWRIGHT_BROWSERS_PATH` の下に入るので `CHROMIUM_PATH` は不要になる）。
+
+**playwright-core が読めないときは落ちる（exit 1）。** 以前は「無ければスキップして exit 0」
+だったが、それだと `run-all.mjs` 経由で**1件も流していないのに OK と出る**。
+
+`--no-sandbox` を付けて起動している。開くのは自分のローカルサーバーだけで外部のページを
+踏まないため守る対象が無く、逆に付けないと環境側の都合（rootで動くコンテナ、
+Ubuntu 24.04 の apparmor による unprivileged userns の制限）で起動できないことがある。
 
 **リポジトリのルートで `npm install` してはいけない。** `.npmrc` の `node-linker=hoisted` で
 pnpmが平坦に置いた `node_modules` を npm が「身に覚えのないパッケージ」とみなして削り、
 182個が18個まで消える（実際にやった。`pnpm install` で戻せるが、Prisma Clientの再生成も要る）。
-入れるならリポジトリの外に置いてリンクする。
-
-```bash
-mkdir -p /tmp/pw && (cd /tmp/pw && npm init -y && npm i playwright-core)
-ln -sfn /tmp/pw/node_modules/playwright-core node_modules/playwright-core
-export CHROMIUM_PATH=/path/to/chromium   # 未設定ならPlaywrightの既定を探す
-```
 
 ## 外部が落ちた状況の再現
 

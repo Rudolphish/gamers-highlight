@@ -15,13 +15,17 @@ let chromium;
 try {
   ({ chromium } = await import("playwright-core"));
 } catch {
-  console.log("playwright-core が無いのでスキップ（README参照）");
+  // ここは計測用の道具なので、読めなければ何もせず終わる（合否を出すスイートではない）。
+  // 合否を出す browser.mjs は逆に落とす——「流していないのにOK」を作らないため。
+  console.log("playwright-core を読み込めませんでした。`pnpm install` を実行してください。");
   process.exit(0);
 }
 
-const browser = await chromium.launch(
-  process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}
-);
+// `--no-sandbox` の理由は browser.mjs のコメント参照（開くのは自分のローカルサーバーだけ）
+const browser = await chromium.launch({
+  args: ["--no-sandbox"],
+  ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
+});
 const context = await browser.newContext();
 await context.addCookies([
   {
