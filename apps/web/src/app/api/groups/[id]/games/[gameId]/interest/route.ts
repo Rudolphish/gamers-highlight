@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
+import { logActivity } from "@/lib/activityLog";
 
 // POST /api/groups/:id/games/:gameId/interest … 「気になってる」マークをトグルする。
 // ゲームのステータス変更（EDITOR以上）と違い、これは各メンバーが自分の興味を表明するだけの
@@ -20,7 +21,7 @@ export async function POST(
   // gameIdが本当にこのグループのゲームかを確認する（他グループのIDを指定されないように）
   const game = await db.groupGame.findUnique({
     where: { id: params.gameId, groupId: params.id },
-    select: { id: true },
+    select: { id: true, title: true }, // title は活動ログ用（消えた後も名前を出せるように）
   });
   if (!game) return NextResponse.json({ error: "not found" }, { status: 404 });
 
@@ -43,5 +44,15 @@ export async function POST(
   const count = await db.groupGameInterest.count({ where: { groupGameId: game.id } });
 
   invalidateGroup(params.id);
+
+  // 付け外しの両方を記録する（❤️と同じ理由。行が消えるので純増しか見えなくなる）
+  await logActivity({
+    kind: interested ? "game.interest_added" : "game.interest_removed",
+    targetId: game.id,
+    targetName: game.title,
+    groupId: params.id,
+    actorId: user.id,
+  });
+
   return NextResponse.json({ interested, count });
 }

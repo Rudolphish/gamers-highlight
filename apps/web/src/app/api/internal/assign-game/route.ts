@@ -70,6 +70,20 @@ export async function POST(req: Request) {
 
   if (resolved.albumId) {
     invalidateAlbumPhotos(resolved.albumId, group.id);
+
+    // 未分類で取り込まれた写真の photo.created は groupId が null。
+    // Botの「どのゲーム？」に答えて振り分けが決まった時点で埋め直す
+    // （discord/tag・photos/assign-album と同じ扱い）。
+    await db.activityLog
+      .updateMany({
+        where: {
+          kind: "photo.created",
+          targetId: { in: targets.map((t) => t.id) },
+          groupId: null,
+        },
+        data: { groupId: group.id },
+      })
+      .catch((e) => console.error("[activity] groupIdの埋め直しに失敗しました", e));
   }
 
   return NextResponse.json({

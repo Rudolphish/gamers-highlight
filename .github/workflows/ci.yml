@@ -70,6 +70,12 @@ jobs:
       - name: キャッシュ無効化の静的チェック
         run: node tools/local-test/audit-invalidation.mjs
 
+      # 活動ログ（週次まとめ／カレンダーの元データ）の記録漏れを見る。
+      # 記録は書き込みハンドラから手で呼ぶ形なので、放っておくと必ずどこかで忘れる。
+      # 忘れるとその出来事だけが集計から永久に消え、しかも画面には何も出ないので気づけない。
+      - name: 活動ログの記録漏れチェック
+        run: node tools/local-test/audit-activity-log.mjs
+
   # ── 本番ビルドを立てて通しで確認する ──
   integration:
     name: ローカル総合テスト

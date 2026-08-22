@@ -963,6 +963,201 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   await patch("");
 }
 
+// ───────────────────────────────────────────────────────────
+// 活動ログ（週次まとめ／カレンダーの元データ）
+// ───────────────────────────────────────────────────────────
+{
+  const photo = await db.photo.findFirst({ where: { albumId: album.id } });
+  const game = await db.groupGame.findFirst({ where: { groupId: group.id } });
+
+  /** 対象を絞って数える。**全体の件数で判定しない**——他のスイートが足したぶんで揺れるため */
+  const logs = (where) => db.activityLog.findMany({ where, orderBy: { createdAt: "asc" } });
+
+  // --- ❤️: 付けたときと外したときの両方が残ること ---
+  await db.activityLog.deleteMany({ where: { targetId: photo.id } });
+  await db.photoReaction.deleteMany({ where: { photoId: photo.id } });
+
+  await api(`/api/photos/${photo.id}/reactions`, { method: "POST", cookie: adminCookie });
+  const added = await logs({ targetId: photo.id, kind: "photo.reaction_added" });
+  check(
+    "F91 ❤️を押すと活動ログに残り、groupIdが入る",
+    added.length === 1 && added[0].groupId === group.id,
+    `${added.length}件 groupId=${added[0]?.groupId}`
+  );
+
+  await api(`/api/photos/${photo.id}/reactions`, { method: "POST", cookie: adminCookie });
+  const removed = await logs({ targetId: photo.id, kind: "photo.reaction_removed" });
+  check(
+    "F92 取り消しも残る（付けた記録が消えない）",
+    removed.length === 1 && added.length === 1,
+    `added=${added.length} removed=${removed.length}`
+  );
+
+  // --- 説明: 書いたときと消したときで kind が分かれること ---
+  await db.activityLog.deleteMany({ where: { targetId: photo.id } });
+  const patchDesc = (text) =>
+    api(`/api/photos/${photo.id}`, {
+      method: "PATCH",
+      cookie: adminCookie,
+      body: { description: text },
+    });
+
+  await patchDesc("活動ログの確認用");
+  await patchDesc("");
+  const descLogs = await logs({ targetId: photo.id, kind: { startsWith: "photo.description" } });
+  check(
+    "F93 説明の「書いた」「消した」が別々に残る",
+    descLogs.length === 2 &&
+      descLogs[0].kind === "photo.description_set" &&
+      descLogs[1].kind === "photo.description_cleared",
+    descLogs.map((l) => l.kind).join(",")
+  );
+
+  // --- ゲームのステータス変更: from→to が入ること ---
+  // **これが今回いちばん重要。** GroupGame.updatedAt では代用できない
+  // （日次cronが lastPriceCheckedAt を毎日書くので毎日動く）。
+  await db.activityLog.deleteMany({ where: { targetId: game.id } });
+  await db.groupGame.update({ where: { id: game.id }, data: { status: "PLAYING" } });
+
+  await api(`/api/groups/${group.id}/games/${game.id}`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { status: "COMPLETED" },
+  });
+  const statusLogs = await logs({ targetId: game.id, kind: "game.status_changed" });
+  check(
+    "F94 ステータス変更が from→to つきで残る（今週クリアしたゲームが出せる）",
+    statusLogs.length === 1 &&
+      statusLogs[0].detail?.from === "PLAYING" &&
+      statusLogs[0].detail?.to === "COMPLETED" &&
+      statusLogs[0].targetName === game.title,
+    JSON.stringify(statusLogs[0]?.detail ?? null)
+  );
+
+  // 同じステータスで保存し直しても増えないこと（増えると「今週クリアした」が空振りする）
+  await api(`/api/groups/${group.id}/games/${game.id}`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { status: "COMPLETED" },
+  });
+  const afterNoop = await logs({ targetId: game.id, kind: "game.status_changed" });
+  check(
+    "F95 同じステータスで保存し直しても記録が増えない",
+    afterNoop.length === 1,
+    `${afterNoop.length}件`
+  );
+
+  // --- occurredAt: 撮影日時が入ること ---
+  // 去年撮ったスクショを今日上げても、カレンダー上は撮った日に並んでほしい
+  const captured = new Date("2025-03-04T05:06:07.000Z");
+  const created = await api("/api/photos", {
+    method: "POST",
+    cookie: adminCookie,
+    body: {
+      contentType: "image/png",
+      mediaUrl: "http://127.0.0.1:9100/gh-local/activity-occurred.png",
+      albumId: album.id,
+      capturedAt: captured.toISOString(),
+      sizeBytes: 1234,
+    },
+  });
+  const createdId = created.json?.photo?.id;
+  // **targetId が undefined のまま findMany に渡さないこと。**
+  // Prisma は undefined を「その条件は指定なし」として扱うので、絞ったつもりが
+  // 全件から拾ってしまう。最初これで、投稿が400になっていたのに別の写真のログを
+  // 見て「occurredAt が違う」と誤診した。
+  const createdLog = createdId
+    ? (await logs({ targetId: createdId, kind: "photo.created" }))[0]
+    : null;
+  check(
+    "F96 写真の occurredAt は撮影日時（記録時刻ではない）",
+    created.status === 201 &&
+      !!createdLog &&
+      createdLog.occurredAt.getTime() === captured.getTime() &&
+      createdLog.createdAt.getTime() !== captured.getTime(),
+    `status=${created.status} occurredAt=${createdLog?.occurredAt?.toISOString()} createdAt=${createdLog?.createdAt?.toISOString()}`
+  );
+
+  // --- 未分類→振り分けで groupId が埋まること ---
+  // Discord経由の未分類はアルバムに属さないので、投稿時点では groupId が決まらない。
+  // 埋め直しを忘れると、その投稿がグループの週次まとめに一生出てこない。
+  const loose = await db.photo.create({
+    data: {
+      mediaType: "IMAGE",
+      mediaUrl: "http://127.0.0.1:9100/gh-local/activity-loose.jpg",
+      uploaderId: (await db.user.findFirst({ where: { email: "admin@example.com" } })).id,
+      source: "DISCORD",
+    },
+  });
+  await db.activityLog.create({
+    data: {
+      kind: "photo.created",
+      targetId: loose.id,
+      groupId: null,
+      actorId: loose.uploaderId,
+      occurredAt: loose.createdAt,
+    },
+  });
+  await api("/api/photos/assign-album", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { photoIds: [loose.id], albumId: album.id },
+  });
+  const filled = await logs({ targetId: loose.id, kind: "photo.created" });
+  check(
+    "F97 未分類をアルバムへ振り分けると groupId が埋まる（行は増えない）",
+    filled.length === 1 && filled[0].groupId === group.id,
+    `${filled.length}件 groupId=${filled[0]?.groupId}`
+  );
+
+  // --- メンバー追加を繰り返しても「加入」は1回だけ ---
+  // **このエンドポイントで作られたメンバーは acceptedAt が入らない**（入るのは招待リンク経由だけ）。
+  // 最初「acceptedAt が null なら新規」で判定していたため、役割変更で呼び直すたびに
+  // member.joined が増え、「同じ人が何度も加入した」記録になっていた（後追いレビューで発覚）。
+  const outsiderUser = await db.user.findFirst({ where: { email: "outsider@example.com" } });
+  await db.groupMember.deleteMany({ where: { groupId: group.id, userId: outsiderUser.id } });
+  await db.activityLog.deleteMany({ where: { targetId: outsiderUser.id, kind: "member.joined" } });
+
+  const addMember = (role) =>
+    api(`/api/groups/${group.id}/members`, {
+      method: "POST",
+      cookie: adminCookie,
+      body: { email: "outsider@example.com", role },
+    });
+  await addMember("VIEWER");
+  await addMember("EDITOR"); // 役割変更のつもりで同じ人を再度追加する
+  const joins = await logs({ targetId: outsiderUser.id, kind: "member.joined" });
+  check(
+    "F99 同じ人を追加し直しても「加入」は1回しか記録されない",
+    joins.length === 1,
+    `${joins.length}件`
+  );
+  await db.groupMember.deleteMany({ where: { groupId: group.id, userId: outsiderUser.id } });
+  await db.activityLog.deleteMany({ where: { targetId: outsiderUser.id, kind: "member.joined" } });
+
+  // --- GETでは増えないこと ---
+  const beforeGet = await db.activityLog.count();
+  await api(`/albums/${album.id}`, { cookie: adminCookie });
+  await api(`/api/albums/${album.id}/photos`, { cookie: adminCookie });
+  const afterGet = await db.activityLog.count();
+  check("F98 読むだけでは活動ログが増えない", beforeGet === afterGet, `${beforeGet} → ${afterGet}`);
+
+  // 後片付け。**自分が変えたものは戻す**（seedのデータを次のスイートへ渡すため）
+  await db.groupGame.update({ where: { id: game.id }, data: { status: game.status } });
+
+  // **写真の削除は必ずAPI経由で行う。** db.photo.delete で直に消すと
+  // invalidateAlbumPhotos を通らないので、アルバムのキャッシュに消えた写真が残る。
+  // 次に走るブラウザスイート（B）がその写真をクリックし、❤️も説明も 404 になって落ちた
+  // （CIでB34・B36・B39・B41が落ちた実際の原因がこれ。アプリの不具合ではなく後片付けの穴）。
+  for (const id of [createdId, loose.id].filter(Boolean)) {
+    await api(`/api/photos/${id}`, { method: "DELETE", cookie: adminCookie });
+  }
+  await db.activityLog.deleteMany({
+    where: { targetId: { in: [photo.id, game.id, createdId, loose.id].filter(Boolean) } },
+  });
+  await db.photoReaction.deleteMany({ where: { photoId: photo.id } });
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

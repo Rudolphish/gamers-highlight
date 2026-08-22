@@ -5,6 +5,9 @@ import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 
 // PATCH /api/groups/:id/members/:userId … 権限変更
+// audit-activity-log: 意図的に記録しない（役割の変更と、メンバーの削除。
+// 加入〈member.joined〉だけを記録する。週次まとめに『誰が抜けた』『誰が降格した』が
+// 並ぶと、身内で使う道具としては角が立つ。必要になったら kind を足す）
 export async function PATCH(
   req: Request,
   { params }: { params: { id: string; userId: string } }

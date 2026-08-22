@@ -43,20 +43,41 @@ export async function hasAlbumPermission(
   userId: string,
   requiredRole: AlbumRole
 ): Promise<boolean> {
+  return (await checkAlbumPermission(albumId, userId, requiredRole)).allowed;
+}
+
+/**
+ * `hasAlbumPermission` と同じ判定をして、**そのアルバムの `groupId` も返す**。
+ *
+ * 活動ログ（`ActivityLog`）は `groupId` を非正規化して持つ（対象が消えた後でも
+ * どのグループの出来事か辿れるように）。判定の中で `album.groupId` はどのみち
+ * 読んでいるので、**捨てずに返せば追加のクエリがゼロで済む**。
+ * 本番は1クエリ＝1往復（docs/perf-cache.md）なので、ここを引き直すと
+ * 書き込みのたびに往復が増える。
+ *
+ * 権限だけが要る場所は `hasAlbumPermission` のままでよい。
+ */
+export async function checkAlbumPermission(
+  albumId: string,
+  userId: string,
+  requiredRole: AlbumRole
+): Promise<{ allowed: boolean; groupId: string | null }> {
   const album = await db.album.findUnique({
     where: { id: albumId },
     select: { ownerId: true, groupId: true },
   });
-  if (!album) return false;
-  if (album.ownerId === userId) return true;
+  if (!album) return { allowed: false, groupId: null };
+
+  const groupId = album.groupId;
+  if (album.ownerId === userId) return { allowed: true, groupId };
 
   const membership = await db.albumMember.findUnique({
     where: { albumId_userId: { albumId, userId } },
   });
   const albumRank = membership ? ROLE_RANK[membership.role] : -1;
 
-  const groupAllowed = await hasGroupPermission(album.groupId, userId, "VIEWER");
+  const groupAllowed = await hasGroupPermission(groupId, userId, "VIEWER");
   const groupRank = groupAllowed ? ROLE_RANK.VIEWER : -1;
 
-  return Math.max(albumRank, groupRank) >= ROLE_RANK[requiredRole];
+  return { allowed: Math.max(albumRank, groupRank) >= ROLE_RANK[requiredRole], groupId };
 }

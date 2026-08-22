@@ -41,5 +41,21 @@ export async function POST(req: Request) {
 
   invalidateAlbumPhotos(albumId, album.groupId);
 
+  // **未分類だった間に記録した photo.created は groupId が null になっている。**
+  // 未分類の写真はアルバムに属さないので、投稿の時点では「どのグループの出来事か」が
+  // 決まらない（権限を判定する足場が無いのと同じ理由）。そのまま放置すると、
+  // Discordから来た未分類の投稿がグループの週次まとめに一生出てこない。
+  //
+  // 振り分けはまさに「どのグループのものか決まった」瞬間なので、ここで埋め直す。
+  // 新しい行は作らない（作ると同じ投稿が2件に数えられる）。
+  if (result.count > 0) {
+    await db.activityLog
+      .updateMany({
+        where: { kind: "photo.created", targetId: { in: photoIds }, groupId: null },
+        data: { groupId: album.groupId },
+      })
+      .catch((e) => console.error("[activity] groupIdの埋め直しに失敗しました", e));
+  }
+
   return NextResponse.json({ movedCount: result.count });
 }

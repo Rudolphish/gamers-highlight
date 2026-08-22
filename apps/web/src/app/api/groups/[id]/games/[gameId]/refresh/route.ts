@@ -32,6 +32,8 @@ import { gameCacheTag } from "@/lib/steam";
 // ただし**まだ取れていない項目が残っている間は短い間隔（6時間）にする**。
 // 全部埋まっている状態での連打とは事情が違い、外部が一時的に落ちていた時の空欄を
 // 24時間直せないほうが困る。引き直すのは不足分だけなのでクォータも食わない。
+// audit-activity-log: 意図的に記録しない（外部データ〈HowLongToBeat・YouTube〉の取り直しであって、
+// グループの活動ではない。押した人がいても記録する価値が無い）
 export async function POST(
   _req: Request,
   { params }: { params: { id: string; gameId: string } }

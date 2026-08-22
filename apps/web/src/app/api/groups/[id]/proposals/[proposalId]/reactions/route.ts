@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
+import { logActivity } from "@/lib/activityLog";
 import { getOrFetchExternalGameData } from "@/lib/externalGameCache";
 import { z } from "zod";
 
@@ -41,8 +42,9 @@ export async function POST(
     where: { proposalId_userId: { proposalId: params.proposalId, userId: user.id } },
   });
 
-  if (existing && existing.type === parsed.data.type) {
-    await db.groupGameProposalReaction.delete({ where: { id: existing.id } });
+  const removedVote = Boolean(existing && existing.type === parsed.data.type);
+  if (removedVote) {
+    await db.groupGameProposalReaction.delete({ where: { id: existing!.id } });
   } else {
     await db.groupGameProposalReaction.upsert({
       where: { proposalId_userId: { proposalId: params.proposalId, userId: user.id } },
@@ -50,6 +52,16 @@ export async function POST(
       update: { type: parsed.data.type },
     });
   }
+
+  // 投票も取り消しも記録する（❤️と同じ。取り消しは行ごと消えるので後から辿れない）
+  await logActivity({
+    kind: removedVote ? "proposal.vote_removed" : "proposal.voted",
+    targetId: proposal.id,
+    targetName: proposal.title,
+    groupId: params.id,
+    actorId: user.id,
+    detail: { type: parsed.data.type },
+  });
 
   const likeCount = await db.groupGameProposalReaction.count({
     where: { proposalId: params.proposalId, type: "LIKE" },
@@ -68,8 +80,9 @@ export async function POST(
       proposal.steamAppId,
       proposal.title
     );
+    let addedGameId: string | null = null;
     try {
-      await db.groupGame.create({
+      const created = await db.groupGame.create({
         data: {
           groupId: params.id,
           steamAppId: proposal.steamAppId,
@@ -80,6 +93,7 @@ export async function POST(
           addedById: proposal.proposedById,
         },
       });
+      addedGameId = created.id;
     } catch {
       // 既にリストにある場合（レース条件等）は無視して採用扱いにする
     }
@@ -88,6 +102,28 @@ export async function POST(
       data: { status: "ACCEPTED" },
     });
     promoted = true;
+
+    // 採用と、それによるゲーム追加は別の出来事として記録する。
+    // **actorId は提案者**（最後に投票した人ではない）。リストに載ったゲームの
+    // 「追加した人」は GroupGame.addedById と揃えないと、画面と週次まとめで食い違う。
+    await logActivity({
+      kind: "proposal.accepted",
+      targetId: proposal.id,
+      targetName: proposal.title,
+      groupId: params.id,
+      actorId: proposal.proposedById,
+      detail: { likeCount, threshold },
+    });
+    if (addedGameId) {
+      await logActivity({
+        kind: "game.added",
+        targetId: addedGameId,
+        targetName: proposal.title,
+        groupId: params.id,
+        actorId: proposal.proposedById,
+        detail: { status: "WISHLIST", viaProposal: true },
+      });
+    }
   }
 
   const updated = await db.groupGameProposal.findUnique({
