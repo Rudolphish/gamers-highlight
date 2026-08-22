@@ -226,12 +226,14 @@ async function main() {
   );
 
   // --- メンバーの加入 ---
-  // acceptedAt が無い（招待されたが未加入）行は対象外
+  // **acceptedAt が入るのは招待リンク経由だけ。** オーナーが設定画面から直接追加した
+  // メンバーは acceptedAt が null のままなので、そこで絞ると「招待リンクから入った人」
+  // しか歴史に残らない。加入した時刻としては invitedAt で代用する。
   const members = await db.groupMember.findMany({
-    where: { acceptedAt: { not: null } },
     select: {
       groupId: true,
       userId: true,
+      invitedAt: true,
       acceptedAt: true,
       user: { select: { name: true, email: true } },
     },
@@ -244,7 +246,7 @@ async function main() {
       targetName: m.user.name ?? m.user.email,
       groupId: m.groupId,
       actorId: m.userId,
-      occurredAt: m.acceptedAt!,
+      occurredAt: m.acceptedAt ?? m.invitedAt,
     }))
   );
 

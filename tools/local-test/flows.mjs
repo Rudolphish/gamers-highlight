@@ -1110,6 +1110,31 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     `${filled.length}件 groupId=${filled[0]?.groupId}`
   );
 
+  // --- メンバー追加を繰り返しても「加入」は1回だけ ---
+  // **このエンドポイントで作られたメンバーは acceptedAt が入らない**（入るのは招待リンク経由だけ）。
+  // 最初「acceptedAt が null なら新規」で判定していたため、役割変更で呼び直すたびに
+  // member.joined が増え、「同じ人が何度も加入した」記録になっていた（後追いレビューで発覚）。
+  const outsiderUser = await db.user.findFirst({ where: { email: "outsider@example.com" } });
+  await db.groupMember.deleteMany({ where: { groupId: group.id, userId: outsiderUser.id } });
+  await db.activityLog.deleteMany({ where: { targetId: outsiderUser.id, kind: "member.joined" } });
+
+  const addMember = (role) =>
+    api(`/api/groups/${group.id}/members`, {
+      method: "POST",
+      cookie: adminCookie,
+      body: { email: "outsider@example.com", role },
+    });
+  await addMember("VIEWER");
+  await addMember("EDITOR"); // 役割変更のつもりで同じ人を再度追加する
+  const joins = await logs({ targetId: outsiderUser.id, kind: "member.joined" });
+  check(
+    "F99 同じ人を追加し直しても「加入」は1回しか記録されない",
+    joins.length === 1,
+    `${joins.length}件`
+  );
+  await db.groupMember.deleteMany({ where: { groupId: group.id, userId: outsiderUser.id } });
+  await db.activityLog.deleteMany({ where: { targetId: outsiderUser.id, kind: "member.joined" } });
+
   // --- GETでは増えないこと ---
   const beforeGet = await db.activityLog.count();
   await api(`/albums/${album.id}`, { cookie: adminCookie });
