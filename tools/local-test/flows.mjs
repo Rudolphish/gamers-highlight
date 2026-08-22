@@ -1158,6 +1158,115 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   await db.photoReaction.deleteMany({ where: { photoId: photo.id } });
 }
 
+// ───────────────────────────────────────────────────────────
+// 週次まとめ（管理画面のプレビュー）
+// ───────────────────────────────────────────────────────────
+{
+  // **週の境界をテスト側で独立に計算する。** 実装と同じ式をコピーすると、
+  // 式が間違っていても両方同じように間違うので何も確認できない。
+  // ここでは Intl（Asia/Tokyo）から JST の壁時計を出して月曜0時を求める。
+  const jstMondayStart = () => {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      weekday: "short",
+    }).formatToParts(now);
+    const get = (t) => parts.find((p) => p.type === t).value;
+    const names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const daysFromMonday = names.indexOf(get("weekday"));
+    // JSTの月曜0時 = その日のUTC 15:00（前日）
+    const midnightJstAsUtc = Date.parse(`${get("year")}-${get("month")}-${get("day")}T00:00:00+09:00`);
+    return new Date(midnightJstAsUtc - daysFromMonday * 24 * 60 * 60 * 1000);
+  };
+
+  const monday = jstMondayStart();
+  const weeklyPage = async (week) => {
+    const res = await api(`/admin/weekly?group=${group.id}&week=${week}`, { cookie: adminCookie });
+    const m = res.text.match(/📷 投稿 (\d+)/);
+    return { status: res.status, posts: m ? Number(m[1]) : null, text: res.text };
+  };
+
+  const before = await weeklyPage(0);
+  check(
+    "F100 週次まとめのページが管理者に出る",
+    before.status === 200 && before.posts !== null,
+    `${before.status} 投稿=${before.posts}`
+  );
+
+  const addLog = (createdAt) =>
+    db.activityLog.create({
+      data: {
+        kind: "photo.created",
+        targetId: `boundary-${createdAt.getTime()}`,
+        groupId: group.id,
+        actorId: null,
+        occurredAt: createdAt,
+        createdAt,
+      },
+    });
+
+  // 月曜0時ちょうど＝今週に入る
+  await addLog(monday);
+  const afterInside = await weeklyPage(0);
+  check(
+    "F101 月曜0時（JST）ちょうどの記録は今週に数えられる",
+    afterInside.posts === before.posts + 1,
+    `${before.posts} → ${afterInside.posts}`
+  );
+
+  // その1ミリ秒前＝先週に入る（今週は増えない）
+  const lastWeekBefore = await weeklyPage(-1);
+  await addLog(new Date(monday.getTime() - 1));
+  const [afterOutside, lastWeekAfter] = [await weeklyPage(0), await weeklyPage(-1)];
+  check(
+    "F102 その1ミリ秒前は先週に入る（今週は増えない）",
+    afterOutside.posts === afterInside.posts && lastWeekAfter.posts === lastWeekBefore.posts + 1,
+    `今週 ${afterInside.posts} → ${afterOutside.posts} / 先週 ${lastWeekBefore.posts} → ${lastWeekAfter.posts}`
+  );
+
+  // **クリアしたゲームが出ること。** ActivityLog にしか無い情報で、
+  // これを出せるようにするのが週次まとめの主目的のひとつ
+  await db.activityLog.create({
+    data: {
+      kind: "game.status_changed",
+      targetId: "boundary-completed",
+      targetName: "テスト用クリアゲーム",
+      groupId: group.id,
+      occurredAt: new Date(),
+      detail: { from: "PLAYING", to: "COMPLETED" },
+    },
+  });
+  const withCompleted = await weeklyPage(0);
+  check(
+    "F103 今週クリアしたゲームが文面に出る",
+    withCompleted.text.includes("テスト用クリアゲーム"),
+    "出ていない"
+  );
+
+  // ステータス変更でも COMPLETED 以外は「クリア」に混ざらないこと
+  await db.activityLog.create({
+    data: {
+      kind: "game.status_changed",
+      targetId: "boundary-playing",
+      targetName: "クリアではないゲーム",
+      groupId: group.id,
+      occurredAt: new Date(),
+      detail: { from: "WISHLIST", to: "PLAYING" },
+    },
+  });
+  const withPlaying = await weeklyPage(0);
+  check(
+    "F104 クリア以外のステータス変更は「クリア」に出ない",
+    !withPlaying.text.includes("クリアではないゲーム"),
+    "混ざっている"
+  );
+
+  await db.activityLog.deleteMany({ where: { targetId: { startsWith: "boundary-" } } });
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

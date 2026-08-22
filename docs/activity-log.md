@@ -9,7 +9,7 @@
 | `ActivityLog` / `DailyActivity` のテーブル | **入った**（`prisma db push` が必要） |
 | 書き込みハンドラからの記録（`logActivity`） | **入った**。漏れは `audit-activity-log.mjs` がCIで見る |
 | 既存データの遡り投入 | **入った**（`pnpm --filter @gamers-highlight/db backfill:activity`） |
-| 管理画面の週次サマリー | まだ |
+| 管理画面の週次サマリー | **入った**（`/admin/weekly`。グループ×週を選んで、送る文面をそのままプレビュー） |
 | 日次ロールアップ・1年より古い行の削除 | まだ（`DailyActivity` は空のまま） |
 | Discordへの週次通知 | まだ |
 
@@ -218,7 +218,7 @@ pnpm --filter @gamers-highlight/db backfill:activity
 
 | 用途 | 読むもの | 並べる軸 |
 |---|---|---|
-| 週次まとめ（管理画面・Discord） | `ActivityLog` | `createdAt`（今週記録されたもの） |
+| 週次まとめ（管理画面・Discord） | `ActivityLog` | `createdAt`（その週に記録されたもの） |
 | カレンダーのヒートマップ | `DailyActivity` | `date` |
 | カレンダーの日をクリック | `ActivityLog` ＋ `Photo` 本体 | `occurredAt` |
 | タイムライン（時系列に流す） | `ActivityLog` ＋ `Photo` 本体 | `occurredAt` |
@@ -227,6 +227,21 @@ pnpm --filter @gamers-highlight/db backfill:activity
 1年で消えない。ログが消えて失われるのは「その日の出来事の注釈」だけ。
 
 ---
+
+## 9-2. 週次まとめの決め事（`lib/weeklySummary.ts`）
+
+- **週はJSTの月曜0時〜日曜24時。** UTCで切ると日曜の夜9時以降の投稿が翌週に落ちる。
+  境界は `jstWeekRange()` の1箇所だけで決めている（`tools/local-test/flows.mjs` の
+  F101・F102 が、月曜0時ちょうどと その1ミリ秒前 で確かめている。
+  **テスト側は Intl から別実装で境界を出している**——同じ式をコピーすると、
+  式が間違っていても両方同じように間違って何も確認できないため）
+- **画面のプレビューと通知は同じ関数（`formatWeeklySummaryText`）を通す。**
+  別々に組み立てると、整えた文面と実際に飛ぶ文面がずれる
+- **見出しに「今週」と書かない。** 通知は週明けに終わった週を送るので、
+  届いた時点では先週になっている。期間そのものを出せばいつ読んでも正しい
+- **0件の週は送らない**（`hasActivity`）。毎週鳴ると読み飛ばされ、本当に見てほしい週に効かなくなる
+  （`usageAlerts` と同じ思想）。管理画面では「送らない扱いになります」と明示する
+- ❤️の集計は**取り消しを差し引いていない**。週の中で付けて外した分も1件として数える
 
 ## 10. 先に決めておく落とし穴
 
