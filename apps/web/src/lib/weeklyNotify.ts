@@ -36,6 +36,8 @@ export type WeeklyNotifyResult = {
   posted: number;
   /** 動きが無くて送らなかったグループ数 */
   skippedQuiet: number;
+  /** 送ろうとして投稿に失敗したグループ数。**1件でもあれば記録を進めない** */
+  failed: number;
   /** 送らなかった理由（チャンネル未設定など）。送った場合は null */
   reason: string | null;
 };
@@ -58,23 +60,38 @@ export async function sendWeeklySummaryIfDue(now = new Date()): Promise<WeeklyNo
 
   const lastSent = await getAppSetting(APP_SETTING_KEYS.weeklySummaryLastSentWeek);
   if (lastSent && lastSent >= weekKey) {
-    return { week: null, posted: 0, skippedQuiet: 0, reason: "この週は送信済み" };
+    return { week: null, posted: 0, skippedQuiet: 0, failed: 0, reason: "この週は送信済み" };
   }
 
   const channelId = await getAppSetting(APP_SETTING_KEYS.weeklySummaryChannelId);
   if (!channelId) {
     // **記録を進めない。** 進めてしまうと、後からチャンネルを設定しても
     // その週は「送信済み」として飛ばされる。
-    return { week: weekKey, posted: 0, skippedQuiet: 0, reason: "通知先が未設定" };
+    return { week: weekKey, posted: 0, skippedQuiet: 0, failed: 0, reason: "通知先が未設定" };
   }
 
   const result = await postWeeklySummaries(channelId, -1, now);
 
-  // **動きが無くて1件も送らなかった場合も記録は進める。**
+  // **投稿に失敗したグループが1件でもあれば記録を進めない。**
+  // 進めてしまうと、BotがサーバーからKickされた・権限を外された・Discordが落ちていた、
+  // といった一時的な失敗でその週の通知が永久に失われる（次のcronでも再送されない）。
+  // 「cronが飛んでも取りこぼさない」ためにこの仕組みを作ったのに、そこが抜けていた
+  // （後追いレビューの指摘）。
+  //
+  // **動きが無くて1件も送らなかった場合は記録を進める。** そちらは失敗ではないので、
   // 進めないと毎日ここまで来て毎日集計し直すことになる（結果は同じで、無駄なだけ）。
-  await setAppSetting(APP_SETTING_KEYS.weeklySummaryLastSentWeek, weekKey);
+  //
+  // 失敗が続く限り毎日リトライするが、送るのは常に「いちばん新しい完了週」なので
+  // 古い週が溜まって一気に流れることはない。
+  if (result.failed === 0) {
+    await setAppSetting(APP_SETTING_KEYS.weeklySummaryLastSentWeek, weekKey);
+  }
 
-  return { week: weekKey, ...result, reason: null };
+  return {
+    week: weekKey,
+    ...result,
+    reason: result.failed > 0 ? "投稿に失敗したので記録を進めない（次回再送する）" : null,
+  };
 }
 
 /**
@@ -88,11 +105,12 @@ export async function postWeeklySummaries(
   channelId: string,
   weekOffset: number,
   now = new Date()
-): Promise<{ posted: number; skippedQuiet: number }> {
+): Promise<{ posted: number; skippedQuiet: number; failed: number }> {
   const groups = await db.group.findMany({ select: { id: true }, orderBy: { name: "asc" } });
 
   let posted = 0;
   let skippedQuiet = 0;
+  let failed = 0;
   for (const group of groups) {
     const summary = await getWeeklySummary(group.id, weekOffset, now);
     if (!summary.hasActivity) {
@@ -102,9 +120,15 @@ export async function postWeeklySummaries(
     // **画面のプレビューと同じ関数を通す。** 別々に組み立てると、
     // 管理画面で整えた文面と実際に飛ぶ文面がずれる。
     const ok = await postDiscordMessage(channelId, formatWeeklySummaryText(summary));
-    if (ok) posted++;
-    else console.error("[weekly] 投稿に失敗しました", group.id);
+    if (ok) {
+      posted++;
+    } else {
+      // **失敗を数える。** 呼び出し元はこれを見て「記録を進めるか」を決める。
+      // ログに出すだけだと、失敗しても送信済みとして扱われて週ごと失われる
+      failed++;
+      console.error("[weekly] 投稿に失敗しました", group.id);
+    }
   }
 
-  return { posted, skippedQuiet };
+  return { posted, skippedQuiet, failed };
 }

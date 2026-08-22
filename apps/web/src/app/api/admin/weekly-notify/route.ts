@@ -57,20 +57,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "通知先が未設定です" }, { status: 400 });
   }
 
-  const { posted, skippedQuiet } = await postWeeklySummaries(channelId, week);
+  const { posted, skippedQuiet, failed } = await postWeeklySummaries(channelId, week);
 
   if (posted === 0) {
     return NextResponse.json({
       ok: true,
       posted,
       skippedQuiet,
+      failed,
       // 「押したのに何も起きない」に見えるので、送らなかった理由を返す
       note:
-        skippedQuiet > 0
-          ? "この週は動きが無かったので送っていません（自動送信でも送りません）"
-          : "投稿できませんでした。Botがそのサーバーに参加していて、投稿権限があるか確認してください",
+        failed > 0
+          ? "投稿できませんでした。Botがそのサーバーに参加していて、投稿権限があるか確認してください"
+          : "この週は動きが無かったので送っていません（自動送信でも送りません）",
     });
   }
 
-  return NextResponse.json({ ok: true, posted, skippedQuiet });
+  return NextResponse.json({ ok: true, posted, skippedQuiet, failed });
 }

@@ -1474,18 +1474,23 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   // 文面の中身はスタブを通る手動送信の方で見る。
   const cronRes = await runCron();
   const weekly = JSON.parse(cronRes.text).weekly;
-  const record = await setting("weeklySummaryLastSentWeek");
   check(
-    "F114 未送信の完了週があれば、曜日に関係なく送信まで進む",
-    weekly?.week === expectedWeekKey && record?.value === expectedWeekKey,
-    `返り値=${JSON.stringify(weekly)} / 記録=${record?.value ?? "なし"}`
+    "F114 未送信の完了週があれば、曜日に関係なくその週を対象にする",
+    weekly?.week === expectedWeekKey,
+    `返り値=${JSON.stringify(weekly)} / 期待=${expectedWeekKey}`
   );
 
-  // **二度は送らない。** cronは毎日走るので、ここが効かないと毎日届く
+  // **二度は送らない。** cronは毎日走るので、ここが効かないと毎日届く。
+  // 記録を直接入れてから確認する（cronの投稿が成功したかに左右されないように）。
+  await db.appSetting.upsert({
+    where: { key: "weeklySummaryLastSentWeek" },
+    create: { key: "weeklySummaryLastSentWeek", value: expectedWeekKey },
+    update: { value: expectedWeekKey },
+  });
   const second = await runCron();
   const secondWeekly = JSON.parse(second.text).weekly;
   check(
-    "F115 同じ週を二度は送らない（毎日のcronで毎日届かない）",
+    "F115 送信済みの週は二度送らない（毎日のcronで毎日届かない）",
     secondWeekly?.week === null && secondWeekly?.reason === "この週は送信済み",
     JSON.stringify(secondWeekly)
   );
@@ -1521,6 +1526,23 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     body: { week: -1 },
   });
   check("F118 手動送信は管理者以外は403", manualByMember.status === 403, manualByMember.status);
+
+  // **投稿の失敗を「送った」と数えないこと。**
+  // ここを数え間違えると、cron側が「送信済み」として記録を進めてしまい、
+  // その週の通知が永久に失われる（後追いレビューで見つかった不具合）。
+  fs.writeFileSync("/tmp/stub-fail", "discord.com");
+  const failedSend = await api("/api/admin/weekly-notify", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { week: -1 },
+  });
+  fs.rmSync("/tmp/stub-fail", { force: true });
+  const failedBody = JSON.parse(failedSend.text);
+  check(
+    "F119 投稿に失敗したら「送った」に数えず、失敗として返す",
+    failedBody.posted === 0 && failedBody.failed >= 1,
+    failedSend.text
+  );
 
   await db.activityLog.deleteMany({ where: { targetId: { startsWith: "weekly-" } } });
   await db.appSetting.deleteMany({
