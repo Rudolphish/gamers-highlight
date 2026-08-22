@@ -1,5 +1,4 @@
 // B: 実ブラウザで主要ページを開き、ページ例外・ハイドレーションエラーを拾う。
-// playwright-core が入っていない環境ではスキップする（このリポジトリの依存には含めていない）。
 import { encode } from "next-auth/jwt";
 import { writeResults } from "./_results.mjs";
 
@@ -8,12 +7,18 @@ const SECRET = process.env.NEXTAUTH_SECRET ?? "local-integration-test-secret";
 const ids = JSON.parse(process.env.SEED_IDS);
 const EXECUTABLE = process.env.CHROMIUM_PATH;
 
+// **playwright-core が無いときに「スキップして exit 0」してはいけない。**
+// 以前はそうしていた（依存に入れていなかったため）が、そのせいで run-all.mjs 経由だと
+// **1件も流していないのに OK と出る**。CI に載せる以上、いちばん避けたいのがこれなので
+// 落とす。いまは root の devDependencies に入っているので、ここに来る＝インストールが
+// 壊れている。
 let chromium;
 try {
   ({ chromium } = await import("playwright-core"));
-} catch {
-  console.log("playwright-core が無いためブラウザ確認はスキップします（npm i -D playwright-core）");
-  process.exit(0);
+} catch (e) {
+  console.error("playwright-core を読み込めませんでした。`pnpm install` を実行してください。");
+  console.error(e.message);
+  process.exit(1);
 }
 
 // アプリの不具合ではないと分かっている失敗は無視する。
@@ -55,7 +60,15 @@ const targets = [
   ["B19", "管理・エラー", "/admin/errors"],
 ];
 
-const browser = await chromium.launch(EXECUTABLE ? { executablePath: EXECUTABLE } : {});
+// `--no-sandbox` を付けている。開くのは自分のローカルサーバーだけで外部のページは
+// 一切踏まないため、サンドボックスで守る対象が無い。逆に付けないと環境側の都合で
+// 起動できないことがある（rootで動くコンテナ、Ubuntu 24.04 の
+// apparmor による unprivileged userns の制限など）。**確認したいのはアプリの挙動**なので、
+// 環境ごとに起動可否が変わる要因は消しておく。
+const browser = await chromium.launch({
+  args: ["--no-sandbox"],
+  ...(EXECUTABLE ? { executablePath: EXECUTABLE } : {}),
+});
 const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
 await context.addCookies([
   {
@@ -370,6 +383,21 @@ for (const [id, label, path] of targets) {
 
   // グリッド上の❤️（サムネイルの左上）。押す前は0件なので数字は出ない
   const gridHearts = page.locator('[aria-label="リアクションする"], [aria-label="リアクションを取り消す"]');
+
+  // **この節は「まだ誰も押していない」状態から始まらないと成立しない**（B34 は押した数を
+  // 1と断定する）。以前は押したままで終わっていたため、**同じDBに2回流すと落ちた**
+  // （2回目の1押し目が「取り消す」になる）。CIは毎回まっさらなDBなのでCIでは出ない壊れ方。
+  // 始める前に全部外し、終わったらまた外して、何度流しても同じ結果になるようにする。
+  const clearAllHearts = async () => {
+    const pressedBtns = page.locator('[aria-label="リアクションを取り消す"]');
+    // 上限を切っているのは、外せない状態に陥ったときに無限に回さないため
+    for (let i = 0; i < 10 && (await pressedBtns.count()) > 0; i++) {
+      await pressedBtns.first().click();
+      await page.waitForTimeout(500);
+    }
+  };
+  await clearAllHearts();
+
   const heartCount = await gridHearts.count();
   rows.push({
     id: "B33",
@@ -453,6 +481,11 @@ for (const [id, label, path] of targets) {
     });
   }
 
+  // 押した❤️を外して、始める前の状態に戻す（上の clearAllHearts のコメント参照）
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  await clearAllHearts();
+
   await page.close();
 }
 
@@ -463,11 +496,29 @@ for (const [id, label, path] of targets) {
 {
   const page = await context.newPage();
   const LIGHTBOX = "div.fixed.inset-0.z-50";
+
+  // **この節は「説明が無い」状態から始まらないと成立しない**（B38）。
+  // 以前は自分で書いた説明を消さずに終わっていたため、**同じDBに対して2回流すと落ちた**
+  // （2回目は「説明を書く」ではなく「編集」になり、locatorが見つからずタイムアウトする）。
+  // CIは毎回まっさらなDBなので、この壊れ方はCIでは絶対に出ない。
+  // 始める前に消し、終わったらまた消して、何度流しても同じ結果になるようにする。
+  // 空文字で保存すると説明は削除される（PhotoDescription.tsx の placeholder のとおり）。
+  const clearDescription = async () => {
+    const edit = page.locator(`${LIGHTBOX} [aria-label="説明を編集"]`);
+    if ((await edit.count()) === 0) return;
+    await edit.first().click();
+    await page.waitForTimeout(300);
+    await page.locator(`${LIGHTBOX} textarea`).fill("");
+    await page.locator(`${LIGHTBOX} [aria-label="説明を保存"]`).click();
+    await page.waitForTimeout(900);
+  };
+
   await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
   await page.waitForTimeout(500);
 
   await page.locator("div.aspect-square").first().click();
   await page.waitForTimeout(700);
+  await clearDescription();
 
   const emptyText = (await page.locator(LIGHTBOX).first().textContent()) ?? "";
   rows.push({
@@ -550,6 +601,14 @@ for (const [id, label, path] of targets) {
       note: "",
     });
   }
+
+  // 書いた説明を消して、始める前の状態に戻す（上の clearDescription のコメント参照）
+  await page.keyboard.press("Escape");
+  await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+  await page.locator("div.aspect-square").first().click();
+  await page.waitForTimeout(700);
+  await clearDescription();
 
   await page.close();
 }
