@@ -1267,6 +1267,113 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   await db.activityLog.deleteMany({ where: { targetId: { startsWith: "boundary-" } } });
 }
 
+// ───────────────────────────────────────────────────────────
+// 日次ロールアップと生ログの掃除（cronに相乗り）
+// ───────────────────────────────────────────────────────────
+{
+  const runCron = () =>
+    api("/api/cron/check-bot-health", { headers: { authorization: `Bearer ${CRON_SECRET}` } });
+
+  const jstDay = (d) => {
+    const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+    return `${jst.getUTCFullYear()}-${String(jst.getUTCMonth() + 1).padStart(2, "0")}-${String(
+      jst.getUTCDate()
+    ).padStart(2, "0")}`;
+  };
+  // @db.Date はUTCで切り捨てられるので、読み出した値もUTCの0時で返る
+  const dayColumn = (dateString) => new Date(`${dateString}T00:00:00.000Z`);
+
+  await db.dailyActivity.deleteMany({ where: { groupId: group.id } });
+  await db.activityLog.deleteMany({ where: { targetId: { startsWith: "rollup-" } } });
+
+  // **occurredAt の日で集計されること。** カレンダーは「実際に起きた日」で並べるので、
+  // 記録した日（createdAt）で数えてはいけない。
+  // 去年撮ったスクショを今日上げた、という形を作って確かめる。
+  const lastYear = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
+  await db.activityLog.create({
+    data: {
+      kind: "photo.created",
+      targetId: "rollup-old-occurred",
+      groupId: group.id,
+      occurredAt: lastYear, // 起きたのは200日前
+      createdAt: new Date(), // 記録したのは今
+    },
+  });
+
+  const first = await runCron();
+  check("F105 cronが完走する（ロールアップ込み）", first.status === 200, first.text);
+
+  const oldDay = await db.dailyActivity.findMany({
+    where: { groupId: group.id, date: dayColumn(jstDay(lastYear)) },
+  });
+  check(
+    "F106 ロールアップは occurredAt の日に積む（記録した日ではない）",
+    oldDay.length === 1 && oldDay[0].kind === "photo.created" && oldDay[0].count === 1,
+    `${oldDay.length}行 ${JSON.stringify(oldDay[0] ?? null)}`
+  );
+
+  // **二重に走っても倍にならないこと。** 足し込みだと cron が二度走った日だけ件数が倍になり、
+  // しかも画面からは気づけない
+  await runCron();
+  const afterTwice = await db.dailyActivity.findMany({
+    where: { groupId: group.id, date: dayColumn(jstDay(lastYear)) },
+  });
+  check(
+    "F107 cronを2回流しても件数が倍にならない（置き換え）",
+    afterTwice.length === 1 && afterTwice[0].count === 1,
+    `count=${afterTwice[0]?.count}`
+  );
+
+  // **保持期間（1年）を過ぎた生ログが消え、集計は残ること。**
+  const tooOld = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000);
+  await db.activityLog.create({
+    data: {
+      kind: "photo.created",
+      targetId: "rollup-expired",
+      groupId: group.id,
+      occurredAt: tooOld,
+      createdAt: tooOld, // 記録も400日前 = 保持期間を過ぎている
+    },
+  });
+  // 消える前の日を先に集計しておく（本番では毎日のcronが順に集計している状態にあたる）
+  await db.dailyActivity.create({
+    data: { groupId: group.id, date: dayColumn(jstDay(tooOld)), kind: "photo.created", count: 1 },
+  });
+
+  await runCron();
+  const expiredLog = await db.activityLog.findFirst({ where: { targetId: "rollup-expired" } });
+  const expiredDay = await db.dailyActivity.findMany({
+    where: { groupId: group.id, date: dayColumn(jstDay(tooOld)) },
+  });
+  check(
+    "F108 1年より古い生ログは消え、その日の件数は残る",
+    expiredLog === null && expiredDay.length === 1 && expiredDay[0].count === 1,
+    `生ログ=${expiredLog ? "残っている" : "消えた"} / 集計=${expiredDay.length}行`
+  );
+
+  // 保持期間内の記録は消えないこと（消しすぎの検出）
+  const survivor = await db.activityLog.findFirst({ where: { targetId: "rollup-old-occurred" } });
+  check("F109 保持期間内の生ログは消えない", survivor !== null, "消えてしまった");
+
+  // **消えたグループの集計が残り続けないこと。**
+  // DailyActivity は永久に残す方針なので、放っておくと孤児が永久に溜まる
+  // （生ログの方は1年で消えるが、こちらには期限が無い）。
+  await db.dailyActivity.create({
+    data: {
+      groupId: "存在しないグループ",
+      date: dayColumn(jstDay(new Date())),
+      kind: "photo.created",
+      count: 3,
+    },
+  });
+  await runCron();
+  const orphan = await db.dailyActivity.findFirst({ where: { groupId: "存在しないグループ" } });
+  check("F110 消えたグループの集計は片付けられる", orphan === null, "残っている");
+
+  await db.activityLog.deleteMany({ where: { targetId: { startsWith: "rollup-" } } });
+  await db.dailyActivity.deleteMany({ where: { groupId: group.id } });
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();
