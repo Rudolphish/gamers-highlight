@@ -9,7 +9,8 @@
     "push": "prisma db push",
     "migrate": "prisma migrate dev",
     "studio": "prisma studio",
-    "seed:allowlist": "tsx seed-allowlist.ts"
+    "seed:allowlist": "tsx seed-allowlist.ts",
+    "backfill:activity": "tsx backfill-activity-log.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.18.0"

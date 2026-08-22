@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import type { GroupRole } from "@prisma/client";
 import { db } from "./db";
 import { invalidateGroup } from "./cacheTags";
+import { logActivity } from "./activityLog";
 import { postDiscordMessage } from "./discord";
 import { APP_SETTING_KEYS, getAppSetting } from "./appSettings";
 
@@ -253,6 +254,14 @@ export async function acceptInvite(token: string, userId: string): Promise<Accep
 
   // メンバー一覧が変わるのでグループ詳細を取り直させる
   invalidateGroup(invite.groupId);
+
+  await logActivity({
+    kind: "member.joined",
+    targetId: userId,
+    groupId: invite.groupId,
+    actorId: userId,
+    detail: { viaInvite: true },
+  });
 
   await notifyInviteUsed(invite.group.name, invite.groupId, userId);
   return { ok: true, groupId: invite.groupId, alreadyMember: false };

@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
+import { logActivity } from "@/lib/activityLog";
 import { z } from "zod";
 
 const createAlbumSchema = z.object({
@@ -64,6 +65,15 @@ export async function POST(req: Request) {
   });
 
   invalidateGroup(album.groupId);
+
+  await logActivity({
+    kind: "album.created",
+    targetId: album.id,
+    targetName: album.title,
+    groupId: album.groupId,
+    actorId: user.id,
+    occurredAt: album.createdAt,
+  });
 
   return NextResponse.json({ album }, { status: 201 });
 }

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
-import { hasAlbumPermission } from "@/lib/permissions";
+import { checkAlbumPermission } from "@/lib/permissions";
+import { activityLogCreateArgs } from "@/lib/activityLog";
 
 // POST /api/photos/:id/reactions … 写真への❤️をトグルする。
 //
@@ -38,22 +39,42 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     );
   }
 
-  const allowed = await hasAlbumPermission(photo.albumId, user.id, "VIEWER");
+  // groupId は活動ログの非正規化に使う。権限判定がどのみち album を読んでいるので追加コストは無い
+  const { allowed, groupId } = await checkAlbumPermission(photo.albumId, user.id, "VIEWER");
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const existing = await db.photoReaction.findUnique({
     where: { photoId_userId: { photoId: photo.id, userId: user.id } },
   });
 
+  // **付けたときと外したときの両方を記録する。** トグルは行ごと消えるので、
+  // 片方しか記録しないと「今週30件」が実際には35付いて5取り消された結果かもしれない、
+  // という読み違えが起きる（docs/activity-log.md §10）。
+  //
+  // 本体と同じ $transaction に並べて1往復にまとめる。ログ側が失敗したら本体ごと戻るが、
+  // ❤️は押し直せばよいので巻き添えの実害が小さい。
+  const activity = activityLogCreateArgs({
+    kind: existing ? "photo.reaction_removed" : "photo.reaction_added",
+    targetId: photo.id,
+    groupId,
+    actorId: user.id,
+  });
+
   if (existing) {
-    await db.photoReaction.delete({ where: { id: existing.id } });
+    await db.$transaction([
+      db.photoReaction.delete({ where: { id: existing.id } }),
+      db.activityLog.create(activity),
+    ]);
   } else {
-    // 連打で二重に入らないよう upsert にする（@@unique があるので create だと落ちる）
-    await db.photoReaction.upsert({
-      where: { photoId_userId: { photoId: photo.id, userId: user.id } },
-      create: { photoId: photo.id, userId: user.id },
-      update: {},
-    });
+    await db.$transaction([
+      // 連打で二重に入らないよう upsert にする（@@unique があるので create だと落ちる）
+      db.photoReaction.upsert({
+        where: { photoId_userId: { photoId: photo.id, userId: user.id } },
+        create: { photoId: photo.id, userId: user.id },
+        update: {},
+      }),
+      db.activityLog.create(activity),
+    ]);
   }
 
   const count = await db.photoReaction.count({ where: { photoId: photo.id } });

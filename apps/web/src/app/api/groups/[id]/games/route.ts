@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
+import { logActivity } from "@/lib/activityLog";
 import { getOrFetchExternalGameData } from "@/lib/externalGameCache";
 import { z } from "zod";
 
@@ -96,5 +97,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   });
 
   invalidateGroup(params.id);
+
+  await logActivity({
+    kind: "game.added",
+    targetId: game.id,
+    targetName: game.title,
+    groupId: params.id,
+    actorId: user.id,
+    occurredAt: game.createdAt,
+    detail: { status: game.status },
+  });
+
   return NextResponse.json({ game }, { status: 201 });
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
+import { logActivity } from "@/lib/activityLog";
 
 // GET /api/discord/channel-mappings … 自分が所属するグループのサーバー分のみ返す
 export async function GET() {
@@ -52,6 +53,15 @@ export async function POST(req: Request) {
         ownerId: user.id,
         groupId: group.id,
       },
+    });
+    await logActivity({
+      kind: "album.created",
+      targetId: album.id,
+      targetName: album.title,
+      groupId: group.id,
+      actorId: user.id,
+      occurredAt: album.createdAt,
+      detail: { auto: true },
     });
   }
 

@@ -3,7 +3,8 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { invalidateAlbumPhotos } from "@/lib/cacheTags";
 import { isManagedStorageUrl } from "@/lib/storage";
-import { hasAlbumPermission } from "@/lib/permissions";
+import { checkAlbumPermission } from "@/lib/permissions";
+import { logActivity } from "@/lib/activityLog";
 import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/media-limits";
 
 // POST /api/photos … アップロード済みのオブジェクトに対してPhotoレコードを作る
@@ -70,11 +71,14 @@ export async function POST(req: Request) {
   // 見ていたため、グループの共有アルバム（所有者が別のメンバー）への投稿が403になっていた。
   // 自動判別が返すアルバムはグループ経由で辿るので、判別が当たるほど失敗するという
   // 分かりにくい壊れ方をしていた。見られるアルバムには投稿できる、で揃える。
+  // groupId は下のキャッシュ無効化と活動ログの両方で使う（権限判定が既に読んでいる）
+  let groupId: string | null = null;
   if (body.albumId != null) {
-    const allowed = await hasAlbumPermission(body.albumId, user.id, "VIEWER");
-    if (!allowed) {
+    const permission = await checkAlbumPermission(body.albumId, user.id, "VIEWER");
+    if (!permission.allowed) {
       return NextResponse.json({ error: "invalid albumId" }, { status: 403 });
     }
+    groupId = permission.groupId;
   }
 
   const photo = await db.photo.create({
@@ -94,12 +98,21 @@ export async function POST(req: Request) {
 
   // アルバム詳細とグループ詳細の中身を取り直させる（呼ばないと投稿が出ない）
   if (photo.albumId) {
-    const album = await db.album.findUnique({
-      where: { id: photo.albumId },
-      select: { groupId: true },
-    });
-    invalidateAlbumPhotos(photo.albumId, album?.groupId);
+    invalidateAlbumPhotos(photo.albumId, groupId);
   }
+
+  // **occurredAt は capturedAt を優先する。** 去年撮ったスクショを今日まとめて上げると、
+  // カレンダーは「去年のその日」に置きたい。週次まとめは createdAt を見るので、
+  // 同じ1件が「今週の投稿」としても数えられる（docs/activity-log.md §3）。
+  await logActivity({
+    kind: "photo.created",
+    targetId: photo.id,
+    targetName: photo.gameTitle,
+    groupId,
+    actorId: user.id,
+    occurredAt: photo.capturedAt ?? photo.createdAt,
+    detail: { mediaType: photo.mediaType, source: photo.source },
+  });
 
   return NextResponse.json({ photo }, { status: 201 });
 }

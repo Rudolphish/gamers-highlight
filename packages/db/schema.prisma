@@ -503,3 +503,57 @@ model GroupInviteUse {
   @@index([inviteId])
   @@map("group_invite_uses")
 }
+
+// 出来事の記録。週次まとめと、将来のタイムライン／カレンダーの両方がここを読む。
+// 設計の全文と「なぜこの形か」は docs/activity-log.md にある。
+//
+// **既存の createdAt で数えられるもの（追加系）をここに寄せてはいけない。**
+// あちらは今日から過去も数えられる。ここが埋めるのは createdAt では原理的に無理なもの
+// （ステータス変更・削除・説明の編集）だけ。
+//
+// **保持は1年**（日次cronで削除）。古い日の件数は DailyActivity に残るので、
+// 消えるのは「その日の出来事の詳細」だけ。
+model ActivityLog {
+  id String @id @default(cuid())
+
+  // **非正規化。** 対象が消えた後でも「どのグループの出来事だったか」を辿れるようにする。
+  // 書き込み時なら分かる（hasAlbumPermission が album.groupId を読んでいる）ので、
+  // そこから受け取る。
+  groupId String?
+  actorId String? // 誰が。cronなど人がいない経路では null
+
+  kind String // "photo.created" など。一覧は docs/activity-log.md §5
+
+  // **外部キーを張らない。** 張ると写真を消したときにカスケードでログごと消え、
+  // 「今週5枚消えた」という記録自体が失われる。
+  targetId   String
+  targetName String? // 対象が消えた後も名前を出せるように控える
+  detail     Json? // {from:"PLAYING", to:"COMPLETED"} 程度。差分の全列は持たない
+
+  // **時刻は2つ持つ。** 去年撮ったスクショを今日上げると、カレンダーは去年のその日に
+  // 置きたく、週次まとめは今週として数えたい。1つしか持たないと必ずどちらかが壊れる。
+  occurredAt DateTime // 実世界でいつ起きたか（写真なら capturedAt）。カレンダー用
+  createdAt  DateTime @default(now()) // システムがいつ記録したか。週次まとめ用
+
+  @@index([groupId, occurredAt]) // カレンダー: 月の範囲を引く
+  @@index([groupId, createdAt]) // 週次まとめ: 期間で集計する
+  @@index([createdAt]) // 保持期間を過ぎた行の削除
+  @@map("activity_logs")
+}
+
+// 日次ロールアップ。**永久に残す。** 生ログが1年で消えても、
+// カレンダーの「その日どれくらい動いたか」はこれで描ける。
+//
+// date は **JST基準の日付**。ユーザーも投稿も日本時間で動くので、UTCで切ると
+// 夜中に上げた写真が前日扱いになる。
+// （ApiUsage.date が UTC 基準なのは YouTube のクォータのリセットに合わせたためで、
+// 同じ @db.Date でも意味が違う。混同しないこと。）
+model DailyActivity {
+  groupId String
+  date    DateTime @db.Date
+  kind    String
+  count   Int
+
+  @@id([groupId, date, kind])
+  @@map("daily_activities")
+}

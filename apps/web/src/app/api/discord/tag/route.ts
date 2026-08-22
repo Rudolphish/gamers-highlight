@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { invalidateAlbumPhotos } from "@/lib/cacheTags";
+import { logActivity } from "@/lib/activityLog";
 
 /**
  * Discord Botの/tagコマンドからのみ呼ばれる内部API。
@@ -71,6 +72,15 @@ export async function POST(req: Request) {
         registeredBy: user.id,
       },
     });
+    await logActivity({
+      kind: "album.created",
+      targetId: autoAlbum.id,
+      targetName: autoAlbum.title,
+      groupId: group.id,
+      actorId: user.id,
+      occurredAt: autoAlbum.createdAt,
+      detail: { auto: true },
+    });
   }
 
   const updated = await db.photo.update({
@@ -79,9 +89,23 @@ export async function POST(req: Request) {
   });
 
   // 付け替え前後の両方を飛ばす（元のアルバムからは消え、先のアルバムに出る）
+  let assignedGroupId: string | null = null;
   for (const id of new Set([photo.albumId, updated.albumId].filter(Boolean) as string[])) {
     const album = await db.album.findUnique({ where: { id }, select: { groupId: true } });
+    if (id === updated.albumId) assignedGroupId = album?.groupId ?? null;
     invalidateAlbumPhotos(id, album?.groupId);
+  }
+
+  // 未分類のまま取り込まれた写真は photo.created の groupId が null になっている。
+  // タグが付いた＝どのグループのものか決まった瞬間なので、ここで埋め直す。
+  // 新しい行は作らない（作ると同じ投稿が2件に数えられる）。
+  if (assignedGroupId) {
+    await db.activityLog
+      .updateMany({
+        where: { kind: "photo.created", targetId: updated.id, groupId: null },
+        data: { groupId: assignedGroupId },
+      })
+      .catch((e) => console.error("[activity] groupIdの埋め直しに失敗しました", e));
   }
 
   return NextResponse.json({ photo: updated });

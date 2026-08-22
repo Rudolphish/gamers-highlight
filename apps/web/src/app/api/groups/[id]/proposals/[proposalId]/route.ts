@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
+import { logActivity } from "@/lib/activityLog";
 
 // DELETE /api/groups/:id/proposals/:proposalId … 提案の却下/取り下げ。
 // 提案した本人、またはEDITOR以上の権限を持つメンバーが削除できる。
@@ -26,5 +27,14 @@ export async function DELETE(
 
   await db.groupGameProposal.delete({ where: { id: params.proposalId } });
   invalidateGroup(params.id);
+
+  await logActivity({
+    kind: "proposal.withdrawn",
+    targetId: proposal.id,
+    targetName: proposal.title,
+    groupId: params.id,
+    actorId: user.id,
+  });
+
   return NextResponse.json({ ok: true });
 }

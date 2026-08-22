@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { invalidateAlbumPhotos } from "@/lib/cacheTags";
+import { logActivity } from "@/lib/activityLog";
 import { uploadFromUrlToStorage } from "@/lib/storage";
 import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/media-limits";
 import { parseSteamScreenshotName } from "@/lib/steamScreenshot";
@@ -92,6 +93,15 @@ export async function POST(req: Request) {
           groupId: group.id,
         },
       });
+      await logActivity({
+        kind: "album.created",
+        targetId: autoAlbum.id,
+        targetName: autoAlbum.title,
+        groupId: group.id,
+        actorId: user.id,
+        occurredAt: autoAlbum.createdAt,
+        detail: { auto: true },
+      });
       gameTag = await db.discordGameTag.create({
         data: {
           guildId,
@@ -148,13 +158,31 @@ export async function POST(req: Request) {
 
   // ゲームが分からないままなら、Botが投稿者に聞けるよう知らせる
   // Botからの投稿もアルバム詳細・グループ詳細に出るので取り直させる
+  let groupId: string | null = null;
   if (photo.albumId) {
     const album = await db.album.findUnique({
       where: { id: photo.albumId },
       select: { groupId: true },
     });
-    invalidateAlbumPhotos(photo.albumId, album?.groupId);
+    groupId = album?.groupId ?? null;
+    invalidateAlbumPhotos(photo.albumId, groupId);
   }
+
+  // **未分類（albumId が null）だと groupId も null になる。**
+  // そのままだとグループの週次まとめに一生出てこないので、後で振り分けられた時点で
+  // /api/photos/assign-album がこの行の groupId を埋め直す。
+  //
+  // occurredAt はファイル名から読んだ撮影日時（無ければDiscordの投稿時刻）。
+  // 「先週遊んだぶんをまとめて投稿」でもカレンダー上は遊んだ日に並ぶ。
+  await logActivity({
+    kind: "photo.created",
+    targetId: photo.id,
+    targetName: photo.gameTitle,
+    groupId,
+    actorId: user.id,
+    occurredAt: photo.capturedAt ?? photo.createdAt,
+    detail: { mediaType: photo.mediaType, source: photo.source },
+  });
 
   return NextResponse.json({ photo, needsGame: !gameTitle }, { status: 201 });
 }
