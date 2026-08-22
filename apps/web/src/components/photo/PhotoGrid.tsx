@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Play } from "lucide-react";
+import { Play, AlignLeft } from "lucide-react";
 import { Lightbox } from "@/components/photo/Lightbox";
 import { LoadingImage } from "@/components/ui/LoadingImage";
 import { PhotoReactionButton, type ReactionState } from "@/components/photo/PhotoReactionButton";
+import type { DescriptionState } from "@/components/photo/PhotoDescription";
 
 type Media = {
   id: string;
@@ -20,14 +21,19 @@ type Media = {
   albumTitle?: string | null;
   /** 渡されたときだけ❤️を出す。/search のように権限が混ざる画面では渡さない */
   reaction?: ReactionState;
+  /** 渡されたときだけ説明を扱う。中身はLightboxで出し、グリッドには有無だけ示す */
+  description?: DescriptionState;
 };
 
 export function PhotoGrid({
   photos,
   currentUserName,
+  canEditDescription = false,
 }: {
   photos: Media[];
   currentUserName?: string | null;
+  /** 説明を書き換えられるか（アルバムのEDITOR以上）。表示は権限に関係なく出る */
+  canEditDescription?: boolean;
 }) {
   const router = useRouter();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -39,6 +45,11 @@ export function PhotoGrid({
   const [overrides, setOverrides] = useState<Record<string, ReactionState>>({});
   const reactionOf = (item: Media): ReactionState | undefined =>
     item.reaction ? overrides[item.id] ?? item.reaction : undefined;
+
+  // 説明も押した直後に反映させる（元データは書き換えない）
+  const [descriptions, setDescriptions] = useState<Record<string, DescriptionState>>({});
+  const descriptionOf = (item: Media): DescriptionState | undefined =>
+    item.description ? descriptions[item.id] ?? item.description : undefined;
 
   const selectedPhoto = selectedIndex !== null ? photos[selectedIndex] : null;
 
@@ -85,6 +96,15 @@ export function PhotoGrid({
                 <Play size={8} fill="white" /> {item.durationSeconds ?? "?"}s
               </span>
             )}
+            {descriptionOf(item)?.text && (
+              <span
+                title="説明あり"
+                aria-label="説明あり"
+                className="absolute bottom-1 left-1 rounded-sm bg-steam-bg/80 px-1 py-0.5 text-steam-blue"
+              >
+                <AlignLeft size={10} />
+              </span>
+            )}
             {item.reaction && (
               <div className="absolute left-1 top-1">
                 <PhotoReactionButton
@@ -118,6 +138,11 @@ export function PhotoGrid({
           currentUserName={currentUserName}
           onReactionChange={(next) =>
             setOverrides((o) => ({ ...o, [selectedPhoto.id]: next }))
+          }
+          description={descriptionOf(selectedPhoto)}
+          canEditDescription={canEditDescription}
+          onDescriptionSaved={(next) =>
+            setDescriptions((d) => ({ ...d, [selectedPhoto.id]: next }))
           }
           meta={
             hasMeta

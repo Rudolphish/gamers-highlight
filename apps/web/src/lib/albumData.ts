@@ -46,6 +46,11 @@ export type CachedAlbumPhoto = {
   /** ISO文字列。Dateのまま返すとキャッシュ経由で文字列に化けるため、最初から文字列で揃える */
   capturedAt: string | null;
   uploaderName: string | null;
+  /** 写真の説明（1枚に1つ）。無ければnull */
+  description: string | null;
+  /** 最後に説明を書いた人の表示名。ISO文字列で揃えるのは上のcapturedAtと同じ理由 */
+  descriptionEditorName: string | null;
+  descriptionUpdatedAt: string | null;
 };
 
 export function getAlbumPhotos(albumId: string): Promise<CachedAlbumPhoto[]> {
@@ -54,7 +59,10 @@ export function getAlbumPhotos(albumId: string): Promise<CachedAlbumPhoto[]> {
       const photos = await db.photo.findMany({
         where: { albumId },
         orderBy: { createdAt: "desc" },
-        include: { uploader: { select: { name: true, email: true } } },
+        include: {
+          uploader: { select: { name: true, email: true } },
+          descriptionEditor: { select: { name: true, email: true } },
+        },
       });
       return photos.map((p) => ({
         id: p.id,
@@ -66,6 +74,10 @@ export function getAlbumPhotos(albumId: string): Promise<CachedAlbumPhoto[]> {
         gameTitle: p.gameTitle,
         capturedAt: p.capturedAt?.toISOString() ?? null,
         uploaderName: p.uploader.name ?? p.uploader.email,
+        description: p.description,
+        descriptionEditorName:
+          p.descriptionEditor?.name ?? p.descriptionEditor?.email ?? null,
+        descriptionUpdatedAt: p.descriptionUpdatedAt?.toISOString() ?? null,
       }));
     },
     ["album-photos", albumId],

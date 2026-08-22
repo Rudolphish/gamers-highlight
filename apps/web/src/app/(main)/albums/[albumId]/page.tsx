@@ -28,6 +28,11 @@ export default async function AlbumDetailPage({
   const allowed = await hasAlbumPermission(params.albumId, currentUser.id, "VIEWER");
   if (!allowed) notFound();
 
+  // 説明はそのアルバムを見られる人なら誰でも書ける（＝グループのメンバー）。
+  // このページは上のVIEWER判定を通らないと描画されないので、ここまで来た人は全員書ける。
+  // 追加で権限を引き直さないのは、同じことを2回聞くことになるため。
+  const canEditDescription = true;
+
   // ここから先はキャッシュ済みの中身（権限は上で判定済み）。
   // 中身は「誰が見ても同じ」なのでユーザーをキーに含めない。無効化は lib/cacheTags.ts から。
   const album = await getAlbumContent(params.albumId);
@@ -139,6 +144,7 @@ export default async function AlbumDetailPage({
         ) : (
           <PhotoGrid
             currentUserName={currentUserName}
+            canEditDescription={canEditDescription}
             photos={photos.map((p) => ({
               id: p.id,
               mediaType: p.mediaType,
@@ -154,6 +160,11 @@ export default async function AlbumDetailPage({
                 count: reactions.countByPhotoId.get(p.id) ?? 0,
                 reacted: reactions.reactedPhotoIds.has(p.id),
                 names: reactions.namesByPhotoId.get(p.id) ?? [],
+              },
+              description: {
+                text: p.description,
+                editorName: p.descriptionEditorName,
+                updatedAt: p.descriptionUpdatedAt,
               },
             }))}
           />

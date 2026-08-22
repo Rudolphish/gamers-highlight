@@ -16,7 +16,15 @@ export async function GET(req: Request) {
 
   const candidates = await db.photo.findMany({
     where: {
-      gameTitle: game ? { contains: game, mode: "insensitive" } : undefined,
+      // ゲームタイトルだけでなく**説明も対象にする**。
+      // 「あの場面」を後から探せるようにするのが説明を書く理由なので、
+      // 書いた文字列で引っかからないと片手落ちになる
+      OR: game
+        ? [
+            { gameTitle: { contains: game, mode: "insensitive" } },
+            { description: { contains: game, mode: "insensitive" } },
+          ]
+        : undefined,
       uploaderId: uploaderId ?? undefined,
       createdAt: {
         gte: from ? new Date(from) : undefined,
@@ -25,6 +33,7 @@ export async function GET(req: Request) {
     },
     orderBy: { createdAt: "desc" },
     take: 100,
+    include: { descriptionEditor: { select: { name: true, email: true } } },
   });
 
   // hasAlbumPermissionは非同期関数なので、Array.filter()の中では使わず
@@ -39,5 +48,12 @@ export async function GET(req: Request) {
     }
   }
 
-  return NextResponse.json({ photos: allowed });
+  // 説明は検索結果でも読めるようにする（**編集はできない**。
+  // ここは複数アルバム横断なので、1枚ずつEDITOR権限を判定する足場が無い）。
+  return NextResponse.json({
+    photos: allowed.map(({ descriptionEditor, ...photo }) => ({
+      ...photo,
+      descriptionEditorName: descriptionEditor?.name ?? descriptionEditor?.email ?? null,
+    })),
+  });
 }

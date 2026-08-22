@@ -114,6 +114,7 @@ model User {
   proposalReactions GroupGameProposalReaction[]
   gameInterests     GroupGameInterest[]
   photoReactions    PhotoReaction[]
+  describedPhotos   Photo[]                     @relation("PhotoDescriptionEditor")
   createdInvites    GroupInvite[]               @relation("GroupInviteCreatedBy")
   usedInvites       GroupInviteUse[]            @relation("GroupInviteUsedBy")
 
@@ -307,9 +308,17 @@ model Photo {
   discordMessageId String?     @unique
   createdAt        DateTime    @default(now())
 
-  uploader  User            @relation("PhotoUploader", fields: [uploaderId], references: [id])
-  album     Album?          @relation(fields: [albumId], references: [id])
-  reactions PhotoReaction[]
+  /// 写真の説明。1枚につき1つで、グループのEDITOR以上なら誰でも書き換えられる（後勝ち）。
+  /// 空にする＝説明を消す。写真そのものは消えない。
+  description            String?
+  /// 最後に説明を書いた人と日時。複数人が書き換えられるので「誰が書いたこれ」を残す
+  descriptionUpdatedById String?
+  descriptionUpdatedAt   DateTime?
+
+  uploader          User            @relation("PhotoUploader", fields: [uploaderId], references: [id])
+  album             Album?          @relation(fields: [albumId], references: [id])
+  reactions         PhotoReaction[]
+  descriptionEditor User?           @relation("PhotoDescriptionEditor", fields: [descriptionUpdatedById], references: [id])
 
   @@index([albumId])
   @@index([gameTitle])
