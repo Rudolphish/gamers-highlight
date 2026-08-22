@@ -456,6 +456,104 @@ for (const [id, label, path] of targets) {
   await page.close();
 }
 
+// ── 写真の説明 ──
+// 表示・編集・グリッドの印はすべてクライアント側なのでここでしか見えない。
+// **seedのデータには依存しない**（flowsが説明を書いて消すので、通しで流すと状態が変わる）。
+// 自分で書いてから確認する形にしてある。
+{
+  const page = await context.newPage();
+  const LIGHTBOX = "div.fixed.inset-0.z-50";
+  await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+
+  await page.locator("div.aspect-square").first().click();
+  await page.waitForTimeout(700);
+
+  const emptyText = (await page.locator(LIGHTBOX).first().textContent()) ?? "";
+  rows.push({
+    id: "B38",
+    item: "説明が無い写真は「まだありません」と出て、書くボタンがある",
+    expected: "両方あり",
+    actual: `文言=${emptyText.includes("説明はまだありません")} / ボタン=${await page
+      .locator(`${LIGHTBOX} [aria-label="説明を書く"]`)
+      .count()}`,
+    ok:
+      emptyText.includes("説明はまだありません") &&
+      (await page.locator(`${LIGHTBOX} [aria-label="説明を書く"]`).count()) > 0,
+    note: "",
+  });
+
+  const TEXT = "夜のリムグレイブ。月が写り込んでいる";
+  await page.locator(`${LIGHTBOX} [aria-label="説明を書く"]`).first().click();
+  await page.waitForTimeout(300);
+  await page.locator(`${LIGHTBOX} textarea`).fill(TEXT);
+  await page.locator(`${LIGHTBOX} [aria-label="説明を保存"]`).click();
+  await page.waitForTimeout(900);
+
+  const savedText = (await page.locator(LIGHTBOX).first().textContent()) ?? "";
+  rows.push({
+    id: "B39",
+    item: "説明を書いて保存すると、本文と書き手が出る",
+    expected: `本文 / 管理者ユーザー`,
+    actual: `本文=${savedText.includes(TEXT)} / 書き手=${savedText.includes("管理者ユーザー")}`,
+    ok: savedText.includes(TEXT) && savedText.includes("管理者ユーザー"),
+    note: savedText.replace(/\s+/g, " ").slice(0, 120),
+  });
+
+  // Lightboxを閉じるとグリッドに「説明あり」の印が出る（再読み込みなしで反映されること）
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  rows.push({
+    id: "B40",
+    item: "説明を書くとグリッドに印が出る（再読み込み不要）",
+    expected: "1つ以上",
+    actual: `${await page.locator('[aria-label="説明あり"]').count()}個`,
+    ok: (await page.locator('[aria-label="説明あり"]').count()) > 0,
+    note: "",
+  });
+
+  // **書き換えたらキャッシュが飛んでいること。**
+  // 飛ばし忘れると、再読み込みしたときに書いたはずの説明が消えて見える。
+  //
+  // 判定は**書いた本文そのもの**で見る。「印が1つ以上あるか」だと、
+  // 別の写真に残っている説明で通ってしまい、無効化を外しても落ちなかった（実際に踏んだ）。
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(600);
+  await page.locator("div.aspect-square").first().click();
+  await page.waitForTimeout(700);
+  const afterReload = (await page.locator(LIGHTBOX).first().textContent()) ?? "";
+  rows.push({
+    id: "B41",
+    item: "再読み込みしても書いた説明が残る（キャッシュが飛んでいる）",
+    expected: "本文あり",
+    actual: afterReload.includes(TEXT) ? "残っている" : "消えている",
+    ok: afterReload.includes(TEXT),
+    note: afterReload.replace(/\s+/g, " ").slice(0, 120),
+  });
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+
+  // **前へ/次へで説明が引き継がれないこと。** ❤️と同じくkeyが要る箇所
+  await page.locator("div.aspect-square").first().click();
+  await page.waitForTimeout(700);
+  const next = page.getByRole("button", { name: "次の写真" });
+  if ((await next.count()) > 0 && (await next.first().isEnabled())) {
+    await next.first().click();
+    await page.waitForTimeout(600);
+    const nextText = (await page.locator(LIGHTBOX).first().textContent()) ?? "";
+    rows.push({
+      id: "B42",
+      item: "次の写真へ移ると前の写真の説明が残らない",
+      expected: "残らない",
+      actual: nextText.includes(TEXT) ? "残っている" : "残っていない",
+      ok: !nextText.includes(TEXT),
+      note: "",
+    });
+  }
+
+  await page.close();
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));

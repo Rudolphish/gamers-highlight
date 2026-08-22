@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { X, ChevronLeft, ChevronRight, Trash2, Info } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { PhotoReactionButton, type ReactionState } from "@/components/photo/PhotoReactionButton";
+import { PhotoDescription, type DescriptionState } from "@/components/photo/PhotoDescription";
 
 // メディア詳細（拡大表示）。IMAGE/VIDEO両対応。将来的にコメント機能もここに追加予定。
 type LightboxProps = {
@@ -27,6 +28,10 @@ type LightboxProps = {
   reaction?: ReactionState;
   currentUserName?: string | null;
   onReactionChange?: (next: ReactionState) => void;
+  /** 渡されたときだけ説明を出す */
+  description?: DescriptionState;
+  canEditDescription?: boolean;
+  onDescriptionSaved?: (next: DescriptionState) => void;
 };
 
 export function Lightbox({
@@ -44,6 +49,9 @@ export function Lightbox({
   reaction,
   currentUserName,
   onReactionChange,
+  description,
+  canEditDescription = false,
+  onDescriptionSaved,
 }: LightboxProps) {
   const [loaded, setLoaded] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -199,6 +207,26 @@ export function Lightbox({
             showNames
             size="lg"
             onChange={onReactionChange}
+          />
+        </div>
+      )}
+
+      {/* 説明。メタ情報パネルと同じ右側に、その上へ積む */}
+      {description && photoId && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className={`absolute right-4 z-10 w-72 rounded-sm border border-steam-border bg-steam-surface/95 p-3 ${
+            meta && showMeta ? "bottom-40" : "bottom-4"
+          }`}
+        >
+          <PhotoDescription
+            // ❤️と同じ理由で key が要る。前へ/次へで切り替えてもコンポーネントは
+            // 使い回されるので、これが無いと前の写真の説明が残ったまま表示される
+            key={photoId}
+            photoId={photoId}
+            initial={description}
+            canEdit={canEditDescription}
+            onSaved={onDescriptionSaved}
           />
         </div>
       )}

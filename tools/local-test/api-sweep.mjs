@@ -46,6 +46,11 @@ const cases = [
   // 部外者はそのアルバムを見られないので403、未ログインは401
   ["R21", "写真リアクションは閲覧できる人なら押せる", "POST", `/api/photos/${ids.memberPhotoId}/reactions`, null, { anon: 401, outsider: 403, member: 200 }],
   ["R22", "未分類の写真にはリアクションできない", "POST", `/api/photos/${ids.unclassifiedPhotoId}/reactions`, null, { admin: 400 }],
+  // 写真の説明。見られる人（＝グループのメンバー）なら書ける＝memberは200。
+  // 部外者はそのアルバムを見られないので403、未ログインは401
+  ["R23", "写真の説明は見られる人なら書ける", "PATCH", `/api/photos/${ids.memberPhotoId}`, { description: "テストの説明" }, { anon: 401, outsider: 403, member: 200 }],
+  ["R24", "未分類の写真には説明を付けられない", "PATCH", `/api/photos/${ids.unclassifiedPhotoId}`, { description: "x" }, { admin: 400 }],
+  ["R25", "説明の文字数上限を超えると拒否", "PATCH", `/api/photos/${ids.memberPhotoId}`, { description: "あ".repeat(501) }, { admin: 400 }],
   ["R21", "cron（Bot死活）はシークレット必須", "GET", "/api/cron/check-bot-health", null, { anon: 401 }],
   ["R22", "内部API（ゲーム一覧）はシークレット必須", "GET", "/api/internal/group-games?guildId=1", null, { anon: 401 }],
   ["R23", "Discord取り込みはシークレット必須", "POST", "/api/discord/ingest", {}, { anon: 401 }],

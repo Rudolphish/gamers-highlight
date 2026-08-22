@@ -12,6 +12,9 @@ type Media = {
   mediaUrl: string;
   thumbnailUrl?: string | null;
   durationSeconds?: number | null;
+  description?: string | null;
+  descriptionEditorName?: string | null;
+  descriptionUpdatedAt?: string | null;
 };
 
 type GroupGameResult = {
@@ -100,13 +103,13 @@ export default function SearchPage() {
         スクショを探す
       </h1>
       <p className="mt-1 font-mono text-xs text-steam-muted">
-        ゲームタイトル、投稿者、日付で検索できます
+        ゲームタイトル、写真の説明、投稿者、日付で検索できます
       </p>
 
       <form onSubmit={handleSearch} className="mt-4 flex flex-col gap-3 rounded-sm border border-steam-border bg-steam-surface p-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="font-mono text-2xs text-steam-muted">ゲームタイトル</label>
+            <label className="font-mono text-2xs text-steam-muted">ゲームタイトル・説明</label>
             <input
               type="text"
               value={game}
@@ -166,7 +169,18 @@ export default function SearchPage() {
         {loading ? (
           <p className="font-mono text-xs text-steam-muted">読み込み中…</p>
         ) : photos.length > 0 ? (
-          <PhotoGrid photos={photos} />
+          // 説明は表示だけ（canEditDescription を渡さないので編集ボタンは出ない）。
+          // ここは複数アルバム横断で、1枚ずつEDITOR権限を判定する足場が無いため
+          <PhotoGrid
+            photos={photos.map((p) => ({
+              ...p,
+              description: {
+                text: p.description ?? null,
+                editorName: p.descriptionEditorName ?? null,
+                updatedAt: p.descriptionUpdatedAt ?? null,
+              },
+            }))}
+          />
         ) : (
           <div className="rounded-sm border border-dashed border-steam-border bg-steam-surface p-8 text-center font-mono text-xs text-steam-muted">
             該当するスクリーンショットが見つかりませんでした。

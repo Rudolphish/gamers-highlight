@@ -877,6 +877,92 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   await db.photoReaction.deleteMany({ where: { photoId: photo.id } });
 }
 
+// ───────────────────────────────────────────────────────────
+// L. 写真の説明
+// ───────────────────────────────────────────────────────────
+{
+  const album = await db.album.findFirst({ where: { title: "エルデンリング" } });
+  const photo = await db.photo.findFirst({ where: { albumId: album.id } });
+  const admin = await db.user.findUnique({ where: { email: "admin@example.com" } });
+  const memberUser = await db.user.findUnique({ where: { email: "member@example.com" } });
+
+  const patch = (description, cookie = adminCookie) =>
+    api(`/api/photos/${photo.id}`, { method: "PATCH", cookie, body: { description } });
+
+  const written = await patch("夜のリムグレイブ。写り込んだ月がきれい");
+  check(
+    "F84 写真に説明を書ける",
+    written.status === 200 && written.json?.description?.includes("リムグレイブ"),
+    `${written.status} ${written.text.slice(0, 100)}`
+  );
+
+  const row = await db.photo.findUnique({ where: { id: photo.id } });
+  check(
+    "F85 書き手と日時が残る",
+    row.descriptionUpdatedById === admin.id && row.descriptionUpdatedAt !== null,
+    `by=${row.descriptionUpdatedById} at=${row.descriptionUpdatedAt}`
+  );
+
+  // 別のグループメンバーが上書きできる（1枚に1つ・後勝ち）
+  const overwritten = await patch("実は昼だった", memberCookie);
+  const row2 = await db.photo.findUnique({ where: { id: photo.id } });
+  check(
+    "F86 別のメンバーが上書きでき、書き手も入れ替わる",
+    overwritten.status === 200 &&
+      row2.description === "実は昼だった" &&
+      row2.descriptionUpdatedById === memberUser.id,
+    `${overwritten.status} ${row2.description} by=${row2.descriptionUpdatedById}`
+  );
+
+  // 空にすると説明が消え、書き手の記録も消える（写真は残る）
+  const cleared = await patch("   ");
+  const row3 = await db.photo.findUnique({ where: { id: photo.id } });
+  check(
+    "F87 空にすると説明も書き手の記録も消える（写真は残る）",
+    cleared.status === 200 &&
+      row3 !== null &&
+      row3.description === null &&
+      row3.descriptionUpdatedById === null &&
+      row3.descriptionUpdatedAt === null,
+    `${cleared.status} desc=${row3?.description} by=${row3?.descriptionUpdatedById}`
+  );
+
+  // 説明で検索できる（ゲームタイトルに含まれない語で引く）
+  await patch("スクリーンショット祭りの夜");
+  const found = await api("/api/photos/search?game=" + encodeURIComponent("祭り"), {
+    cookie: adminCookie,
+  });
+  check(
+    "F88 説明の文字列で写真を検索できる",
+    found.status === 200 && (found.json?.photos ?? []).some((p) => p.id === photo.id),
+    `${found.status} ${(found.json?.photos ?? []).length}件`
+  );
+
+  // ゲームタイトルでの検索も従来どおり効く（ORにしたことで壊していないか）
+  const byGame = await api("/api/photos/search?game=" + encodeURIComponent("ELDEN"), {
+    cookie: adminCookie,
+  });
+  check(
+    "F89 ゲームタイトルでの検索は従来どおり効く",
+    byGame.status === 200 && (byGame.json?.photos ?? []).length > 0,
+    `${byGame.status} ${(byGame.json?.photos ?? []).length}件`
+  );
+
+  // **説明はキャッシュに載っているので、書き換えたら飛ばすこと。**
+  // 飛ばし忘れると「書いたのにページに出ない」が起き、しかも時間では直らない。
+  // 一度ページを開いてキャッシュを温めてから書き換え、次に開いて反映されるかを見る。
+  await api(`/albums/${album.id}`, { cookie: adminCookie });
+  await patch("キャッシュ確認用のせつめい");
+  const page = await api(`/albums/${album.id}`, { cookie: adminCookie });
+  check(
+    "F90 説明を書き換えるとアルバムページに反映される（キャッシュが飛ぶ）",
+    page.status === 200 && page.text.includes("キャッシュ確認用のせつめい"),
+    `${page.status} 反映=${page.text.includes("キャッシュ確認用のせつめい")}`
+  );
+
+  await patch("");
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();
