@@ -1144,7 +1144,14 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
 
   // 後片付け。**自分が変えたものは戻す**（seedのデータを次のスイートへ渡すため）
   await db.groupGame.update({ where: { id: game.id }, data: { status: game.status } });
-  await db.photo.deleteMany({ where: { id: { in: [createdId, loose.id].filter(Boolean) } } });
+
+  // **写真の削除は必ずAPI経由で行う。** db.photo.delete で直に消すと
+  // invalidateAlbumPhotos を通らないので、アルバムのキャッシュに消えた写真が残る。
+  // 次に走るブラウザスイート（B）がその写真をクリックし、❤️も説明も 404 になって落ちた
+  // （CIでB34・B36・B39・B41が落ちた実際の原因がこれ。アプリの不具合ではなく後片付けの穴）。
+  for (const id of [createdId, loose.id].filter(Boolean)) {
+    await api(`/api/photos/${id}`, { method: "DELETE", cookie: adminCookie });
+  }
   await db.activityLog.deleteMany({
     where: { targetId: { in: [photo.id, game.id, createdId, loose.id].filter(Boolean) } },
   });
