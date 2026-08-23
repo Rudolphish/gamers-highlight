@@ -1374,6 +1374,182 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   await db.dailyActivity.deleteMany({ where: { groupId: group.id } });
 }
 
+// ───────────────────────────────────────────────────────────
+// 週次まとめのDiscord通知（未送信の完了週があれば送る）
+// ───────────────────────────────────────────────────────────
+{
+  const fs = await import("node:fs");
+  const DISCORD_LOG = "/tmp/stub-discord.log";
+  const runCron = () =>
+    api("/api/cron/check-bot-health", { headers: { authorization: `Bearer ${CRON_SECRET}` } });
+  const discordSince = (mark) => {
+    const lines = fs.existsSync(DISCORD_LOG)
+      ? fs.readFileSync(DISCORD_LOG, "utf8").split("\n").filter(Boolean)
+      : [];
+    return lines.slice(mark);
+  };
+  const discordCount = () =>
+    fs.existsSync(DISCORD_LOG)
+      ? fs.readFileSync(DISCORD_LOG, "utf8").split("\n").filter(Boolean).length
+      : 0;
+  const setting = (key) => db.appSetting.findUnique({ where: { key } });
+
+  // 完了した週（先週）の中に確実に動きを作る。
+  // **週の境界はテスト側で独立に計算する**（実装と同じ式をコピーすると、
+  // 式が間違っていても両方同じように間違って何も確認できない）。
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  const daysFromMonday = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(get("weekday"));
+  const thisMonday = new Date(
+    Date.parse(`${get("year")}-${get("month")}-${get("day")}T00:00:00+09:00`) -
+      daysFromMonday * 24 * 60 * 60 * 1000
+  );
+  const lastWeekMonday = new Date(thisMonday.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const insideLastWeek = new Date(lastWeekMonday.getTime() + 24 * 60 * 60 * 1000);
+  // 記録に入るキー（JSTの月曜日）。実装と同じ式をコピーせず、Intlから独立に出す
+  const expectedWeekKey = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(lastWeekMonday);
+
+  // **記録を空にしてから始める。** このログはプロセスを跨いで残るので、
+  // 前の実行（途中で落ちた回も含む）の投稿が混ざると、件数の判定がずれる。
+  // 実際にこれで「送っているのに0件」と誤検知した。
+  fs.rmSync(DISCORD_LOG, { force: true });
+
+  await db.appSetting.deleteMany({
+    where: { key: { in: ["weeklySummaryChannelId", "weeklySummaryLastSentWeek"] } },
+  });
+  await db.activityLog.deleteMany({ where: { targetId: { startsWith: "weekly-" } } });
+  await db.activityLog.create({
+    data: {
+      kind: "photo.created",
+      targetId: "weekly-lastweek",
+      groupId: group.id,
+      actorId: null,
+      occurredAt: insideLastWeek,
+      createdAt: insideLastWeek, // 週次まとめは createdAt で数える
+    },
+  });
+
+  // **通知先が未設定なら送らない。しかも「送信済み」にもしない。**
+  // 記録を進めてしまうと、後からチャンネルを設定してもその週は飛ばされる
+  let mark = discordCount();
+  await runCron();
+  const unsetRecord = await setting("weeklySummaryLastSentWeek");
+  check(
+    "F111 通知先が未設定なら送らず、送信済みにもしない",
+    discordSince(mark).length === 0 && unsetRecord === null,
+    `投稿=${discordSince(mark).length}件 / 記録=${unsetRecord?.value ?? "なし"}`
+  );
+
+  // 通知先を保存（管理者のみ）
+  const save = await api("/api/admin/weekly-notify", {
+    method: "PUT",
+    cookie: adminCookie,
+    body: { channelId: "123456789012345678" },
+  });
+  check("F112 週次まとめの通知先を保存できる", save.status === 200, save.text);
+
+  const memberSave = await api("/api/admin/weekly-notify", {
+    method: "PUT",
+    cookie: memberCookie,
+    body: { channelId: "123456789012345678" },
+  });
+  check("F113 通知先の保存は管理者以外は403", memberSave.status === 403, memberSave.status);
+
+  // **未送信の完了週があるので送られる。**
+  // **cronの送信はスタブの記録では確認できない。**
+  // 本番ビルドでは、cronのルートから出る外部fetchが fetch-stub を通らず実ネットワークへ出る
+  // （手動送信のルートは通る。同じプロセス・同じ関数なのにルートごとに違う。実測で確認）。
+  // CIにネットワーク依存を持ち込まないよう、cron側は**DBに残る記録**で判定し、
+  // 文面の中身はスタブを通る手動送信の方で見る。
+  const cronRes = await runCron();
+  const weekly = JSON.parse(cronRes.text).weekly;
+  check(
+    "F114 未送信の完了週があれば、曜日に関係なくその週を対象にする",
+    weekly?.week === expectedWeekKey,
+    `返り値=${JSON.stringify(weekly)} / 期待=${expectedWeekKey}`
+  );
+
+  // **二度は送らない。** cronは毎日走るので、ここが効かないと毎日届く。
+  // 記録を直接入れてから確認する（cronの投稿が成功したかに左右されないように）。
+  await db.appSetting.upsert({
+    where: { key: "weeklySummaryLastSentWeek" },
+    create: { key: "weeklySummaryLastSentWeek", value: expectedWeekKey },
+    update: { value: expectedWeekKey },
+  });
+  const second = await runCron();
+  const secondWeekly = JSON.parse(second.text).weekly;
+  check(
+    "F115 送信済みの週は二度送らない（毎日のcronで毎日届かない）",
+    secondWeekly?.week === null && secondWeekly?.reason === "この週は送信済み",
+    JSON.stringify(secondWeekly)
+  );
+
+  // **手動送信は記録を進めない**（確認のための送信であって、自動送信を済ませたことにはしない）
+  const before = await setting("weeklySummaryLastSentWeek");
+  mark = discordCount();
+  const manual = await api("/api/admin/weekly-notify", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { week: -1 },
+  });
+  const after = await setting("weeklySummaryLastSentWeek");
+  const sent = discordSince(mark);
+  check(
+    "F116 手動送信は届くが、送信済みの記録は動かさない",
+    manual.status === 200 && sent.length >= 1 && after?.value === before?.value,
+    `${manual.status} / 投稿=${sent.length}件 / 記録 ${before?.value} → ${after?.value}`
+  );
+  // **中身まで見る。** 送ったことだけ確認しても、空文字を送っていたら気づけない
+  check(
+    "F117 送った文面が管理画面のプレビューと同じ形になっている",
+    sent.some((line) => {
+      const body = JSON.parse(JSON.parse(line).body ?? "{}");
+      return typeof body.content === "string" && body.content.includes("のまとめ");
+    }),
+    sent[0] ?? "投稿なし"
+  );
+
+  const manualByMember = await api("/api/admin/weekly-notify", {
+    method: "POST",
+    cookie: memberCookie,
+    body: { week: -1 },
+  });
+  check("F118 手動送信は管理者以外は403", manualByMember.status === 403, manualByMember.status);
+
+  // **投稿の失敗を「送った」と数えないこと。**
+  // ここを数え間違えると、cron側が「送信済み」として記録を進めてしまい、
+  // その週の通知が永久に失われる（後追いレビューで見つかった不具合）。
+  fs.writeFileSync("/tmp/stub-fail", "discord.com");
+  const failedSend = await api("/api/admin/weekly-notify", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { week: -1 },
+  });
+  fs.rmSync("/tmp/stub-fail", { force: true });
+  const failedBody = JSON.parse(failedSend.text);
+  check(
+    "F119 投稿に失敗したら「送った」に数えず、失敗として返す",
+    failedBody.posted === 0 && failedBody.failed >= 1,
+    failedSend.text
+  );
+
+  await db.activityLog.deleteMany({ where: { targetId: { startsWith: "weekly-" } } });
+  await db.appSetting.deleteMany({
+    where: { key: { in: ["weeklySummaryChannelId", "weeklySummaryLastSentWeek"] } },
+  });
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

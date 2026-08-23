@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { postDiscordMessage } from "@/lib/discord";
 import { checkFreeTierUsage } from "@/lib/usageAlerts";
 import { runActivityMaintenance } from "@/lib/activityRollup";
+import { sendWeeklySummaryIfDue } from "@/lib/weeklyNotify";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,9 @@ const STALE_THRESHOLD_MS = 3 * 60 * 60 * 1000; // 3時間
 // 1. Discord Bot（apps/bot、PM2常駐プロセス）のハートビートが途絶えていないか
 // 2. 無料枠（R2・DB）の使用率が閾値を超えていないか
 // 3. 活動ログの日次ロールアップと、1年より古い生ログの掃除
+// 4. 週次まとめのDiscord通知（未送信の完了週があれば送る）
 //
-// **パス名はBotの死活監視だけを指しているが、実際は上の3つを行う。**
+// **パス名はBotの死活監視だけを指しているが、実際は上の4つを行う。**
 // Hobbyプランのcronは2本までで既に埋まっており（もう1本はcheck-wishlist-prices）、
 // 3本目を足せないため日次の処理をここに相乗りさせている。
 // 日次の見張りを増やす場合もここに足すこと。
@@ -40,6 +42,17 @@ export async function GET(req: Request) {
     return null;
   });
 
+  // 週次まとめ。**曜日では判定しない**——その日のcronが失敗すると、その週が
+  // 永久に送られなくなる。「未送信の完了週があるか」で見るので、
+  // cronが数日飛んでも次に動いた時に送られ、二度は送らない（lib/weeklyNotify.ts）。
+  //
+  // ロールアップの後に置いているのは、集計を使うからではなく（まとめは生ログを読む）、
+  // 手入れの方を先に済ませたいため。ここが落ちても他は続ける。
+  const weekly = await sendWeeklySummaryIfDue().catch((e) => {
+    console.error("[cron] weekly summary failed", e);
+    return null;
+  });
+
   const heartbeat = await db.botHeartbeat.findUnique({ where: { id: "bot" } });
   const now = Date.now();
   const staleMs = heartbeat ? now - heartbeat.lastSeenAt.getTime() : null;
@@ -52,6 +65,7 @@ export async function GET(req: Request) {
       lastSeenAt: heartbeat!.lastSeenAt,
       usage,
       activity,
+      weekly,
     });
   }
 
@@ -75,5 +89,6 @@ export async function GET(req: Request) {
     notified,
     usage,
     activity,
+    weekly,
   });
 }
