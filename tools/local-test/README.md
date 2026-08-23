@@ -27,6 +27,10 @@ Vercelにも本番にも一切影響しない。外部サービスをスタブ�
 
 ## 使い方
 
+**セッションを跨ぐとPostgresは動いていない。** コンテナが作り直されるとプロセスは落ちており、
+データディレクトリごと消えていることもある（実際に一度消えた）。まず `ls /var/lib/postgresql/`
+で残っているかを見て、あれば `pg_ctl start` だけでよい（`initdb` と `CREATE DATABASE` は飛ばす）。
+
 ```bash
 # 1) Postgresを立てる（16、5433番、/tmp にソケット）
 su postgres -c "/usr/lib/postgresql/16/bin/initdb -D /var/lib/postgresql/ghdata -U postgres -A trust"
@@ -50,6 +54,13 @@ NODE_OPTIONS="--require $PWD/tools/local-test/fetch-stub.cjs" pnpm --filter web 
 
 # 5) 全部流して docs/test-results.md を作り直す
 node tools/local-test/run-all.mjs
+```
+
+**スクリプトは `.env.local` を自分では読まない。** Prisma が `DATABASE_URL` を見つけられずに
+落ちるので、流す前にシェルへ読み込んでおく。
+
+```bash
+set -a; . ./apps/web/.env.local; set +a
 ```
 
 `run-all.mjs` がシード投入 → 各スイート → 表の生成までやる。
@@ -101,7 +112,7 @@ IDの頭文字はスイートを表す: `P`=ページ、`R`=API権限、`F`=主�
 | `fetch-stub.cjs` | Steam/ITAD/YouTube/HowLongToBeat/Discord の差し替え。`--require` で読ませる |
 | `sweep.mjs` | **P**: 全ページを未ログイン＋3役割で開き、期待ステータスと突き合わせる |
 | `api-sweep.mjs` | **R**: APIの権限を役割ごとに期待値と突き合わせる |
-| `flows.mjs` | **F**: アップロード・招待・提案・ゲーム追加・Discord取り込み・エラー通報・cron を通しで確認 |
+| `flows.mjs` | **F**: アップロード・招待・提案・ゲーム追加・Discord取り込み・エラー通報・cron・活動ログ・週次まとめ・週次通知・活動カレンダー を通しで確認 |
 | `external-failure.mjs` | **X**: 外部APIを全滅させてもページが500にならないこと |
 | `browser.mjs` | **B**: 実ブラウザ（Chromium）で開いて例外が出ないこと。ブラウザは `CHROMIUM_PATH` で指定する |
 | `query-count.mjs` | 1ページの描画で何回DBを引いているかを数える（`--save` / `--compare`）。本番はネットワーク越しで1クエリ＝1往復なので、**見るべきは所要時間ではなくクエリ数** |

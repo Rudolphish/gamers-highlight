@@ -22,8 +22,11 @@ const REPO_ROOT = join(HERE, "..", "..");
 const LESSONS = join(REPO_ROOT, "docs", "lessons.md");
 const LEDGER = join(HERE, "review-ledger.csv");
 
-// これを超えたら畳む合図。CLAUDE.mdと合わせて毎回読む量なので、無制限には増やせない
-const LESSONS_SOFT_LIMIT = 8 * 1024;
+// これを超えたら畳む合図。CLAUDE.mdと合わせて毎回読む量なので、無制限には増やせない。
+// **単位は文字数**（バイト数ではない）。日本語はUTF-8で1文字3バイトなので、
+// バイトで見ると3倍ゆるい別の基準になる。読む量が問題なのだから文字で数える
+// （ファイルサイズと突き合わせて「警告が出ないのはおかしい」と誤読しかけた）。
+const LESSONS_SOFT_LIMIT_CHARS = 8192;
 
 const git = (...args) => {
   try {
@@ -53,10 +56,10 @@ if (existsSync(LESSONS)) {
   const text = readFileSync(LESSONS, "utf8");
   out.push("## docs/lessons.md（進め方でやらかしたことの記録・全文）\n");
   out.push(text.trim());
-  if (text.length > LESSONS_SOFT_LIMIT) {
+  if (text.length > LESSONS_SOFT_LIMIT_CHARS) {
     out.push(
-      `\n> ⚠ docs/lessons.md が ${Math.round(text.length / 1024)}KB あります` +
-        `（目安 ${LESSONS_SOFT_LIMIT / 1024}KB）。似た項目を統合して畳んでください。`
+      `\n> ⚠ docs/lessons.md が ${text.length} 文字あります` +
+        `（目安 ${LESSONS_SOFT_LIMIT_CHARS} 文字）。似た項目を統合して畳んでください。`
     );
   }
 } else {
