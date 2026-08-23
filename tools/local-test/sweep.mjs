@@ -64,6 +64,7 @@ const cases = [
   ["P25", "管理・メディア一覧", "/admin/media", { anon: LOGIN, admin: OK, member: NF }],
   ["P26", "管理・ユーザー", "/admin/users", { anon: LOGIN, admin: OK, member: NF }],
   ["P26b", "管理・週次まとめ", "/admin/weekly", { anon: LOGIN, admin: OK, member: NF, outsider: NF }],
+  ["P26c", "管理・活動カレンダー", "/admin/activity", { anon: LOGIN, admin: OK, member: NF, outsider: NF }],
   ["P27", "招待リンク（有効・未ログインでも開ける）", `/invite/${ids.inviteToken}`, { anon: OK, admin: OK }],
   ["P28", "招待リンク（期限切れ）", "/invite/test-invite-expired", { anon: OK }],
   ["P29", "招待リンク（取り消し済み）", "/invite/test-invite-revoked", { anon: OK }],

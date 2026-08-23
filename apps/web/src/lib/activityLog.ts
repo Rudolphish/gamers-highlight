@@ -104,3 +104,39 @@ export async function logActivity(input: ActivityInput): Promise<void> {
 export function activityLogCreateArgs(input: ActivityInput) {
   return { data: toRow(input) };
 }
+
+/**
+ * 種類ごとの絵文字。**画面と通知で同じ記号を使うために1箇所に置いている。**
+ *
+ * 文言（ラベル）の方はここに置いていない。同じ `photo.created` でも、件数を並べる
+ * 週次まとめでは「投稿 12」、1件ずつ流すタイムラインでは「写真を投稿」が読みやすい。
+ * 無理に1つへ寄せると、どちらかが不自然な日本語になる。
+ */
+export const ACTIVITY_EMOJI: Record<ActivityKind, string> = {
+  "photo.created": "📷",
+  "photo.deleted": "🗑️",
+  "photo.description_set": "📝",
+  "photo.description_cleared": "🧽",
+  "photo.reaction_added": "❤️",
+  "photo.reaction_removed": "💔",
+  "album.created": "📁",
+  "album.deleted": "🗂️",
+  "game.added": "🎮",
+  "game.status_changed": "🔄",
+  "game.removed": "🚫",
+  "game.interest_added": "👀",
+  "game.interest_removed": "🙈",
+  "proposal.created": "💡",
+  "proposal.voted": "🗳️",
+  "proposal.vote_removed": "↩️",
+  "proposal.accepted": "🎉",
+  "proposal.withdrawn": "🗑️",
+  "member.joined": "👤",
+};
+
+/** 表に無い kind が来たときの記号。記録は残っているのに何も出ないより、印だけでも出す */
+export const UNKNOWN_ACTIVITY_EMOJI = "•";
+
+export function activityEmoji(kind: string): string {
+  return ACTIVITY_EMOJI[kind as ActivityKind] ?? UNKNOWN_ACTIVITY_EMOJI;
+}
