@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { JST_OFFSET_MS } from "./jst";
-import type { ActivityKind } from "./activityLog";
+import { ACTIVITY_EMOJI, type ActivityKind } from "./activityLog";
 
 /**
  * 週次まとめの集計。管理画面のプレビューと、将来のDiscord通知が同じものを読む。
@@ -46,17 +46,20 @@ function formatRange(start: Date, end: Date): string {
   return `${fmt(start)}〜${fmt(new Date(end.getTime() - 1))}`;
 }
 
-/** 画面と通知に出す並び。**ここに無い kind は数字として出さない**（内訳が読めなくなるため） */
-const COUNTED: { kind: ActivityKind; label: string; emoji: string }[] = [
-  { kind: "photo.created", label: "投稿", emoji: "📷" },
-  { kind: "photo.reaction_added", label: "リアクション", emoji: "❤️" },
-  { kind: "photo.description_set", label: "説明", emoji: "📝" },
-  { kind: "album.created", label: "アルバム", emoji: "📁" },
-  { kind: "game.added", label: "ゲーム追加", emoji: "🎮" },
-  { kind: "game.interest_added", label: "気になる", emoji: "👀" },
-  { kind: "proposal.created", label: "提案", emoji: "💡" },
-  { kind: "proposal.voted", label: "提案への投票", emoji: "🗳️" },
-  { kind: "member.joined", label: "新メンバー", emoji: "👤" },
+/**
+ * 画面と通知に出す並び。**ここに無い kind は数字として出さない**（内訳が読めなくなるため）。
+ * 絵文字は `activityLog.ts` の1箇所から引く（カレンダーと記号がずれないように）。
+ */
+const COUNTED: { kind: ActivityKind; label: string }[] = [
+  { kind: "photo.created", label: "投稿" },
+  { kind: "photo.reaction_added", label: "リアクション" },
+  { kind: "photo.description_set", label: "説明" },
+  { kind: "album.created", label: "アルバム" },
+  { kind: "game.added", label: "ゲーム追加" },
+  { kind: "game.interest_added", label: "気になる" },
+  { kind: "proposal.created", label: "提案" },
+  { kind: "proposal.voted", label: "提案への投票" },
+  { kind: "member.joined", label: "新メンバー" },
 ];
 
 export type WeeklySummary = {
@@ -99,7 +102,11 @@ export async function getWeeklySummary(
   const countOf = (kind: string) =>
     grouped.find((g) => g.kind === kind)?._count._all ?? 0;
 
-  const counts = COUNTED.map((c) => ({ ...c, count: countOf(c.kind) }));
+  const counts = COUNTED.map((c) => ({
+    ...c,
+    emoji: ACTIVITY_EMOJI[c.kind],
+    count: countOf(c.kind),
+  }));
 
   // **クリアしたゲームは ActivityLog にしか無い。**
   // GroupGame.updatedAt は日次cronの価格チェックで毎日動くので代用できない。

@@ -44,3 +44,14 @@ export function jstDayRange(dateString: string): { start: Date; end: Date } {
 export function jstDateColumn(dateString: string): Date {
   return new Date(`${dateString}T00:00:00.000Z`);
 }
+
+/**
+ * `DailyActivity.date` から読み出した値を `YYYY-MM-DD` に戻す。
+ *
+ * **`jstDateString()` を使わないこと。** 保存時にUTCの0時へ置き直しているので、
+ * 読み出した値は「JSTの日付をUTCの0時で表したもの」であって実際の瞬間ではない。
+ * ここに9時間足すのは意味が無く、境界の扱いを間違えるとその日ごとずれる。
+ */
+export function dateColumnToString(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}

@@ -1550,6 +1550,159 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   });
 }
 
+// ───────────────────────────────────────────────────────────
+// 活動カレンダーとタイムライン（/admin/activity）
+// ───────────────────────────────────────────────────────────
+{
+  const DAY = 24 * 60 * 60 * 1000;
+  const jstDay = (d) => {
+    const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+    return `${jst.getUTCFullYear()}-${String(jst.getUTCMonth() + 1).padStart(2, "0")}-${String(
+      jst.getUTCDate()
+    ).padStart(2, "0")}`;
+  };
+  const dayColumn = (dateString) => new Date(`${dateString}T00:00:00.000Z`);
+
+  /** その日を選んだ状態で開く。内訳のチップ（絵文字＋件数）を読む */
+  const dayPage = async (dateString, cookie = adminCookie) => {
+    const month = dateString.slice(0, 7);
+    const res = await api(
+      `/admin/activity?group=${group.id}&month=${month}&date=${dateString}`,
+      { cookie }
+    );
+    // チップは「📷 3」の形。タイムラインの行は絵文字とラベルの間にタグが挟まるので当たらない
+    const m = res.text.match(/📷 (\d+)/);
+    return { status: res.status, photos: m ? Number(m[1]) : 0, text: res.text };
+  };
+
+  const addLog = (targetId, occurredAt, extra = {}) =>
+    db.activityLog.create({
+      data: {
+        kind: "photo.created",
+        targetId,
+        groupId: group.id,
+        occurredAt,
+        ...extra,
+      },
+    });
+
+  const today = jstDay(new Date());
+  const first = await dayPage(today);
+  check(
+    "F120 活動カレンダーが管理者に出る",
+    first.status === 200 && first.text.includes("活動カレンダー"),
+    `${first.status}`
+  );
+
+  const byMember = await dayPage(today, memberCookie);
+  check(
+    "F121 管理者以外には活動カレンダーの中身が出ない",
+    !byMember.text.includes("この月の記録"),
+    "中身が出ている"
+  );
+
+  // **occurredAt の日に置かれること。** 記録した日（createdAt）で置くと、
+  // 去年撮ったスクショを今日上げたときにカレンダーが嘘になる
+  const past = new Date(Date.now() - 111 * DAY);
+  const pastDay = jstDay(past);
+  const pastBefore = await dayPage(pastDay);
+  await addLog("cal-occurred", past, { createdAt: new Date() }); // 起きたのは111日前、記録は今
+  const pastAfter = await dayPage(pastDay);
+  check(
+    "F122 カレンダーは occurredAt の日に置く（記録した日ではない）",
+    pastAfter.photos === pastBefore.photos + 1,
+    `${pastBefore.photos} → ${pastAfter.photos}`
+  );
+
+  // **日の境界はJST。** UTCで切ると夜9時以降の投稿が翌日に落ちる
+  const dayStart = new Date(`${pastDay}T00:00:00.000+09:00`);
+  const prevDay = jstDay(new Date(dayStart.getTime() - 1));
+  const prevBefore = await dayPage(prevDay);
+  await addLog("cal-midnight", dayStart);
+  const midnight = await dayPage(pastDay);
+  check(
+    "F123 JSTの0時ちょうどはその日に入る",
+    midnight.photos === pastAfter.photos + 1,
+    `${pastAfter.photos} → ${midnight.photos}`
+  );
+
+  await addLog("cal-before-midnight", new Date(dayStart.getTime() - 1));
+  const [sameDay, prevAfter] = [await dayPage(pastDay), await dayPage(prevDay)];
+  check(
+    "F124 その1ミリ秒前は前日に入る（当日は増えない）",
+    sameDay.photos === midnight.photos && prevAfter.photos === prevBefore.photos + 1,
+    `当日 ${midnight.photos} → ${sameDay.photos} / 前日 ${prevBefore.photos} → ${prevAfter.photos}`
+  );
+
+  // **今日ぶんが、日次cronを待たずに出ること。**
+  // ロールアップだけを見ていると、まだ集計されていない今日は必ず0に見える
+  // （「さっき投稿したのに出ない」が、機能が壊れているのと区別できなくなる）
+  await db.dailyActivity.deleteMany({ where: { groupId: group.id, date: dayColumn(today) } });
+  const todayBefore = await dayPage(today);
+  await addLog("cal-today", new Date());
+  const todayAfter = await dayPage(today);
+  const todayRollup = await db.dailyActivity.findMany({
+    where: { groupId: group.id, date: dayColumn(today) },
+  });
+  check(
+    "F125 今日ぶんはロールアップを待たずに出る（生ログから数える）",
+    todayAfter.photos === todayBefore.photos + 1 && todayRollup.length === 0,
+    `${todayBefore.photos} → ${todayAfter.photos} / 集計=${todayRollup.length}行`
+  );
+
+  // **生ログが消えた古い日でも件数は残ること。** ロールアップを永久保存している理由がこれ
+  const ancient = new Date(Date.now() - 400 * DAY);
+  const ancientDay = jstDay(ancient);
+  await db.dailyActivity.deleteMany({ where: { groupId: group.id, date: dayColumn(ancientDay) } });
+  await db.dailyActivity.create({
+    data: { groupId: group.id, date: dayColumn(ancientDay), kind: "photo.created", count: 7 },
+  });
+  const ancientPage = await dayPage(ancientDay);
+  check(
+    "F126 1年より古い日はロールアップから件数だけ出す",
+    ancientPage.photos === 7 && ancientPage.text.includes("1件ずつの記録は残っていません"),
+    `件数=${ancientPage.photos}`
+  );
+
+  // **消えた対象へのリンクを出さないこと。** ログには外部キーを張っていないので、
+  // 消えた写真やアルバムのIDが普通に残っている
+  await db.activityLog.create({
+    data: {
+      kind: "album.created",
+      targetId: "cal-missing-album",
+      targetName: "消えたアルバムの名前",
+      groupId: group.id,
+      occurredAt: new Date(),
+    },
+  });
+  const withMissing = await dayPage(today);
+  check(
+    "F127 消えた対象は名前だけ出し、リンクにはしない",
+    withMissing.text.includes("消えたアルバムの名前") &&
+      !withMissing.text.includes("/albums/cal-missing-album"),
+    "リンクが出ている"
+  );
+
+  // 他のグループの記録が混ざらないこと
+  await db.activityLog.create({
+    data: {
+      kind: "photo.created",
+      targetId: "cal-other-group",
+      groupId: "存在しないグループ",
+      occurredAt: new Date(),
+    },
+  });
+  const afterOther = await dayPage(today);
+  check(
+    "F128 他のグループの記録は混ざらない",
+    afterOther.photos === withMissing.photos,
+    `${withMissing.photos} → ${afterOther.photos}`
+  );
+
+  await db.activityLog.deleteMany({ where: { targetId: { startsWith: "cal-" } } });
+  await db.dailyActivity.deleteMany({ where: { groupId: group.id, date: dayColumn(ancientDay) } });
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

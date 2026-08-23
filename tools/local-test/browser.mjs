@@ -58,6 +58,7 @@ const targets = [
   ["B17", "管理・招待リンク", "/admin/invites"],
   ["B18", "管理・メディア一覧", "/admin/media"],
   ["B19", "管理・エラー", "/admin/errors"],
+  ["B19b", "管理・活動カレンダー", "/admin/activity"],
 ];
 
 // `--no-sandbox` を付けている。開くのは自分のローカルサーバーだけで外部のページは
