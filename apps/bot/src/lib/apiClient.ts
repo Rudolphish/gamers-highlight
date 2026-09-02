@@ -131,7 +131,7 @@ export async function tagPhoto(payload: TagPayload): Promise<TagResult> {
 }
 
 /** Webアプリ側の /api/internal/bot-heartbeat に生存報告を送る（死活監視用） */
-export async function sendHeartbeat(): Promise<void> {
+export async function sendHeartbeat(): Promise<{ previousSeenAt: Date | null }> {
   try {
     const res = await fetch(`${BASE_URL}/api/internal/bot-heartbeat`, {
       method: "POST",
@@ -139,8 +139,15 @@ export async function sendHeartbeat(): Promise<void> {
     });
     if (!res.ok) {
       console.error(`[apiClient] heartbeat failed: ${res.status}`);
+      return { previousSeenAt: null };
     }
+    // **更新される前の時刻**が返る＝自分が最後に生きていた時刻。
+    // 起動時の1回だけ、落ちていた間を遡るのに使う（lib/catchUp.ts）
+    const data = (await res.json()) as { previousSeenAt?: string | null };
+    const previous = data?.previousSeenAt ? new Date(data.previousSeenAt) : null;
+    return { previousSeenAt: previous && !Number.isNaN(previous.getTime()) ? previous : null };
   } catch (err) {
     console.error("[apiClient] heartbeat failed", err);
+    return { previousSeenAt: null };
   }
 }

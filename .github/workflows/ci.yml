@@ -166,6 +166,11 @@ jobs:
       - name: ビルド
         run: pnpm --filter web build
 
+      # Botも組む。F の「落ちていた間の遡り取り込み」が apps/bot/dist を直接読むため
+      # （Discordには繋がず、偽のクライアントを渡して取り込み経路だけを通す）
+      - name: Botをビルド
+        run: pnpm --filter bot build
+
       # ステップが終わってもプロセスを残す必要があるので nohup で切り離す。
       # ログは成果物として持ち帰りたいので、ワークスペース内に置く
       # （upload-artifact はワークスペース外の絶対パスを混ぜると扱いが変わるため）。
