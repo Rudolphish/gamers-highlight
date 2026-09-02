@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { invalidateAlbumPhotos } from "@/lib/cacheTags";
+import { touchAlbum } from "@/lib/albumTouch";
 import { hasAlbumPermission } from "@/lib/permissions";
 
 // POST /api/photos/assign-album … 未分類（albumId無し）の投稿を、既存アルバムへまとめて追加する。
@@ -32,14 +33,10 @@ export async function POST(req: Request) {
     data: { albumId },
   });
 
-  // アルバムのupdatedAtを更新して、ホーム画面の並び順に反映させる
-  const album = await db.album.update({
-    where: { id: albumId },
-    data: {},
-    select: { groupId: true },
-  });
+  // アルバムの updatedAt を進めて、更新順の並びに反映させる（理由は lib/albumTouch.ts）
+  const groupId = await touchAlbum(albumId);
 
-  invalidateAlbumPhotos(albumId, album.groupId);
+  invalidateAlbumPhotos(albumId, groupId);
 
   // **未分類だった間に記録した photo.created は groupId が null になっている。**
   // 未分類の写真はアルバムに属さないので、投稿の時点では「どのグループの出来事か」が
@@ -48,11 +45,13 @@ export async function POST(req: Request) {
   //
   // 振り分けはまさに「どのグループのものか決まった」瞬間なので、ここで埋め直す。
   // 新しい行は作らない（作ると同じ投稿が2件に数えられる）。
-  if (result.count > 0) {
+  // groupId が引けなかったとき（アルバムが消えている等）は埋め直さない。
+  // null で上書きしても何も変わらないうえ、失敗を成功のように見せることになる
+  if (result.count > 0 && groupId) {
     await db.activityLog
       .updateMany({
         where: { kind: "photo.created", targetId: { in: photoIds }, groupId: null },
-        data: { groupId: album.groupId },
+        data: { groupId },
       })
       .catch((e) => console.error("[activity] groupIdの埋め直しに失敗しました", e));
   }

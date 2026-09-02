@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { invalidateAlbumPhotos } from "@/lib/cacheTags";
+import { touchAlbum } from "@/lib/albumTouch";
 import { logActivity } from "@/lib/activityLog";
 
 /**
@@ -90,10 +91,18 @@ export async function POST(req: Request) {
 
   // 付け替え前後の両方を飛ばす（元のアルバムからは消え、先のアルバムに出る）
   let assignedGroupId: string | null = null;
-  for (const id of new Set([photo.albumId, updated.albumId].filter(Boolean) as string[])) {
-    const album = await db.album.findUnique({ where: { id }, select: { groupId: true } });
-    if (id === updated.albumId) assignedGroupId = album?.groupId ?? null;
-    invalidateAlbumPhotos(id, album?.groupId);
+  if (updated.albumId) {
+    // 入った側は「更新」として updatedAt を進める（理由は lib/albumTouch.ts）
+    assignedGroupId = await touchAlbum(updated.albumId);
+    invalidateAlbumPhotos(updated.albumId, assignedGroupId);
+  }
+  if (photo.albumId && photo.albumId !== updated.albumId) {
+    // **出ていった側は進めない。** 写真が減っただけで上位に来るのは直感に反する
+    const from = await db.album.findUnique({
+      where: { id: photo.albumId },
+      select: { groupId: true },
+    });
+    invalidateAlbumPhotos(photo.albumId, from?.groupId);
   }
 
   // 未分類のまま取り込まれた写真は photo.created の groupId が null になっている。

@@ -137,7 +137,10 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       members: memberList,
       memberCount: album._count.members + 1,
       updatedAt: album.updatedAt,
-      // 並び替えの「新着順」で使う。updatedAtと違い、写真が増えても動かない
+      // 並び替えの「新着順」で使う。**アルバムが作られた時刻**なので、投稿が増えても動かない
+      // （updatedAt の方は投稿で動く。以前ここには逆のことが書いてあった——実装では
+      //  写真を作ってもアルバムの行を触らないので updatedAt は動いておらず、
+      //  「投稿したのに更新順で上に来ない」の原因だった。lib/albumTouch.ts 参照）
       createdAt: album.createdAt,
     };
   });
