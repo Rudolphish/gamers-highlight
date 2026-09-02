@@ -11,7 +11,8 @@
     "studio": "prisma studio",
     "seed:allowlist": "tsx seed-allowlist.ts",
     "backfill:activity": "tsx backfill-activity-log.ts",
-    "rollup:all": "tsx rollup-daily-activity.ts"
+    "rollup:all": "tsx rollup-daily-activity.ts",
+    "backfill:album-updated": "tsx backfill-album-updated-at.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.18.0"

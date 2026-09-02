@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { invalidateAlbumPhotos } from "@/lib/cacheTags";
+import { touchAlbum } from "@/lib/albumTouch";
 import { resolveOrCreateAlbum, resolveByNameAndCreate } from "@/lib/gameIdentify";
 
 /**
@@ -69,6 +70,9 @@ export async function POST(req: Request) {
   });
 
   if (resolved.albumId) {
+    // 入った側は「更新」として updatedAt を進める（理由は lib/albumTouch.ts）。
+    // groupId は既に分かっているので戻り値は使わない
+    await touchAlbum(resolved.albumId);
     invalidateAlbumPhotos(resolved.albumId, group.id);
 
     // 未分類で取り込まれた写真の photo.created は groupId が null。

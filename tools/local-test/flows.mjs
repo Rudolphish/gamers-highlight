@@ -1703,6 +1703,144 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   await db.dailyActivity.deleteMany({ where: { groupId: group.id, date: dayColumn(ancientDay) } });
 }
 
+// ───────────────────────────────────────────────────────────
+// アルバムの更新順（投稿したアルバムが上に来るか）
+// ───────────────────────────────────────────────────────────
+{
+  // **seedの3件（エルデンリング/ゼルダ/あつまれ）には投稿しない。**
+  // ブラウザスイート（B27）がその相対順序を見ているので、専用のアルバムを作って試す。
+  const createdAlbum = await api("/api/albums", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { title: "更新順テスト用アルバム", groupId: group.id },
+  });
+  const touchAlbumId = createdAlbum.json?.album?.id ?? null;
+
+  const updatedAtOf = async (id) =>
+    (await db.album.findUnique({ where: { id }, select: { updatedAt: true } }))?.updatedAt ?? null;
+
+  const uploadTo = async (albumId) => {
+    const bytes = Buffer.from(`album-touch-${randomUUID()}`);
+    const signed = await api("/api/photos/upload-url", {
+      method: "POST",
+      cookie: adminCookie,
+      body: { contentType: "image/png", mediaType: "IMAGE", sizeBytes: bytes.length },
+    });
+    await fetch(signed.json.upload.url, {
+      method: "PUT",
+      headers: { "content-type": "image/png", "content-length": String(bytes.length) },
+      body: bytes,
+    });
+    return api("/api/photos", {
+      method: "POST",
+      cookie: adminCookie,
+      body: {
+        contentType: "image/png",
+        mediaUrl: signed.json.publicUrl,
+        sizeBytes: bytes.length,
+        albumId,
+      },
+    });
+  };
+
+  // **手動アップロードで進むこと。** ここが本題（「投稿したのに更新順で上に来ない」）
+  const beforeUpload = await updatedAtOf(touchAlbumId);
+  const uploaded = await uploadTo(touchAlbumId);
+  const afterUpload = await updatedAtOf(touchAlbumId);
+  check(
+    "F129 手動アップロードでアルバムの updatedAt が進む",
+    uploaded.status === 201 && afterUpload > beforeUpload,
+    `${beforeUpload?.toISOString()} → ${afterUpload?.toISOString()}`
+  );
+
+  // **Discord取り込みでも進むこと。** 経路によって挙動が割れていたのが元の不具合
+  const tag = await db.discordGameTag.findFirst({
+    where: { guildId: group.guildId, tag: "eldenring" },
+  });
+  const autoAlbumId = tag?.autoAlbumId ?? null;
+  const beforeIngest = autoAlbumId ? await updatedAtOf(autoAlbumId) : null;
+  const ingested = await api("/api/discord/ingest", {
+    method: "POST",
+    headers: { "x-internal-secret": INTERNAL_SECRET },
+    body: {
+      discordUserId: "100000000000000002",
+      channelId: "700000000000000001",
+      guildId: group.guildId,
+      attachmentUrl: "http://127.0.0.1:9100/gh-local/photos/shot1.png",
+      contentType: "image/png",
+      sizeBytes: 1024,
+      discordMessageId: `touch-${randomUUID()}`,
+      postedAt: new Date().toISOString(),
+      rawTag: "eldenring",
+    },
+  });
+  const afterIngest = autoAlbumId ? await updatedAtOf(autoAlbumId) : null;
+  check(
+    "F130 Discord取り込みでもアルバムの updatedAt が進む",
+    ingested.status < 300 && afterIngest > beforeIngest,
+    `${beforeIngest?.toISOString()} → ${afterIngest?.toISOString()}`
+  );
+
+  // **写真を消しても進まないこと。** 「消したら一番上に来た」は直感に反する
+  const photoId = uploaded.json?.photo?.id ?? null;
+  const beforeDelete = await updatedAtOf(touchAlbumId);
+  const deleted = await api(`/api/photos/${photoId}`, { method: "DELETE", cookie: adminCookie });
+  const afterDelete = await updatedAtOf(touchAlbumId);
+  check(
+    "F131 写真を削除しても updatedAt は進まない",
+    deleted.status === 200 && afterDelete?.getTime() === beforeDelete?.getTime(),
+    `${beforeDelete?.toISOString()} → ${afterDelete?.toISOString()}`
+  );
+
+  // **説明でも進まないこと**（アルバムの中身の増減ではないため）
+  const forDescription = await uploadTo(touchAlbumId);
+  const descPhotoId = forDescription.json?.photo?.id ?? null;
+  const beforeDesc = await updatedAtOf(touchAlbumId);
+  const described = await api(`/api/photos/${descPhotoId}`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { description: "更新順テスト" },
+  });
+  const afterDesc = await updatedAtOf(touchAlbumId);
+  check(
+    "F132 説明を書いても updatedAt は進まない",
+    described.status === 200 && afterDesc?.getTime() === beforeDesc?.getTime(),
+    `${beforeDesc?.toISOString()} → ${afterDesc?.toISOString()}`
+  );
+
+  // **画面の並びまで通しで見る。** DBの列が動いても、キャッシュを飛ばし忘れれば画面は変わらない。
+  //
+  // **先に別のアルバムを上げてから試す。** 作ったばかりのアルバムは何もしなくても
+  // 先頭に来るので、そのまま順位を見ても「投稿で上がったのか、新しいから上にいるのか」が
+  // 区別できない（最初そう書いて、修正を外したビルドでも通ってしまった）。
+  const order = async () => {
+    const page = await api(`/groups/${group.id}`, { cookie: adminCookie });
+    return {
+      touched: page.text.indexOf("更新順テスト用アルバム"),
+      seeded: page.text.indexOf("エルデンリング"),
+    };
+  };
+
+  await uploadTo(album.id); // seedのアルバムを先に上げる
+  const before = await order();
+  await uploadTo(touchAlbumId); // こちらへ投稿したら入れ替わるはず
+  const after = await order();
+
+  check(
+    "F133 投稿したアルバムがグループ画面で更新順の先頭に来る",
+    before.seeded >= 0 &&
+      before.touched > before.seeded && // 投稿前は下にいる
+      after.touched >= 0 &&
+      after.touched < after.seeded, // 投稿後は上に来る
+    `投稿前 テスト用=${before.touched} エルデンリング=${before.seeded} / 投稿後 テスト用=${after.touched} エルデンリング=${after.seeded}`
+  );
+
+  // 後片付けはAPI経由で（DB直で消すとキャッシュに残って次のスイートを壊す。lessons.md）
+  if (touchAlbumId) {
+    await api(`/api/albums/${touchAlbumId}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

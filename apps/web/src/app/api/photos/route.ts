@@ -5,6 +5,7 @@ import { invalidateAlbumPhotos } from "@/lib/cacheTags";
 import { isManagedStorageUrl } from "@/lib/storage";
 import { checkAlbumPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activityLog";
+import { touchAlbumArgs } from "@/lib/albumTouch";
 import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/media-limits";
 
 // POST /api/photos … アップロード済みのオブジェクトに対してPhotoレコードを作る
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
     groupId = permission.groupId;
   }
 
-  const photo = await db.photo.create({
+  const createArgs = {
     data: {
       mediaType,
       mediaUrl: body.mediaUrl,
@@ -92,9 +93,16 @@ export async function POST(req: Request) {
       albumId: body.albumId ?? null,
       gameTitle: body.gameTitle ?? null,
       capturedAt: parseCapturedAt(body.capturedAt),
-      source: "MANUAL",
+      source: "MANUAL" as const,
     },
-  });
+  };
+
+  // **アルバムの updatedAt も一緒に進める**（投稿されたアルバムが更新順で上に来るように。
+  // 理由は lib/albumTouch.ts）。`$transaction` に並べて1往復にまとめる——別に投げると
+  // 全ての投稿で往復が1つ増える（docs/perf-cache.md）。
+  const photo = body.albumId
+    ? (await db.$transaction([db.photo.create(createArgs), db.album.update(touchAlbumArgs(body.albumId))]))[0]
+    : await db.photo.create(createArgs);
 
   // アルバム詳細とグループ詳細の中身を取り直させる（呼ばないと投稿が出ない）
   if (photo.albumId) {

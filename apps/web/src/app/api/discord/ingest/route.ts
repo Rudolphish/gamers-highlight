@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { invalidateAlbumPhotos } from "@/lib/cacheTags";
+import { touchAlbum } from "@/lib/albumTouch";
 import { logActivity } from "@/lib/activityLog";
 import { uploadFromUrlToStorage } from "@/lib/storage";
 import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/media-limits";
@@ -160,11 +161,9 @@ export async function POST(req: Request) {
   // Botからの投稿もアルバム詳細・グループ詳細に出るので取り直させる
   let groupId: string | null = null;
   if (photo.albumId) {
-    const album = await db.album.findUnique({
-      where: { id: photo.albumId },
-      select: { groupId: true },
-    });
-    groupId = album?.groupId ?? null;
+    // **アルバムの updatedAt も進める**（投稿されたアルバムが更新順で上に来るように。
+    // 理由は lib/albumTouch.ts）。groupId を返すので、ここは往復が増えない
+    groupId = await touchAlbum(photo.albumId);
     invalidateAlbumPhotos(photo.albumId, groupId);
   }
 
