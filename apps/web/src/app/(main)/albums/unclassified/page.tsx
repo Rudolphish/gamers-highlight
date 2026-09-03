@@ -23,7 +23,9 @@ export default async function UnclassifiedPage() {
       OR: [{ ownerId: user.id }, { members: { some: { userId: user.id } } }],
     },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, title: true },
+    // **groupId も渡す。** アルバム名だけを並べると、別グループの同名アルバムに
+    // 振り分けてしまう（画面側でグループを選んでから絞り込む）
+    select: { id: true, title: true, groupId: true },
   });
 
   const groups = await db.group.findMany({
