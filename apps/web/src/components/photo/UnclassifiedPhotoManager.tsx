@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Play, Check, Plus } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
@@ -14,7 +15,8 @@ type Media = {
   durationSeconds?: number | null;
 };
 
-type AlbumOption = { id: string; title: string };
+/** **groupId を必ず持つ。** アルバムは名前だけで選ばせない（別グループの同名を取り違えるため） */
+type AlbumOption = { id: string; title: string; groupId: string };
 type GroupOption = { id: string; name: string };
 
 export function UnclassifiedPhotoManager({
@@ -30,11 +32,17 @@ export function UnclassifiedPhotoManager({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [targetAlbumId, setTargetAlbumId] = useState("");
   const [newAlbumTitle, setNewAlbumTitle] = useState("");
-  const [newAlbumGroupId, setNewAlbumGroupId] = useState(groups.length === 1 ? groups[0].id : "");
+  // **グループの選択は1つにまとめてある。** 「既存アルバムへ移す」も「新しく作る」も
+  // 同じグループが相手なので、別々に選ばせると取り違えを起こしやすい。
+  // 1つしか入っていない人には自動で選ぶ（毎回選ばせても手数が増えるだけ）
+  const [groupId, setGroupId] = useState(groups.length === 1 ? groups[0].id : "");
   const [action, setAction] = useState<"move" | "create" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const pending = action !== null;
+
+  /** 選んだグループのアルバムだけ。グループ未選択なら空 */
+  const albumsInGroup = albums.filter((a) => a.groupId === groupId);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -76,14 +84,14 @@ export function UnclassifiedPhotoManager({
 
   async function createAlbumAndMove() {
     const title = newAlbumTitle.trim();
-    if (selected.size === 0 || !title || !newAlbumGroupId) return;
+    if (selected.size === 0 || !title || !groupId) return;
     setAction("create");
     setError(null);
     try {
       const createRes = await fetch("/api/albums", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, groupId: newAlbumGroupId }),
+        body: JSON.stringify({ title, groupId }),
       });
       if (!createRes.ok) throw new Error(await createRes.text());
       const { album } = await createRes.json();
@@ -163,18 +171,56 @@ export function UnclassifiedPhotoManager({
         })}
       </div>
 
-      <div className="mt-6 flex flex-col gap-4 rounded-sm border border-steam-border bg-steam-surface p-4 sm:flex-row sm:items-end sm:gap-6">
+      {/* **先にグループを選ばせる。** 全グループのアルバムを名前だけで並べると、
+          別グループの同名アルバムに入れてしまう（実際に報告があった）。
+          この選択は下の「既存アルバムへ追加」と「新規作成」の両方に効く */}
+      <div className="mt-6 rounded-sm border border-steam-border bg-steam-surface p-4">
+        <label className="font-mono text-2xs text-steam-muted">グループ</label>
+        <select
+          value={groupId}
+          onChange={(e) => {
+            setGroupId(e.target.value);
+            setTargetAlbumId(""); // 別グループのアルバムが選ばれたまま残らないように戻す
+          }}
+          disabled={pending || groups.length === 0}
+          className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50 sm:max-w-xs"
+        >
+          <option value="">グループを選択</option>
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+        {/* グループが無い／新しく作りたい人の逃げ道。ここで手が止まると、
+            アルバムを選べない理由も次にどうすればよいかも分からない */}
+        <p className="mt-1 font-mono text-4xs text-steam-muted/70">
+          {groups.length === 0 ? "参加しているグループがありません。" : "入れたいグループが無いときは "}
+          <Link href="/groups/new" className="text-steam-blue hover:underline">
+            新しいグループを作る
+          </Link>
+          {groups.length === 0 ? "と、ここから振り分けられるようになります。" : "。"}
+        </p>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-4 rounded-sm border border-steam-border bg-steam-surface p-4 sm:flex-row sm:items-end sm:gap-6">
         <div className="flex-1">
           <label className="font-mono text-2xs text-steam-muted">既存アルバムに追加</label>
           <div className="mt-1 flex gap-2">
             <select
               value={targetAlbumId}
               onChange={(e) => setTargetAlbumId(e.target.value)}
-              disabled={pending}
+              disabled={pending || !groupId}
               className="flex-1 rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
             >
-              <option value="">アルバムを選択</option>
-              {albums.map((a) => (
+              <option value="">
+                {!groupId
+                  ? "先にグループを選んでください"
+                  : albumsInGroup.length === 0
+                    ? "このグループにはまだアルバムがありません"
+                    : "アルバムを選択"}
+              </option>
+              {albumsInGroup.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.title}
                 </option>
@@ -192,21 +238,10 @@ export function UnclassifiedPhotoManager({
         </div>
 
         <div className="flex-1">
-          <label className="font-mono text-2xs text-steam-muted">新規アルバムを作って移動</label>
+          <label className="font-mono text-2xs text-steam-muted">
+            新規アルバムを作って移動{groupId ? "（上で選んだグループに作ります）" : ""}
+          </label>
           <div className="mt-1 flex gap-2">
-            <select
-              value={newAlbumGroupId}
-              onChange={(e) => setNewAlbumGroupId(e.target.value)}
-              disabled={pending}
-              className="rounded-sm border border-steam-border bg-steam-bg px-2 py-2 font-mono text-xs text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
-            >
-              <option value="">グループ</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
             <input
               value={newAlbumTitle}
               onChange={(e) => setNewAlbumTitle(e.target.value)}
@@ -216,7 +251,7 @@ export function UnclassifiedPhotoManager({
             />
             <button
               onClick={createAlbumAndMove}
-              disabled={pending || selected.size === 0 || !newAlbumTitle.trim() || !newAlbumGroupId}
+              disabled={pending || selected.size === 0 || !newAlbumTitle.trim() || !groupId}
               className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
             >
               {action === "create" ? <Spinner size={12} /> : <Plus size={12} />}

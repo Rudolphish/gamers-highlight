@@ -25,11 +25,15 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
+  // **グループも一緒に返す。** アルバム名だけを並べると、別グループの同名アルバムを
+  // 見分けられず振り分けを間違える（アップロード画面と未分類の振り分けで実際に起きた）。
+  // 呼び出し側はこの groupId でアルバムを絞り込み、名前で選ばせない。
   const albums = await db.album.findMany({
     where: {
       OR: [{ ownerId: user.id }, { members: { some: { userId: user.id } } }],
     },
     orderBy: { updatedAt: "desc" },
+    include: { group: { select: { id: true, name: true } } },
   });
 
   return NextResponse.json({ albums });

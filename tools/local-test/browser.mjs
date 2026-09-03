@@ -614,6 +614,119 @@ for (const [id, label, path] of targets) {
   await page.close();
 }
 
+// ── 未分類の振り分け：グループ→アルバムの2段階 ──
+// **別グループの同名アルバムを取り違える**という報告への対応。
+// 「グループを選ぶまでアルバムを選べない」「選んだグループのアルバムだけが出る」を、
+// 実際に2つのグループを持つ状態を作って確かめる（seedのadminは1グループなので、
+// **1つだけだと自動選択されてしまい、この経路を通らない**）。
+{
+  const page = await context.newPage();
+  await page.goto(`${BASE}/albums/unclassified`, { waitUntil: "networkidle" });
+
+  /** ブラウザのセッションでAPIを叩く（テスト用のデータを作る／片付ける） */
+  const callApi = (path, method, body) =>
+    page.evaluate(
+      async ([p, m, b]) => {
+        const res = await fetch(p, {
+          method: m,
+          headers: b ? { "content-type": "application/json" } : {},
+          body: b ? JSON.stringify(b) : undefined,
+        });
+        return { status: res.status, json: await res.json().catch(() => null) };
+      },
+      [path, method, body ?? null]
+    );
+
+  const SAME_TITLE = "取り違え確認用アルバム";
+  const created = await callApi("/api/groups", "POST", { name: "取り違え確認用グループ" });
+  const groupB = created.json?.group?.id ?? null;
+  const albumA = (await callApi("/api/albums", "POST", { title: SAME_TITLE, groupId: ids.groupId }))
+    .json?.album?.id;
+  const albumB = groupB
+    ? (await callApi("/api/albums", "POST", { title: SAME_TITLE, groupId: groupB })).json?.album?.id
+    : null;
+
+  if (groupB && albumA && albumB) {
+    await page.goto(`${BASE}/albums/unclassified`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(300);
+
+    const groupSelect = page.locator("select").first();
+    const albumSelect = page.locator("select").nth(1);
+
+    // グループが2つになったので自動選択されない＝アルバムは選べない状態から始まる
+    rows.push({
+      id: "B45",
+      item: "グループを選ぶまでアルバムを選べない",
+      expected: "無効",
+      actual: (await albumSelect.isDisabled()) ? "無効" : "有効",
+      ok: await albumSelect.isDisabled(),
+      note: "",
+    });
+
+    /** アルバムのプルダウンに出ている選択肢（先頭の案内は除く） */
+    const albumOptions = () =>
+      albumSelect.evaluate((el) =>
+        [...el.querySelectorAll("option")].slice(1).map((o) => o.value)
+      );
+
+    await groupSelect.selectOption(ids.groupId);
+    await page.waitForTimeout(200);
+    const inA = await albumOptions();
+
+    await groupSelect.selectOption(groupB);
+    await page.waitForTimeout(200);
+    const inB = await albumOptions();
+
+    // **同名のアルバムが両方のグループにある状態で、混ざらないこと**が本題
+    rows.push({
+      id: "B46",
+      item: "選んだグループのアルバムだけが出る（同名でも混ざらない）",
+      expected: "Aには片方だけ / Bには片方だけ",
+      actual: `A=${inA.includes(albumA) && !inA.includes(albumB)} B=${inB.includes(albumB) && !inB.includes(albumA)}`,
+      ok:
+        inA.includes(albumA) && !inA.includes(albumB) && inB.includes(albumB) && !inB.includes(albumA),
+      note: "",
+    });
+
+    // グループを切り替えたら、前のグループのアルバムが選ばれたまま残らないこと
+    rows.push({
+      id: "B47",
+      item: "グループを切り替えるとアルバムの選択が外れる",
+      expected: "未選択",
+      actual: (await albumSelect.inputValue()) || "未選択",
+      ok: (await albumSelect.inputValue()) === "",
+      note: "",
+    });
+
+    // 新しいグループを作る導線が出ていること（グループが無い人の逃げ道）
+    const newGroupLink = page.locator('a[href="/groups/new"]');
+    rows.push({
+      id: "B48",
+      item: "新しいグループを作るリンクが出ている",
+      expected: "1件以上",
+      actual: String(await newGroupLink.count()),
+      ok: (await newGroupLink.count()) > 0,
+      note: "",
+    });
+  } else {
+    rows.push({
+      id: "B45",
+      item: "グループを選ぶまでアルバムを選べない",
+      expected: "準備できる",
+      actual: "テスト用のグループ／アルバムを作れなかった",
+      ok: false,
+      note: `group=${groupB} albumA=${albumA} albumB=${albumB}`,
+    });
+  }
+
+  // 後片付け（API経由。DB直で消すとキャッシュに残る。lessons.md）
+  if (albumA) await callApi(`/api/albums/${albumA}`, "DELETE");
+  if (albumB) await callApi(`/api/albums/${albumB}`, "DELETE");
+  if (groupB) await callApi(`/api/groups/${groupB}`, "DELETE");
+
+  await page.close();
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));

@@ -1996,6 +1996,32 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   await db.photo.deleteMany({ where: { discordMessageId: { startsWith: "catchup-" } } });
 }
 
+// ───────────────────────────────────────────────────────────
+// アルバム一覧にグループが付いて返る（振り分け先の取り違え対策）
+// ───────────────────────────────────────────────────────────
+{
+  const list = await api("/api/albums", { cookie: adminCookie });
+  const first = list.json?.albums?.[0] ?? null;
+  check(
+    "F140 アルバム一覧はグループも返す（名前だけで選ばせないため）",
+    list.status === 200 && !!first?.groupId && !!first?.group?.name,
+    JSON.stringify({ groupId: first?.groupId, group: first?.group })
+  );
+
+  // 判別結果にもグループ名が付くこと（同名アルバムがあると、名前だけでは気づけない）
+  const identified = await api("/api/photos/identify", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { appIds: [1245620] },
+  });
+  const withAlbum = (identified.json?.results ?? []).find((r) => r.album);
+  check(
+    "F141 ファイル名からの判別結果にもグループ名が付く",
+    identified.status === 200 && (!withAlbum || typeof withAlbum.album.groupName === "string"),
+    JSON.stringify(withAlbum?.album ?? identified.json?.results ?? null)
+  );
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

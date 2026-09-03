@@ -43,10 +43,12 @@ type UploadItem = {
 type IdentifiedGame = {
   appId: number;
   title: string | null;
-  album: { id: string; title: string } | null;
+  album: { id: string; title: string; groupName: string } | null;
 };
 
-type AlbumOption = { id: string; title: string };
+/** **groupId を必ず持つ。** アルバムは名前だけで選ばせない（別グループの同名を取り違えるため） */
+type AlbumOption = { id: string; title: string; groupId: string };
+type GroupOption = { id: string; name: string };
 
 // upload が無い場合はストレージ未設定のモック環境（ローカル開発時のフォールバック）。
 // 実際のオブジェクトアップロードは発生せず、既に返ってきているモックURLをそのまま使う。
@@ -167,6 +169,10 @@ export default function UploadPage() {
   const [gameTag, setGameTag] = useState("");
   const [running, setRunning] = useState(false);
   const [albums, setAlbums] = useState<AlbumOption[]>([]);
+  const [groups, setGroups] = useState<GroupOption[]>([]);
+  // **先にグループを選ばせる。** 全グループのアルバムを名前だけで並べると、
+  // 別グループの同名アルバムに入れてしまう（実際に「どのグループか分からない」という報告）
+  const [groupId, setGroupId] = useState("");
   const [albumId, setAlbumId] = useState(""); // "" = 未分類のまま
   const [identified, setIdentified] = useState<Map<number, IdentifiedGame>>(new Map());
   const [identifying, setIdentifying] = useState(false);
@@ -176,7 +182,20 @@ export default function UploadPage() {
       .then((res) => (res.ok ? res.json() : { albums: [] }))
       .then((data) => setAlbums(data.albums ?? []))
       .catch(() => setAlbums([]));
+
+    fetch("/api/groups")
+      .then((res) => (res.ok ? res.json() : { groups: [] }))
+      .then((data) => {
+        const list: GroupOption[] = data.groups ?? [];
+        setGroups(list);
+        // 1つしか入っていない人に毎回選ばせても手数が増えるだけなので、自動で選ぶ
+        if (list.length === 1) setGroupId(list[0].id);
+      })
+      .catch(() => setGroups([]));
   }, []);
+
+  /** 選んだグループのアルバムだけ。グループ未選択なら空 */
+  const albumsInGroup = albums.filter((a) => a.groupId === groupId);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -360,7 +379,11 @@ export default function UploadPage() {
                 <span className="text-steam-text">{g.title ?? `Steam app ${g.appId}`}</span>
                 {" … "}
                 {g.album ? (
-                  <span className="text-[#a4d007]">アルバム「{g.album.title}」に追加します</span>
+                  <span className="text-[#a4d007]">
+                    {/* **グループ名も出す。** 判別は自分が見える範囲から探すので、
+                        別グループの同名アルバムが選ばれることがある */}
+                    {`${g.album.groupName} のアルバム「${g.album.title}」に追加します`}
+                  </span>
                 ) : (
                   <span className="text-steam-muted/70">
                     このゲームのアルバムはまだありません（未分類で保存されます）
@@ -376,24 +399,71 @@ export default function UploadPage() {
       )}
 
       <div className="mt-4">
+        <label className="font-mono text-2xs text-steam-muted">グループ</label>
+        <select
+          value={groupId}
+          onChange={(e) => {
+            setGroupId(e.target.value);
+            setAlbumId(""); // 別グループのアルバムが選ばれたまま残らないように戻す
+          }}
+          disabled={running || groups.length === 0}
+          className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+        >
+          <option value="">グループを選択</option>
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+
+        {/* **グループが無い／新しく作りたい人の逃げ道。** ここで手が止まると、
+            アルバムを選べない理由も次にどうすればよいかも分からない。
+            **別タブで開く**——同じタブだと、選んだファイルが消えてやり直しになる */}
+        <p className="mt-1 font-mono text-4xs text-steam-muted/70">
+          {groups.length === 0
+            ? "参加しているグループがありません。"
+            : "入れたいグループが無いときは "}
+          <a
+            href="/groups/new"
+            target="_blank"
+            rel="noreferrer"
+            className="text-steam-blue hover:underline"
+          >
+            新しいグループを作る
+          </a>
+          {groups.length === 0
+            ? "と、アルバムに振り分けられます（別タブで開きます。作成後にこのページを再読み込みしてください）。グループが無くても、未分類としてアップロードはできます。"
+            : "（別タブで開きます。作成後にこのページを再読み込みしてください）。"}
+        </p>
+      </div>
+
+      <div className="mt-4">
         <label className="font-mono text-2xs text-steam-muted">追加先アルバム</label>
         <select
           value={albumId}
           onChange={(e) => setAlbumId(e.target.value)}
-          disabled={running}
+          disabled={running || !groupId}
           className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
         >
           <option value="">
-            {detectedGames.some((g) => g.album)
-              ? "判別結果にまかせる（該当アルバムへ／無ければ未分類）"
-              : "未分類のまま（後でアルバムに振り分ける）"}
+            {!groupId
+              ? "先にグループを選んでください"
+              : detectedGames.some((g) => g.album)
+                ? "判別結果にまかせる（該当アルバムへ／無ければ未分類）"
+                : "未分類のまま（後でアルバムに振り分ける）"}
           </option>
-          {albums.map((a) => (
+          {albumsInGroup.map((a) => (
             <option key={a.id} value={a.id}>
               {a.title}
             </option>
           ))}
         </select>
+        {groupId && albumsInGroup.length === 0 && (
+          <p className="mt-1 font-mono text-4xs text-steam-muted/70">
+            このグループにはまだアルバムがありません。未分類で保存して、後から振り分けられます。
+          </p>
+        )}
       </div>
 
       <div className="mt-3">

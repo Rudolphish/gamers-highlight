@@ -7,7 +7,12 @@ import { getOrFetchExternalGameData } from "./externalGameCache";
 export type IdentifiedGame = {
   appId: number;
   title: string | null;
-  album: { id: string; title: string } | null;
+  /**
+   * 見つかったアルバム。**グループ名も返す。**
+   * 別グループに同名のアルバムがあると、名前だけでは取り違えたことに気づけない
+   * （実際に「振り分け先のグループが分からない」という報告になった）。
+   */
+  album: { id: string; title: string; groupName: string } | null;
 };
 
 /**
@@ -41,14 +46,20 @@ export async function resolveGamesByAppId(
     db.album.findMany({
       where: { steamAppId: { in: appIds }, ...scope.albumWhere },
       orderBy: { updatedAt: "desc" },
-      select: { id: true, title: true, gameTitle: true, steamAppId: true },
+      select: {
+        id: true,
+        title: true,
+        gameTitle: true,
+        steamAppId: true,
+        group: { select: { name: true } },
+      },
     }),
     db.groupGame.findMany({
       where: { steamAppId: { in: appIds }, ...scope.groupGameWhere },
       select: {
         steamAppId: true,
         title: true,
-        album: { select: { id: true, title: true } },
+        album: { select: { id: true, title: true, group: { select: { name: true } } } },
       },
     }),
   ]);
@@ -62,8 +73,10 @@ export async function resolveGamesByAppId(
       return {
         appId,
         title: known ?? (await getSteamAppNameJa(appId)),
-        byAppId: album ? { id: album.id, title: album.title } : null,
-        byGameLink: game?.album ? { id: game.album.id, title: game.album.title } : null,
+        byAppId: album ? { id: album.id, title: album.title, groupName: album.group.name } : null,
+        byGameLink: game?.album
+          ? { id: game.album.id, title: game.album.title, groupName: game.album.group.name }
+          : null,
       };
     })
   );
@@ -90,8 +103,8 @@ export async function resolveGamesByAppId(
 async function findAlbumsByGameName(
   titles: string[],
   scope: IdentifyScope
-): Promise<Map<string, { id: string; title: string }>> {
-  const found = new Map<string, { id: string; title: string }>();
+): Promise<Map<string, { id: string; title: string; groupName: string }>> {
+  const found = new Map<string, { id: string; title: string; groupName: string }>();
   if (titles.length === 0) return found;
 
   const albums = await db.album.findMany({
@@ -100,13 +113,13 @@ async function findAlbumsByGameName(
       ...scope.albumWhere,
     },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, title: true, gameTitle: true },
+    select: { id: true, title: true, gameTitle: true, group: { select: { name: true } } },
   });
 
   // 同名が複数あれば、更新が新しい方を残す（orderByの並び順に依存）
   for (const a of albums) {
     const key = a.gameTitle?.toLowerCase();
-    if (key && !found.has(key)) found.set(key, { id: a.id, title: a.title });
+    if (key && !found.has(key)) found.set(key, { id: a.id, title: a.title, groupName: a.group.name });
   }
   return found;
 }
