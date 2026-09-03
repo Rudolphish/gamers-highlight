@@ -97,7 +97,7 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
       title: "後からタグを付け直す（/tagコマンド）",
       body: (
         <p>
-          ハッシュタグを付け忘れて投稿してしまった場合、Discordで「/tag game:ゲーム名」を実行すると、直近10分以内に自分が投稿した写真/動画にタグを付け直せます。それより古い投稿は、Web側のアルバム一覧→「未分類の投稿」から手動で振り分けてください。
+          ハッシュタグを付け忘れて投稿してしまった場合、Discordで「/tag game:ゲーム名」を実行すると、直近10分以内に自分が投稿した写真/動画にタグを付け直せます。それより古い投稿は、下の「未分類の投稿を振り分ける」の手順で振り分けてください。
         </p>
       ),
     },
@@ -118,6 +118,32 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
           </p>
           <p className="text-steam-muted/70">
             補足：クリップボードから貼り付けた画像にはファイル名の手掛かりが残らないため、この質問が出るのが普通の状態です。Steamのスクショフォルダから直接アップロードした場合は、ファイル名にゲームのIDが入っているので自動で判別されます。
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: "unclassified",
+      title: "未分類の投稿を振り分ける",
+      body: (
+        <div className="flex flex-col gap-3">
+          <p>
+            ゲームが決まらなかった投稿は「未分類」として残ります。サイドバーの
+            <strong className="text-steam-text">「アルバム」</strong>
+            を開くと、未分類が1件でもあれば上部にカードが出るので、そこから振り分け画面に入れます。
+          </p>
+          <p>
+            写真をタップして選び（まとめて選べます）、
+            <strong className="text-steam-text">グループを選んでから</strong>
+            アルバムを選びます。グループを先に選ぶのは、別のグループに同じ名前のアルバムがあると
+            取り違えるためです。アルバムがまだ無ければ、その場で名前を入れて新しく作れます。
+          </p>
+          <p>
+            入れたいグループがまだ無いときは、選択欄の下にある「新しいグループを作る」から作成できます。
+          </p>
+          <p className="text-steam-muted/70">
+            補足：Botが落ちていた間の投稿も、Botが起動したときにまとめて取り込まれます。
+            そのぶんはゲームを聞かれないので、ここから振り分けてください。
           </p>
         </div>
       ),
@@ -157,6 +183,28 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
           </p>
           <p className="text-steam-muted/70">
             補足：更新は連打できません（同じゲームにつき、全部揃っていれば24時間、まだ取れていない項目が残っていれば6時間の間隔が空きます）。外部サービスの呼び出し回数に上限があるためです。
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: "price-notify",
+      title: "セール・最安値をDiscordに通知する",
+      body: (
+        <div className="flex flex-col gap-3">
+          <p>
+            ウィッシュリスト（ゲームリストで「気になる」ステータスのゲーム）の価格を毎日調べて、
+            <strong className="text-steam-text">過去の最安値を更新したときだけ</strong>
+            Discordに通知します。値下げのたびに鳴るわけではありません。
+          </p>
+          <p>
+            <strong className="text-steam-text">通知先の設定が必要です。</strong>
+            グループ画面のグループ名の下にある「通知先」から、投稿したいチャンネルを選んでください
+            （グループのオーナーだけが設定できます）。
+            <strong className="text-steam-text">設定するまで通知は一切飛びません。</strong>
+          </p>
+          <p>
+            通知には、そのゲームに「気になる」を付けているメンバーの名前も添えられます。
           </p>
         </div>
       ),
@@ -203,6 +251,49 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
       ),
     },
     {
+      id: "permissions",
+      title: "権限（オーナー／編集者／閲覧者）でできること",
+      body: (
+        <div className="flex flex-col gap-3">
+          <p>
+            グループに招待されると、既定では<strong className="text-steam-text">閲覧者</strong>
+            として入ります。閲覧者でも投稿・❤️・説明はできます——「見るだけ」ではありません。
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-steam-border">
+                  <th className="py-1.5 pr-3 font-normal text-steam-muted">できること</th>
+                  <th className="py-1.5 font-normal text-steam-muted">必要な権限</th>
+                </tr>
+              </thead>
+              <tbody className="text-steam-text">
+                {[
+                  ["写真を見る・投稿する", "閲覧者"],
+                  ["❤️を付ける・説明を書く", "閲覧者"],
+                  ["ゲームを提案する・提案に投票する・「気になる」を付ける", "閲覧者"],
+                  ["ゲームリストへの追加・ステータス変更・削除", "編集者"],
+                  ["アルバムを作る・アルバム名や説明を編集する", "編集者"],
+                  ["写真を削除する", "投稿した本人、またはアルバムのオーナー"],
+                  ["アルバムの削除・メンバー管理・サムネイル設定", "アルバムのオーナー"],
+                  ["グループのメンバー管理・招待リンクの発行・グループの削除", "グループのオーナー"],
+                ].map(([what, role]) => (
+                  <tr key={what} className="border-b border-steam-border/40 last:border-0">
+                    <td className="py-1.5 pr-3">{what}</td>
+                    <td className="py-1.5 whitespace-nowrap text-steam-muted">{role}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-steam-muted/70">
+            補足：グループの権限は配下の全アルバムに効きます。特定のアルバムだけ強い権限を渡したいときは、
+            アルバム詳細の「共有」から個別に招待してください。
+          </p>
+        </div>
+      ),
+    },
+    {
       id: "delete",
       title: "写真・アルバム・グループの削除",
       body: (
@@ -223,18 +314,119 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
       id: "manual-upload",
       title: "手動アップロード",
       body: (
-        <p>
-          Discordを経由せず、サイドバーの「アップロード」から直接写真/動画を投稿することもできます。画像は15MBまで、動画は30MB・30秒までのファイルに対応しています（png/jpeg/webp、mp4/webm/mov）。
-        </p>
+        <div className="flex flex-col gap-3">
+          <p>
+            Discordを経由せず、サイドバーの「アップロード」から直接写真/動画を投稿することもできます。画像は15MBまで、動画は30MB・30秒までのファイルに対応しています（png/jpeg/webp、mp4/webm/mov）。
+          </p>
+          <p>
+            <strong className="text-steam-text">Steamのスクショはゲームを自動で判別します。</strong>
+            Steamのスクショフォルダから選んだファイルは、ファイル名にゲームのIDが入っているため、
+            該当するアルバムが自動で選ばれます（「〇〇 のアルバム『△△』に追加します」と出ます）。
+            クリップボードから貼り付けた画像には手掛かりが残らないので、その場合は下で指定してください。
+          </p>
+          <p>
+            追加先は<strong className="text-steam-text">グループを選んでからアルバムを選びます</strong>。
+            別のグループに同じ名前のアルバムがあっても取り違えないようにするためです。
+            グループがまだ無いときは「新しいグループを作る」から作成できます（別のタブで開くので、
+            選んだファイルは消えません。作成後にアップロード画面を再読み込みしてください）。
+          </p>
+          <p>
+            アルバムを選ばなくても投稿できます。その場合は「未分類」に入るので、後から振り分けてください。
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: "reactions-description",
+      title: "❤️と説明（コメント）を付ける",
+      body: (
+        <div className="flex flex-col gap-3">
+          <p>
+            写真をタップして開く拡大表示で、<strong className="text-steam-text">❤️</strong>
+            を付けられます。1人1回で、もう一度押すと取り消せます。グリッドの一覧にも数が出ます。
+          </p>
+          <p>
+            <strong className="text-steam-text">説明</strong>は1枚につき1つ書けます。
+            「コメント」のように積み上がるものではなく、
+            <strong className="text-steam-text">そのアルバムを見られる人なら誰でも書き換えられる</strong>
+            メモです（最後に書いた人の名前と日時が出ます）。検索の対象にも入ります。
+          </p>
+          <p className="text-steam-muted/70">
+            注意：<strong className="text-steam-text">未分類の投稿には❤️も説明も付けられません。</strong>
+            どのアルバムにも入っていないと「誰が触ってよいか」を決められないためです。
+            先にアルバムへ振り分けてください。
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: "album-view",
+      title: "アルバムの並び順とサムネイル",
+      body: (
+        <div className="flex flex-col gap-3">
+          <p>
+            アルバムの一覧は<strong className="text-steam-text">更新順・新着順・名前順・写真の多い順</strong>
+            で並べ替えられます。既定は更新順で、
+            <strong className="text-steam-text">そのアルバムに投稿があると上に来ます</strong>。
+          </p>
+          <p>
+            グループ画面では最初の4件だけ表示され、「さらに表示」で増やせます
+            （下のゲームリストや提案が押し出されないようにするためです）。
+          </p>
+          <p>
+            <strong className="text-steam-text">サムネイル</strong>は、アルバム詳細の
+            Steamアイコンのボタンからゲームを検索して設定できます（アルバムのオーナーのみ）。
+            同じ画面から、そのゲームをグループのゲームリストに追加することもできます。
+            設定しない場合は、いちばん新しい投稿がサムネイルになります。
+          </p>
+          <p className="text-steam-muted/70">
+            補足：1つのグループにアルバムが100件を超えると、更新の古いものは一覧に読み込まれません
+            （その場合は画面にその旨が出ます）。
+          </p>
+        </div>
       ),
     },
     {
       id: "search",
       title: "スクショを探す",
       body: (
-        <p>
-          サイドバーの「検索」から、ゲームタイトル・投稿者・投稿日の範囲で写真/動画を絞り込めます。自分が閲覧権限を持つアルバムの投稿のみが対象です。
-        </p>
+        <div className="flex flex-col gap-3">
+          <p>
+            サイドバーの「検索」から、
+            <strong className="text-steam-text">ゲームタイトル・説明</strong>
+            ・投稿者・投稿日の範囲で写真/動画を絞り込めます。写真に書いた説明も対象なので、
+            「あのときの決めゼリフ」のような覚え書きからも辿れます。
+            自分が閲覧権限を持つアルバムの投稿だけが対象です。
+          </p>
+          <p>
+            ゲームタイトル欄に入力すると、写真だけでなく
+            <strong className="text-steam-text">グループのゲームリストと提案</strong>
+            からも一致するものを探して、まとめて表示します。
+          </p>
+          <p className="text-steam-muted/70">
+            注意：投稿者の欄は<strong className="text-steam-text">ユーザーIDで指定します</strong>
+            （表示名では引けません）。
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: "account",
+      title: "アカウントの設定（Discord連携・表示名）",
+      body: (
+        <div className="flex flex-col gap-3">
+          <p>
+            <strong className="text-steam-text">Discord連携</strong>：Discordに投稿した画像を
+            「自分の投稿」として取り込むには、
+            <strong className="text-steam-text">Discordアカウントでログインしている必要があります</strong>。
+            設定 → Discord連携で、連携できているかを確認できます。未連携と出ている場合は、
+            一度Discordでログインし直してください。
+          </p>
+          <p>
+            <strong className="text-steam-text">表示名</strong>：設定 → プロフィールから変えられます。
+            投稿者の名前や、説明を書いた人の名前として表示されます。
+          </p>
+        </div>
       ),
     },
   ];

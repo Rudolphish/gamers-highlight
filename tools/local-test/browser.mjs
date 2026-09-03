@@ -727,6 +727,40 @@ for (const [id, label, path] of targets) {
   await page.close();
 }
 
+// ── マニュアルの節が開けること ──
+// 権限の節には表を入れてある。アコーディオンを開くまで描画されないので、
+// 開いた状態を実際に見る（描画で落ちると、閉じている限り気づけない）。
+{
+  const page = await context.newPage();
+  await page.goto(`${BASE}/manual`, { waitUntil: "networkidle" });
+
+  await page.getByRole("button", { name: /権限（オーナー／編集者／閲覧者）/ }).click();
+  await page.waitForTimeout(200);
+  const permissionText = (await page.locator("table").first().textContent()) ?? "";
+  rows.push({
+    id: "B49",
+    item: "マニュアルの権限の節に表が出る",
+    expected: "できること／必要な権限の行がある",
+    actual: permissionText.includes("必要な権限") ? "出ている" : "出ていない",
+    ok: permissionText.includes("必要な権限") && permissionText.includes("閲覧者"),
+    note: "",
+  });
+
+  await page.getByRole("button", { name: /未分類の投稿を振り分ける/ }).click();
+  await page.waitForTimeout(200);
+  const unclassifiedShown = await page.getByText("グループを選んでから").count();
+  rows.push({
+    id: "B50",
+    item: "マニュアルの未分類の節が開く",
+    expected: "本文が出る",
+    actual: unclassifiedShown > 0 ? "出ている" : "出ていない",
+    ok: unclassifiedShown > 0,
+    note: "",
+  });
+
+  await page.close();
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));
