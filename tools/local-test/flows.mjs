@@ -1849,6 +1849,11 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
 // 取り込みの経路（catchUp → ingest API → Photo）だけを本物で通す。
 // Botのコードはこれまで一切テストされておらず、実機でしか確認できなかった。
 {
+  // **Botのモジュールは読み込んだ瞬間に環境変数を掴む**（apiClient の BASE_URL / SECRET）。
+  // import より前に入れておかないと `undefined/api/discord/ingest` を叩きに行く。
+  // 手元では .env.local をシェルに読み込んでいるので気づけず、CIで初めて落ちた
+  process.env.INTERNAL_API_BASE_URL ??= BASE;
+  process.env.INTERNAL_API_SECRET ??= INTERNAL_SECRET;
   const { catchUpMissedMessages } = await import("../../apps/bot/dist/lib/catchUp.js");
 
   /**
