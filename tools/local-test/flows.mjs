@@ -1841,6 +1841,161 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ───────────────────────────────────────────────────────────
+// Botが落ちていた間の遡り取り込み（apps/bot の catchUp）
+// ───────────────────────────────────────────────────────────
+//
+// **Discordには繋がない。** 偽のクライアント（guilds → channels → messages.fetch）を渡して、
+// 取り込みの経路（catchUp → ingest API → Photo）だけを本物で通す。
+// Botのコードはこれまで一切テストされておらず、実機でしか確認できなかった。
+{
+  // **Botのモジュールは読み込んだ瞬間に環境変数を掴む**（apiClient の BASE_URL / SECRET）。
+  // import より前に入れておかないと `undefined/api/discord/ingest` を叩きに行く。
+  // 手元では .env.local をシェルに読み込んでいるので気づけず、CIで初めて落ちた
+  process.env.INTERNAL_API_BASE_URL ??= BASE;
+  process.env.INTERNAL_API_SECRET ??= INTERNAL_SECRET;
+  const { catchUpMissedMessages } = await import("../../apps/bot/dist/lib/catchUp.js");
+
+  /**
+   * 添付付きメッセージの偽物。discord.js の Message のうち、取り込みが読む分だけ持たせる。
+   * **タグを付けない**ので、取り込まれた写真は未分類のまま（アルバムに入らない）。
+   * アルバムのキャッシュに載らないので、後片付けをDB直で消しても次のスイートを壊さない
+   * （載るものはAPI経由で消す。lessons.md）。
+   */
+  const fakeMessage = (id, { bot = false, attachments = 1, contentType = "image/png", content = "", size = 1024 } = {}) => ({
+    id,
+    author: { bot, id: "100000000000000002", tag: "tester" },
+    content,
+    channelId: "700000000000000001",
+    guildId: group.guildId,
+    createdTimestamp: Date.now(),
+    attachments: new Map(
+      Array.from({ length: attachments }, (_, i) => [
+        `a${i}`,
+        {
+          id: `att-${id}-${i}`,
+          url: "http://127.0.0.1:9100/gh-local/photos/shot1.png",
+          contentType,
+          size,
+          name: "clipboard.png",
+        },
+      ])
+    ),
+  });
+
+  const fakeClient = (messages) => {
+    const channel = {
+      type: 0, // ChannelType.GuildText
+      name: "general",
+      permissionsFor: () => ({ has: () => true }),
+      messages: {
+        // `after` 付きの取得。2回目以降は空を返して打ち切る（ページングの終わり）
+        fetch: async ({ after }) => (after === "served" ? new Map() : new Map(messages.map((m) => [m.id, m]))),
+      },
+    };
+    return {
+      guilds: {
+        cache: new Map([
+          [
+            "g1",
+            {
+              members: { me: {} },
+              channels: { cache: new Map([["c1", channel]]) },
+            },
+          ],
+        ]),
+      },
+    };
+  };
+
+  const photoCount = () => db.photo.count({ where: { discordMessageId: { startsWith: "catchup-" } } });
+
+  // **前回の生存報告が無ければ遡らない**（どこまで戻ればよいか分からないため）
+  const noPrevious = await catchUpMissedMessages(fakeClient([fakeMessage("catchup-1")]), null);
+  check(
+    "F134 前回の生存報告が無ければ遡らない",
+    noPrevious.since === null && noPrevious.ingestedAttachments === 0,
+    JSON.stringify(noPrevious)
+  );
+
+  // **落ちていた間のメッセージが取り込まれること**（これが本題）
+  const before = await photoCount();
+  const ran = await catchUpMissedMessages(
+    fakeClient([fakeMessage("catchup-2"), fakeMessage("catchup-3")]),
+    new Date(Date.now() - 60 * 60 * 1000) // 1時間前まで生きていた
+  );
+  const after = await photoCount();
+  check(
+    "F135 落ちていた間の投稿が遡って取り込まれる",
+    ran.ingestedAttachments === 2 && after === before + 2,
+    `${JSON.stringify(ran)} / Photo ${before} → ${after}`
+  );
+
+  // **2回流しても重複しない**（discordMessageId のユニーク制約で弾かれる）
+  await catchUpMissedMessages(
+    fakeClient([fakeMessage("catchup-2"), fakeMessage("catchup-3")]),
+    new Date(Date.now() - 60 * 60 * 1000)
+  );
+  const afterTwice = await photoCount();
+  check(
+    "F136 同じメッセージを二度遡っても重複しない",
+    afterTwice === after,
+    `${after} → ${afterTwice}`
+  );
+
+  // **Bot自身の投稿と、添付の無いメッセージは対象外**（messageCreate と同じ条件）
+  const beforeSkip = await photoCount();
+  const skipped = await catchUpMissedMessages(
+    fakeClient([
+      fakeMessage("catchup-bot", { bot: true }),
+      fakeMessage("catchup-empty", { attachments: 0 }),
+      fakeMessage("catchup-pdf", { contentType: "application/pdf" }),
+      fakeMessage("catchup-bigvideo", { contentType: "video/mp4", size: 40 * 1024 * 1024 }),
+    ]),
+    new Date(Date.now() - 60 * 60 * 1000)
+  );
+  const afterSkip = await photoCount();
+  check(
+    "F137 Botの投稿・添付なし・非対応形式・大きすぎる動画は取り込まない",
+    skipped.ingestedAttachments === 0 && afterSkip === beforeSkip,
+    `${JSON.stringify(skipped)} / Photo ${beforeSkip} → ${afterSkip}`
+  );
+
+  // **長く落ちていても遡りすぎない**（起点が7日前で頭打ちになる）
+  const longDown = await catchUpMissedMessages(
+    fakeClient([]),
+    new Date(Date.now() - 60 * 24 * 60 * 60 * 1000) // 60日前
+  );
+  const days = (Date.now() - longDown.since.getTime()) / 86400000;
+  check(
+    "F138 長く落ちていても遡りは7日で打ち切る",
+    days > 6.9 && days < 7.1,
+    `${days.toFixed(2)} 日前まで遡ろうとした`
+  );
+
+  // **起点は生存報告の「更新前の時刻」で渡される。** ここが常に null になると
+  // Botは永久に遡らなくなる（しかも静かに）ので、APIの戻り値も見ておく
+  const beat1 = await api("/api/internal/bot-heartbeat", {
+    method: "POST",
+    headers: { "x-internal-secret": INTERNAL_SECRET },
+  });
+  const seenAfterFirst = (await db.botHeartbeat.findUnique({ where: { id: "bot" } }))?.lastSeenAt;
+  const beat2 = await api("/api/internal/bot-heartbeat", {
+    method: "POST",
+    headers: { "x-internal-secret": INTERNAL_SECRET },
+  });
+  check(
+    "F139 生存報告は更新前の時刻を返す（遡りの起点になる）",
+    beat1.status === 200 &&
+      beat2.status === 200 &&
+      !!beat2.json?.previousSeenAt &&
+      new Date(beat2.json.previousSeenAt).getTime() === seenAfterFirst?.getTime(),
+    `previousSeenAt=${beat2.json?.previousSeenAt} / DB=${seenAfterFirst?.toISOString()}`
+  );
+
+  await db.photo.deleteMany({ where: { discordMessageId: { startsWith: "catchup-" } } });
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

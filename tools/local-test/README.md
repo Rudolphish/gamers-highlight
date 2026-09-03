@@ -50,6 +50,7 @@ su postgres -c "psql -p 5433 -h /tmp -U postgres -d gh -f /tmp/gh-schema.sql"
 # 4) モックのストレージと本番ビルドを起動する
 node tools/local-test/mock-r2.mjs &
 pnpm --filter web build
+pnpm --filter bot build     # F の「Botの遡り取り込み」が apps/bot/dist を読む
 NODE_OPTIONS="--require $PWD/tools/local-test/fetch-stub.cjs" pnpm --filter web start &
 
 # 5) 全部流して docs/test-results.md を作り直す
@@ -112,7 +113,7 @@ IDの頭文字はスイートを表す: `P`=ページ、`R`=API権限、`F`=主�
 | `fetch-stub.cjs` | Steam/ITAD/YouTube/HowLongToBeat/Discord の差し替え。`--require` で読ませる |
 | `sweep.mjs` | **P**: 全ページを未ログイン＋3役割で開き、期待ステータスと突き合わせる |
 | `api-sweep.mjs` | **R**: APIの権限を役割ごとに期待値と突き合わせる |
-| `flows.mjs` | **F**: アップロード・招待・提案・ゲーム追加・Discord取り込み・エラー通報・cron・活動ログ・週次まとめ・週次通知・活動カレンダー を通しで確認 |
+| `flows.mjs` | **F**: アップロード・招待・提案・ゲーム追加・Discord取り込み・エラー通報・cron・活動ログ・週次まとめ・週次通知・活動カレンダー・アルバムの更新順・**Botの遡り取り込み**（`apps/bot/dist` を読む。Discordには繋がず偽のクライアントを渡す） を通しで確認 |
 | `external-failure.mjs` | **X**: 外部APIを全滅させてもページが500にならないこと |
 | `browser.mjs` | **B**: 実ブラウザ（Chromium）で開いて例外が出ないこと。ブラウザは `CHROMIUM_PATH` で指定する |
 | `query-count.mjs` | 1ページの描画で何回DBを引いているかを数える（`--save` / `--compare`）。本番はネットワーク越しで1クエリ＝1往復なので、**見るべきは所要時間ではなくクエリ数** |
