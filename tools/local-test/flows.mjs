@@ -2101,6 +2101,109 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 }
 
+// ───────────────────────────────────────────────────────────
+// U. アルバム名の変更（PATCH /api/albums/:id）
+// ───────────────────────────────────────────────────────────
+{
+  // 自分のグループに専用のアルバムを作って試す（seedのアルバムを書き換えると
+  // 後ろのスイートが名前で探せなくなる）
+  const created = await api("/api/albums", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { title: "改名前アルバム", description: "説明は消えてはいけない", groupId: group.id },
+  });
+  const target = created.json?.album?.id;
+  check("F148 テスト用アルバムを作れる", created.status === 201 && Boolean(target), created.text);
+
+  // サムネイル用のapp IDも入れておく。名前だけ送ったときに巻き添えで消えないことを見るため
+  await api(`/api/albums/${target}`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { steamAppId: 1245620 },
+  });
+
+  const renamed = await api(`/api/albums/${target}`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { title: "改名後アルバム" },
+  });
+  const afterRename = await db.album.findUnique({ where: { id: target } });
+  check(
+    "F149 オーナーはアルバム名を変えられる",
+    renamed.status === 200 && afterRename?.title === "改名後アルバム",
+    `${renamed.status} ${afterRename?.title}`
+  );
+
+  // **名前だけ送ったときに他の項目を巻き添えにしない。**
+  // `description: body.description ?? null` のように書くと、名前を変えただけで
+  // 説明とサムネイルが消える（送っていない項目は undefined のまま渡す必要がある）
+  check(
+    "F150 名前だけ変えても説明とサムネイルは消えない",
+    afterRename?.description === "説明は消えてはいけない" && afterRename?.steamAppId === 1245620,
+    `description=${afterRename?.description} steamAppId=${afterRename?.steamAppId}`
+  );
+
+  // 検証が無かった頃は空文字がそのまま保存でき、名前の無いアルバムが作れた
+  const empty = await api(`/api/albums/${target}`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { title: "   " },
+  });
+  const afterEmpty = await db.album.findUnique({ where: { id: target } });
+  check(
+    "F151 空のアルバム名は400（名前は消えない）",
+    empty.status === 400 && afterEmpty?.title === "改名後アルバム",
+    `${empty.status} ${afterEmpty?.title}`
+  );
+
+  const tooLong = await api(`/api/albums/${target}`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { title: "あ".repeat(101) },
+  });
+  check("F152 100文字を超えるアルバム名は400", tooLong.status === 400, tooLong.status);
+
+  // **グループの権限は配下のアルバムに VIEWER までしか効かない。**
+  // member はグループのEDITORだが、このアルバムには招待されていないので変えられない
+  const byGroupMember = await api(`/api/albums/${target}`, {
+    method: "PATCH",
+    cookie: memberCookie,
+    body: { title: "勝手に改名" },
+  });
+  check(
+    "F153 グループの編集者というだけでは他人のアルバム名を変えられない",
+    byGroupMember.status === 403,
+    byGroupMember.status
+  );
+
+  // アルバム単位で編集者として招待されていれば変えられる（APIの条件はEDITOR以上）
+  const member = await db.user.findUnique({ where: { email: "member@example.com" } });
+  await db.albumMember.create({ data: { albumId: target, userId: member.id, role: "EDITOR" } });
+  const byAlbumEditor = await api(`/api/albums/${target}`, {
+    method: "PATCH",
+    cookie: memberCookie,
+    body: { title: "編集者が改名" },
+  });
+  const afterEditor = await db.album.findUnique({ where: { id: target } });
+  check(
+    "F154 アルバムの編集者はアルバム名を変えられる",
+    byAlbumEditor.status === 200 && afterEditor?.title === "編集者が改名",
+    `${byAlbumEditor.status} ${afterEditor?.title}`
+  );
+
+  // 名前はグループ詳細のアルバム一覧にも出る。無効化を忘れると古い名前が残る
+  const groupPage = await fetch(`${BASE}/groups/${group.id}`, { headers: { cookie: adminCookie } });
+  const groupHtml = await groupPage.text();
+  check(
+    "F155 変えた名前がグループ画面に出る（キャッシュが残らない）",
+    groupHtml.includes("編集者が改名") && !groupHtml.includes("改名前アルバム"),
+    `新しい名前=${groupHtml.includes("編集者が改名")} 古い名前=${groupHtml.includes("改名前アルバム")}`
+  );
+
+  // 後片付け。作ったときと同じ経路（API）で消す
+  await api(`/api/albums/${target}`, { method: "DELETE", cookie: adminCookie });
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

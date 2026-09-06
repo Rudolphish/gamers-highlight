@@ -7,10 +7,11 @@ import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activityLog";
 import { z } from "zod";
+import { MAX_ALBUM_DESCRIPTION_LENGTH, MAX_ALBUM_TITLE_LENGTH } from "@/lib/albumFields";
 
 const createAlbumSchema = z.object({
-  title: z.string().trim().min(1, "title is required").max(100),
-  description: z.string().trim().max(500).optional(),
+  title: z.string().trim().min(1, "title is required").max(MAX_ALBUM_TITLE_LENGTH),
+  description: z.string().trim().max(MAX_ALBUM_DESCRIPTION_LENGTH).optional(),
   gameTitle: z.string().trim().max(100).optional(),
   groupId: z.string().trim().min(1, "groupId is required"),
 });
