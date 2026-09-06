@@ -70,6 +70,12 @@ jobs:
       - name: キャッシュ無効化の静的チェック
         run: node tools/local-test/audit-invalidation.mjs
 
+      # WebとBotでメディアの上限値が食い違っていないかを見る。
+      # Botは rootDir の都合でWeb側の定数をimportできず写しを持っているので、
+      # 放っておくと必ず片方だけ古くなる。食い違うと動画が黙って捨てられる。
+      - name: メディア上限値の食い違いチェック
+        run: node tools/local-test/audit-media-limits.mjs
+
       # 活動ログ（週次まとめ／カレンダーの元データ）の記録漏れを見る。
       # 記録は書き込みハンドラから手で呼ぶ形なので、放っておくと必ずどこかで忘れる。
       # 忘れるとその出来事だけが集計から永久に消え、しかも画面には何も出ないので気づけない。

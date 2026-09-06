@@ -1,6 +1,7 @@
 import { ChannelType, SnowflakeUtil, type Client, type Message, type TextChannel } from "discord.js";
 import { ingestPhoto } from "./apiClient.js";
 import { extractGameTag } from "./gameTag.js";
+import { MAX_VIDEO_SIZE_BYTES } from "./mediaLimits.js";
 
 /**
  * Botが落ちていた間に投稿された画像・動画を、起動時に遡って取り込む。
@@ -150,7 +151,7 @@ async function ingestMessage(message: Message): Promise<number> {
     const isImage = contentType.startsWith("image/");
     const isVideo = contentType.startsWith("video/");
     if (!isImage && !isVideo) continue;
-    if (isVideo && attachment.size > 30 * 1024 * 1024) continue;
+    if (isVideo && attachment.size > MAX_VIDEO_SIZE_BYTES) continue;
 
     await ingestPhoto({
       discordUserId: message.author.id,

@@ -17,7 +17,10 @@ import { resolveOrCreateAlbum } from "@/lib/gameIdentify";
  *   discordUserId, channelId, guildId, attachmentUrl, contentType,
  *   sizeBytes, durationSeconds?, discordMessageId, postedAt, rawTag?, fileName?
  * }
- * durationSeconds は動画のみ。Botがdiscord.jsのAttachment#durationから取得して渡す。
+ * **durationSeconds は実際には送られてこない。** discord.jsの Attachment#duration は
+ * ボイスメッセージ用で、動画の添付には長さの情報が無い。下の判定は将来送れるように
+ * なった場合の受け皿として残しているだけで、いまDiscord経由の動画を守っているのは
+ * サイズ上限だけ（Discord自身の添付上限もあるので実害は小さい）。
  *
  * ゲーム判定の優先順位：
  *   1. rawTag（メッセージ本文の #eldenring 等）が指定されていれば最優先
@@ -28,6 +31,12 @@ import { resolveOrCreateAlbum } from "@/lib/gameIdentify";
  *        どちらも無ければゲーム名でアルバムを新規作成する（rawTag経由と同じ扱い）
  *   4. ファイル名から判別できなければ未分類（albumId/gameTitle は null のまま保存）
  */
+// **動画のバイナリはこの関数を丸ごと通る。** Discordの一時URLから落として
+// R2へ上げ直すため（添付URLは失効するので、そのまま保存できない）。
+// 上限を30MB→100MBに上げた分だけ所要時間も伸びるので、既定（Hobbyで10秒）では
+// 途中で打ち切られうる。60秒はこのプランで指定できる上限。
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
   const secret = req.headers.get("x-internal-secret");
   if (secret !== process.env.INTERNAL_API_SECRET) {
@@ -56,7 +65,7 @@ export async function POST(req: Request) {
   if (typeof sizeBytes === "number" && sizeBytes > maxSizeFor(mediaType)) {
     return NextResponse.json({ skipped: `exceeds ${mediaType.toLowerCase()} size limit` });
   }
-  if (mediaType === "VIDEO" && durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+  if (mediaType === "VIDEO" && typeof durationSeconds === "number" && durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
     return NextResponse.json({ skipped: "video exceeds duration limit" });
   }
 

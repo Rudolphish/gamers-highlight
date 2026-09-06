@@ -1,6 +1,7 @@
 import type { Message } from "discord.js";
 import { ingestPhoto } from "../lib/apiClient.js";
 import { extractGameTag } from "../lib/gameTag.js";
+import { MAX_VIDEO_SIZE_BYTES } from "../lib/mediaLimits.js";
 import { askForGame } from "./gameSelect.js";
 
 /**
@@ -34,7 +35,7 @@ export async function handleMessageCreate(message: Message) {
       continue;
     }
 
-    if (isVideo && attachment.size > 30 * 1024 * 1024) {
+    if (isVideo && attachment.size > MAX_VIDEO_SIZE_BYTES) {
       console.log(`[bot] skip oversized video: ${attachment.size} bytes`);
       continue;
     }

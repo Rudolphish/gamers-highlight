@@ -140,6 +140,82 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     body: { contentType: "video/mp4", sizeBytes: 100, durationSeconds: 99999 },
   });
   check("F11 長すぎる動画は413", tooLong.status === 413, tooLong.status);
+
+  // 上限の境目（2026-09-06に 30MB/30秒 → 100MB/2分 へ引き上げた）。
+  // **ちょうどの値が通ることまで見る。** 「超えたら413」だけだと、
+  // 比較が > か >= かを取り違えても気づけない（上限ちょうどのファイルが弾かれる）。
+  // 正本は apps/web/src/lib/media-limits.ts。ここはTSをimportできないので写している
+  // （上限を変えるとこの4件が落ちる。落ちたら値を合わせる）
+  const MAX_SEC = 120;
+  const MAX_BYTES = 100 * 1024 * 1024;
+
+  const exactLen = await api("/api/photos/upload-url", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { contentType: "video/mp4", sizeBytes: 100, durationSeconds: MAX_SEC },
+  });
+  check(`F142 ${MAX_SEC}秒ちょうどの動画は通る`, exactLen.status === 201, exactLen.status);
+
+  const overLen = await api("/api/photos/upload-url", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { contentType: "video/mp4", sizeBytes: 100, durationSeconds: MAX_SEC + 1 },
+  });
+  check(`F143 ${MAX_SEC + 1}秒の動画は413`, overLen.status === 413, overLen.status);
+
+  const exactSize = await api("/api/photos/upload-url", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { contentType: "video/mp4", sizeBytes: MAX_BYTES },
+  });
+  check("F144 100MBちょうどの動画は通る", exactSize.status === 201, exactSize.status);
+
+  const overSize = await api("/api/photos/upload-url", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { contentType: "video/mp4", sizeBytes: MAX_BYTES + 1 },
+  });
+  check("F145 100MBを1バイト超えた動画は413", overSize.status === 413, overSize.status);
+
+  // 長さを測れない動画（duration が Infinity で返るwebmなど）は durationSeconds を送らない。
+  // ここで弾くと正常な短い動画まで上げられなくなるので、送られてこない場合は判定しない。
+  const noDuration = await api("/api/photos/upload-url", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { contentType: "video/mp4", sizeBytes: 100 },
+  });
+  check("F146 長さを送らない動画は通る（測れないファイルがあるため）", noDuration.status === 201, noDuration.status);
+
+  // **小数の長さ。** Photo.durationSeconds は Int だが、Prismaは弾かずに0方向へ
+  // 切り捨てる（5.22で実測: 12.9 → 12）。エラーにならないので気づけない。
+  // サーバー側で四捨五入しているので 12.9 は 13 になる。**12.9 を使うのが要点**で、
+  // 12.34 のような値だと切り捨てでも四捨五入でも同じ12になり、丸めを外しても通ってしまう。
+  const fractional = await api("/api/photos/upload-url", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { contentType: "video/mp4", sizeBytes: 12, durationSeconds: 12.9 },
+  });
+  const fracPhoto = await api("/api/photos", {
+    method: "POST",
+    cookie: adminCookie,
+    body: {
+      contentType: "video/mp4",
+      mediaUrl: fractional.json.publicUrl,
+      sizeBytes: 12,
+      durationSeconds: 12.9,
+      albumId: album.id,
+    },
+  });
+  check(
+    "F147 小数の長さは四捨五入して保存される（Prismaの切り捨てに任せない）",
+    fracPhoto.status === 201 && fracPhoto.json?.photo?.durationSeconds === 13,
+    `${fracPhoto.status} ${JSON.stringify(fracPhoto.json?.photo?.durationSeconds)}`
+  );
+  // 片付けはAPI経由で行う（DB直で消すとキャッシュ無効化が走らず、
+  // 後ろのブラウザスイートが消えた写真をクリックして落ちる。実際に踏んだ）
+  if (fracPhoto.json?.photo?.id) {
+    await api(`/api/photos/${fracPhoto.json.photo.id}`, { method: "DELETE", cookie: adminCookie });
+  }
 }
 
 // ───────────────────────────────────────────────────────────
@@ -1855,6 +1931,9 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   process.env.INTERNAL_API_BASE_URL ??= BASE;
   process.env.INTERNAL_API_SECRET ??= INTERNAL_SECRET;
   const { catchUpMissedMessages } = await import("../../apps/bot/dist/lib/catchUp.js");
+  // 上限値もBot本体から取る。ベタ書きしていたせいで、上限を30MB→100MBに上げたとき
+  // 「大きすぎる動画」のつもりの40MBが通ってしまい、F137が落ちた
+  const { MAX_VIDEO_SIZE_BYTES } = await import("../../apps/bot/dist/lib/mediaLimits.js");
 
   /**
    * 添付付きメッセージの偽物。discord.js の Message のうち、取り込みが読む分だけ持たせる。
@@ -1950,7 +2029,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       fakeMessage("catchup-bot", { bot: true }),
       fakeMessage("catchup-empty", { attachments: 0 }),
       fakeMessage("catchup-pdf", { contentType: "application/pdf" }),
-      fakeMessage("catchup-bigvideo", { contentType: "video/mp4", size: 40 * 1024 * 1024 }),
+      fakeMessage("catchup-bigvideo", { contentType: "video/mp4", size: MAX_VIDEO_SIZE_BYTES + 1 }),
     ]),
     new Date(Date.now() - 60 * 60 * 1000)
   );

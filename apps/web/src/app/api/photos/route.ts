@@ -58,7 +58,14 @@ export async function POST(req: Request) {
     );
   }
 
-  if (mediaType === "VIDEO" && body.durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+  // 長さはクライアントの申告（バイナリがサーバーを通らないので測れない）。
+  // 送られてこない場合は判定しない：ブラウザがメタデータを読めない動画があるため
+  // （lib/video-thumbnail.ts の readVideoDuration を参照）。
+  if (
+    mediaType === "VIDEO" &&
+    typeof body.durationSeconds === "number" &&
+    body.durationSeconds > MAX_VIDEO_DURATION_SECONDS
+  ) {
     return NextResponse.json(
       { error: `video must be ${MAX_VIDEO_DURATION_SECONDS}s or shorter` },
       { status: 413 }
@@ -88,7 +95,13 @@ export async function POST(req: Request) {
       mediaUrl: body.mediaUrl,
       thumbnailUrl: mediaType === "VIDEO" ? body.thumbnailUrl ?? null : null,
       sizeBytes: body.sizeBytes ?? null,
-      durationSeconds: mediaType === "VIDEO" ? body.durationSeconds ?? null : null,
+      // 列は Int。**Prismaは小数を弾かず、0方向へ切り捨てて入れる**（5.22で実測: 12.9 → 12）。
+      // エラーにならないぶん気づけないので、こちらで四捨五入してから渡す
+      // （切り捨てだと1分59.6秒のクリップが1分59秒として残る）
+      durationSeconds:
+        mediaType === "VIDEO" && typeof body.durationSeconds === "number"
+          ? Math.round(body.durationSeconds)
+          : null,
       uploaderId: user.id,
       albumId: body.albumId ?? null,
       gameTitle: body.gameTitle ?? null,

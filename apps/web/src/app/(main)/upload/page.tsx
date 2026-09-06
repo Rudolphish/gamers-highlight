@@ -3,10 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Upload as UploadIcon, Image as ImageIcon, Film, X, Check, AlertCircle, Wand2 } from "lucide-react";
-import { extractFirstFrame } from "@/lib/video-thumbnail";
+import { extractFirstFrame, readVideoDuration } from "@/lib/video-thumbnail";
+import { MAX_VIDEO_DURATION_SECONDS, MEDIA_LIMIT_LABELS } from "@/lib/media-limits";
 import { parseSteamScreenshotName } from "@/lib/steamScreenshot";
 
-// アップロード画面：画像 or 30秒以内の動画クリップを複数まとめてアップロード可能。
+// アップロード画面：画像 or 短い動画クリップ（上限は lib/media-limits.ts）を複数まとめてアップロード可能。
 //
 // 1ファイルごとの流れ：
 //   1. contentTypeで画像/動画を判定
@@ -141,20 +142,40 @@ async function uploadOne(
   albumId: string
 ) {
   let thumbnailUrl: string | undefined;
+  let durationSeconds: number | undefined;
 
   if (item.mode === "video") {
+    // **長さはここでしか測れない。** バイナリはサーバーを通らずブラウザからR2へ直接上がるため、
+    // サーバー側は申告された値を見るしかない（サイズと同じ扱い）。
+    // 測れないファイル（duration が Infinity で返るwebmなど）は null が返り、長さの判定は行わない。
+    // **秒に丸めてから判定する。** Photo.durationSeconds は Int で、
+    // Prismaは小数を弾かず0方向へ切り捨てる（実測: 12.9 → 12）ため、
+    // 渡す前にこちらで四捨五入しておく。判定も丸めた値で行うので、
+    // 「2分ちょうどのつもりが120.4秒だった」クリップは通る。
+    const duration = await readVideoDuration(item.file);
+    if (duration !== null) {
+      const rounded = Math.round(duration);
+      if (rounded > MAX_VIDEO_DURATION_SECONDS) {
+        throw new Error(
+          `動画が長すぎます（${rounded}秒）。${MEDIA_LIMIT_LABELS.videoDuration}までの動画にしてください`
+        );
+      }
+      durationSeconds = rounded;
+    }
+
     const thumbBlob = await extractFirstFrame(item.file);
     const thumbFile = new File([thumbBlob], "thumbnail.jpg", { type: "image/jpeg" });
     thumbnailUrl = await uploadToStorage(thumbFile);
   }
 
-  const mediaUrl = await uploadToStorage(item.file);
+  const mediaUrl = await uploadToStorage(item.file, durationSeconds !== undefined ? { durationSeconds } : {});
   const { gameTitle, albumId: resolvedAlbumId } = resolveTagging(item, identified, gameTag, albumId);
 
   await createPhotoRecord({
     contentType: item.file.type,
     mediaUrl,
     sizeBytes: item.file.size,
+    durationSeconds,
     thumbnailUrl,
     gameTitle,
     albumId: resolvedAlbumId,
@@ -288,7 +309,7 @@ export default function UploadPage() {
         アップロード
       </h1>
       <p className="mt-1 font-mono text-xs text-steam-muted">
-        画像、または30秒以内の動画クリップを複数まとめて選択できます
+        {`画像、または${MEDIA_LIMIT_LABELS.videoDuration}以内の動画クリップを複数まとめて選択できます`}
       </p>
 
       <input
@@ -310,7 +331,7 @@ export default function UploadPage() {
           {items.length > 0 ? "選び直す（クリック）" : "クリックしてファイルを選択（複数選択可）"}
         </p>
         <p className="mt-1 font-mono text-3xs text-steam-muted/60">
-          画像: 最大15MB／動画: 最大30MB・30秒まで
+          {`画像: 最大${MEDIA_LIMIT_LABELS.imageSize}／動画: 最大${MEDIA_LIMIT_LABELS.videoSize}・${MEDIA_LIMIT_LABELS.videoDuration}まで`}
         </p>
       </button>
 
