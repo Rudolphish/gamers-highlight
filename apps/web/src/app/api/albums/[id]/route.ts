@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { invalidateAlbum } from "@/lib/cacheTags";
 import { hasAlbumPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activityLog";
 import { cacheSteamHeaderImage } from "@/lib/albumCover";
+import { MAX_ALBUM_DESCRIPTION_LENGTH, MAX_ALBUM_TITLE_LENGTH } from "@/lib/albumFields";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const user = await getCurrentUser();
@@ -22,6 +24,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return NextResponse.json({ album });
 }
 
+// 送られてきた項目だけを更新する。**全部 optional。** 画面はサムネイル設定なら
+// `{steamAppId}` だけ、名前の変更なら `{title}` だけを送ってくる。
+// 検証が無かった頃は `title: ""` がそのまま保存でき、名前の無いアルバムが作れた。
+const updateAlbumSchema = z.object({
+  title: z.string().trim().min(1, "title is required").max(MAX_ALBUM_TITLE_LENGTH).optional(),
+  description: z.string().trim().max(MAX_ALBUM_DESCRIPTION_LENGTH).nullable().optional(),
+  steamAppId: z.number().int().positive().nullable().optional(),
+});
+
 // PATCH /api/albums/:id … OWNER/EDITORのみ更新可
 // audit-activity-log: 意図的に記録しない（アルバム名や説明の手直しは「出来事」ではない。
 // カレンダーに『アルバム名を変えた』が並ぶと、見たいもの——写真とゲームの動き——が埋もれる）
@@ -32,27 +43,27 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const allowed = await hasAlbumPermission(params.id, user.id, "EDITOR");
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const body = await req.json();
-  if (
-    body.steamAppId !== undefined &&
-    body.steamAppId !== null &&
-    typeof body.steamAppId !== "number"
-  ) {
-    return NextResponse.json({ error: "invalid steamAppId" }, { status: 400 });
+  const parsed = updateAlbumSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  // **undefined と null を区別する。** 省略された項目は触らない（`undefined` を渡すと
+  // Prismaはその列を更新しない）が、`null` は「解除する」という指示なのでそのまま渡す。
+  // 作成時（POST /api/albums）と同じ上限・同じ trim を使う——別々に書くと
+  // 「作れるのに直せない」名前ができる。
   const album = await db.album.update({
     where: { id: params.id },
     data: {
-      title: body.title,
-      description: body.description,
-      steamAppId: body.steamAppId,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      steamAppId: parsed.data.steamAppId,
     },
   });
 
   // サムネイルに使う正しいURLを控えておく（無いと組み立てURLに落ちて空表示になる）
-  if (typeof body.steamAppId === "number") {
-    await cacheSteamHeaderImage(body.steamAppId);
+  if (typeof parsed.data.steamAppId === "number") {
+    await cacheSteamHeaderImage(parsed.data.steamAppId);
   }
 
   // タイトル・カバーはアルバム詳細にもグループ詳細にも出るので両方飛ばす

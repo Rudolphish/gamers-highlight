@@ -761,6 +761,112 @@ for (const [id, label, path] of targets) {
   await page.close();
 }
 
+// ── アルバム名の変更（鉛筆アイコン） ──
+// **入口の出し分けまで見る。** サーバー側の権限（F153）は別に確認しているが、
+// 「権限が無い人に入口を出さない」はページ側の判断なので、実際に描かせないと分からない。
+{
+  const page = await context.newPage();
+  await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+
+  const pencil = page.getByRole("button", { name: "アルバム名を変更" });
+  rows.push({
+    id: "B51",
+    item: "アルバムのオーナーには名前の変更ボタンが出る",
+    expected: "出る",
+    actual: (await pencil.count()) > 0 ? "出ている" : "出ていない",
+    ok: (await pencil.count()) > 0,
+    note: "",
+  });
+
+  // 実際に書き換えて、見出しが変わるところまで。**元の名前に戻してから終わる**
+  // （このスイートを2回流すと2回目が別の状態から始まるため。lessons.md）
+  const original = "エルデンリング";
+  const renamed = `${original}（改名テスト）`;
+  let heading = "";
+  if ((await pencil.count()) > 0) {
+    await pencil.click();
+    const input = page.getByRole("textbox", { name: "アルバム名" });
+    await input.fill(renamed);
+    await page.getByRole("button", { name: "アルバム名を保存" }).click();
+    await page.waitForTimeout(1200);
+    heading = (await page.getByRole("heading", { level: 1 }).first().textContent()) ?? "";
+  }
+  rows.push({
+    id: "B52",
+    item: "名前を書き換えると見出しが変わる",
+    expected: renamed,
+    actual: heading,
+    ok: heading.trim() === renamed,
+    note: "",
+  });
+
+  // 空のまま保存しようとしたらその場で止まる（APIまで飛ばさない）
+  let emptyBlocked = false;
+  if (heading.trim() === renamed) {
+    await page.getByRole("button", { name: "アルバム名を変更" }).click();
+    const input = page.getByRole("textbox", { name: "アルバム名" });
+    await input.fill("   ");
+    await page.getByRole("button", { name: "アルバム名を保存" }).click();
+    await page.waitForTimeout(400);
+    emptyBlocked = (await page.getByText("アルバム名を入力してください").count()) > 0;
+    // 元に戻す
+    await input.fill(original);
+    await page.getByRole("button", { name: "アルバム名を保存" }).click();
+    await page.waitForTimeout(1200);
+  }
+  rows.push({
+    id: "B53",
+    item: "空のアルバム名は保存できない",
+    expected: "その場でエラーが出る",
+    actual: emptyBlocked ? "出た" : "出ない",
+    ok: emptyBlocked,
+    note: "",
+  });
+
+  const restored = (await page.getByRole("heading", { level: 1 }).first().textContent()) ?? "";
+  rows.push({
+    id: "B54",
+    item: "テストの後始末で元の名前に戻っている",
+    expected: original,
+    actual: restored.trim(),
+    ok: restored.trim() === original,
+    note: "",
+  });
+
+  await page.close();
+
+  // グループの編集者でも、そのアルバムに招待されていなければ入口は出ない
+  // （グループの権限が配下のアルバムに与えるのは VIEWER まで）
+  const memberContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await memberContext.addCookies([
+    {
+      name: "next-auth.session-token",
+      value: await encode({
+        token: { name: "member", email: "member@example.com", sub: "member@example.com" },
+        secret: SECRET,
+        maxAge: 3600,
+      }),
+      domain: "127.0.0.1",
+      path: "/",
+      httpOnly: true,
+    },
+  ]);
+  const memberPage = await memberContext.newPage();
+  await memberPage.goto(`${BASE}/albums/${ids.adminOnlyAlbumId}`, { waitUntil: "networkidle" });
+  const memberPencil = await memberPage.getByRole("button", { name: "アルバム名を変更" }).count();
+  const memberSeesAlbum = (await memberPage.getByRole("heading", { level: 1 }).count()) > 0;
+  rows.push({
+    id: "B55",
+    item: "アルバムに招待されていない人には変更ボタンが出ない（閲覧はできる）",
+    expected: "ボタン無し／中身は見える",
+    actual: `ボタン${memberPencil}件 / 見出し${memberSeesAlbum ? "あり" : "なし"}`,
+    ok: memberPencil === 0 && memberSeesAlbum,
+    note: "",
+  });
+  await memberPage.close();
+  await memberContext.close();
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));

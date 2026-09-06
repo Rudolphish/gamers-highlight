@@ -10,6 +10,7 @@ import { AlbumTagManager } from "@/components/discord/AlbumTagManager";
 import { ShareModal } from "@/components/album/ShareModal";
 import { DeleteAlbumButton } from "@/components/album/DeleteAlbumButton";
 import { SteamCoverPicker } from "@/components/album/SteamCoverPicker";
+import { AlbumTitleEditor } from "@/components/album/AlbumTitleEditor";
 
 // アルバム詳細画面：写真グリッド表示、メンバー一覧、タグ管理
 export default async function AlbumDetailPage({
@@ -61,6 +62,16 @@ export default async function AlbumDetailPage({
 
   const isOwner = currentUser?.id === album.ownerId;
 
+  // **アルバム名を変えられるのは EDITOR 以上**（`PATCH /api/albums/:id` と同じ条件）。
+  // グループの権限が配下のアルバムに与えるのは VIEWER までなので、
+  // グループのメンバーというだけでは変えられない（`lib/permissions.ts`）。
+  // ここは入口を出すかどうかの判断だけで、権限は毎回サーバーで見ている。
+  const canRename =
+    isOwner ||
+    album.members.some(
+      (m) => m.user.id === currentUser.id && (m.role === "EDITOR" || m.role === "OWNER")
+    );
+
   const shareMembers = [
     {
       userId: album.owner.id,
@@ -96,9 +107,13 @@ export default async function AlbumDetailPage({
 
       <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-steam-text sm:text-3xl">
-            {album.title}
-          </h1>
+          {canRename ? (
+            <AlbumTitleEditor albumId={album.id} title={album.title} />
+          ) : (
+            <h1 className="font-display text-2xl font-bold text-steam-text sm:text-3xl">
+              {album.title}
+            </h1>
+          )}
           <p className="mt-1 font-mono text-xs text-steam-muted">{memberNames.join(" / ")}</p>
           {album.groupGame && (
             <Link
