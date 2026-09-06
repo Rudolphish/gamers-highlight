@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { MEDIA_LIMIT_LABELS } from "@/lib/media-limits";
 import { ChevronDown, ExternalLink } from "lucide-react";
 
 type Section = { id: string; title: string; body: ReactNode };
@@ -316,7 +317,7 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            Discordを経由せず、サイドバーの「アップロード」から直接写真/動画を投稿することもできます。画像は15MBまで、動画は30MB・30秒までのファイルに対応しています（png/jpeg/webp、mp4/webm/mov）。
+            {`Discordを経由せず、サイドバーの「アップロード」から直接写真/動画を投稿することもできます。画像は${MEDIA_LIMIT_LABELS.imageSize}まで、動画は${MEDIA_LIMIT_LABELS.videoSize}・${MEDIA_LIMIT_LABELS.videoDuration}までのファイルに対応しています（png/jpeg/webp、mp4/webm/mov）。`}
           </p>
           <p>
             <strong className="text-steam-text">Steamのスクショはゲームを自動で判別します。</strong>

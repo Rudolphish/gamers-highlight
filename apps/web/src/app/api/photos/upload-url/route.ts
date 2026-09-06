@@ -28,7 +28,14 @@ export async function POST(req: Request) {
     );
   }
 
-  if (mediaType === "VIDEO" && body.durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+  // 長さはクライアントの申告（バイナリがサーバーを通らないので測れない）。
+  // 送られてこない場合は判定しない：ブラウザがメタデータを読めない動画があるため
+  // （lib/video-thumbnail.ts の readVideoDuration を参照）。
+  if (
+    mediaType === "VIDEO" &&
+    typeof body.durationSeconds === "number" &&
+    body.durationSeconds > MAX_VIDEO_DURATION_SECONDS
+  ) {
     return NextResponse.json(
       { error: `video must be ${MAX_VIDEO_DURATION_SECONDS}s or shorter` },
       { status: 413 }

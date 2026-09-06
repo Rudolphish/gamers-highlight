@@ -288,6 +288,33 @@ AWS SDK v3は既定（`requestChecksumCalculation: "WHEN_SUPPORTED"`）で
 
 同じ形の判断が要るのは「送信・通知・外部への書き込みの後に、状態を進める」全ての箇所。
 
+### `Int` の列に小数を渡すとPrismaは黙って切り捨てる
+
+エラーにはならない。**0方向へ切り捨てて保存される**（Prisma 5.22で実測: `12.9` → `12`、`12.5` → `12`）。
+
+動画の長さは `<video>` のメタデータから小数で返るので、`Photo.durationSeconds`（`Int`）に
+そのまま渡すと1分59.6秒のクリップが1分59秒として残る。**渡す前に `Math.round` する**
+（`/api/photos` と手動アップロード画面の両方でやっている）。
+
+「Prismaが弾いてくれるはず」と思って書いた検証は動かない。**弾かないので気づけない**のが問題。
+
+### 制限値は「送っていなければ効かない」
+
+`MAX_VIDEO_DURATION_SECONDS`（当時30秒）はAPIに判定が書いてあり、画面にもドキュメントにも
+「30秒まで」と書いてあったが、**どの経路も `durationSeconds` を送っていなかったため
+一度も効いていなかった**（2026-09-06に上限を2分へ引き上げるまで気づかなかった）。
+
+バイナリはブラウザからR2へ直接上がるのでサーバーは中身を見られない。長さを測れるのは
+クライアントだけ（`lib/video-thumbnail.ts` の `readVideoDuration`）。Discord経由は
+**添付に長さの情報が無い**ので今も測れない——**経路ごとに効く・効かないが違う**ことは
+`lib/media-limits.ts` の表に書いてある。
+
+上限値はWeb（`lib/media-limits.ts`）が正本で、Botは `rootDir` の都合でimportできず
+`apps/bot/src/lib/mediaLimits.ts` に写しを持っている。食い違うと**動画がエラーも出さずに
+消える**（Botが弾けばログだけ、ingestが弾けば `skipped` が返るだけで、どちらも投稿者には何も出ない）。
+`tools/local-test/audit-media-limits.mjs` がCIで突き合わせる。画面の文言も
+`MEDIA_LIMIT_LABELS` から組み立てること（数値をベタ書きすると同じ道具に落とされる）。
+
 ### `update` は書く列が無いと何もしない（`@updatedAt` も動かない）
 
 `db.album.update({ where: { id }, data: {} })` は**UPDATEを発行しない**（Prisma 5.22 で実測）。

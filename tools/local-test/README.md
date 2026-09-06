@@ -11,7 +11,7 @@ Vercelにも本番にも一切影響しない。外部サービスをスタブ�
 `.github/workflows/ci.yml` がPRとmasterへのpushで流す。秘密情報は要らない
 （外部は全部スタブ、DBはサービスコンテナ、環境変数はローカル専用のダミーを workflow 内で作る）。
 
-- `checks` … 型チェックと `audit-invalidation.mjs`。サーバー不要なので数分で終わる
+- `checks` … 型チェックと `audit-invalidation.mjs` / `audit-activity-log.mjs` / `audit-media-limits.mjs`。サーバー不要なので数分で終わる
 - `integration` … Postgres 16 を立てて本番ビルドを起動し、
   `sweep` / `api-sweep` / `flows` / `external-failure` / `browser`（**5スイート全部**）
 
@@ -78,6 +78,7 @@ node tools/local-test/browser.mjs           # B: 実ブラウザ（CHROMIUM_PATH
 node tools/local-test/build-report.mjs      # 表だけ作り直す
 node tools/local-test/audit-invalidation.mjs  # キャッシュ無効化の静的チェック（サーバー不要）
 node tools/local-test/audit-activity-log.mjs # 活動ログの記録漏れチェック（サーバー不要）
+node tools/local-test/audit-media-limits.mjs # メディア上限値の食い違いチェック（サーバー不要）
 ```
 
 **キャッシュ（`unstable_cache`）を触ったら `audit-invalidation.mjs` を流すこと。**
@@ -124,6 +125,7 @@ IDの頭文字はスイートを表す: `P`=ページ、`R`=API権限、`F`=主�
 | `query-count.mjs` | 1ページの描画で何回DBを引いているかを数える（`--save` / `--compare`）。本番はネットワーク越しで1クエリ＝1往復なので、**見るべきは所要時間ではなくクエリ数** |
 | `audit-invalidation.mjs` | キャッシュ無効化の呼び忘れ・GETへの混入を静的に洗い出す（サーバー不要） |
 | `audit-activity-log.mjs` | 活動ログの記録漏れ・GETへの混入を静的に洗い出す（サーバー不要）。「意図的に記録しない」は印を書いて宣言する |
+| `audit-media-limits.mjs` | アップロード上限値がWeb（`lib/media-limits.ts`）とBot（`apps/bot/src/lib/mediaLimits.ts`）で食い違っていないか、画面に数値がベタ書きされていないか、手動アップロードが長さを測って送っているかを静的に見る（サーバー不要） |
 | `run-all.mjs` | 上を全部流して表を作り直す |
 | `build-report.mjs` | `results/*.json` から `docs/test-results.md` を組み立てる |
 | `_results.mjs` | 各スイートが結果を書き出す共通処理 |

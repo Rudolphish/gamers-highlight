@@ -22,7 +22,7 @@
 - [ ] `auth.ts` に不要な認証バックドアや条件緩和が追加されていないか
 
 ## 4. アップロード制約
-- [ ] 画像15MB / 動画30MB・30秒以内のバリデーションを守っているか（`apps/web/src/lib/media-limits.ts` 相当の一元ロジックを迂回していないか）
+- [ ] 画像15MB / 動画100MB・2分以内のバリデーションを守っているか（`apps/web/src/lib/media-limits.ts` を迂回して数値をベタ書きしていないか。Bot側の写し `apps/bot/src/lib/mediaLimits.ts` と揃っているか）
 
 ## 5. モノレポ・パッケージ管理
 - [ ] pnpmワークスペースの構成（`apps/*`, `packages/*`）を崩していないか
