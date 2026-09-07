@@ -47,7 +47,11 @@ export async function GET(req: Request) {
       steamAppId: true,
       title: true,
       updatedAt: true,
-      // 紐付いたアルバムの最新の投稿日時が「直近アクティブ」の目安になる
+      // 紐付いたアルバムの最新の投稿日時が「直近アクティブ」の目安になる。
+      // audit-cover-policy: 意図的に方針を使わない（カバーではなく「最後に投稿があった日時」）
+      // **これはカバー候補ではないので `coverPhotoQuery` は使わない。**
+      // カバーはYouTubeを外すが、こちらは「動きがあったか」を見ているので
+      // YouTubeの投稿も数える（普通の投稿と同じ扱い）
       album: { select: { photos: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } } },
     },
   });

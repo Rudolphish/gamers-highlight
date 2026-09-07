@@ -1,5 +1,6 @@
 import type { GroupRole } from "@prisma/client";
 import { db } from "./db";
+import type { MediaKind } from "./mediaKind";
 
 /** 「最近使っている」と見なす期間。アクティブ率の分子はここに投稿があった人 */
 export const ACTIVE_WINDOW_DAYS = 30;
@@ -15,6 +16,8 @@ export type UserActivityRow = {
   groups: UserGroupRef[];
   images: number;
   videos: number;
+  /** YouTube動画。自前ストレージを使わないので容量には効かないが、投稿数には数える */
+  youtubeCount: number;
   total: number;
   /** 容量が分かっている分の合計。Discord経由の投稿はsizeBytesを持たないことがある */
   knownBytes: number;
@@ -62,13 +65,14 @@ export async function getUserActivity(sort: SortKey = "posts"): Promise<{
     db.photo.groupBy({ by: ["uploaderId"], where: { sizeBytes: null }, _count: { _all: true } }),
   ]);
 
-  const countOf = (userId: string, mediaType: "IMAGE" | "VIDEO") =>
+  const countOf = (userId: string, mediaType: MediaKind) =>
     byType.find((r) => r.uploaderId === userId && r.mediaType === mediaType)?._count._all ?? 0;
 
   const rows: UserActivityRow[] = users.map((u) => {
     const total = totals.find((r) => r.uploaderId === u.id);
     const images = countOf(u.id, "IMAGE");
     const videos = countOf(u.id, "VIDEO");
+    const youtubeCount = countOf(u.id, "YOUTUBE");
 
     // オーナーはGroupMemberの行を持たないので、所有グループを足して所属とする
     const groups: UserGroupRef[] = [
@@ -85,7 +89,9 @@ export async function getUserActivity(sort: SortKey = "posts"): Promise<{
       groups,
       images,
       videos,
-      total: images + videos,
+      youtubeCount,
+      // **種類を足し忘れると合計だけが静かにずれる。** YouTubeも投稿として数える
+      total: images + videos + youtubeCount,
       knownBytes: total?._sum.sizeBytes ?? 0,
       unknownSizeCount: noSize.find((r) => r.uploaderId === u.id)?._count._all ?? 0,
       lastPostedAt: total?._max.createdAt ?? null,

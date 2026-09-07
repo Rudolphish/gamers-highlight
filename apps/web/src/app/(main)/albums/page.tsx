@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { AlbumSearch } from "@/components/album/AlbumSearch";
 import { getSteamCoverUrls } from "@/lib/albumCover";
+import { coverPhotoQuery } from "@/lib/albumCoverPolicy";
 
 // アルバム一覧画面：自分のアルバム一覧＋未分類の投稿への導線
 export default async function AlbumsPage() {
@@ -32,10 +33,8 @@ export default async function AlbumsPage() {
         take: 4,
         include: { user: true },
       },
-      photos: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-      },
+      // カバー候補（どの投稿を使うかは lib/albumCoverPolicy.ts で決める）
+      photos: coverPhotoQuery,
       _count: {
         select: { photos: true, members: true },
       },

@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { Play, Check, Plus } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { LoadingImage } from "@/components/ui/LoadingImage";
+import type { MediaKind } from "@/lib/mediaKind";
 
 type Media = {
   id: string;
-  mediaType: "IMAGE" | "VIDEO";
+  mediaType: MediaKind;
   mediaUrl: string;
   thumbnailUrl?: string | null;
   durationSeconds?: number | null;
@@ -153,7 +154,12 @@ export function UnclassifiedPhotoManager({
               )}
               {item.mediaType === "VIDEO" && (
                 <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-1 py-0.5 font-mono text-4xs font-bold text-white">
-                  <Play size={8} fill="white" /> {item.durationSeconds ?? "?"}s
+                  <Play size={8} fill="white" /> {`${item.durationSeconds ?? "?"}s`}
+                </span>
+              )}
+              {item.mediaType === "YOUTUBE" && (
+                <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-[#ff0000] px-1 py-0.5 font-mono text-4xs font-bold text-white">
+                  <Play size={8} fill="white" /> YouTube
                 </span>
               )}
               <div

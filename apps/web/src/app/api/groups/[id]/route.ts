@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
+import { coverPhotoQuery } from "@/lib/albumCoverPolicy";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const user = await getCurrentUser();
@@ -20,7 +21,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         include: {
           owner: true,
           members: { take: 4, orderBy: { invitedAt: "asc" }, include: { user: true } },
-          photos: { orderBy: { createdAt: "desc" }, take: 1 },
+          // カバー候補。**画面（lib/groupData.ts・/albums）と同じ方針を使う**——
+          // ここだけ生のクエリで残すと、カバーに使わないはずの種類が混ざる
+          photos: coverPhotoQuery,
           _count: { select: { photos: true, members: true } },
         },
       },

@@ -7,10 +7,11 @@ import { Lightbox } from "@/components/photo/Lightbox";
 import { LoadingImage } from "@/components/ui/LoadingImage";
 import { PhotoReactionButton, type ReactionState } from "@/components/photo/PhotoReactionButton";
 import type { DescriptionState } from "@/components/photo/PhotoDescription";
+import type { MediaKind } from "@/lib/mediaKind";
 
 type Media = {
   id: string;
-  mediaType: "IMAGE" | "VIDEO";
+  mediaType: MediaKind;
   mediaUrl: string;
   thumbnailUrl?: string | null;
   durationSeconds?: number | null;
@@ -70,7 +71,16 @@ export function PhotoGrid({
             onClick={() => setSelectedIndex(index)}
             className="relative aspect-square overflow-hidden rounded-sm border border-steam-border cursor-pointer hover:border-steam-blue hover:brightness-110 hover:shadow-[0_0_16px_-2px_rgba(102,192,244,0.5)] transition"
           >
-            {item.mediaType === "VIDEO" ? (
+            {item.mediaType === "YOUTUBE" ? (
+              // **YouTubeはグリッドでは再生しない。** サムネイル（i.ytimg.com）を出して、
+              // 開いたときにLightboxでiframeを組む。一覧に何個も iframe を置くと
+              // 動画の数だけYouTubeのプレイヤーが読み込まれる
+              <LoadingImage
+                src={item.thumbnailUrl ?? item.mediaUrl}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : item.mediaType === "VIDEO" ? (
               <video
                 src={item.mediaUrl}
                 poster={item.thumbnailUrl ?? undefined}
@@ -93,7 +103,13 @@ export function PhotoGrid({
             )}
             {item.mediaType === "VIDEO" && (
               <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-1 py-0.5 font-mono text-4xs font-bold text-white">
-                <Play size={8} fill="white" /> {item.durationSeconds ?? "?"}s
+                <Play size={8} fill="white" /> {`${item.durationSeconds ?? "?"}s`}
+              </span>
+            )}
+            {item.mediaType === "YOUTUBE" && (
+              // 長さは持っていない（外部APIを叩かないと分からない）ので、種類だけ示す
+              <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-[#ff0000] px-1 py-0.5 font-mono text-4xs font-bold text-white">
+                <Play size={8} fill="white" /> YouTube
               </span>
             )}
             {descriptionOf(item)?.text && (

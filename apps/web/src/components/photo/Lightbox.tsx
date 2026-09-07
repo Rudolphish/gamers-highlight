@@ -5,11 +5,13 @@ import { X, ChevronLeft, ChevronRight, Trash2, Info } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { PhotoReactionButton, type ReactionState } from "@/components/photo/PhotoReactionButton";
 import { PhotoDescription, type DescriptionState } from "@/components/photo/PhotoDescription";
+import type { MediaKind } from "@/lib/mediaKind";
+import { parseYoutubeUrl } from "@/lib/youtubeLink";
 
-// メディア詳細（拡大表示）。IMAGE/VIDEO両対応。将来的にコメント機能もここに追加予定。
+// メディア詳細（拡大表示）。IMAGE / VIDEO / YOUTUBE に対応。
 type LightboxProps = {
   photoId?: string;
-  mediaType: "IMAGE" | "VIDEO";
+  mediaType: MediaKind;
   mediaUrl: string;
   canDelete?: boolean;
   onClose?: () => void;
@@ -54,6 +56,9 @@ export function Lightbox({
   onDescriptionSaved,
 }: LightboxProps) {
   const [loaded, setLoaded] = useState(false);
+  // 保存してあるのは watch のURL。埋め込み用は毎回そこから組み立てる
+  // （動画IDを別の列に持たせず、URLを正本にしている）
+  const youtubeEmbedUrl = mediaType === "YOUTUBE" ? parseYoutubeUrl(mediaUrl)?.embedUrl ?? null : null;
   const [deleting, setDeleting] = useState(false);
   const [showMeta, setShowMeta] = useState(false);
 
@@ -151,7 +156,19 @@ export function Lightbox({
 
       {/* メディアコンテンツ */}
       <div className="relative flex max-h-[90vh] max-w-[90vw] items-center justify-center overflow-hidden rounded-sm">
-        {mediaType === "VIDEO" ? (
+        {mediaType === "YOUTUBE" ? (
+          // **iframeで埋め込む。** APIキーもクォータも要らない（動画IDだけで組み立てられる）。
+          // nocookie ドメインを使うのは、見ただけで視聴履歴のCookieが置かれないようにするため。
+          // 動画が消された・非公開になった場合はここがYouTube側のエラー表示になる——
+          // こちら側では検知できないので、見つけた人が報告できる導線を別に置く。
+          <iframe
+            src={youtubeEmbedUrl ?? ""}
+            title="YouTube動画"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="aspect-video h-[50vh] max-h-[90vh] w-[90vw] max-w-[1280px] border-0"
+          />
+        ) : mediaType === "VIDEO" ? (
           <video
             src={mediaUrl}
             controls

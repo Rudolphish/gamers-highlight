@@ -46,6 +46,7 @@ Discordは「投稿の場」としては優れているが、「後から検索�
 |---|---|---|---|
 | 画像 | PNG / JPEG / WebP | 15MB | ― |
 | 動画 | MP4 / WebM / MOV | 100MB | 2分 |
+| YouTube | 動画のURL | ― | ― |
 
 値は`apps/web/src/lib/media-limits.ts`に一元化する（画面の文言も`MEDIA_LIMIT_LABELS`から組み立てるので、数値を変えれば表示も追随する）。
 Botは`rootDir`の都合で直接importできないため`apps/bot/src/lib/mediaLimits.ts`に写しを置き、
@@ -55,6 +56,13 @@ Botは`rootDir`の都合で直接importできないため`apps/bot/src/lib/media
 同時に、それまで**一度も効いていなかった長さの判定**を手動アップロード側で有効にした
 （クライアントが`<video>`のメタデータから測って`durationSeconds`を送る）。
 Discord経由は長さを判定しない——添付に長さの情報が無く、Bot側で測る手段もないため。
+
+**2026-09-06にYouTubeの動画をアルバムに並べられるようにした**（`MediaType.YOUTUBE`）。
+URLを預かるだけでバイナリは持たないので、サイズ・長さの上限は適用しない
+（上限を超える長さの動画を置く先として使う）。入口は手動アップロード画面のみで、
+Discordに貼られたリンクは拾わない（雑談で貼ったリンクまで取り込まれるため）。
+埋め込みもサムネイルも動画IDから組み立てるだけで、**外部APIは叩かない**
+（`lib/youtubeLink.ts`。`lib/youtube.ts` の search.list とは別の話）。
 
 ### 1.4 動画サムネイルの方針
 サーバー側でのffmpeg等による自動抽出は行わない（実行環境の制約とコストを避けるため）。

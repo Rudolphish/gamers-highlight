@@ -335,6 +335,19 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
           <p>
             アルバムを選ばなくても投稿できます。その場合は「未分類」に入るので、後から振り分けてください。
           </p>
+          <p>
+            <strong className="text-steam-text">YouTubeの動画も並べられます。</strong>
+            同じ画面の下にある「YouTubeの動画を追加」にURLを貼ると、アルバムに写真と同じように並びます。
+            容量・長さの制限はありません（動画はYouTube側にあるので、こちらのストレージを使いません）。
+            追加先のグループ／アルバム／ゲームタグは、上で選んだものがそのまま使われます。
+          </p>
+          <p className="text-steam-muted/70">
+            補足：貼れるのは「watch」「youtu.be」「shorts」のURLです。再生位置（?t=）や
+            プレイリスト（&list=）が付いていても構いません（保存時に外します）。
+            <strong className="text-steam-text">非公開の動画は埋め込めません</strong>ので、
+            共有したいものは「限定公開」以上にしてください。投稿した人が後から動画を消したり
+            非公開にすると、こちらの画面ではYouTube側のエラー表示になります。
+          </p>
           <p className="text-steam-muted/70">
             {`注意：上限を超えたファイルはその場でエラーになります（動画の長さはアップロードを始める前に確認します）。Discordに投稿した動画が${MEDIA_LIMIT_LABELS.videoSize}を超えていた場合は取り込まれず、Discord側にも何も出ません——大きい動画が反映されないときはサイズを疑ってください。Discord経由では長さは見ていません。`}
           </p>
@@ -387,7 +400,9 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
             <strong className="text-steam-text">サムネイル</strong>は、アルバム詳細の
             Steamアイコンのボタンからゲームを検索して設定できます（アルバムのオーナーのみ）。
             同じ画面から、そのゲームをグループのゲームリストに追加することもできます。
-            設定しない場合は、いちばん新しい投稿がサムネイルになります。
+            設定しない場合は、いちばん新しい投稿がサムネイルになります
+            （<strong className="text-steam-text">YouTubeの動画はサムネイルに使いません</strong>。
+            アルバムの見た目がYouTube側の画像に置き換わってしまうためです）。
           </p>
           <p className="text-steam-muted/70">
             補足：1つのグループにアルバムが100件を超えると、更新の古いものは一覧に読み込まれません
