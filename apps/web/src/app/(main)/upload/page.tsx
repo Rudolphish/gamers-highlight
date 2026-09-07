@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Upload as UploadIcon, Image as ImageIcon, Film, X, Check, AlertCircle, Wand2 } from "lucide-react";
 import { extractFirstFrame, readVideoDuration } from "@/lib/video-thumbnail";
 import { MAX_VIDEO_DURATION_SECONDS, MEDIA_LIMIT_LABELS } from "@/lib/media-limits";
+import { parseYoutubeUrl } from "@/lib/youtubeLink";
 import { parseSteamScreenshotName } from "@/lib/steamScreenshot";
 
 // アップロード画面：画像 or 短い動画クリップ（上限は lib/media-limits.ts）を複数まとめてアップロード可能。
@@ -198,6 +199,15 @@ export default function UploadPage() {
   const [identified, setIdentified] = useState<Map<number, IdentifiedGame>>(new Map());
   const [identifying, setIdentifying] = useState(false);
 
+  // YouTubeの動画を足す欄。ファイルのアップロードとは別の状態を持つが、
+  // **追加先（グループ／アルバム／ゲームタグ）は上の指定をそのまま使う**——
+  // 同じ画面に選択欄が2組あると、どちらが効くのか分からなくなる
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [youtubeState, setYoutubeState] = useState<"idle" | "saving" | "done">("idle");
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
+  // 貼った瞬間に動画IDが取れるので、外部に問い合わせずにサムネイルを出せる
+  const youtubeLink = parseYoutubeUrl(youtubeUrl);
+
   useEffect(() => {
     fetch("/api/albums")
       .then((res) => (res.ok ? res.json() : { albums: [] }))
@@ -291,6 +301,29 @@ export default function UploadPage() {
       }
     }
     setRunning(false);
+  }
+
+  async function handleAddYoutube() {
+    const link = parseYoutubeUrl(youtubeUrl);
+    if (!link) {
+      setYoutubeError("YouTubeのURLとして読み取れませんでした");
+      return;
+    }
+    setYoutubeState("saving");
+    setYoutubeError(null);
+    try {
+      await createPhotoRecord({
+        youtubeUrl: link.canonicalUrl,
+        albumId: albumId || undefined,
+        gameTitle: gameTag.trim() || undefined,
+      });
+      setYoutubeUrl("");
+      setYoutubeState("done");
+      router.refresh();
+    } catch (err) {
+      setYoutubeState("idle");
+      setYoutubeError(err instanceof Error ? err.message : "追加に失敗しました");
+    }
   }
 
   // 画面に出すのは「今選んでいるファイルに含まれるゲーム」だけ
@@ -525,6 +558,69 @@ export default function UploadPage() {
           ホームに戻る
         </button>
       )}
+
+      {/* ── YouTubeの動画を追加 ──
+          ファイルではなくURLを預かるだけなので、アップロードの流れとは完全に別。
+          容量も長さの制限も無い（自分たちのストレージに何も置かないため）。 */}
+      <div className="mt-8 border-t border-steam-border pt-5">
+        <h2 className="font-display text-lg font-bold text-steam-text">YouTubeの動画を追加</h2>
+        <p className="mt-1 font-mono text-2xs text-steam-muted">
+          長い動画はYouTubeに上げてURLを貼れば、アルバムに並べられます。容量・長さの制限はありません。
+        </p>
+
+        <input
+          value={youtubeUrl}
+          onChange={(e) => {
+            setYoutubeUrl(e.target.value);
+            setYoutubeError(null);
+            setYoutubeState("idle");
+          }}
+          placeholder="https://www.youtube.com/watch?v=..."
+          disabled={youtubeState === "saving"}
+          aria-label="YouTubeのURL"
+          className="mt-3 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+        />
+
+        {youtubeUrl.trim().length > 0 && !youtubeLink && (
+          <p className="mt-1 font-mono text-3xs text-[#eb4b4b]">
+            YouTubeのURLとして読み取れません（watch / youtu.be / shorts のURLに対応しています）
+          </p>
+        )}
+
+        {youtubeLink && (
+          <div className="mt-3 flex items-center gap-3">
+            {/* サムネイルは動画IDから組み立てるだけ。外部への問い合わせは無い */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={youtubeLink.thumbnailUrl}
+              alt=""
+              className="h-16 w-28 flex-shrink-0 rounded-sm border border-steam-border object-cover"
+            />
+            <p className="min-w-0 font-mono text-3xs text-steam-muted">
+              {albumId
+                ? `「${albumsInGroup.find((a) => a.id === albumId)?.title ?? "選択中のアルバム"}」に追加します`
+                : "未分類に追加します（後からアルバムへ振り分けられます）"}
+            </p>
+          </div>
+        )}
+
+        <button
+          onClick={handleAddYoutube}
+          disabled={!youtubeLink || youtubeState === "saving"}
+          className="mt-3 w-full rounded-sm border border-steam-border py-2 font-mono text-xs text-steam-text hover:border-steam-blue disabled:opacity-40"
+        >
+          {youtubeState === "saving" ? "追加中…" : "この動画を追加"}
+        </button>
+
+        {youtubeState === "done" && (
+          <p className="mt-2 font-mono text-3xs text-[#a4d007]">
+            追加しました。続けて別のURLも貼れます。
+          </p>
+        )}
+        {youtubeError && (
+          <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{youtubeError}</p>
+        )}
+      </div>
     </main>
   );
 }

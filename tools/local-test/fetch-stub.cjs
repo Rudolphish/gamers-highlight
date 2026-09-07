@@ -220,7 +220,10 @@ globalThis.fetch = async function stubbedFetch(input, init) {
       host.endsWith(".steamstatic.com") ||
       host.endsWith(".akamaihd.net") ||
       host === "cdn.discordapp.com" ||
-      host === "images.unsplash.com"
+      host === "images.unsplash.com" ||
+      // YouTubeのサムネイル。next/image がサーバー側から取りに行く
+      host === "i.ytimg.com" ||
+      host === "img.youtube.com"
     ) {
       return image();
     }

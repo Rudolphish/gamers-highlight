@@ -2204,6 +2204,148 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   await api(`/api/albums/${target}`, { method: "DELETE", cookie: adminCookie });
 }
 
+// ───────────────────────────────────────────────────────────
+// V. YouTube動画の投稿（POST /api/photos の youtubeUrl 経路）
+// ───────────────────────────────────────────────────────────
+{
+  // **正規形に直して保存する。** 再生位置やプレイリストが付いたURLを
+  // そのまま保存すると、同じ動画かどうかがURLの比較では分からなくなる
+  const posted = await api("/api/photos", {
+    method: "POST",
+    cookie: adminCookie,
+    body: {
+      youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s&list=PLxxxx",
+      albumId: album.id,
+      gameTitle: "YouTubeテスト",
+    },
+  });
+  const youtubePhotoId = posted.json?.photo?.id ?? null;
+  check(
+    "F156 YouTubeのURLを投稿できる（余計なパラメータは落として保存する）",
+    posted.status === 201 &&
+      posted.json?.photo?.mediaType === "YOUTUBE" &&
+      posted.json?.photo?.mediaUrl === "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    `${posted.status} ${posted.json?.photo?.mediaUrl}`
+  );
+
+  check(
+    "F157 サムネイルは動画IDから組み立てられ、容量と長さは持たない",
+    posted.json?.photo?.thumbnailUrl === "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg" &&
+      posted.json?.photo?.sizeBytes === null &&
+      posted.json?.photo?.durationSeconds === null,
+    JSON.stringify({
+      thumbnailUrl: posted.json?.photo?.thumbnailUrl,
+      sizeBytes: posted.json?.photo?.sizeBytes,
+      durationSeconds: posted.json?.photo?.durationSeconds,
+    })
+  );
+
+  // 短縮形・Shorts も同じIDに解決する（共有ボタンが返す形を全部通す）
+  const short = await api("/api/photos", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { youtubeUrl: "https://youtu.be/abcdefghijk" },
+  });
+  const shorts = await api("/api/photos", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { youtubeUrl: "https://www.youtube.com/shorts/abcdefghijk" },
+  });
+  check(
+    "F158 youtu.be と shorts のURLも同じ正規形になる",
+    short.status === 201 &&
+      shorts.status === 201 &&
+      short.json?.photo?.mediaUrl === "https://www.youtube.com/watch?v=abcdefghijk" &&
+      shorts.json?.photo?.mediaUrl === "https://www.youtube.com/watch?v=abcdefghijk",
+    `${short.json?.photo?.mediaUrl} / ${shorts.json?.photo?.mediaUrl}`
+  );
+
+  // **YouTube以外のURLを保存できてはいけない。** ここが緩いと任意のURLを
+  // mediaUrl として保存できる（自前ストレージの検証を通らない経路なので特に効く）
+  for (const [id, bad] of [
+    ["F159", "https://example.com/watch?v=dQw4w9WgXcQ"],
+    ["F160", "https://www.youtube.com/watch?v=short"],
+    ["F161", "javascript:alert(1)"],
+  ]) {
+    const res = await api("/api/photos", {
+      method: "POST",
+      cookie: adminCookie,
+      body: { youtubeUrl: bad },
+    });
+    check(`${id} YouTube以外のURLは400（${bad.slice(0, 40)}）`, res.status === 400, res.status);
+  }
+
+  // 上限はかからない（長い動画を置く先として用意した経路なので）
+  const noLimit = await api("/api/photos", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { youtubeUrl: "https://www.youtube.com/watch?v=zzzzzzzzzzz", durationSeconds: 99999, sizeBytes: 999999999 },
+  });
+  check(
+    "F162 YouTubeにはサイズ・長さの上限がかからない",
+    noLimit.status === 201 && noLimit.json?.photo?.sizeBytes === null,
+    `${noLimit.status} ${noLimit.json?.photo?.sizeBytes}`
+  );
+
+  // 他人のアルバムには入れられない（通常の投稿と同じ判定を通っていること）
+  const outsiderAlbum = await db.album.findFirst({ where: { title: "部外者のアルバム" } });
+  const intrude = await api("/api/photos", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", albumId: outsiderAlbum.id },
+  });
+  check("F163 権限の無いアルバムへのYouTube投稿は403", intrude.status === 403, intrude.status);
+
+  // **アルバムのカバーには使わない。** 使うとアルバムの見た目がYouTube側の画像に置き換わる。
+  //
+  // **Steam連携のあるアルバムで試してはいけない。** そちらはヘッダー画像が優先されるので、
+  // 直っていなくてもYouTubeがカバーに出ず、テストが通ってしまう。
+  // 連携の無いアルバムを作り、画像 → YouTube の順に入れて「いちばん新しいのはYouTube」の
+  // 状態を作ってから見る。
+  const coverAlbum = (
+    await api("/api/albums", {
+      method: "POST",
+      cookie: adminCookie,
+      body: { title: "カバー確認用アルバム", groupId: group.id },
+    })
+  ).json?.album?.id;
+  const coverSigned = await api("/api/photos/upload-url", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { contentType: "image/png", sizeBytes: 10 },
+  });
+  await api("/api/photos", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { contentType: "image/png", mediaUrl: coverSigned.json.publicUrl, albumId: coverAlbum },
+  });
+  const coverYoutube = await api("/api/photos", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { youtubeUrl: "https://www.youtube.com/watch?v=coverxxxxxx", albumId: coverAlbum },
+  });
+  const groupPage = await fetch(`${BASE}/groups/${group.id}`, { headers: { cookie: adminCookie } });
+  const groupHtml = await groupPage.text();
+  check(
+    "F164 いちばん新しい投稿がYouTubeでも、アルバムのカバーには使われない",
+    coverYoutube.status === 201 && !groupHtml.includes("i.ytimg.com"),
+    groupHtml.includes("i.ytimg.com") ? "カバーに ytimg が出ている" : `${coverYoutube.status}`
+  );
+  if (coverAlbum) await api(`/api/albums/${coverAlbum}`, { method: "DELETE", cookie: adminCookie });
+
+  // 投稿数には数える（普通の投稿と同じ扱い）
+  const adminUser = await db.user.findUnique({ where: { email: "admin@example.com" } });
+  const youtubeCount = await db.photo.count({
+    where: { uploaderId: adminUser.id, mediaType: "YOUTUBE" },
+  });
+  check("F165 YOUTUBE として保存されている", youtubeCount >= 4, `${youtubeCount}件`);
+
+  // 後片付け（作ったときと同じ経路で消す）
+  for (const id of [youtubePhotoId, short.json?.photo?.id, shorts.json?.photo?.id, noLimit.json?.photo?.id]) {
+    if (id) await api(`/api/photos/${id}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

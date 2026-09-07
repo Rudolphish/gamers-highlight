@@ -65,6 +65,12 @@ enum ProposalReactionType {
 enum MediaType {
   IMAGE
   VIDEO
+
+  /// YouTubeの動画。**バイナリを持たない**——`mediaUrl` は watch のURL、
+  /// `thumbnailUrl` は i.ytimg.com の組み立てURLで、R2には何も置かない。
+  /// したがって `sizeBytes` は常に null で、サイズ・長さの上限も適用しない
+  /// （長い動画を置ける場所としてYouTubeを使うため）。
+  YOUTUBE
 }
 
 // 招待制のアクセス制御。ここに登録されているDiscordアカウント/メールアドレスの人だけ
@@ -299,7 +305,7 @@ model Photo {
   mediaUrl         String
   thumbnailUrl     String?
   durationSeconds  Int? // 動画のみ。IMAGE の場合は null
-  sizeBytes        Int?
+  sizeBytes        Int? // YOUTUBE は常に null（自前ストレージに置かないため）
   uploaderId       String
   albumId          String?
   gameTitle        String?

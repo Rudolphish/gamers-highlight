@@ -5,10 +5,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { Search as SearchIcon, Gamepad2 } from "lucide-react";
 import { PhotoGrid } from "@/components/photo/PhotoGrid";
+import type { MediaKind } from "@/lib/mediaKind";
 
 type Media = {
   id: string;
-  mediaType: "IMAGE" | "VIDEO";
+  mediaType: MediaKind;
   mediaUrl: string;
   thumbnailUrl?: string | null;
   durationSeconds?: number | null;

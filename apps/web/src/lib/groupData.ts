@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { db } from "./db";
 import { groupTag } from "./cacheTags";
+import { coverPhotoQuery } from "./albumCoverPolicy";
 
 /**
  * グループ詳細ページが読む中身。**権限判定はここに入れない。**
@@ -26,7 +27,7 @@ export function getGroupContent(groupId: string, albumPageSize: number) {
             include: {
               owner: true,
               members: { take: 4, orderBy: { invitedAt: "asc" }, include: { user: true } },
-              photos: { orderBy: { createdAt: "desc" }, take: 1 },
+              photos: coverPhotoQuery, // カバー候補（lib/albumCoverPolicy.ts）
               _count: { select: { photos: true, members: true } },
             },
           },

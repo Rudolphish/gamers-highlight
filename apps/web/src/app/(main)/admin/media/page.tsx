@@ -2,13 +2,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { getServerSession } from "next-auth";
-import { Film, Image as ImageIcon, LayoutGrid, List } from "lucide-react";
+import { Film, Image as ImageIcon, LayoutGrid, List, Youtube } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isAdminEmail } from "@/lib/admin";
 import { formatBytes } from "@/lib/adminStats";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { DeleteMediaButton } from "@/components/admin/DeleteMediaButton";
+import type { MediaKind } from "@/lib/mediaKind";
 
 const PAGE_SIZE = 100;
 
@@ -26,8 +27,10 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
   const session = await getServerSession(authOptions);
   if (!isAdminEmail(session?.user?.email)) notFound();
 
-  const type: "IMAGE" | "VIDEO" | null =
-    searchParams.type === "IMAGE" || searchParams.type === "VIDEO" ? searchParams.type : null;
+  const type: MediaKind | null =
+    searchParams.type === "IMAGE" || searchParams.type === "VIDEO" || searchParams.type === "YOUTUBE"
+      ? searchParams.type
+      : null;
   const view: "list" | "grid" = searchParams.view === "grid" ? "grid" : "list";
   const page = Math.max(1, Number(searchParams.page) || 1);
   const where = type ? { mediaType: type } : {};
@@ -60,6 +63,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
     { label: "すべて", value: null },
     { label: "画像", value: "IMAGE" },
     { label: "動画", value: "VIDEO" },
+    { label: "YouTube", value: "YOUTUBE" },
   ];
 
   const VIEWS: { label: string; value: "list" | "grid"; icon: typeof List }[] = [
@@ -73,7 +77,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
 
   /** サムネイルに使うURL。Discord経由の動画はサムネイルを持たない */
   const thumbnailFor = (p: (typeof photos)[number]) =>
-    p.mediaType === "VIDEO" ? p.thumbnailUrl : p.mediaUrl;
+    p.mediaType === "IMAGE" ? p.mediaUrl : p.thumbnailUrl;
 
   return (
     <main className="p-4 sm:p-6">
@@ -147,9 +151,13 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
                     </div>
                   )}
 
-                  {p.mediaType === "VIDEO" && (
+                  {p.mediaType !== "IMAGE" && (
                     <span className="absolute left-1 top-1 rounded-sm bg-black/60 p-1 backdrop-blur-sm">
-                      <Film size={10} className="text-steam-blue" />
+                      {p.mediaType === "YOUTUBE" ? (
+                        <Youtube size={10} className="text-[#ff4d4d]" />
+                      ) : (
+                        <Film size={10} className="text-steam-blue" />
+                      )}
                     </span>
                   )}
                   <span className="absolute right-1 top-1">
@@ -187,7 +195,9 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
               {photos.map((p) => (
                 <tr key={p.id} className="border-t border-steam-border bg-steam-surface align-middle">
                   <td className="px-3 py-2">
-                    {p.mediaType === "VIDEO" ? (
+                    {p.mediaType === "YOUTUBE" ? (
+                      <Youtube size={13} className="text-[#ff4d4d]" />
+                    ) : p.mediaType === "VIDEO" ? (
                       <Film size={13} className="text-steam-blue" />
                     ) : (
                       <ImageIcon size={13} className="text-steam-blue" />

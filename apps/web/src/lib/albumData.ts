@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { db } from "./db";
 import { albumTag, albumPhotosTag } from "./cacheTags";
+import type { MediaKind } from "@/lib/mediaKind";
 
 /**
  * アルバム詳細ページが読む中身。**権限判定はここに入れない。**
@@ -37,7 +38,7 @@ export function getAlbumContent(albumId: string) {
 
 export type CachedAlbumPhoto = {
   id: string;
-  mediaType: "IMAGE" | "VIDEO";
+  mediaType: MediaKind;
   mediaUrl: string;
   thumbnailUrl: string | null;
   durationSeconds: number | null;

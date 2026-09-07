@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
-import { Film, Image as ImageIcon, Users } from "lucide-react";
+import { Film, Image as ImageIcon, Users , Youtube } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { formatBytes } from "@/lib/adminStats";
@@ -108,6 +108,7 @@ export default async function AdminUsersPage({
                     <th className="px-3 py-2">所属グループ</th>
                     <th className="px-3 py-2 text-right">画像</th>
                     <th className="px-3 py-2 text-right">動画</th>
+                    <th className="px-3 py-2 text-right">YouTube</th>
                     <th className="px-3 py-2 text-right">合計</th>
                     <th className="px-3 py-2 text-right">容量</th>
                     <th className="px-3 py-2">最終投稿</th>
@@ -163,6 +164,12 @@ export default async function AdminUsersPage({
                         <span className="inline-flex items-center gap-1">
                           <Film size={11} className="text-steam-blue/70" />
                           {u.videos.toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-3xs text-steam-muted">
+                        <span className="inline-flex items-center gap-1">
+                          <Youtube size={11} className="text-[#ff4d4d]/70" />
+                          {u.youtubeCount.toLocaleString()}
                         </span>
                       </td>
                       <td className="px-3 py-2 text-right font-mono text-3xs font-bold text-steam-text">

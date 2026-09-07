@@ -36,6 +36,12 @@ const IGNORED = [
   /fonts\.gstatic\.com/,
   /_next\/image\?url=http%3A%2F%2F127\.0\.0\.1%3A9100/,
   /Failed to fetch RSC payload/,
+  //   - YouTubeの埋め込み（youtube-nocookie.com）と i.ytimg.com:
+  //     サンドボックスから外へ出られないので必ず失敗する。**アプリ側は
+  //     iframeのsrcを組み立てるだけ**なので、ここで確認できるのはURLが正しいことまで。
+  //     実際に再生できるかは本番でしか見られない（README参照）。
+  /youtube-nocookie\.com/,
+  /i\.ytimg\.com/,
 ];
 
 const targets = [
@@ -865,6 +871,83 @@ for (const [id, label, path] of targets) {
   });
   await memberPage.close();
   await memberContext.close();
+}
+
+// ── YouTube動画の表示 ──
+// **iframeのsrcまで見る。** ここが間違っていても画面には枠が出るだけなので、
+// 目視では気づけない（サンドボックスからは再生できず、本番でしか動かないぶん余計に）。
+{
+  const page = await context.newPage();
+  const callApi = (path, method, body) =>
+    page.evaluate(
+      async ([p, m, b]) => {
+        const res = await fetch(p, {
+          method: m,
+          headers: b ? { "content-type": "application/json" } : {},
+          body: b ? JSON.stringify(b) : undefined,
+        });
+        return { status: res.status, json: await res.json().catch(() => null) };
+      },
+      [path, method, body ?? null]
+    );
+
+  await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+  const created = await callApi("/api/photos", "POST", {
+    youtubeUrl: "https://www.youtube.com/watch?v=bbbbbbbbbbb",
+    albumId: ids.albumId,
+  });
+  const youtubePhotoId = created.json?.photo?.id ?? null;
+
+  await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(300);
+
+  const badge = await page.getByText("YouTube", { exact: false }).count();
+  rows.push({
+    id: "B56",
+    item: "YouTubeの投稿がアルバムに並び、種類が分かる印が出る",
+    expected: "印が出る",
+    actual: badge > 0 ? "出ている" : "出ていない",
+    ok: badge > 0,
+    note: "",
+  });
+
+  // タイルを開くとiframeになる（<video> ではない）
+  let iframeSrc = "";
+  let videoCount = -1;
+  const tiles = page.locator('div[class*="aspect-square"]');
+  const count = await tiles.count();
+  for (let i = 0; i < count; i++) {
+    const tile = tiles.nth(i);
+    if ((await tile.getByText("YouTube").count()) === 0) continue;
+    await tile.click();
+    await page.waitForTimeout(600);
+    // **数える範囲をLightboxの中だけに絞る。** 背後のグリッドには別の投稿の
+    // <video> が残っているので、document全体を数えると必ず1個以上になる（実際に踏んだ）
+    const lightbox = page.locator('div[class*="fixed"][class*="inset-0"]').last();
+    iframeSrc = (await lightbox.locator("iframe").first().getAttribute("src").catch(() => "")) ?? "";
+    videoCount = await lightbox.locator("video").count();
+    break;
+  }
+  rows.push({
+    id: "B57",
+    item: "開くとYouTubeの埋め込み（nocookieドメイン）になる",
+    expected: "https://www.youtube-nocookie.com/embed/bbbbbbbbbbb",
+    actual: iframeSrc,
+    ok: iframeSrc === "https://www.youtube-nocookie.com/embed/bbbbbbbbbbb",
+    note: "",
+  });
+  rows.push({
+    id: "B58",
+    item: "YouTubeの投稿を<video>で再生しようとしない",
+    expected: "video要素が無い",
+    actual: videoCount === 0 ? "無い" : `${videoCount}個ある`,
+    ok: videoCount === 0,
+    note: "",
+  });
+
+  // 後片付け（API経由。DB直で消すとキャッシュに残る。lessons.md）
+  if (youtubePhotoId) await callApi(`/api/photos/${youtubePhotoId}`, "DELETE");
+  await page.close();
 }
 
 await browser.close();

@@ -2,10 +2,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { Play } from "lucide-react";
 import { formatRelativeTime } from "@/lib/relative-time";
+import type { MediaKind } from "@/lib/mediaKind";
 
 type RecentPhoto = {
   id: string;
-  mediaType: "IMAGE" | "VIDEO";
+  mediaType: MediaKind;
   mediaUrl: string;
   thumbnailUrl?: string | null;
   durationSeconds?: number | null;
@@ -42,7 +43,12 @@ export function RecentActivity({ photos }: { photos: RecentPhoto[] }) {
               )}
               {p.mediaType === "VIDEO" && (
                 <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-1 py-0.5 font-mono text-4xs font-bold text-white">
-                  <Play size={8} fill="white" /> {p.durationSeconds ?? "?"}s
+                  <Play size={8} fill="white" /> {`${p.durationSeconds ?? "?"}s`}
+                </span>
+              )}
+              {p.mediaType === "YOUTUBE" && (
+                <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-[#ff0000] px-1 py-0.5 font-mono text-4xs font-bold text-white">
+                  <Play size={8} fill="white" /> YouTube
                 </span>
               )}
             </div>

@@ -13,6 +13,17 @@ const nextConfig = {
         protocol: "https",
         hostname: "*.r2.cloudflarestorage.com",
       },
+      // YouTubeのサムネイル。動画IDから組み立てられる公開のURLで、ハッシュ等は入らない。
+      // **ここに足し忘れると next/image が400で弾き、「サムネイルだけ出ない」になる**
+      // （URL自体は正しいので原因が分かりにくい。Steamのヘッダー画像で同じことを踏んだ）。
+      {
+        protocol: "https",
+        hostname: "i.ytimg.com",
+      },
+      {
+        protocol: "https",
+        hostname: "img.youtube.com",
+      },
       // Steamストアのゲームカバー/サムネイル（cdn.akamai.steamstatic.com等、複数のサブドメインを使うためワイルドカード）
       {
         protocol: "https",

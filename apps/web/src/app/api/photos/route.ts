@@ -7,9 +7,16 @@ import { checkAlbumPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activityLog";
 import { touchAlbumArgs } from "@/lib/albumTouch";
 import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/media-limits";
+import { parseYoutubeUrl } from "@/lib/youtubeLink";
 
 // POST /api/photos … アップロード済みのオブジェクトに対してPhotoレコードを作る
 // body: { contentType, mediaUrl, sizeBytes?, durationSeconds?, thumbnailUrl?, albumId?, gameTitle?, capturedAt? }
+//
+// **YouTubeの投稿だけは入口が別。** body に `youtubeUrl` があるとそちらの経路に入り、
+// ストレージへのアップロードもサイズ・長さの判定も行わない（`mediaUrl` は
+// 自前ストレージのURLではないので `isManagedStorageUrl` も通さない）。
+// 分岐を暗黙にせず専用のキーで受けているのは、`contentType` から推測する形にすると
+// 「YouTubeのつもりが動画として保存される」取り違えが起きうるため。
 
 /**
  * 撮影日時（Steamのスクショはファイル名に入っている）。
@@ -37,39 +44,81 @@ export async function POST(req: Request) {
 
   const body = await req.json();
 
-  const mediaType = resolveMediaType(body.contentType);
-  if (!mediaType) {
-    return NextResponse.json({ error: "unsupported content type" }, { status: 400 });
-  }
+  /** 保存するメディアの中身。YouTubeか自前ストレージかで作り方が違う */
+  let media: {
+    mediaType: "IMAGE" | "VIDEO" | "YOUTUBE";
+    mediaUrl: string;
+    thumbnailUrl: string | null;
+    sizeBytes: number | null;
+    durationSeconds: number | null;
+  };
 
-  // クライアントの申告をそのまま保存するので、自分たちのストレージ上のURLかを必ず確認する。
-  // ここが無いと任意のURLをmediaUrlとして保存できてしまう。
-  if (!isManagedStorageUrl(body.mediaUrl)) {
-    return NextResponse.json({ error: "invalid mediaUrl" }, { status: 400 });
-  }
-  if (body.thumbnailUrl != null && !isManagedStorageUrl(body.thumbnailUrl)) {
-    return NextResponse.json({ error: "invalid thumbnailUrl" }, { status: 400 });
-  }
+  if (body.youtubeUrl !== undefined) {
+    // **貼られたURLは必ずここで正規形に直す。** 生の入力を保存すると
+    // `?t=30` や `&list=...` が付いたものと付かないものが混ざり、同じ動画かどうかが
+    // URLの比較では分からなくなる。IDが取れない＝YouTubeのURLではないので弾く。
+    const link = parseYoutubeUrl(body.youtubeUrl);
+    if (!link) {
+      return NextResponse.json({ error: "invalid youtubeUrl" }, { status: 400 });
+    }
+    media = {
+      mediaType: "YOUTUBE",
+      mediaUrl: link.canonicalUrl,
+      thumbnailUrl: link.thumbnailUrl,
+      // 自前ストレージに何も置かないので容量は無い。長さは外部APIを叩かないと
+      // 分からないが、無くても投稿は成立するので取りにいかない（クォータも通信も要らない）
+      sizeBytes: null,
+      durationSeconds: null,
+    };
+  } else {
+    const mediaType = resolveMediaType(body.contentType);
+    if (!mediaType) {
+      return NextResponse.json({ error: "unsupported content type" }, { status: 400 });
+    }
 
-  if (typeof body.sizeBytes === "number" && body.sizeBytes > maxSizeFor(mediaType)) {
-    return NextResponse.json(
-      { error: `file too large for ${mediaType.toLowerCase()}` },
-      { status: 413 }
-    );
-  }
+    // クライアントの申告をそのまま保存するので、自分たちのストレージ上のURLかを必ず確認する。
+    // ここが無いと任意のURLをmediaUrlとして保存できてしまう。
+    if (!isManagedStorageUrl(body.mediaUrl)) {
+      return NextResponse.json({ error: "invalid mediaUrl" }, { status: 400 });
+    }
+    if (body.thumbnailUrl != null && !isManagedStorageUrl(body.thumbnailUrl)) {
+      return NextResponse.json({ error: "invalid thumbnailUrl" }, { status: 400 });
+    }
 
-  // 長さはクライアントの申告（バイナリがサーバーを通らないので測れない）。
-  // 送られてこない場合は判定しない：ブラウザがメタデータを読めない動画があるため
-  // （lib/video-thumbnail.ts の readVideoDuration を参照）。
-  if (
-    mediaType === "VIDEO" &&
-    typeof body.durationSeconds === "number" &&
-    body.durationSeconds > MAX_VIDEO_DURATION_SECONDS
-  ) {
-    return NextResponse.json(
-      { error: `video must be ${MAX_VIDEO_DURATION_SECONDS}s or shorter` },
-      { status: 413 }
-    );
+    if (typeof body.sizeBytes === "number" && body.sizeBytes > maxSizeFor(mediaType)) {
+      return NextResponse.json(
+        { error: `file too large for ${mediaType.toLowerCase()}` },
+        { status: 413 }
+      );
+    }
+
+    // 長さはクライアントの申告（バイナリがサーバーを通らないので測れない）。
+    // 送られてこない場合は判定しない：ブラウザがメタデータを読めない動画があるため
+    // （lib/video-thumbnail.ts の readVideoDuration を参照）。
+    if (
+      mediaType === "VIDEO" &&
+      typeof body.durationSeconds === "number" &&
+      body.durationSeconds > MAX_VIDEO_DURATION_SECONDS
+    ) {
+      return NextResponse.json(
+        { error: `video must be ${MAX_VIDEO_DURATION_SECONDS}s or shorter` },
+        { status: 413 }
+      );
+    }
+
+    media = {
+      mediaType,
+      mediaUrl: body.mediaUrl,
+      thumbnailUrl: mediaType === "VIDEO" ? body.thumbnailUrl ?? null : null,
+      sizeBytes: typeof body.sizeBytes === "number" ? body.sizeBytes : null,
+      // 列は Int。**Prismaは小数を弾かず、0方向へ切り捨てて入れる**（5.22で実測: 12.9 → 12）。
+      // エラーにならないぶん気づけないので、こちらで四捨五入してから渡す
+      // （切り捨てだと1分59.6秒のクリップが1分59秒として残る）
+      durationSeconds:
+        mediaType === "VIDEO" && typeof body.durationSeconds === "number"
+          ? Math.round(body.durationSeconds)
+          : null,
+    };
   }
 
   // albumIdもクライアントの申告なので、自分が投稿できるアルバムかを確認する。
@@ -91,17 +140,7 @@ export async function POST(req: Request) {
 
   const createArgs = {
     data: {
-      mediaType,
-      mediaUrl: body.mediaUrl,
-      thumbnailUrl: mediaType === "VIDEO" ? body.thumbnailUrl ?? null : null,
-      sizeBytes: body.sizeBytes ?? null,
-      // 列は Int。**Prismaは小数を弾かず、0方向へ切り捨てて入れる**（5.22で実測: 12.9 → 12）。
-      // エラーにならないぶん気づけないので、こちらで四捨五入してから渡す
-      // （切り捨てだと1分59.6秒のクリップが1分59秒として残る）
-      durationSeconds:
-        mediaType === "VIDEO" && typeof body.durationSeconds === "number"
-          ? Math.round(body.durationSeconds)
-          : null,
+      ...media,
       uploaderId: user.id,
       albumId: body.albumId ?? null,
       gameTitle: body.gameTitle ?? null,
