@@ -56,7 +56,9 @@ export function parseYoutubeUrl(input: unknown): YoutubeLink | null {
     return null;
   }
 
-  // **httpsに限る。** httpのままだと埋め込みが混在コンテンツでブロックされる
+  // http/https 以外は弾く（`javascript:` などを通さないため）。
+  // httpで貼られても構わない——保存するのは下の `linkFor` が組み立てる https のURLなので、
+  // 混在コンテンツで埋め込みがブロックされることはない
   if (url.protocol !== "https:" && url.protocol !== "http:") return null;
   if (!HOSTS.has(url.hostname.toLowerCase())) return null;
 

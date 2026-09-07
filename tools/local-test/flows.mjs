@@ -2331,6 +2331,17 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     coverYoutube.status === 201 && !groupHtml.includes("i.ytimg.com"),
     groupHtml.includes("i.ytimg.com") ? "カバーに ytimg が出ている" : `${coverYoutube.status}`
   );
+  // **同じ判定をAPIでも見る。** カバー候補を引くクエリは画面2箇所とAPI1箇所にあり、
+  // 方針を1箇所に集約したとき**APIだけ見落としていた**（後追いレビューで発覚）。
+  // 画面だけ確認していると通ってしまうので、両方から見る。
+  const groupApi = await api(`/api/groups/${group.id}`, { cookie: adminCookie });
+  const apiCovers = (groupApi.json?.group?.albums ?? []).flatMap((a) => a.photos ?? []);
+  check(
+    "F165 APIが返すカバー候補にもYouTubeは混ざらない",
+    groupApi.status === 200 && apiCovers.every((p) => p.mediaType !== "YOUTUBE"),
+    `${groupApi.status} ${JSON.stringify(apiCovers.map((p) => p.mediaType))}`
+  );
+
   if (coverAlbum) await api(`/api/albums/${coverAlbum}`, { method: "DELETE", cookie: adminCookie });
 
   // 投稿数には数える（普通の投稿と同じ扱い）
@@ -2338,7 +2349,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const youtubeCount = await db.photo.count({
     where: { uploaderId: adminUser.id, mediaType: "YOUTUBE" },
   });
-  check("F165 YOUTUBE として保存されている", youtubeCount >= 4, `${youtubeCount}件`);
+  check("F166 YOUTUBE として保存されている", youtubeCount >= 4, `${youtubeCount}件`);
 
   // 後片付け（作ったときと同じ経路で消す）
   for (const id of [youtubePhotoId, short.json?.photo?.id, shorts.json?.photo?.id, noLimit.json?.photo?.id]) {
