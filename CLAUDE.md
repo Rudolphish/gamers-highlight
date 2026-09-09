@@ -11,10 +11,10 @@
 
 ### 接続先が2つある
 
-| 用途 | 接続先 | 環境変数 |
-|---|---|---|
-| アプリの実行時 | Supavisor プーラー（**6543**番、`pgbouncer=true`） | `DATABASE_URL` |
-| マイグレーション | 直接接続（**5432**番、`db.<ref>.supabase.co`） | `DATABASE_DIRECT_CONNECT` |
+| 用途             | 接続先                                             | 環境変数                  |
+| ---------------- | -------------------------------------------------- | ------------------------- |
+| アプリの実行時   | Supavisor プーラー（**6543**番、`pgbouncer=true`） | `DATABASE_URL`            |
+| マイグレーション | 直接接続（**5432**番、`db.<ref>.supabase.co`）     | `DATABASE_DIRECT_CONNECT` |
 
 **`DATABASE_URL` をプーラー以外にしてはいけない。** サーバーレスは実行ごとに接続を張るため、
 直接接続だとすぐ上限に達する。`docs/review-checklist.md` にもチェック項目がある。
@@ -418,3 +418,15 @@ DBに落ちるフォールバックが残っている。トークンの有効期
 - Prisma の engine type（`library` のまま）
 - `next.config.js` の `serverComponentsExternalPackages` / `outputFileTracingRoot`
 - NextAuth のルートの `export const dynamic = "force-dynamic"`
+
+MCP サーバー `agent-failures` が利用できる。過去に踏んだ失敗を蓄積・参照する。
+
+- 実装やデバッグに着手する前に `search_failures` を呼び、同種の失敗が
+  記録されていないか確認すること。`domain` / `environment` / `query` で絞り込む。
+- 想定と異なる結果が出て原因が判明したら、`record_failure` で記録すること。
+  記録するのは失敗のみで、成功事例は記録しない。
+- `observed` には観測された事実（エラーメッセージ、終了コード等）のみを書く。
+  解釈や推測は `cause` に書き、確認が取れていない場合は
+  `cause_is_assumption` を `true` にする。
+- `domain` は既存の値と揃える。現在使用しているもの:
+  `app-dev` / `cloudflare-workers` / `windows-powershell`
