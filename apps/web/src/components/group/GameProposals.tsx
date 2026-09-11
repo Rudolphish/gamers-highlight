@@ -168,9 +168,9 @@ export function GameProposals({
         headerAction={
           <button
             onClick={() => setOpen(true)}
-            className="flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 font-mono text-3xs text-steam-text transition hover:border-steam-blue"
+            className="flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
           >
-            <Plus size={12} /> 提案する
+            <Plus size={14} /> 提案する
           </button>
         }
       >
