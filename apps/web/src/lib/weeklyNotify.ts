@@ -1,5 +1,12 @@
 import { db } from "./db";
-import { APP_SETTING_KEYS, getAppSetting, setAppSetting } from "./appSettings";
+import {
+  APP_SETTING_KEYS,
+  getAppSetting,
+  getRawAppSetting,
+  setRawAppSetting,
+  weeklySummaryLastSentWeekKey,
+} from "./appSettings";
+import { getNotificationChannel } from "./notificationTargets";
 import { postDiscordMessage } from "./discord";
 import { jstDateString } from "./jst";
 import { formatWeeklySummaryText, getWeeklySummary, jstWeekRange } from "./weeklySummary";
@@ -12,9 +19,12 @@ import { formatWeeklySummaryText, getWeeklySummary, jstWeekRange } from "./weekl
  * 警告が同じ経路なのと同じ理由）。必要なのはBotがそのサーバーに参加していて、
  * そのチャンネルに投稿できることだけ。
  *
- * **送り先は管理者が決めた1つのチャンネル**（`weeklySummaryChannelId`）。
- * いまは管理者が様子を見るための機能なので、グループの通知先には送らない。
- * グループ配信に広げるときは、送信先の解決だけ差し替えれば済む。
+ * **送り先はグループごと**（`GroupNotificationTarget` の `WEEKLY_SUMMARY`）。
+ * そのグループのまとめを、そのグループが決めたチャンネルへ送る。設定が無ければ送らない。
+ * 2026-09-12 まではグループを問わず管理者の1チャンネルへまとめて流していた。
+ *
+ * 管理者の `weeklySummaryChannelId` は**手動送信（動作確認）の宛先**として残してある。
+ * 自動送信はもうこの設定を見ない。
  */
 
 /**
@@ -58,44 +68,89 @@ export async function sendWeeklySummaryIfDue(now = new Date()): Promise<WeeklyNo
   const week = lastCompletedWeek(now);
   const weekKey = jstDateString(week.start);
 
-  const lastSent = await getAppSetting(APP_SETTING_KEYS.weeklySummaryLastSentWeek);
-  if (lastSent && lastSent >= weekKey) {
-    return { week: null, posted: 0, skippedQuiet: 0, failed: 0, reason: "この週は送信済み" };
+  // **「送信済み」はグループごとに持つ。** 送り先がグループごとになったので、
+  // 1グループへの投稿が失敗しただけで全グループへ再送するのは正しくない。
+  // 記録がまだ無いグループは、グループ別に分ける前の値を初期値として読む
+  // （そうしないと、移行した直後に先週ぶんが全グループへ一斉に流れる）。
+  const legacyLastSent = await getAppSetting(APP_SETTING_KEYS.weeklySummaryLastSentWeek);
+
+  const groups = await db.group.findMany({ select: { id: true }, orderBy: { name: "asc" } });
+
+  let posted = 0;
+  let skippedQuiet = 0;
+  let failed = 0;
+  let hadTarget = false;
+
+  for (const group of groups) {
+    const channelId = await getNotificationChannel(group.id, "WEEKLY_SUMMARY");
+    if (!channelId) continue; // このグループは週次まとめを受け取らない
+    hadTarget = true;
+
+    const key = weeklySummaryLastSentWeekKey(group.id);
+    const lastSent = (await getRawAppSetting(key)) ?? legacyLastSent;
+    if (lastSent && lastSent >= weekKey) continue; // このグループには送信済み
+
+    const result = await postWeeklySummaryToGroup(group.id, channelId, -1, now);
+    posted += result.posted;
+    skippedQuiet += result.skippedQuiet;
+    failed += result.failed;
+
+    // **投稿に失敗したら記録を進めない。**
+    // 進めてしまうと、BotがサーバーからKickされた・権限を外された・Discordが落ちていた、
+    // といった一時的な失敗でその週の通知が永久に失われる（次のcronでも再送されない）。
+    // 「cronが飛んでも取りこぼさない」ためにこの仕組みを作ったのに、そこが抜けていた
+    // （後追いレビューの指摘）。
+    //
+    // **動きが無くて送らなかった場合は記録を進める。** そちらは失敗ではないので、
+    // 進めないと毎日ここまで来て毎日集計し直すことになる（結果は同じで、無駄なだけ）。
+    if (result.failed === 0) {
+      await setRawAppSetting(key, weekKey);
+    }
   }
 
-  const channelId = await getAppSetting(APP_SETTING_KEYS.weeklySummaryChannelId);
-  if (!channelId) {
+  if (!hadTarget) {
     // **記録を進めない。** 進めてしまうと、後からチャンネルを設定しても
     // その週は「送信済み」として飛ばされる。
     return { week: weekKey, posted: 0, skippedQuiet: 0, failed: 0, reason: "通知先が未設定" };
   }
 
-  const result = await postWeeklySummaries(channelId, -1, now);
-
-  // **投稿に失敗したグループが1件でもあれば記録を進めない。**
-  // 進めてしまうと、BotがサーバーからKickされた・権限を外された・Discordが落ちていた、
-  // といった一時的な失敗でその週の通知が永久に失われる（次のcronでも再送されない）。
-  // 「cronが飛んでも取りこぼさない」ためにこの仕組みを作ったのに、そこが抜けていた
-  // （後追いレビューの指摘）。
-  //
-  // **動きが無くて1件も送らなかった場合は記録を進める。** そちらは失敗ではないので、
-  // 進めないと毎日ここまで来て毎日集計し直すことになる（結果は同じで、無駄なだけ）。
-  //
-  // 失敗が続く限り毎日リトライするが、送るのは常に「いちばん新しい完了週」なので
-  // 古い週が溜まって一気に流れることはない。
-  if (result.failed === 0) {
-    await setAppSetting(APP_SETTING_KEYS.weeklySummaryLastSentWeek, weekKey);
-  }
-
+  const nothingToDo = posted === 0 && skippedQuiet === 0 && failed === 0;
   return {
-    week: weekKey,
-    ...result,
-    reason: result.failed > 0 ? "投稿に失敗したので記録を進めない（次回再送する）" : null,
+    week: nothingToDo ? null : weekKey,
+    posted,
+    skippedQuiet,
+    failed,
+    reason: failed > 0
+      ? "投稿に失敗したので記録を進めない（次回再送する）"
+      : nothingToDo
+        ? "この週は送信済み"
+        : null,
   };
 }
 
+/** 1グループぶんのまとめを投稿する。動きが無ければ送らない */
+async function postWeeklySummaryToGroup(
+  groupId: string,
+  channelId: string,
+  weekOffset: number,
+  now: Date
+): Promise<{ posted: number; skippedQuiet: number; failed: number }> {
+  const summary = await getWeeklySummary(groupId, weekOffset, now);
+  if (!summary.hasActivity) return { posted: 0, skippedQuiet: 1, failed: 0 };
+
+  // **画面のプレビューと同じ関数を通す。** 別々に組み立てると、
+  // 管理画面で整えた文面と実際に飛ぶ文面がずれる。
+  const ok = await postDiscordMessage(channelId, formatWeeklySummaryText(summary));
+  if (ok) return { posted: 1, skippedQuiet: 0, failed: 0 };
+
+  console.error("[weekly] 投稿に失敗しました", groupId);
+  return { posted: 0, skippedQuiet: 0, failed: 1 };
+}
+
 /**
- * 指定した週のまとめを、グループごとに1通ずつ投稿する。
+ * 指定した週のまとめを、**1つのチャンネルへ**グループごとに1通ずつ投稿する。
+ * 管理画面の手動送信（動作確認）専用で、自動送信はこちらを使わない
+ * （自動送信の宛先はグループごと。`sendWeeklySummaryIfDue`）。
  *
  * **動きが無かったグループは送らない。** 毎週「動きがありませんでした」が鳴ると
  * 読み飛ばされるようになり、本当に見てほしい週に効かなくなる

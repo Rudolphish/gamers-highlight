@@ -166,6 +166,8 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
           </p>
           <p>
             <strong className="text-steam-text">ゲーム提案</strong>：「このゲームどう？」と提案すると、メンバーがリアクションできます。「いいね」がメンバーの過半数に達すると、自動でゲームリストに「気になる」として追加されます。
+            <strong className="text-steam-text">提案するとDiscordにも通知が飛びます</strong>
+            （「ゲームが提案されたとき」の通知先を設定している場合。下の「Discordへの通知」を参照）。
           </p>
         </div>
       ),
@@ -190,20 +192,37 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
     },
     {
       id: "price-notify",
-      title: "セール・最安値をDiscordに通知する",
+      title: "Discordへの通知",
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            ウィッシュリスト（ゲームリストで「気になる」ステータスのゲーム）の価格を毎日調べて、
-            <strong className="text-steam-text">過去の最安値を更新したときだけ</strong>
-            Discordに通知します。値下げのたびに鳴るわけではありません。
+            グループ画面のグループ名の下にある「通知の設定」から、
+            <strong className="text-steam-text">通知の種類ごとに送り先のチャンネルを選べます</strong>
+            （グループのオーナーだけが設定できます）。種類ごとに違うチャンネルへ送っても構いません。
+          </p>
+          <ul className="ml-4 list-disc space-y-1">
+            <li>
+              <strong className="text-steam-text">ゲームが提案されたとき</strong>
+              ：ゲーム名・提案した人・採用に必要な「いいね」の数が届きます
+            </li>
+            <li>
+              <strong className="text-steam-text">ウィッシュリストが最安値を更新したとき</strong>
+            </li>
+            <li>
+              <strong className="text-steam-text">週に一度のまとめ</strong>
+              ：先週の投稿・クリア・提案などをまとめて届きます（動きが無かった週は送りません）
+            </li>
+          </ul>
+          <p>
+            <strong className="text-steam-text">「送らない」を選べばその種類は届きません。</strong>
+            既定は3種類とも「送らない」なので、設定するまで通知は一切飛びません。
           </p>
           <p>
-            <strong className="text-steam-text">通知先の設定が必要です。</strong>
-            グループ画面のグループ名の下にある「通知先」から、投稿したいチャンネルを選んでください
-            （グループのオーナーだけが設定できます）。
-            <strong className="text-steam-text">設定するまで通知は一切飛びません。</strong>
+            価格の通知は、ゲームリストで「気になる」ステータスのゲームを毎日調べて、
+            <strong className="text-steam-text">過去の最安値を更新したときだけ</strong>
+            送ります。値下げのたびに鳴るわけではありません。
           </p>
+
           <p>
             通知には、そのゲームに「気になる」を付けているメンバーの名前も添えられます。
           </p>

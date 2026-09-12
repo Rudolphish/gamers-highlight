@@ -41,6 +41,9 @@ export function getGroupContent(groupId: string, albumPageSize: number) {
             orderBy: { createdAt: "desc" },
             include: { proposedBy: true, reactions: true },
           },
+          // 通知の設定（種類ごとの送り先）。オーナーにしか出さないが、
+          // キャッシュキーにユーザーを入れない方針なので取得自体は誰の分でも同じにする
+          notificationTargets: { select: { kind: true, channelId: true } },
         },
       }),
     // ページ件数が変われば別のキャッシュになるようキーに含める

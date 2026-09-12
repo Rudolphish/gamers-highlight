@@ -465,6 +465,9 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const row2 = await db.errorReport.findFirst({ where: { fingerprint: { contains: "test-digest-1" } } });
   check("F49 同じ不具合はcountに集約される", (row2?.count ?? 0) >= 2, row2?.count);
 
+  const runHealthCron = () =>
+    api("/api/cron/check-bot-health", { headers: { authorization: `Bearer ${CRON_SECRET}` } });
+
   const cronNoSecret = await api("/api/cron/check-wishlist-prices");
   check("F50 cronはシークレット無しで401", cronNoSecret.status === 401, cronNoSecret.status);
 
@@ -477,6 +480,46 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     headers: { authorization: `Bearer ${CRON_SECRET}` },
   });
   check("F52 cron（Bot死活）が完走する", health.status === 200, health.text);
+
+  // **Botの死活は管理者向けのチャンネル（エラー通知先）へ1通だけ送る。**
+  // グループの通知先には送らない——運用の話で、グループのメンバーには関係がないため。
+  //
+  // **「落ちている」状態を作ってから見る。** Botが生きていると通知の分岐に入らず、
+  // 応答に notified が入らない。最初それに気づかず、壊し方と無関係に落ちるテストを書いた。
+  {
+    const heartbeatBefore = await db.botHeartbeat.findUnique({ where: { id: "bot" } });
+    await db.botHeartbeat.deleteMany({ where: { id: "bot" } }); // 一度も生存報告が無い＝落ちている扱い
+
+    // グループ側に通知先があっても、管理者側が未設定なら誰にも送らない
+    await db.group.updateMany({ data: { notificationChannelId: "900000000000000055" } });
+    await db.appSetting.deleteMany({ where: { key: "errorNotifyChannelId" } });
+    const downNoAdmin = JSON.parse((await runHealthCron()).text);
+    check(
+      "F183 Bot死活はグループの通知先には送らない（管理者側が未設定なら誰にも送らない）",
+      downNoAdmin.down === true && downNoAdmin.notified === 0,
+      JSON.stringify({ down: downNoAdmin.down, notified: downNoAdmin.notified })
+    );
+
+    // 管理者側を設定すると、グループ数に関係なく1通だけ
+    await db.appSetting.upsert({
+      where: { key: "errorNotifyChannelId" },
+      create: { key: "errorNotifyChannelId", value: "900000000000000066" },
+      update: { value: "900000000000000066" },
+    });
+    const downWithAdmin = JSON.parse((await runHealthCron()).text);
+    check(
+      "F184 Bot死活は管理者の通知先へ1通だけ送る",
+      downWithAdmin.notified === 1,
+      JSON.stringify({ notified: downWithAdmin.notified })
+    );
+
+    // 後片付け（生存報告と設定を元に戻す）
+    await db.appSetting.deleteMany({ where: { key: "errorNotifyChannelId" } });
+    await db.group.updateMany({ data: { notificationChannelId: null } });
+    if (heartbeatBefore) {
+      await db.botHeartbeat.create({ data: heartbeatBefore });
+    }
+  }
 }
 
 // ───────────────────────────────────────────────────────────
@@ -1516,11 +1559,23 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     },
   });
 
+  // 週次まとめの送り先は**グループごと**（GroupNotificationTarget の WEEKLY_SUMMARY）。
+  // 管理者の weeklySummaryChannelId は手動送信（確認）の宛先としてだけ残っている。
+  const weeklyKey = `weeklySummaryLastSentWeek:${group.id}`;
+  const setWeeklyTarget = (channelId) =>
+    api(`/api/groups/${group.id}/notifications`, {
+      method: "PATCH",
+      cookie: adminCookie,
+      body: { kind: "WEEKLY_SUMMARY", channelId },
+    });
+  await setWeeklyTarget("");
+  await db.appSetting.deleteMany({ where: { key: weeklyKey } });
+
   // **通知先が未設定なら送らない。しかも「送信済み」にもしない。**
   // 記録を進めてしまうと、後からチャンネルを設定してもその週は飛ばされる
   let mark = discordCount();
   await runCron();
-  const unsetRecord = await setting("weeklySummaryLastSentWeek");
+  const unsetRecord = await setting(weeklyKey);
   check(
     "F111 通知先が未設定なら送らず、送信済みにもしない",
     discordSince(mark).length === 0 && unsetRecord === null,
@@ -1548,6 +1603,8 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   // （手動送信のルートは通る。同じプロセス・同じ関数なのにルートごとに違う。実測で確認）。
   // CIにネットワーク依存を持ち込まないよう、cron側は**DBに残る記録**で判定し、
   // 文面の中身はスタブを通る手動送信の方で見る。
+  // ここからはグループ側の通知先を設定して確かめる（自動送信はこちらを見る）
+  await setWeeklyTarget("900000000000000077");
   const cronRes = await runCron();
   const weekly = JSON.parse(cronRes.text).weekly;
   check(
@@ -1556,11 +1613,28 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     `返り値=${JSON.stringify(weekly)} / 期待=${expectedWeekKey}`
   );
 
+  // **記録はグループごとに付く。** 全体で1つだと、1グループへの投稿が失敗しただけで
+  // 全グループへ再送することになる
+  const perGroupRecord = await setting(weeklyKey);
+  check(
+    "F181 送信済みの記録がグループごとに付く",
+    perGroupRecord?.value === expectedWeekKey,
+    `記録=${perGroupRecord?.value ?? "なし"} / 期待=${expectedWeekKey}`
+  );
+
+  // **管理者側の設定は自動送信に使われない**（手動送信の宛先として残っているだけ）
+  const legacyRecord = await setting("weeklySummaryLastSentWeek");
+  check(
+    "F182 自動送信は全体の記録を進めない（グループごとの記録だけを使う）",
+    legacyRecord === null,
+    `記録=${legacyRecord?.value ?? "なし"}`
+  );
+
   // **二度は送らない。** cronは毎日走るので、ここが効かないと毎日届く。
   // 記録を直接入れてから確認する（cronの投稿が成功したかに左右されないように）。
   await db.appSetting.upsert({
-    where: { key: "weeklySummaryLastSentWeek" },
-    create: { key: "weeklySummaryLastSentWeek", value: expectedWeekKey },
+    where: { key: weeklyKey },
+    create: { key: weeklyKey, value: expectedWeekKey },
     update: { value: expectedWeekKey },
   });
   const second = await runCron();
@@ -1572,14 +1646,14 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 
   // **手動送信は記録を進めない**（確認のための送信であって、自動送信を済ませたことにはしない）
-  const before = await setting("weeklySummaryLastSentWeek");
+  const before = await setting(weeklyKey);
   mark = discordCount();
   const manual = await api("/api/admin/weekly-notify", {
     method: "POST",
     cookie: adminCookie,
     body: { week: -1 },
   });
-  const after = await setting("weeklySummaryLastSentWeek");
+  const after = await setting(weeklyKey);
   const sent = discordSince(mark);
   check(
     "F116 手動送信は届くが、送信済みの記録は動かさない",
@@ -1620,9 +1694,12 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     failedSend.text
   );
 
+  // 後片付け。**グループ側の通知先も戻す**——残すと後続のcronがここへ送り続け、
+  // 別のスイートが数える投稿件数がずれる
+  await setWeeklyTarget("");
   await db.activityLog.deleteMany({ where: { targetId: { startsWith: "weekly-" } } });
   await db.appSetting.deleteMany({
-    where: { key: { in: ["weeklySummaryChannelId", "weeklySummaryLastSentWeek"] } },
+    where: { key: { in: ["weeklySummaryChannelId", "weeklySummaryLastSentWeek", weeklyKey] } },
   });
 }
 
@@ -2355,6 +2432,199 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   for (const id of [youtubePhotoId, short.json?.photo?.id, shorts.json?.photo?.id, noLimit.json?.photo?.id]) {
     if (id) await api(`/api/photos/${id}`, { method: "DELETE", cookie: adminCookie });
   }
+}
+
+// ───────────────────────────────────────────────────────────
+// W. 提案されたらDiscordへ通知する
+// ───────────────────────────────────────────────────────────
+{
+  const fs = await import("node:fs");
+  const DISCORD_LOG = "/tmp/stub-discord.log";
+  const discordLines = () =>
+    fs.existsSync(DISCORD_LOG)
+      ? fs.readFileSync(DISCORD_LOG, "utf8").split("\n").filter(Boolean)
+      : [];
+  const bodiesSince = (mark) =>
+    discordLines()
+      .slice(mark)
+      .map((line) => {
+        try {
+          return JSON.parse(JSON.parse(line).body ?? "{}").content ?? "";
+        } catch {
+          return "";
+        }
+      });
+
+  // **seedのグループは使わない。** 通知先を設定したまま残すと、後のスイート
+  // （Bot死活のcronや週次まとめ）が同じチャンネルへ投稿して件数が変わる。
+  const created = await api("/api/groups", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { name: "提案通知テスト用グループ" },
+  });
+  const notifyGroupId = created.json?.group?.id ?? null;
+  const CHANNEL = "900000000000000099";
+  const setTarget = (kind, channelId) =>
+    api(`/api/groups/${notifyGroupId}/notifications`, {
+      method: "PATCH",
+      cookie: adminCookie,
+      body: { kind, channelId },
+    });
+  await setTarget("PROPOSAL", CHANNEL);
+
+  // **メンバーを1人足してから試す。** オーナーだけ（メンバー0）だと、必要数は
+  // 正しい式でも「オーナー分の+1を落とした式」でも 1 になり、**壊しても通ってしまう**。
+  // メンバー1人なら 2 と 1 に割れるので、式の間違いが結果に出る。
+  await api(`/api/groups/${notifyGroupId}/members`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { email: "member@example.com", role: "VIEWER" },
+  });
+
+  let mark = discordLines().length;
+  const proposed = await api(`/api/groups/${notifyGroupId}/proposals`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { steamAppId: 271590, title: "グランド・セフト・オートV" },
+  });
+  const sent = bodiesSince(mark);
+  check(
+    "F167 提案するとDiscordへ通知が飛ぶ",
+    proposed.status === 201 && sent.length === 1,
+    `${proposed.status} / 投稿=${sent.length}件`
+  );
+
+  // **中身まで見る。** 送ったことだけ確認しても、空文字を送っていたら気づけない
+  check(
+    "F168 通知にゲーム名と提案者が入っている",
+    sent[0]?.includes("グランド・セフト・オートV") && sent[0]?.includes("提案者"),
+    sent[0] ?? "投稿なし"
+  );
+
+  // 価格通知と同じ方針：表示名が無くてもメールアドレスには落とさない
+  check(
+    "F169 通知にメールアドレスが混ざらない",
+    !sent[0]?.includes("@example.com"),
+    sent[0] ?? "投稿なし"
+  );
+
+  // **必要な「いいね」の数は投票APIと同じ式で出す。**
+  // オーナー1人＋メンバー1人＝母数2なので、必要数は floor(2/2)+1 = 2。
+  // オーナー分の+1を落とすと 1 になるので、式が違えばここで割れる。
+  // （seedのグループはオーナーもGroupMemberの行を持っていて本番と形が違うため、
+  //   実運用と同じ「オーナーはmembersに入らない」グループを自分で作って確かめている）
+  check(
+    "F170 通知に必要な「いいね」の数が入っている（投票APIと同じ式）",
+    sent[0]?.includes("👍 が 2 人集まると"),
+    sent[0] ?? "投稿なし"
+  );
+
+  // 通知先が未設定なら送らない（既定はこちら。設定していないグループに勝手に投げない）
+  await setTarget("PROPOSAL", "");
+  mark = discordLines().length;
+  const quiet = await api(`/api/groups/${notifyGroupId}/proposals`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { steamAppId: 570, title: "Dota 2" },
+  });
+  check(
+    "F171 通知先が未設定のグループでは送らない（提案自体は成功する）",
+    quiet.status === 201 && bodiesSince(mark).length === 0,
+    `${quiet.status} / 投稿=${bodiesSince(mark).length}件`
+  );
+
+  // Discordが落ちていても提案は成功する（通知の失敗で500にしない）
+  fs.writeFileSync("/tmp/stub-fail", "discord.com");
+  await setTarget("PROPOSAL", CHANNEL);
+  const whenDown = await api(`/api/groups/${notifyGroupId}/proposals`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { steamAppId: 1091500, title: "サイバーパンク2077" },
+  });
+  fs.unlinkSync("/tmp/stub-fail");
+  check(
+    "F172 Discordが落ちていても提案は成功する",
+    whenDown.status === 201,
+    whenDown.text
+  );
+
+  // **種類ごとに独立していること。** 提案だけをオンにしても、価格の通知先は空のまま。
+  // ここが繋がっていると「1つ設定したら全部鳴る」という以前の挙動に戻る
+  await setTarget("PROPOSAL", CHANNEL);
+  const afterProposalOnly = await db.groupNotificationTarget.findMany({
+    where: { groupId: notifyGroupId },
+    select: { kind: true, channelId: true },
+  });
+  check(
+    "F173 種類ごとに独立している（提案をオンにしても他の種類は空のまま）",
+    afterProposalOnly.length === 1 && afterProposalOnly[0].kind === "PROPOSAL",
+    JSON.stringify(afterProposalOnly)
+  );
+
+  // 種類ごとに違うチャンネルを指定できる
+  const OTHER = "900000000000000088";
+  await setTarget("PRICE_DROP", OTHER);
+  const twoKinds = await db.groupNotificationTarget.findMany({
+    where: { groupId: notifyGroupId },
+    select: { kind: true, channelId: true },
+    orderBy: { kind: "asc" },
+  });
+  check(
+    "F174 種類ごとに別のチャンネルを指定できる",
+    twoKinds.length === 2 &&
+      twoKinds.find((t) => t.kind === "PROPOSAL")?.channelId === CHANNEL &&
+      twoKinds.find((t) => t.kind === "PRICE_DROP")?.channelId === OTHER,
+    JSON.stringify(twoKinds)
+  );
+
+  // 「送らない」に戻すと行ごと消える（送らないための特別な値を作らない）
+  await setTarget("PRICE_DROP", "");
+  const afterOff = await db.groupNotificationTarget.count({
+    where: { groupId: notifyGroupId, kind: "PRICE_DROP" },
+  });
+  check("F175 「送らない」に戻すと設定が消える", afterOff === 0, `${afterOff}件`);
+
+  // 設定が無い状態で「送らない」を選び直しても落ちない
+  const offAgain = await setTarget("PRICE_DROP", "");
+  check("F176 未設定のまま「送らない」を選んでも成功する", offAgain.status === 200, offAgain.text);
+
+  // チャンネルIDの形が違えば400（誤入力をそのまま保存しない）
+  const bad = await setTarget("PROPOSAL", "not-a-snowflake");
+  check("F177 チャンネルIDの形が違えば400", bad.status === 400, bad.status);
+
+  // オーナー以外は変えられない（通知先はグループ全員の目に触れる場所を決める設定）
+  const byMember = await api(`/api/groups/${notifyGroupId}/notifications`, {
+    method: "PATCH",
+    cookie: memberCookie,
+    body: { kind: "PROPOSAL", channelId: CHANNEL },
+  });
+  check("F178 オーナー以外は通知先を変えられない", byMember.status === 403, byMember.status);
+
+  // **別の種類の設定を、提案の通知先として使ってしまわないこと。**
+  // 種類ごとに分けた意味がここにある。読み取り側が種類を見ていないと、
+  // 「価格の通知先しか設定していないのに提案の通知が飛ぶ」ことになる
+  await setTarget("PROPOSAL", "");
+  await setTarget("PRICE_DROP", CHANNEL);
+  mark = discordLines().length;
+  const otherKindOnly = await api(`/api/groups/${notifyGroupId}/proposals`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { steamAppId: 1174180, title: "レッド・デッド・リデンプション2" },
+  });
+  check(
+    "F180 価格の通知先しか設定していなければ、提案の通知は飛ばない",
+    otherKindOnly.status === 201 && bodiesSince(mark).length === 0,
+    `${otherKindOnly.status} / 投稿=${bodiesSince(mark).length}件`
+  );
+
+  // 後片付け（作ったときと同じ経路で消す）
+  if (notifyGroupId) {
+    await api(`/api/groups/${notifyGroupId}`, { method: "DELETE", cookie: adminCookie });
+  }
+
+  // グループを消したら通知の設定も消える（残ると、消えたグループ宛の設定が溜まる）
+  const orphan = await db.groupNotificationTarget.count({ where: { groupId: notifyGroupId } });
+  check("F179 グループを消すと通知の設定も消える", orphan === 0, `${orphan}件`);
 }
 
 const summary = writeResults("flows", "F: 主要導線", results);

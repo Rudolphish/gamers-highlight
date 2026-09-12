@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getItadSummary } from "@/lib/itad";
 import { postDiscordMessage } from "@/lib/discord";
+import { listNotificationTargets } from "@/lib/notificationTargets";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // GET /api/cron/check-wishlist-prices … Vercel Cronから日次で呼ばれる。
-// 通知先チャンネルを設定しているグループのWISHLISTゲームについて、IsThereAnyDealの
+// 「最安値の更新」の通知先を設定しているグループのWISHLISTゲームについて、IsThereAnyDealの
 // 過去最安値が前回チェック時より下がっていたらDiscordチャンネルに通知する。
 // 初回チェック（前回記録が無い）は基準値を記録するだけで通知はしない（誤検知防止）。
 export async function GET(req: Request) {
@@ -16,8 +17,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  // 送り先は種類ごとに決める（lib/notificationTargets.ts）。
+  // **この種類の設定が無いグループは調べもしない**——通知しないのに
+  // ITADへ問い合わせても、外部APIを無駄に叩くだけになる
+  const targets = await listNotificationTargets("PRICE_DROP");
+  const channelByGroupId = new Map(targets.map((t) => [t.groupId, t.channelId]));
+
   const groups = await db.group.findMany({
-    where: { notificationChannelId: { not: null } },
+    where: { id: { in: targets.map((t) => t.groupId) } },
     include: {
       games: {
         where: { status: "WISHLIST" },
@@ -27,7 +34,7 @@ export async function GET(req: Request) {
   });
 
   const tasks = groups.flatMap((group) =>
-    group.games.map((game) => ({ channelId: group.notificationChannelId!, game }))
+    group.games.map((game) => ({ channelId: channelByGroupId.get(group.id)!, game }))
   );
 
   let checked = 0;

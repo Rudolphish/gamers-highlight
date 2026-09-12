@@ -950,6 +950,83 @@ for (const [id, label, path] of targets) {
   await page.close();
 }
 
+// ── 通知の設定（種類ごとの送り先） ──
+// **プルダウンの中身と、保存が残ることまで見る。** 以前は通知先が1つで、
+// 選ぶ経路（Discordのチャンネル一覧）はテストを一度も通っていなかった。
+{
+  const page = await context.newPage();
+  await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /通知の設定/ }).click();
+  await page.waitForTimeout(800);
+
+  // 文言の正本は apps/web/src/lib/notificationTargets.ts の NOTIFICATION_KINDS。
+  // ここはブラウザ側のスクリプトでTSを読めないので書き写している
+  // （種類を入れ替えたときにここだけ古くなり、実際に1件落ちて気づいた）
+  const labels = [
+    "ゲームが提案されたとき",
+    "ウィッシュリストが最安値を更新したとき",
+    "週に一度のまとめ",
+  ];
+  const shown = [];
+  for (const l of labels) shown.push(await page.getByText(l, { exact: true }).count());
+  rows.push({
+    id: "B59",
+    item: "通知の設定に3種類が並ぶ",
+    expected: "3種類とも出る",
+    actual: `${shown.filter((n) => n > 0).length}/3`,
+    ok: shown.every((n) => n > 0),
+    note: "",
+  });
+
+  // Discordのチャンネル一覧がプルダウンに出る（取得できなければIDの直接入力に落ちる）
+  const select = page.getByLabel("ゲームが提案されたとき");
+  const options = await select.locator("option").allTextContents();
+  rows.push({
+    id: "B60",
+    item: "プルダウンにDiscordのチャンネル一覧が出る（ボイスチャンネルは除く）",
+    expected: "#general が出て #voice-chat は出ない",
+    actual: options.join(" / "),
+    ok: options.some((o) => o.includes("general")) && !options.some((o) => o.includes("voice-chat")),
+    note: "",
+  });
+
+  // 選んで保存し、開き直しても残っていること
+  await select.selectOption("900000000000000012");
+  await page.waitForTimeout(1200);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(400);
+  const counterText = (await page.getByRole("button", { name: /通知の設定/ }).textContent()) ?? "";
+  await page.getByRole("button", { name: /通知の設定/ }).click();
+  await page.waitForTimeout(800);
+  const saved = await page.getByLabel("ゲームが提案されたとき").inputValue();
+  rows.push({
+    id: "B61",
+    item: "選んだ通知先が保存され、再読み込みしても残る",
+    expected: "900000000000000012 / 1種類がオン",
+    actual: `${saved} / ${counterText.trim()}`,
+    ok: saved === "900000000000000012" && counterText.includes("1/3"),
+    note: "",
+  });
+
+  // 後片付け（送らないに戻す。残すと後続の実行で件数が変わる）
+  await page.getByLabel("ゲームが提案されたとき").selectOption("");
+  await page.waitForTimeout(1200);
+  const cleared = await page.evaluate(async ([gid]) => {
+    const res = await fetch(`/api/groups/${gid}`);
+    return res.ok;
+  }, [ids.groupId]);
+  rows.push({
+    id: "B62",
+    item: "「送らない」に戻せる（後片付け）",
+    expected: "0種類がオン",
+    actual: (await page.getByRole("button", { name: /通知の設定/ }).textContent())?.trim() ?? "",
+    ok: ((await page.getByRole("button", { name: /通知の設定/ }).textContent()) ?? "").includes("0/3") && cleared,
+    note: "",
+  });
+
+  await page.close();
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));

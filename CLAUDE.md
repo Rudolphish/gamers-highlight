@@ -315,6 +315,29 @@ AWS SDK v3は既定（`requestChecksumCalculation: "WHEN_SUPPORTED"`）で
 `tools/local-test/audit-media-limits.mjs` がCIで突き合わせる。画面の文言も
 `MEDIA_LIMIT_LABELS` から組み立てること（数値をベタ書きすると同じ道具に落とされる）。
 
+### グループの通知先は種類ごと。「行が無い＝送らない」
+
+`Group.notificationChannelId` はもう通知の送信に使っていない（移行前の値を残してあるだけ）。
+送り先は `GroupNotificationTarget`（groupId × kind × channelId）で、
+**行が無い種類は送らない**。読むときは `lib/notificationTargets.ts` の
+`getNotificationChannel()` / `listNotificationTargets()` を通すこと。
+
+種類を足すときは `GroupNotificationKind` に値を足し、`NOTIFICATION_KINDS`（同じファイル）に
+ラベルと説明を書く。設定画面もAPIの検証もこの配列から組み立てるので、他は触らなくてよい
+（**ブラウザテストのラベルだけは書き写している**——TSを読めないため。種類を入れ替えたとき
+ここだけ古くなって1件落ちた）。
+
+**Botの死活はここに含めない。** 運用の話でグループのメンバーには関係がないので、
+管理者向けのチャンネル（`AppSetting.errorNotifyChannelId`）へ1通だけ送る。
+
+**週次まとめの「最後に送った週」はグループごとに持つ**（`weeklySummaryLastSentWeekKey()`）。
+全体で1つだと、1グループへの投稿が失敗しただけで全グループへ再送することになる。
+
+**新しい種類を足しただけでは既存グループには何も設定されない**（＝送らない）。
+移行が要る場合は `packages/db/backfill-notification-targets.ts` と同じ形の
+バックフィルを用意すること。**エラーにはならず静かに送られなくなる**のがこの設計の弱点で、
+グループ画面には「旧設定が残っているのに種類ごとの設定が0件」のときだけ警告を出している。
+
 ### `update` は書く列が無いと何もしない（`@updatedAt` も動かない）
 
 `db.album.update({ where: { id }, data: {} })` は**UPDATEを発行しない**（Prisma 5.22 で実測）。

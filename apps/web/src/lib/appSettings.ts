@@ -22,9 +22,42 @@ export const APP_SETTING_KEYS = {
    * 最後に週次まとめを送った週の月曜日（JST、`YYYY-MM-DD`）。
    * 曜日で送るのではなく「完了した週がこれより新しければ送る」と判定するために持つ
    * （cronが飛んでも取りこぼさず、二重にも送らない）。
+   *
+   * **2026-09-12 以降はグループごとに持つ**（`weeklySummaryLastSentWeekKey()`）。
+   * 送り先がグループごとになったため、1つのグループへの投稿が失敗しただけで
+   * 全グループに再送されるのを避ける。このキーはそれ以前の値で、
+   * グループごとの記録がまだ無いときの初期値として読む。
    */
   weeklySummaryLastSentWeek: "weeklySummaryLastSentWeek",
 } as const;
+
+/**
+ * グループごとの「最後に送った週」のキー。
+ *
+ * `AppSetting` は key-value なので、グループを増やしてもスキーマは変わらない。
+ * 型は `AppSettingKey` に含まれないため、読み書きは専用の関数を通す。
+ */
+export function weeklySummaryLastSentWeekKey(groupId: string): string {
+  return `weeklySummaryLastSentWeek:${groupId}`;
+}
+
+export async function getRawAppSetting(key: string): Promise<string | null> {
+  const row = await db.appSetting.findUnique({ where: { key } });
+  return row?.value ?? null;
+}
+
+export async function setRawAppSetting(key: string, value: string): Promise<void> {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    await db.appSetting.deleteMany({ where: { key } });
+    return;
+  }
+  await db.appSetting.upsert({
+    where: { key },
+    create: { key, value: trimmed },
+    update: { value: trimmed },
+  });
+}
 
 export type AppSettingKey = (typeof APP_SETTING_KEYS)[keyof typeof APP_SETTING_KEYS];
 
