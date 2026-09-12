@@ -5,6 +5,8 @@ import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activityLog";
 import { getOrFetchExternalGameData } from "@/lib/externalGameCache";
+import { postDiscordMessage } from "@/lib/discord";
+import { promotionThreshold } from "@/lib/proposalPromotion";
 import { z } from "zod";
 
 const proposeGameSchema = z.object({
@@ -99,5 +101,50 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     occurredAt: proposal.createdAt,
   });
 
+  // 名前は作成済みの提案から取る（`include: { proposedBy: true }` で既に読んでいる）。
+  // `getCurrentUser()` はIDとメールしか持たないので、ここで引き直すと1往復増える
+  await notifyProposal(params.id, proposal.title, proposal.proposedBy.name);
+
   return NextResponse.json({ proposal }, { status: 201 });
+}
+
+/**
+ * 提案されたことをグループの通知先（Discord）へ知らせる。
+ *
+ * **提案は画面を開かないと気づけない。** 投票が集まらないと採用されない仕組みなので、
+ * 気づかれないまま流れると提案そのものが機能しない（「提案しても誰も反応しない」という
+ * 報告があった）。通知先が未設定なら何もしない。
+ *
+ * **通知が失敗しても提案の作成は成功として返す。** 提案はもうDBに入っており、
+ * ここで500にすると「提案できなかった」と誤解されて二重に提案される。
+ * ただし黙って消さず、失敗はログに残す（`postDiscordMessage` は例外を投げず false を返すので、
+ * 戻り値を見ないと失敗がどこにも残らない）。
+ */
+async function notifyProposal(groupId: string, title: string, proposerName: string | null) {
+  const group = await db.group.findUnique({
+    where: { id: groupId },
+    select: { notificationChannelId: true, _count: { select: { members: true } } },
+  });
+  if (!group?.notificationChannelId) return;
+
+  // 昇格の条件は投票API（reactions）と同じ関数から取る。
+  // ここで式を書き写すと、片方だけ変わったときに通知の文面だけが嘘になる
+  const threshold = promotionThreshold(group._count.members);
+
+  // 表示名が無くてもメールアドレスにはフォールバックしない。
+  // Discordチャンネルにメールアドレスを流さないため（価格通知と同じ方針）。
+  const who = proposerName ?? "メンバー";
+
+  const message = [
+    `💡 **${title}** が提案されました`,
+    `提案者: ${who}`,
+    `👍 が ${threshold} 人集まるとゲームリストに入ります`,
+  ].join("\n");
+
+  const ok = await postDiscordMessage(group.notificationChannelId, message);
+  if (!ok) {
+    console.error(
+      `[proposals] Discordへの通知に失敗しました groupId=${groupId} channelId=${group.notificationChannelId}`
+    );
+  }
 }

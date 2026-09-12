@@ -166,6 +166,8 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
           </p>
           <p>
             <strong className="text-steam-text">ゲーム提案</strong>：「このゲームどう？」と提案すると、メンバーがリアクションできます。「いいね」がメンバーの過半数に達すると、自動でゲームリストに「気になる」として追加されます。
+            <strong className="text-steam-text">提案するとDiscordにも通知が飛びます</strong>
+            （通知先を設定している場合。下の「Discordへの通知」を参照）。
           </p>
         </div>
       ),
@@ -190,13 +192,28 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
     },
     {
       id: "price-notify",
-      title: "セール・最安値をDiscordに通知する",
+      title: "Discordへの通知",
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            ウィッシュリスト（ゲームリストで「気になる」ステータスのゲーム）の価格を毎日調べて、
+            グループに通知先のチャンネルを設定しておくと、次の3つがDiscordへ届きます。
+          </p>
+          <ul className="ml-4 list-disc space-y-1">
+            <li>
+              <strong className="text-steam-text">ゲームが提案されたとき</strong>
+              ：ゲーム名・提案した人・採用に必要な「いいね」の数が届きます
+            </li>
+            <li>
+              <strong className="text-steam-text">ウィッシュリストが最安値を更新したとき</strong>
+            </li>
+            <li>
+              <strong className="text-steam-text">週に一度のまとめ</strong>
+            </li>
+          </ul>
+          <p>
+            価格の通知は、ゲームリストで「気になる」ステータスのゲームを毎日調べて、
             <strong className="text-steam-text">過去の最安値を更新したときだけ</strong>
-            Discordに通知します。値下げのたびに鳴るわけではありません。
+            送ります。値下げのたびに鳴るわけではありません。
           </p>
           <p>
             <strong className="text-steam-text">通知先の設定が必要です。</strong>

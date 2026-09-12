@@ -2357,6 +2357,132 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ───────────────────────────────────────────────────────────
+// W. 提案されたらDiscordへ通知する
+// ───────────────────────────────────────────────────────────
+{
+  const fs = await import("node:fs");
+  const DISCORD_LOG = "/tmp/stub-discord.log";
+  const discordLines = () =>
+    fs.existsSync(DISCORD_LOG)
+      ? fs.readFileSync(DISCORD_LOG, "utf8").split("\n").filter(Boolean)
+      : [];
+  const bodiesSince = (mark) =>
+    discordLines()
+      .slice(mark)
+      .map((line) => {
+        try {
+          return JSON.parse(JSON.parse(line).body ?? "{}").content ?? "";
+        } catch {
+          return "";
+        }
+      });
+
+  // **seedのグループは使わない。** 通知先を設定したまま残すと、後のスイート
+  // （Bot死活のcronや週次まとめ）が同じチャンネルへ投稿して件数が変わる。
+  const created = await api("/api/groups", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { name: "提案通知テスト用グループ" },
+  });
+  const notifyGroupId = created.json?.group?.id ?? null;
+  const CHANNEL = "900000000000000099";
+  await api(`/api/groups/${notifyGroupId}`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { notificationChannelId: CHANNEL },
+  });
+
+  // **メンバーを1人足してから試す。** オーナーだけ（メンバー0）だと、必要数は
+  // 正しい式でも「オーナー分の+1を落とした式」でも 1 になり、**壊しても通ってしまう**。
+  // メンバー1人なら 2 と 1 に割れるので、式の間違いが結果に出る。
+  await api(`/api/groups/${notifyGroupId}/members`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { email: "member@example.com", role: "VIEWER" },
+  });
+
+  let mark = discordLines().length;
+  const proposed = await api(`/api/groups/${notifyGroupId}/proposals`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { steamAppId: 271590, title: "グランド・セフト・オートV" },
+  });
+  const sent = bodiesSince(mark);
+  check(
+    "F167 提案するとDiscordへ通知が飛ぶ",
+    proposed.status === 201 && sent.length === 1,
+    `${proposed.status} / 投稿=${sent.length}件`
+  );
+
+  // **中身まで見る。** 送ったことだけ確認しても、空文字を送っていたら気づけない
+  check(
+    "F168 通知にゲーム名と提案者が入っている",
+    sent[0]?.includes("グランド・セフト・オートV") && sent[0]?.includes("提案者"),
+    sent[0] ?? "投稿なし"
+  );
+
+  // 価格通知と同じ方針：表示名が無くてもメールアドレスには落とさない
+  check(
+    "F169 通知にメールアドレスが混ざらない",
+    !sent[0]?.includes("@example.com"),
+    sent[0] ?? "投稿なし"
+  );
+
+  // **必要な「いいね」の数は投票APIと同じ式で出す。**
+  // オーナー1人＋メンバー1人＝母数2なので、必要数は floor(2/2)+1 = 2。
+  // オーナー分の+1を落とすと 1 になるので、式が違えばここで割れる。
+  // （seedのグループはオーナーもGroupMemberの行を持っていて本番と形が違うため、
+  //   実運用と同じ「オーナーはmembersに入らない」グループを自分で作って確かめている）
+  check(
+    "F170 通知に必要な「いいね」の数が入っている（投票APIと同じ式）",
+    sent[0]?.includes("👍 が 2 人集まると"),
+    sent[0] ?? "投稿なし"
+  );
+
+  // 通知先が未設定なら送らない（既定はこちら。設定していないグループに勝手に投げない）
+  await api(`/api/groups/${notifyGroupId}`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { notificationChannelId: "" },
+  });
+  mark = discordLines().length;
+  const quiet = await api(`/api/groups/${notifyGroupId}/proposals`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { steamAppId: 570, title: "Dota 2" },
+  });
+  check(
+    "F171 通知先が未設定のグループでは送らない（提案自体は成功する）",
+    quiet.status === 201 && bodiesSince(mark).length === 0,
+    `${quiet.status} / 投稿=${bodiesSince(mark).length}件`
+  );
+
+  // Discordが落ちていても提案は成功する（通知の失敗で500にしない）
+  fs.writeFileSync("/tmp/stub-fail", "discord.com");
+  await api(`/api/groups/${notifyGroupId}`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { notificationChannelId: CHANNEL },
+  });
+  const whenDown = await api(`/api/groups/${notifyGroupId}/proposals`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { steamAppId: 1091500, title: "サイバーパンク2077" },
+  });
+  fs.unlinkSync("/tmp/stub-fail");
+  check(
+    "F172 Discordが落ちていても提案は成功する",
+    whenDown.status === 201,
+    whenDown.text
+  );
+
+  // 後片付け（作ったときと同じ経路で消す）
+  if (notifyGroupId) {
+    await api(`/api/groups/${notifyGroupId}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

@@ -6,6 +6,7 @@ import { hasGroupPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activityLog";
 import { getOrFetchExternalGameData } from "@/lib/externalGameCache";
 import { z } from "zod";
+import { promotionThreshold } from "@/lib/proposalPromotion";
 
 const reactSchema = z.object({
   type: z.enum(["LIKE", "MAYBE", "PASS"]),
@@ -71,8 +72,7 @@ export async function POST(
     where: { id: params.id },
     select: { _count: { select: { members: true } } },
   });
-  const totalMembers = 1 + (group?._count.members ?? 0); // オーナー分+1
-  const threshold = Math.floor(totalMembers / 2) + 1;
+  const threshold = promotionThreshold(group?._count.members ?? 0);
 
   let promoted = false;
   if (likeCount >= threshold) {
