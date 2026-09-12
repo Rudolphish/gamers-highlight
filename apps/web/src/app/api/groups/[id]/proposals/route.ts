@@ -7,6 +7,7 @@ import { logActivity } from "@/lib/activityLog";
 import { getOrFetchExternalGameData } from "@/lib/externalGameCache";
 import { postDiscordMessage } from "@/lib/discord";
 import { promotionThreshold } from "@/lib/proposalPromotion";
+import { getNotificationChannel } from "@/lib/notificationTargets";
 import { z } from "zod";
 
 const proposeGameSchema = z.object({
@@ -113,7 +114,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
  *
  * **提案は画面を開かないと気づけない。** 投票が集まらないと採用されない仕組みなので、
  * 気づかれないまま流れると提案そのものが機能しない（「提案しても誰も反応しない」という
- * 報告があった）。通知先が未設定なら何もしない。
+ * 報告があった）。**この種類の通知先が設定されていなければ何もしない**
+ * （送り先は種類ごとに決める。`lib/notificationTargets.ts`）。
  *
  * **通知が失敗しても提案の作成は成功として返す。** 提案はもうDBに入っており、
  * ここで500にすると「提案できなかった」と誤解されて二重に提案される。
@@ -121,11 +123,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
  * 戻り値を見ないと失敗がどこにも残らない）。
  */
 async function notifyProposal(groupId: string, title: string, proposerName: string | null) {
+  const channelId = await getNotificationChannel(groupId, "PROPOSAL");
+  if (!channelId) return;
+
   const group = await db.group.findUnique({
     where: { id: groupId },
-    select: { notificationChannelId: true, _count: { select: { members: true } } },
+    select: { _count: { select: { members: true } } },
   });
-  if (!group?.notificationChannelId) return;
+  if (!group) return;
 
   // 昇格の条件は投票API（reactions）と同じ関数から取る。
   // ここで式を書き写すと、片方だけ変わったときに通知の文面だけが嘘になる
@@ -141,10 +146,8 @@ async function notifyProposal(groupId: string, title: string, proposerName: stri
     `👍 が ${threshold} 人集まるとゲームリストに入ります`,
   ].join("\n");
 
-  const ok = await postDiscordMessage(group.notificationChannelId, message);
+  const ok = await postDiscordMessage(channelId, message);
   if (!ok) {
-    console.error(
-      `[proposals] Discordへの通知に失敗しました groupId=${groupId} channelId=${group.notificationChannelId}`
-    );
+    console.error(`[proposals] Discordへの通知に失敗しました groupId=${groupId} channelId=${channelId}`);
   }
 }

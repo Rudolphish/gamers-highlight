@@ -160,6 +160,19 @@ function hltb(url, init) {
   return json({}, 404);
 }
 
+// サーバー内のチャンネル一覧。**これを返さないと通知先の設定がプルダウンにならず、
+// IDの直接入力へフォールバックする**（画面としては動くが、選ぶ側の経路が一度も
+// テストを通らない）。type は 0=テキスト, 5=アナウンス, 2=ボイス（除外されること
+// の確認用に混ぜてある）。
+function discordChannels() {
+  return json([
+    { id: "900000000000000011", name: "general", type: 0, position: 0 },
+    { id: "900000000000000012", name: "screenshots", type: 0, position: 1 },
+    { id: "900000000000000013", name: "sale-info", type: 5, position: 2 },
+    { id: "900000000000000014", name: "voice-chat", type: 2, position: 3 },
+  ]);
+}
+
 function discord(url, init) {
   // **本文まで残す。** ホスト名だけだと「送ったこと」は分かっても
   // 「何を送ったか」が確認できない（週次まとめの文面の確認に要る）。
@@ -236,7 +249,10 @@ globalThis.fetch = async function stubbedFetch(input, init) {
     if (host === "api.isthereanydeal.com") return itad(url);
     if (host === "www.googleapis.com") return youtube();
     if (host === "howlongtobeat.com") return hltb(url, init);
-    if (host === "discord.com") return discord(url, init);
+    if (host === "discord.com") {
+      if (/\/guilds\/[^/]+\/channels/.test(url)) return discordChannels();
+      return discord(url, init);
+    }
   } catch (e) {
     console.error("[stub] handler error", url, e);
   }

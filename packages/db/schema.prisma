@@ -133,7 +133,10 @@ model Group {
   id                    String   @id @default(cuid())
   name                  String
   guildId               String?  @unique
-  notificationChannelId String? // ウィッシュリストの最安値更新通知の投稿先チャンネル（未設定なら通知しない）
+  /// **旧・単一の通知先。** 2026-09-12 に種類ごとの設定（`GroupNotificationTarget`）へ移した。
+  /// 通知の送信はもうこの列を見ていない。移行前の値を失わないために残してあり、
+  /// バックフィル（`packages/db/backfill-notification-targets.ts`）の入力になる。
+  notificationChannelId String?
   ownerId               String
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -145,7 +148,37 @@ model Group {
   proposals GroupGameProposal[]
   invites   GroupInvite[]
 
+  notificationTargets GroupNotificationTarget[]
+
   @@map("groups")
+}
+
+/// グループ単位の通知を、種類ごとにどのチャンネルへ送るか。
+///
+/// **行が無い＝その種類は送らない。** 「送らない」を表すための特別な値
+/// （空文字やフラグ列）を作らずに済ませるため、この形にしている。
+/// 種類を増やすときは enum に値を足す（列は増やさない）。
+model GroupNotificationTarget {
+  id        String                @id @default(cuid())
+  groupId   String
+  kind      GroupNotificationKind
+  channelId String
+  updatedAt DateTime              @updatedAt
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, kind])
+  @@index([kind])
+  @@map("group_notification_targets")
+}
+
+enum GroupNotificationKind {
+  /// ゲームが提案された
+  PROPOSAL
+  /// ウィッシュリストが最安値を更新した
+  PRICE_DROP
+  /// Botが動いていない
+  BOT_HEALTH
 }
 
 // Steam/YouTube/HowLongToBeatへの外部問い合わせ結果をsteamAppId単位でキャッシュする。

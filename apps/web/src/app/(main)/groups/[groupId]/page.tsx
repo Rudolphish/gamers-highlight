@@ -12,7 +12,7 @@ import { DeleteGroupButton } from "@/components/group/DeleteGroupButton";
 import { GroupGameList } from "@/components/group/GroupGameList";
 import { PlayStatusSummary } from "@/components/group/PlayStatusSummary";
 import { GameProposals } from "@/components/group/GameProposals";
-import { NotificationChannelSetting } from "@/components/group/NotificationChannelSetting";
+import { NotificationSettings } from "@/components/group/NotificationSettings";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { getSteamCoverUrls } from "@/lib/albumCover";
 
@@ -159,7 +159,11 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
           <GroupNameEditor groupId={group.id} name={group.name} canEdit={isOwner} />
           {isOwner && (
             <div className="mt-1.5">
-              <NotificationChannelSetting groupId={group.id} channelId={group.notificationChannelId} />
+              <NotificationSettings
+                groupId={group.id}
+                targets={group.notificationTargets}
+                legacyChannelId={group.notificationChannelId}
+              />
             </div>
           )}
         </div>

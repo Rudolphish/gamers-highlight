@@ -2387,11 +2387,13 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   });
   const notifyGroupId = created.json?.group?.id ?? null;
   const CHANNEL = "900000000000000099";
-  await api(`/api/groups/${notifyGroupId}`, {
-    method: "PATCH",
-    cookie: adminCookie,
-    body: { notificationChannelId: CHANNEL },
-  });
+  const setTarget = (kind, channelId) =>
+    api(`/api/groups/${notifyGroupId}/notifications`, {
+      method: "PATCH",
+      cookie: adminCookie,
+      body: { kind, channelId },
+    });
+  await setTarget("PROPOSAL", CHANNEL);
 
   // **メンバーを1人足してから試す。** オーナーだけ（メンバー0）だと、必要数は
   // 正しい式でも「オーナー分の+1を落とした式」でも 1 になり、**壊しても通ってしまう**。
@@ -2441,11 +2443,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 
   // 通知先が未設定なら送らない（既定はこちら。設定していないグループに勝手に投げない）
-  await api(`/api/groups/${notifyGroupId}`, {
-    method: "PATCH",
-    cookie: adminCookie,
-    body: { notificationChannelId: "" },
-  });
+  await setTarget("PROPOSAL", "");
   mark = discordLines().length;
   const quiet = await api(`/api/groups/${notifyGroupId}/proposals`, {
     method: "POST",
@@ -2460,11 +2458,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
 
   // Discordが落ちていても提案は成功する（通知の失敗で500にしない）
   fs.writeFileSync("/tmp/stub-fail", "discord.com");
-  await api(`/api/groups/${notifyGroupId}`, {
-    method: "PATCH",
-    cookie: adminCookie,
-    body: { notificationChannelId: CHANNEL },
-  });
+  await setTarget("PROPOSAL", CHANNEL);
   const whenDown = await api(`/api/groups/${notifyGroupId}/proposals`, {
     method: "POST",
     cookie: adminCookie,
@@ -2477,10 +2471,83 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     whenDown.text
   );
 
+  // **種類ごとに独立していること。** 提案だけをオンにしても、価格の通知先は空のまま。
+  // ここが繋がっていると「1つ設定したら全部鳴る」という以前の挙動に戻る
+  await setTarget("PROPOSAL", CHANNEL);
+  const afterProposalOnly = await db.groupNotificationTarget.findMany({
+    where: { groupId: notifyGroupId },
+    select: { kind: true, channelId: true },
+  });
+  check(
+    "F173 種類ごとに独立している（提案をオンにしても価格・Bot死活は空のまま）",
+    afterProposalOnly.length === 1 && afterProposalOnly[0].kind === "PROPOSAL",
+    JSON.stringify(afterProposalOnly)
+  );
+
+  // 種類ごとに違うチャンネルを指定できる
+  const OTHER = "900000000000000088";
+  await setTarget("PRICE_DROP", OTHER);
+  const twoKinds = await db.groupNotificationTarget.findMany({
+    where: { groupId: notifyGroupId },
+    select: { kind: true, channelId: true },
+    orderBy: { kind: "asc" },
+  });
+  check(
+    "F174 種類ごとに別のチャンネルを指定できる",
+    twoKinds.length === 2 &&
+      twoKinds.find((t) => t.kind === "PROPOSAL")?.channelId === CHANNEL &&
+      twoKinds.find((t) => t.kind === "PRICE_DROP")?.channelId === OTHER,
+    JSON.stringify(twoKinds)
+  );
+
+  // 「送らない」に戻すと行ごと消える（送らないための特別な値を作らない）
+  await setTarget("PRICE_DROP", "");
+  const afterOff = await db.groupNotificationTarget.count({
+    where: { groupId: notifyGroupId, kind: "PRICE_DROP" },
+  });
+  check("F175 「送らない」に戻すと設定が消える", afterOff === 0, `${afterOff}件`);
+
+  // 設定が無い状態で「送らない」を選び直しても落ちない
+  const offAgain = await setTarget("PRICE_DROP", "");
+  check("F176 未設定のまま「送らない」を選んでも成功する", offAgain.status === 200, offAgain.text);
+
+  // チャンネルIDの形が違えば400（誤入力をそのまま保存しない）
+  const bad = await setTarget("PROPOSAL", "not-a-snowflake");
+  check("F177 チャンネルIDの形が違えば400", bad.status === 400, bad.status);
+
+  // オーナー以外は変えられない（通知先はグループ全員の目に触れる場所を決める設定）
+  const byMember = await api(`/api/groups/${notifyGroupId}/notifications`, {
+    method: "PATCH",
+    cookie: memberCookie,
+    body: { kind: "PROPOSAL", channelId: CHANNEL },
+  });
+  check("F178 オーナー以外は通知先を変えられない", byMember.status === 403, byMember.status);
+
+  // **別の種類の設定を、提案の通知先として使ってしまわないこと。**
+  // 種類ごとに分けた意味がここにある。読み取り側が種類を見ていないと、
+  // 「価格の通知先しか設定していないのに提案の通知が飛ぶ」ことになる
+  await setTarget("PROPOSAL", "");
+  await setTarget("PRICE_DROP", CHANNEL);
+  mark = discordLines().length;
+  const otherKindOnly = await api(`/api/groups/${notifyGroupId}/proposals`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { steamAppId: 1174180, title: "レッド・デッド・リデンプション2" },
+  });
+  check(
+    "F180 価格の通知先しか設定していなければ、提案の通知は飛ばない",
+    otherKindOnly.status === 201 && bodiesSince(mark).length === 0,
+    `${otherKindOnly.status} / 投稿=${bodiesSince(mark).length}件`
+  );
+
   // 後片付け（作ったときと同じ経路で消す）
   if (notifyGroupId) {
     await api(`/api/groups/${notifyGroupId}`, { method: "DELETE", cookie: adminCookie });
   }
+
+  // グループを消したら通知の設定も消える（残ると、消えたグループ宛の設定が溜まる）
+  const orphan = await db.groupNotificationTarget.count({ where: { groupId: notifyGroupId } });
+  check("F179 グループを消すと通知の設定も消える", orphan === 0, `${orphan}件`);
 }
 
 const summary = writeResults("flows", "F: 主要導線", results);

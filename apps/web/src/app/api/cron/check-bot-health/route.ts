@@ -4,6 +4,7 @@ import { postDiscordMessage } from "@/lib/discord";
 import { checkFreeTierUsage } from "@/lib/usageAlerts";
 import { runActivityMaintenance } from "@/lib/activityRollup";
 import { sendWeeklySummaryIfDue } from "@/lib/weeklyNotify";
+import { listNotificationTargets } from "@/lib/notificationTargets";
 
 export const dynamic = "force-dynamic";
 
@@ -69,11 +70,10 @@ export async function GET(req: Request) {
     });
   }
 
-  const groups = await db.group.findMany({
-    where: { notificationChannelId: { not: null } },
-    select: { notificationChannelId: true },
-  });
-  const channelIds = [...new Set(groups.map((g) => g.notificationChannelId!))];
+  // **チャンネルの重複を除く。** Botの死活はグループごとの話ではなく1つの事実なので、
+  // 複数のグループが同じチャンネルを指定していても1回だけ送る
+  const targets = await listNotificationTargets("BOT_HEALTH");
+  const channelIds = [...new Set(targets.map((t) => t.channelId))];
 
   const message = heartbeat
     ? `⚠️ Discord Botからの生存報告が${Math.round(staleMs! / (60 * 1000))}分間ありません。PC/PM2の状態を確認してください（\`pm2 status\` / \`pm2 resurrect\`）。`
