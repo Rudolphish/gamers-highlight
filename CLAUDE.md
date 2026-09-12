@@ -323,7 +323,15 @@ AWS SDK v3は既定（`requestChecksumCalculation: "WHEN_SUPPORTED"`）で
 `getNotificationChannel()` / `listNotificationTargets()` を通すこと。
 
 種類を足すときは `GroupNotificationKind` に値を足し、`NOTIFICATION_KINDS`（同じファイル）に
-ラベルと説明を書く。設定画面はこの配列から組み立てるので、画面側の変更は要らない。
+ラベルと説明を書く。設定画面もAPIの検証もこの配列から組み立てるので、他は触らなくてよい
+（**ブラウザテストのラベルだけは書き写している**——TSを読めないため。種類を入れ替えたとき
+ここだけ古くなって1件落ちた）。
+
+**Botの死活はここに含めない。** 運用の話でグループのメンバーには関係がないので、
+管理者向けのチャンネル（`AppSetting.errorNotifyChannelId`）へ1通だけ送る。
+
+**週次まとめの「最後に送った週」はグループごとに持つ**（`weeklySummaryLastSentWeekKey()`）。
+全体で1つだと、1グループへの投稿が失敗しただけで全グループへ再送することになる。
 
 **新しい種類を足しただけでは既存グループには何も設定されない**（＝送らない）。
 移行が要る場合は `packages/db/backfill-notification-targets.ts` と同じ形の

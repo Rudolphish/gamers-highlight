@@ -209,8 +209,8 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
               <strong className="text-steam-text">ウィッシュリストが最安値を更新したとき</strong>
             </li>
             <li>
-              <strong className="text-steam-text">Botが動いていないとき</strong>
-              ：Discord Botからの応答が途絶えたときに届きます
+              <strong className="text-steam-text">週に一度のまとめ</strong>
+              ：先週の投稿・クリア・提案などをまとめて届きます（動きが無かった週は送りません）
             </li>
           </ul>
           <p>

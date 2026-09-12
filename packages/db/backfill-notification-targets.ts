@@ -1,6 +1,6 @@
 /**
  * 種類ごとに分ける前の通知先（`Group.notificationChannelId`）を、
- * 新しい `GroupNotificationTarget` の3種類へ写す。
+ * 新しい `GroupNotificationTarget` へ写す。
  *
  *   pnpm --filter @gamers-highlight/db backfill:notify           # 下見（何も書かない）
  *   pnpm --filter @gamers-highlight/db backfill:notify -- --apply # 実行
@@ -19,8 +19,16 @@ import { PrismaClient, type GroupNotificationKind } from "@prisma/client";
 const db = new PrismaClient();
 const APPLY = process.argv.includes("--apply");
 
-// 移行前は1つの通知先へ3種類すべてを送っていたので、3種類とも同じチャンネルにする
-const KINDS: GroupNotificationKind[] = ["PROPOSAL", "PRICE_DROP", "BOT_HEALTH"];
+// **移行前にこのチャンネルへ実際に送っていたのは「最安値の更新」だけ**なので、
+// 素直に引き継ぐのはそれ1つ。
+//
+// 「ゲームが提案されたとき」も入れているのは、この通知自体が同じ回に足した新機能で、
+// 欲しくて入れたものだから（要らなければ画面で「送らない」に戻せる）。
+//
+// **「週に一度のまとめ」は入れない。** 以前は管理者の1チャンネルへ流していたもので、
+// グループのチャンネルへ勝手に向け直すと、これまで届いていなかった場所に届き始める。
+// 受け取りたいグループが自分で選ぶ。
+const KINDS: GroupNotificationKind[] = ["PRICE_DROP", "PROPOSAL"];
 
 async function main() {
   const groups = await db.group.findMany({
@@ -46,7 +54,7 @@ async function main() {
     const missing = KINDS.filter((k) => !already.has(k));
 
     if (missing.length === 0) {
-      console.log(`- ${group.name}: 3種類とも設定済み。触らない`);
+      console.log(`- ${group.name}: 対象の種類はすべて設定済み。触らない`);
       skipped += KINDS.length;
       continue;
     }

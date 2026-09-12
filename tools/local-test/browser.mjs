@@ -959,7 +959,14 @@ for (const [id, label, path] of targets) {
   await page.getByRole("button", { name: /通知の設定/ }).click();
   await page.waitForTimeout(800);
 
-  const labels = ["ゲームが提案されたとき", "ウィッシュリストが最安値を更新したとき", "Botが動いていないとき"];
+  // 文言の正本は apps/web/src/lib/notificationTargets.ts の NOTIFICATION_KINDS。
+  // ここはブラウザ側のスクリプトでTSを読めないので書き写している
+  // （種類を入れ替えたときにここだけ古くなり、実際に1件落ちて気づいた）
+  const labels = [
+    "ゲームが提案されたとき",
+    "ウィッシュリストが最安値を更新したとき",
+    "週に一度のまとめ",
+  ];
   const shown = [];
   for (const l of labels) shown.push(await page.getByText(l, { exact: true }).count());
   rows.push({

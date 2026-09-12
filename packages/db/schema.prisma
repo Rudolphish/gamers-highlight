@@ -177,8 +177,8 @@ enum GroupNotificationKind {
   PROPOSAL
   /// ウィッシュリストが最安値を更新した
   PRICE_DROP
-  /// Botが動いていない
-  BOT_HEALTH
+  /// 週に一度のまとめ
+  WEEKLY_SUMMARY
 }
 
 // Steam/YouTube/HowLongToBeatへの外部問い合わせ結果をsteamAppId単位でキャッシュする。

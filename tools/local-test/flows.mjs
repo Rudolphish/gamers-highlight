@@ -465,6 +465,9 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const row2 = await db.errorReport.findFirst({ where: { fingerprint: { contains: "test-digest-1" } } });
   check("F49 同じ不具合はcountに集約される", (row2?.count ?? 0) >= 2, row2?.count);
 
+  const runHealthCron = () =>
+    api("/api/cron/check-bot-health", { headers: { authorization: `Bearer ${CRON_SECRET}` } });
+
   const cronNoSecret = await api("/api/cron/check-wishlist-prices");
   check("F50 cronはシークレット無しで401", cronNoSecret.status === 401, cronNoSecret.status);
 
@@ -477,6 +480,46 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     headers: { authorization: `Bearer ${CRON_SECRET}` },
   });
   check("F52 cron（Bot死活）が完走する", health.status === 200, health.text);
+
+  // **Botの死活は管理者向けのチャンネル（エラー通知先）へ1通だけ送る。**
+  // グループの通知先には送らない——運用の話で、グループのメンバーには関係がないため。
+  //
+  // **「落ちている」状態を作ってから見る。** Botが生きていると通知の分岐に入らず、
+  // 応答に notified が入らない。最初それに気づかず、壊し方と無関係に落ちるテストを書いた。
+  {
+    const heartbeatBefore = await db.botHeartbeat.findUnique({ where: { id: "bot" } });
+    await db.botHeartbeat.deleteMany({ where: { id: "bot" } }); // 一度も生存報告が無い＝落ちている扱い
+
+    // グループ側に通知先があっても、管理者側が未設定なら誰にも送らない
+    await db.group.updateMany({ data: { notificationChannelId: "900000000000000055" } });
+    await db.appSetting.deleteMany({ where: { key: "errorNotifyChannelId" } });
+    const downNoAdmin = JSON.parse((await runHealthCron()).text);
+    check(
+      "F183 Bot死活はグループの通知先には送らない（管理者側が未設定なら誰にも送らない）",
+      downNoAdmin.down === true && downNoAdmin.notified === 0,
+      JSON.stringify({ down: downNoAdmin.down, notified: downNoAdmin.notified })
+    );
+
+    // 管理者側を設定すると、グループ数に関係なく1通だけ
+    await db.appSetting.upsert({
+      where: { key: "errorNotifyChannelId" },
+      create: { key: "errorNotifyChannelId", value: "900000000000000066" },
+      update: { value: "900000000000000066" },
+    });
+    const downWithAdmin = JSON.parse((await runHealthCron()).text);
+    check(
+      "F184 Bot死活は管理者の通知先へ1通だけ送る",
+      downWithAdmin.notified === 1,
+      JSON.stringify({ notified: downWithAdmin.notified })
+    );
+
+    // 後片付け（生存報告と設定を元に戻す）
+    await db.appSetting.deleteMany({ where: { key: "errorNotifyChannelId" } });
+    await db.group.updateMany({ data: { notificationChannelId: null } });
+    if (heartbeatBefore) {
+      await db.botHeartbeat.create({ data: heartbeatBefore });
+    }
+  }
 }
 
 // ───────────────────────────────────────────────────────────
@@ -1516,11 +1559,23 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     },
   });
 
+  // 週次まとめの送り先は**グループごと**（GroupNotificationTarget の WEEKLY_SUMMARY）。
+  // 管理者の weeklySummaryChannelId は手動送信（確認）の宛先としてだけ残っている。
+  const weeklyKey = `weeklySummaryLastSentWeek:${group.id}`;
+  const setWeeklyTarget = (channelId) =>
+    api(`/api/groups/${group.id}/notifications`, {
+      method: "PATCH",
+      cookie: adminCookie,
+      body: { kind: "WEEKLY_SUMMARY", channelId },
+    });
+  await setWeeklyTarget("");
+  await db.appSetting.deleteMany({ where: { key: weeklyKey } });
+
   // **通知先が未設定なら送らない。しかも「送信済み」にもしない。**
   // 記録を進めてしまうと、後からチャンネルを設定してもその週は飛ばされる
   let mark = discordCount();
   await runCron();
-  const unsetRecord = await setting("weeklySummaryLastSentWeek");
+  const unsetRecord = await setting(weeklyKey);
   check(
     "F111 通知先が未設定なら送らず、送信済みにもしない",
     discordSince(mark).length === 0 && unsetRecord === null,
@@ -1548,6 +1603,8 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   // （手動送信のルートは通る。同じプロセス・同じ関数なのにルートごとに違う。実測で確認）。
   // CIにネットワーク依存を持ち込まないよう、cron側は**DBに残る記録**で判定し、
   // 文面の中身はスタブを通る手動送信の方で見る。
+  // ここからはグループ側の通知先を設定して確かめる（自動送信はこちらを見る）
+  await setWeeklyTarget("900000000000000077");
   const cronRes = await runCron();
   const weekly = JSON.parse(cronRes.text).weekly;
   check(
@@ -1556,11 +1613,28 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     `返り値=${JSON.stringify(weekly)} / 期待=${expectedWeekKey}`
   );
 
+  // **記録はグループごとに付く。** 全体で1つだと、1グループへの投稿が失敗しただけで
+  // 全グループへ再送することになる
+  const perGroupRecord = await setting(weeklyKey);
+  check(
+    "F181 送信済みの記録がグループごとに付く",
+    perGroupRecord?.value === expectedWeekKey,
+    `記録=${perGroupRecord?.value ?? "なし"} / 期待=${expectedWeekKey}`
+  );
+
+  // **管理者側の設定は自動送信に使われない**（手動送信の宛先として残っているだけ）
+  const legacyRecord = await setting("weeklySummaryLastSentWeek");
+  check(
+    "F182 自動送信は全体の記録を進めない（グループごとの記録だけを使う）",
+    legacyRecord === null,
+    `記録=${legacyRecord?.value ?? "なし"}`
+  );
+
   // **二度は送らない。** cronは毎日走るので、ここが効かないと毎日届く。
   // 記録を直接入れてから確認する（cronの投稿が成功したかに左右されないように）。
   await db.appSetting.upsert({
-    where: { key: "weeklySummaryLastSentWeek" },
-    create: { key: "weeklySummaryLastSentWeek", value: expectedWeekKey },
+    where: { key: weeklyKey },
+    create: { key: weeklyKey, value: expectedWeekKey },
     update: { value: expectedWeekKey },
   });
   const second = await runCron();
@@ -1572,14 +1646,14 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 
   // **手動送信は記録を進めない**（確認のための送信であって、自動送信を済ませたことにはしない）
-  const before = await setting("weeklySummaryLastSentWeek");
+  const before = await setting(weeklyKey);
   mark = discordCount();
   const manual = await api("/api/admin/weekly-notify", {
     method: "POST",
     cookie: adminCookie,
     body: { week: -1 },
   });
-  const after = await setting("weeklySummaryLastSentWeek");
+  const after = await setting(weeklyKey);
   const sent = discordSince(mark);
   check(
     "F116 手動送信は届くが、送信済みの記録は動かさない",
@@ -1620,9 +1694,12 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     failedSend.text
   );
 
+  // 後片付け。**グループ側の通知先も戻す**——残すと後続のcronがここへ送り続け、
+  // 別のスイートが数える投稿件数がずれる
+  await setWeeklyTarget("");
   await db.activityLog.deleteMany({ where: { targetId: { startsWith: "weekly-" } } });
   await db.appSetting.deleteMany({
-    where: { key: { in: ["weeklySummaryChannelId", "weeklySummaryLastSentWeek"] } },
+    where: { key: { in: ["weeklySummaryChannelId", "weeklySummaryLastSentWeek", weeklyKey] } },
   });
 }
 
@@ -2479,7 +2556,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     select: { kind: true, channelId: true },
   });
   check(
-    "F173 種類ごとに独立している（提案をオンにしても価格・Bot死活は空のまま）",
+    "F173 種類ごとに独立している（提案をオンにしても他の種類は空のまま）",
     afterProposalOnly.length === 1 && afterProposalOnly[0].kind === "PROPOSAL",
     JSON.stringify(afterProposalOnly)
   );

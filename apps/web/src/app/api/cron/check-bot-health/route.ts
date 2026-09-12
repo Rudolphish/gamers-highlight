@@ -4,7 +4,7 @@ import { postDiscordMessage } from "@/lib/discord";
 import { checkFreeTierUsage } from "@/lib/usageAlerts";
 import { runActivityMaintenance } from "@/lib/activityRollup";
 import { sendWeeklySummaryIfDue } from "@/lib/weeklyNotify";
-import { listNotificationTargets } from "@/lib/notificationTargets";
+import { APP_SETTING_KEYS, getAppSetting } from "@/lib/appSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -70,10 +70,12 @@ export async function GET(req: Request) {
     });
   }
 
-  // **チャンネルの重複を除く。** Botの死活はグループごとの話ではなく1つの事実なので、
-  // 複数のグループが同じチャンネルを指定していても1回だけ送る
-  const targets = await listNotificationTargets("BOT_HEALTH");
-  const channelIds = [...new Set(targets.map((t) => t.channelId))];
+  // **管理者向けのチャンネルへ1通だけ送る。** Botが動いていないのは運用の話で、
+  // グループのメンバーには関係がない（「管理者だけ分かればいい」という判断）。
+  // 宛先はエラー通知と同じチャンネル——どちらも「アプリの調子がおかしい」の知らせで、
+  // 見る人も対処する人も同じなので、分けても片方を見落とすだけになる。
+  const adminChannelId = await getAppSetting(APP_SETTING_KEYS.errorNotifyChannelId);
+  const channelIds = adminChannelId ? [adminChannelId] : [];
 
   const message = heartbeat
     ? `⚠️ Discord Botからの生存報告が${Math.round(staleMs! / (60 * 1000))}分間ありません。PC/PM2の状態を確認してください（\`pm2 status\` / \`pm2 resurrect\`）。`

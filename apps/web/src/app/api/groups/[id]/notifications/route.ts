@@ -4,17 +4,27 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
+import { NOTIFICATION_KINDS } from "@/lib/notificationTargets";
+import type { GroupNotificationKind } from "@gamers-highlight/db";
 
 // PATCH /api/groups/:id/notifications … 通知の種類ごとに送り先チャンネルを決める（OWNERのみ）
-// body: { kind: "PROPOSAL" | "PRICE_DROP" | "BOT_HEALTH", channelId: string }
+// body: { kind: GroupNotificationKind, channelId: string }
 //
 // **channelId を空にすると「その種類は送らない」。** 行を消すことで表現するので、
 // 「送らない」用の特別な値を持たない（lib/notificationTargets.ts）。
 //
 // audit-activity-log: 意図的に記録しない（通知先の設定変更は「出来事」ではない。
 // カレンダーに並べても、見たいもの——写真とゲームの動き——が埋もれるだけ）
+// **受け付ける種類は画面と同じ一覧から作る。** ここに値を書き写すと、
+// 種類を足し引きしたときに片方だけ古くなる（実際に BOT_HEALTH を外したとき、
+// ここだけ残って型エラーで気づいた）
+const KINDS = NOTIFICATION_KINDS.map((k) => k.kind) as [
+  GroupNotificationKind,
+  ...GroupNotificationKind[],
+];
+
 const patchSchema = z.object({
-  kind: z.enum(["PROPOSAL", "PRICE_DROP", "BOT_HEALTH"]),
+  kind: z.enum(KINDS),
   // Discordのチャンネルは snowflake（15〜25桁の数字）。空文字は「送らない」
   channelId: z
     .string()

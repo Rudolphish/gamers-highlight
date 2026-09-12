@@ -7,7 +7,10 @@ import type { GroupNotificationKind } from "@gamers-highlight/db";
 // 設定の有無そのもので表している（`GroupNotificationTarget`）。
 //
 // 2026-09-12 まではグループに1つの `notificationChannelId` があるだけで、
-// 3種類すべてがそこへ送られていた。種類ごとに分けたいという要望で移した。
+// 最安値の更新とBotの死活がそこへ送られていた。種類ごとに分けたいという要望で移した。
+//
+// **Botの死活はここに無い。** 運用の話で、グループのメンバーには関係がないため
+// 管理者向けのチャンネル（`AppSetting.errorNotifyChannelId`）へ送っている。
 // **移行前の設定は自動では引き継がれない**ので、
 // `packages/db/backfill-notification-targets.ts` を1回流す必要がある。
 
@@ -28,9 +31,9 @@ export const NOTIFICATION_KINDS: {
     description: "毎日調べて、過去の最安値を更新したときだけ送ります",
   },
   {
-    kind: "BOT_HEALTH",
-    label: "Botが動いていないとき",
-    description: "Discord Botからの応答が途絶えたときに送ります",
+    kind: "WEEKLY_SUMMARY",
+    label: "週に一度のまとめ",
+    description: "先週の投稿・クリア・提案などをまとめて送ります（動きが無かった週は送りません）",
   },
 ];
 
