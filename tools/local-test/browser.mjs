@@ -1027,6 +1027,119 @@ for (const [id, label, path] of targets) {
   await page.close();
 }
 
+// ── 手動アップロードが実際に通ること ──
+// **これまで /upload は「開いて例外が出ない」（B09）しか見ていなかった。**
+// ファイル選択 → 署名の取得 → R2へPUT → レコード作成、という配線そのものは
+// ブラウザから一度も通っていない（API単体は F が見ているが、繋がりは誰も見ていない）。
+// この経路のコードをこれから共通化するので、先に落ちる状態を作れるようにしておく。
+{
+  const page = await context.newPage();
+  const problems = [];
+  page.on("pageerror", (e) => problems.push(`例外: ${e.message}`.slice(0, 140)));
+  // 4xx/5xxを拾う。署名やPUTが失敗しても画面は「失敗しました」としか出ないので、
+  // どこで落ちたかはHTTPを見ないと分からない（lessons.md）
+  const bad = [];
+  page.on("response", (r) => {
+    if (r.status() >= 400 && !IGNORED.some((re) => re.test(r.url()))) {
+      bad.push(`${r.status()} ${r.request().method()} ${r.url().slice(0, 80)}`);
+    }
+  });
+
+  const callApi = (path, method, body) =>
+    page.evaluate(
+      async ([p, m, b]) => {
+        const res = await fetch(p, {
+          method: m,
+          headers: b ? { "content-type": "application/json" } : {},
+          body: b ? JSON.stringify(b) : undefined,
+        });
+        return { status: res.status, json: await res.json().catch(() => null) };
+      },
+      [path, method, body ?? null]
+    );
+
+  await page.goto(`${BASE}/upload`, { waitUntil: "networkidle" });
+  const before = (await callApi(`/api/albums/${ids.albumId}/photos`, "GET")).json?.photos ?? [];
+
+  // 1x1の透過PNG。中身は何でもよいが、実際にバイト列がR2へ飛ぶことに意味がある
+  const PNG = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64"
+  );
+  await page.locator('input[type="file"]').setInputFiles([
+    { name: "upload-test-1.png", mimeType: "image/png", buffer: PNG },
+    { name: "upload-test-2.png", mimeType: "image/png", buffer: PNG },
+  ]);
+  await page.waitForTimeout(600);
+
+  await page.getByLabel("グループ").selectOption(ids.groupId);
+  await page.getByLabel("追加先アルバム").selectOption(ids.albumId);
+  await page.getByRole("button", { name: /件アップロード/ }).click();
+
+  // 完了表示が出るまで待つ（署名 → PUT → レコード作成が2ファイルぶん）
+  await page.getByText("すべて完了").waitFor({ timeout: 20000 }).catch(() => {});
+  const doneShown = (await page.getByText("すべて完了").count()) > 0;
+
+  const after = (await callApi(`/api/albums/${ids.albumId}/photos`, "GET")).json?.photos ?? [];
+  const added = after.filter((p) => !before.some((b) => b.id === p.id));
+
+  // **アップロード中に出た分だけを控える。** この後で実体の有無を確かめるために
+  // わざと404を踏みにいくので、それを混ぜるとB65がB64と必ず連動して落ちる
+  // （2つのテストが同じことしか言わなくなる）
+  const badDuringUpload = [...bad];
+
+  rows.push({
+    id: "B63",
+    item: "手動アップロードでファイルが実際にアルバムへ入る",
+    expected: "2枚増える",
+    actual: `${added.length}枚 / 完了表示=${doneShown ? "あり" : "なし"}`,
+    ok: added.length === 2 && doneShown,
+    note: badDuringUpload.slice(0, 2).join(" / "),
+  });
+
+  // **保存されたURLの先に実物があること。**
+  // レコードだけ作られてストレージに何も載っていないと、画面には出るのに画像が出ない
+  // （404のURLを指したPhotoが残る。CLAUDE.md で「順序を逆にしてはいけない」と書いてある状態）。
+  // URLの形だけ見ても、そこを取りに行かないと空振りに気づけない。
+  const fetched = await page.evaluate(async (urls) => {
+    const out = [];
+    for (const u of urls) {
+      try {
+        const res = await fetch(u, { method: "GET" });
+        out.push(`${res.status}:${(await res.arrayBuffer()).byteLength}`);
+      } catch (e) {
+        out.push(`error:${String(e).slice(0, 40)}`);
+      }
+    }
+    return out;
+  }, added.map((p) => p.mediaUrl));
+
+  rows.push({
+    id: "B64",
+    item: "保存されたURLの先に実物が載っている",
+    expected: "どれも 200 で中身が1バイト以上",
+    actual: fetched.join(" / ") || "なし",
+    ok:
+      added.length > 0 &&
+      added.every((p) => typeof p.mediaUrl === "string" && p.mediaUrl.includes("/gh-local/")) &&
+      fetched.every((f) => f.startsWith("200:") && Number(f.split(":")[1]) > 0),
+    note: "",
+  });
+
+  rows.push({
+    id: "B65",
+    item: "アップロード中に4xx/5xxも例外も出ない",
+    expected: "無し",
+    actual: [...badDuringUpload, ...problems].slice(0, 3).join(" / ") || "無し",
+    ok: badDuringUpload.length === 0 && problems.length === 0,
+    note: "",
+  });
+
+  // 後片付け（作ったときと同じ経路で消す）
+  for (const p of added) await callApi(`/api/photos/${p.id}`, "DELETE");
+  await page.close();
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));

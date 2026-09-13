@@ -455,6 +455,7 @@ export default function UploadPage() {
       <div className="mt-4">
         <label className="font-mono text-2xs text-steam-muted">グループ</label>
         <select
+          aria-label="グループ"
           value={groupId}
           onChange={(e) => {
             setGroupId(e.target.value);
@@ -495,6 +496,7 @@ export default function UploadPage() {
       <div className="mt-4">
         <label className="font-mono text-2xs text-steam-muted">追加先アルバム</label>
         <select
+          aria-label="追加先アルバム"
           value={albumId}
           onChange={(e) => setAlbumId(e.target.value)}
           disabled={running || !groupId}
