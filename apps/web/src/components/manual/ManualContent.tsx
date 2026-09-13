@@ -355,6 +355,13 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
             アルバムを選ばなくても投稿できます。その場合は「未分類」に入るので、後から振り分けてください。
           </p>
           <p>
+            <strong className="text-steam-text">アルバムの画面からも直接追加できます。</strong>
+            アルバムを開いて右上の「追加」を押すと、写真/動画を複数まとめて選ぶか、
+            YouTubeのURLを貼るかを選べます。追加先はそのアルバムなので、グループやアルバムを
+            選び直す必要はありません（ゲームの自動判別もしません）。
+            <strong className="text-steam-text">そのアルバムを見られる人なら誰でも追加できます。</strong>
+          </p>
+          <p>
             <strong className="text-steam-text">YouTubeの動画も並べられます。</strong>
             同じ画面の下にある「YouTubeの動画を追加」にURLを貼ると、アルバムに写真と同じように並びます。
             容量・長さの制限はありません（動画はYouTube側にあるので、こちらのストレージを使いません）。
