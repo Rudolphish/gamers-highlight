@@ -3,25 +3,16 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Upload as UploadIcon, Image as ImageIcon, Film, X, Check, AlertCircle, Wand2 } from "lucide-react";
-import { extractFirstFrame, readVideoDuration } from "@/lib/video-thumbnail";
-import { MAX_VIDEO_DURATION_SECONDS, MEDIA_LIMIT_LABELS } from "@/lib/media-limits";
+import { MEDIA_LIMIT_LABELS } from "@/lib/media-limits";
+import { addYoutubeMedia, uploadMediaFile } from "@/lib/uploadClient";
 import { parseYoutubeUrl } from "@/lib/youtubeLink";
 import { parseSteamScreenshotName } from "@/lib/steamScreenshot";
 
-// アップロード画面：画像 or 短い動画クリップ（上限は lib/media-limits.ts）を複数まとめてアップロード可能。
+// アップロード画面：画像 or 動画クリップ（上限は lib/media-limits.ts）を複数まとめてアップロード可能。
 //
-// 1ファイルごとの流れ：
-//   1. contentTypeで画像/動画を判定
-//   2. 動画の場合、まず1フレーム目をcanvasで抽出してサムネイル画像を作る
-//   3. サムネイル(動画の場合のみ)→本体の順で、署名付きPOSTポリシー(/api/photos/upload-url)を
-//      取得してR2へ直接POST
-//   4. **上げ切ってから** /api/photos でPhotoレコードを作る
-//
-// 4を最後に回しているのが重要。以前は先にレコードを作ってから署名を返していたため、
-// ストレージへのPOSTが失敗すると404のURLを指したPhotoが残り、ホームやアルバムに
-// 壊れた画像として出続けていた（電波の悪い場所では普通に起きる）。
-// 今の順序なら、失敗して残るのは参照されないオブジェクトだけで画面には出ない
-// （/admin の「孤児ファイル」で把握できる）。
+// **1ファイルを保存する手順そのものは `lib/uploadClient.ts` にある**
+// （アルバム詳細の「追加」モーダルと共有しているため）。この画面が持っているのは
+// 追加先の決め方——グループ→アルバムの絞り込みと、Steamのスクショから読んだapp IDによる自動判別。
 //
 // 複数ファイルは「同時並列」ではなく「順番に1つずつ」処理する。
 // R2への署名付きURL発行APIを一度に大量に叩かないようにするための安全策で、
@@ -52,71 +43,6 @@ type IdentifiedGame = {
 type AlbumOption = { id: string; title: string; groupId: string };
 type GroupOption = { id: string; name: string };
 
-// upload が無い場合はストレージ未設定のモック環境（ローカル開発時のフォールバック）。
-// 実際のオブジェクトアップロードは発生せず、既に返ってきているモックURLをそのまま使う。
-//
-// **PUTで送る。** R2は署名付きPOSTに対応しておらず、POSTすると501が返る。
-// 501にはCORSヘッダーが付かないので、ブラウザ上はCORSエラーに見える。
-async function putFileToStorage(upload: { url: string; contentType: string } | null, file: File) {
-  if (!upload) return;
-
-  // ストレージは別ドメインなので、CORSで弾かれるとfetch自体が例外になる。
-  // 「失敗しました」だけだと原因（CORS設定・署名切れ・容量超過）を切り分けられないため、
-  // 応答が取れたときは状態コードと本文を、取れなかったときはCORSの可能性を出す。
-  let postRes: Response;
-  try {
-    postRes = await fetch(upload.url, {
-      method: "PUT",
-      headers: { "Content-Type": upload.contentType },
-      body: file,
-    });
-  } catch (e) {
-    throw new Error(
-      `ストレージへ接続できませんでした（CORS設定またはネットワークの可能性）: ${
-        e instanceof Error ? e.message : String(e)
-      }`
-    );
-  }
-
-  if (!postRes.ok) {
-    const detail = (await postRes.text().catch(() => "")).slice(0, 200);
-    throw new Error(`ストレージへのアップロードに失敗しました（${postRes.status}）${detail ? `: ${detail}` : ""}`);
-  }
-}
-
-/**
- * 署名付きURLを受け取ってストレージへ上げるところまで。Photoレコードは作らない。
- * 上げ切ってから作ることで、途中で失敗しても「ファイルが無いのにレコードだけある」
- * 状態にならない（失敗時に残るのは参照されないオブジェクトだけで、画面には出ない）。
- */
-async function uploadToStorage(file: File, extra: Record<string, unknown> = {}): Promise<string> {
-  const res = await fetch("/api/photos/upload-url", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contentType: file.type, sizeBytes: file.size, ...extra }),
-  });
-  if (!res.ok) {
-    const detail = (await res.text().catch(() => "")).slice(0, 200);
-    throw new Error(`署名の取得に失敗しました（${res.status}）${detail ? `: ${detail}` : ""}`);
-  }
-  const { upload, publicUrl } = await res.json();
-  await putFileToStorage(upload, file);
-  return publicUrl;
-}
-
-async function createPhotoRecord(body: Record<string, unknown>) {
-  const res = await fetch("/api/photos", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const detail = (await res.text().catch(() => "")).slice(0, 200);
-    throw new Error(`投稿の保存に失敗しました（${res.status}）${detail ? `: ${detail}` : ""}`);
-  }
-  return (await res.json()).photo;
-}
-
 /**
  * 1ファイル分の保存内容を決める。
  *
@@ -136,51 +62,21 @@ function resolveTagging(
   };
 }
 
+/**
+ * 1ファイルぶんの投稿。実体の送信と保存は `lib/uploadClient.ts` に任せ、
+ * ここは**この画面固有の「どこへ入れるか」の解決**（手入力とSteamの自動判別の優先順位）だけを持つ。
+ */
 async function uploadOne(
   item: UploadItem,
   identified: Map<number, IdentifiedGame>,
   gameTag: string,
   albumId: string
 ) {
-  let thumbnailUrl: string | undefined;
-  let durationSeconds: number | undefined;
-
-  if (item.mode === "video") {
-    // **長さはここでしか測れない。** バイナリはサーバーを通らずブラウザからR2へ直接上がるため、
-    // サーバー側は申告された値を見るしかない（サイズと同じ扱い）。
-    // 測れないファイル（duration が Infinity で返るwebmなど）は null が返り、長さの判定は行わない。
-    // **秒に丸めてから判定する。** Photo.durationSeconds は Int で、
-    // Prismaは小数を弾かず0方向へ切り捨てる（実測: 12.9 → 12）ため、
-    // 渡す前にこちらで四捨五入しておく。判定も丸めた値で行うので、
-    // 「2分ちょうどのつもりが120.4秒だった」クリップは通る。
-    const duration = await readVideoDuration(item.file);
-    if (duration !== null) {
-      const rounded = Math.round(duration);
-      if (rounded > MAX_VIDEO_DURATION_SECONDS) {
-        throw new Error(
-          `動画が長すぎます（${rounded}秒）。${MEDIA_LIMIT_LABELS.videoDuration}までの動画にしてください`
-        );
-      }
-      durationSeconds = rounded;
-    }
-
-    const thumbBlob = await extractFirstFrame(item.file);
-    const thumbFile = new File([thumbBlob], "thumbnail.jpg", { type: "image/jpeg" });
-    thumbnailUrl = await uploadToStorage(thumbFile);
-  }
-
-  const mediaUrl = await uploadToStorage(item.file, durationSeconds !== undefined ? { durationSeconds } : {});
   const { gameTitle, albumId: resolvedAlbumId } = resolveTagging(item, identified, gameTag, albumId);
-
-  await createPhotoRecord({
-    contentType: item.file.type,
-    mediaUrl,
-    sizeBytes: item.file.size,
-    durationSeconds,
-    thumbnailUrl,
-    gameTitle,
+  await uploadMediaFile(item.file, {
     albumId: resolvedAlbumId,
-    capturedAt: item.capturedAt?.toISOString(),
+    gameTitle,
+    capturedAt: item.capturedAt,
   });
 }
 
@@ -312,8 +208,7 @@ export default function UploadPage() {
     setYoutubeState("saving");
     setYoutubeError(null);
     try {
-      await createPhotoRecord({
-        youtubeUrl: link.canonicalUrl,
+      await addYoutubeMedia(link.canonicalUrl, {
         albumId: albumId || undefined,
         gameTitle: gameTag.trim() || undefined,
       });
