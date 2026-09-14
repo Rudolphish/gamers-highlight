@@ -11,6 +11,7 @@ import { ShareModal } from "@/components/album/ShareModal";
 import { DeleteAlbumButton } from "@/components/album/DeleteAlbumButton";
 import { SteamCoverPicker } from "@/components/album/SteamCoverPicker";
 import { AlbumTitleEditor } from "@/components/album/AlbumTitleEditor";
+import { AddMediaModal } from "@/components/album/AddMediaModal";
 
 // アルバム詳細画面：写真グリッド表示、メンバー一覧、タグ管理
 export default async function AlbumDetailPage({
@@ -125,6 +126,10 @@ export default async function AlbumDetailPage({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {/* **見られる人全員に出す。** このアルバムへ投稿できる条件は「見られること」
+              （`POST /api/photos` は VIEWER で通す）で、このページはVIEWERを満たさないと
+              描画されない。判定はサーバーが毎回やるので、ここは入口を出すだけ */}
+          <AddMediaModal albumId={album.id} />
           <ShareModal
             albumId={album.id}
             isOwner={isOwner}
@@ -154,7 +159,7 @@ export default async function AlbumDetailPage({
       <div className="mt-6">
         {photos.length === 0 ? (
           <p className="font-mono text-sm text-steam-muted">
-            まだ写真/動画がありません。手動アップロードするか、Discordに投稿してみましょう。
+            まだ写真/動画がありません。上の「追加」から上げるか、Discordに投稿してみましょう。
           </p>
         ) : (
           <PhotoGrid

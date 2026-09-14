@@ -13,12 +13,23 @@
 // 古い数値のまま残りかけた。
 //
 // 使い方: node tools/local-test/audit-media-limits.mjs
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const read = (p) => readFileSync(join(ROOT, p), "utf8");
+
+/** apps/web/src 以下の .ts / .tsx を全部（集約前の形が残っていないかを全文で見るため） */
+function listSourceFiles(dir) {
+  const out = [];
+  for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+    const rel = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) out.push(...listSourceFiles(rel));
+    else if (/\.tsx?$/.test(entry.name)) out.push(rel);
+  }
+  return out;
+}
 
 const problems = [];
 const rows = [];
@@ -71,6 +82,7 @@ const HARDCODE = /(\d+)\s*MB|(\d+)\s*(?:秒|分)まで/g;
 const SCAN = [
   "apps/web/src/app/(main)/upload/page.tsx",
   "apps/web/src/components/manual/ManualContent.tsx",
+  "apps/web/src/components/album/AddMediaModal.tsx",
 ];
 for (const rel of SCAN) {
   const source = read(rel);
@@ -87,15 +99,42 @@ for (const rel of SCAN) {
 // **送らなければAPI側の判定は素通りする。** 実際に2026-09-06まではそうなっていて、
 // 「30秒まで」と画面にもドキュメントにも書いてあるのに一度も効いていなかった。
 // 判定は実際のimport文で見る（コメントに単語が出てくるだけで通ってしまうため）。
-const uploadPage = read("apps/web/src/app/(main)/upload/page.tsx");
+//
+// 測っているのは `lib/uploadClient.ts` の1箇所だけ（2026-09-13に `/upload` から出した）。
+// アルバム詳細のモーダルもここを通る。**画面が増えるたびに測り直す実装が増えると、
+// 足した画面だけ制限が効かない**ので、下で「他の画面が署名を自分で取っていないか」も見る。
+const uploadClient = read("apps/web/src/lib/uploadClient.ts");
 const MEASURES = /import\s*\{[^}]*\breadVideoDuration\b[^}]*\}\s*from\s+["']@\/lib\/video-thumbnail["']/;
 const SENDS = /durationSeconds/;
-const wired = MEASURES.test(uploadPage) && SENDS.test(uploadPage);
+const wired = MEASURES.test(uploadClient) && SENDS.test(uploadClient);
 rows.push({ 項目: "手動アップロードが長さを送る", web: wired ? "OK" : "送っていない", bot: "-", 一致: wired ? "OK" : "NG" });
 if (!wired) {
   problems.push(
-    "apps/web/src/app/(main)/upload/page.tsx が readVideoDuration を使っていない" +
+    "apps/web/src/lib/uploadClient.ts が readVideoDuration を使っていない" +
       "（長さの制限がどの経路でも効かなくなる）"
+  );
+}
+
+// 署名を自分で取りにいく画面が他に無いか。**あるとその画面だけ長さを測らずに上げられる。**
+// `uploadClient` を通さない実装を足した瞬間に気づけるようにしてある
+// （集約したものは、集約前の形を全文検索するまで終わっていない——docs/lessons.md）。
+const OWN_UPLOAD = /["']\/api\/photos\/upload-url["']/;
+const bypass = [];
+for (const rel of listSourceFiles("apps/web/src")) {
+  if (rel === "apps/web/src/lib/uploadClient.ts") continue;
+  if (rel.startsWith("apps/web/src/app/api/")) continue; // サーバー側（署名を発行する側）
+  if (OWN_UPLOAD.test(read(rel))) bypass.push(rel);
+}
+rows.push({
+  項目: "署名を自分で取る画面が無い",
+  web: bypass.length === 0 ? "OK" : bypass.join(","),
+  bot: "-",
+  一致: bypass.length === 0 ? "OK" : "NG",
+});
+if (bypass.length > 0) {
+  problems.push(
+    `uploadClient を通さずに署名を取っている: ${bypass.join(", ")}` +
+      "（その画面だけ動画の長さを測らずに上げられる）"
   );
 }
 

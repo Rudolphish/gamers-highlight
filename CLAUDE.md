@@ -294,7 +294,7 @@ AWS SDK v3は既定（`requestChecksumCalculation: "WHEN_SUPPORTED"`）で
 
 動画の長さは `<video>` のメタデータから小数で返るので、`Photo.durationSeconds`（`Int`）に
 そのまま渡すと1分59.6秒のクリップが1分59秒として残る。**渡す前に `Math.round` する**
-（`/api/photos` と手動アップロード画面の両方でやっている）。
+（`/api/photos` と `lib/uploadClient.ts` の両方でやっている）。
 
 「Prismaが弾いてくれるはず」と思って書いた検証は動かない。**弾かないので気づけない**のが問題。
 
@@ -305,7 +305,10 @@ AWS SDK v3は既定（`requestChecksumCalculation: "WHEN_SUPPORTED"`）で
 一度も効いていなかった**（2026-09-06に上限を2分へ引き上げるまで気づかなかった）。
 
 バイナリはブラウザからR2へ直接上がるのでサーバーは中身を見られない。長さを測れるのは
-クライアントだけ（`lib/video-thumbnail.ts` の `readVideoDuration`）。Discord経由は
+クライアントだけ（`lib/video-thumbnail.ts` の `readVideoDuration`）。**測っているのは
+`lib/uploadClient.ts` の1箇所だけ**で、手動アップロードの経路（`/upload` と
+アルバム詳細の「追加」）は両方ここを通る。**署名を自分で取る画面を足すと、その画面だけ
+制限が効かない**ので `audit-media-limits.mjs` が全文で見ている。Discord経由は
 **添付に長さの情報が無い**ので今も測れない——**経路ごとに効く・効かないが違う**ことは
 `lib/media-limits.ts` の表に書いてある。
 
