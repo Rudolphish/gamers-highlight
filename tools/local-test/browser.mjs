@@ -1952,6 +1952,352 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ───────────────────────────────────────────────────────────────
+// Lightbox のスワイプ送り（B99〜B107）
+//
+// **専用の context を作る。** 既存の390pxの context に `hasTouch` を足すと
+// 83件すべての環境が変わる（タッチ端末扱いになると hover の挙動が変わるものがある）。
+//
+// スワイプは `page.touchscreen` では出せない（tap しか無い）ので、CDP の
+// `Input.dispatchTouchEvent` でブラウザ層の本物のタッチを送る。**自分で
+// `dispatchEvent` した合成イベントでは、自分のハンドラを呼んだだけになり
+// 「ジェスチャが効く」ことの確認にならない。**
+{
+  const EXPECTED = [
+    ["B99", "スワイプ用のデータが用意できる（アルバムと写真3枚）"],
+    ["B100", "払っている最中はメディアが指に追従する"],
+    ["B101", "左へ払うと次のメディアになる"],
+    ["B102", "右へ払うと前のメディアに戻る"],
+    ["B103", "閾値に届かない払いでは切り替わらない"],
+    ["B104", "縦に払っても切り替わらない"],
+    ["B105", "最後のメディアで左へ払っても変わらない"],
+    ["B106", "矢印ボタンは従来どおり動く"],
+    ["B108", "背景を払っても閉じない・ページを離れない（タップでは閉じる）"],
+    ["B107", "スワイプ操作で例外が出ない"],
+  ];
+  const recorded = new Set();
+  const rec = (id, item, expected, actual, ok, note = "") => {
+    recorded.add(id);
+    rows.push({ id, item, expected, actual, ok, note });
+  };
+
+  const touchContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  await touchContext.addCookies([
+    {
+      name: "next-auth.session-token",
+      value: await encode({
+        token: { name: "admin", email: "admin@example.com", sub: "admin@example.com" },
+        secret: SECRET,
+        maxAge: 3600,
+      }),
+      domain: "127.0.0.1",
+      path: "/",
+      httpOnly: true,
+    },
+  ]);
+  const page = await touchContext.newPage();
+  const problems = [];
+  page.on("pageerror", (e) => problems.push(`例外: ${e.message}`.slice(0, 140)));
+  page.on("console", (m) => {
+    if (m.type() !== "error") return;
+    const text = m.text();
+    if (IGNORED.some((re) => re.test(text))) return;
+    if (text.includes("Failed to load resource") && IGNORED.some((re) => re.test(m.location()?.url ?? ""))) return;
+    problems.push(text.slice(0, 140));
+  });
+
+  let swipeAlbumId = null;
+  const createdPhotoIds = [];
+
+  try {
+    const callApi = (path, method, body) =>
+      page.evaluate(
+        async ([p, m, b]) => {
+          const res = await fetch(p, {
+            method: m,
+            headers: b ? { "content-type": "application/json" } : {},
+            body: b ? JSON.stringify(b) : undefined,
+          });
+          return { status: res.status, json: await res.json().catch(() => null) };
+        },
+        [path, method, body ?? null]
+      );
+
+    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+
+    // **要るデータは自分で作る。** seedのアルバムは前のスイートが写真を足したり消したり
+    // するので、枚数も並びも当てにできない（docs/lessons.md）
+    swipeAlbumId = (
+      await callApi("/api/albums", "POST", { title: "スワイプ確認用アルバム", groupId: ids.groupId })
+    ).json?.album?.id;
+
+    for (let i = 1; i <= 3; i += 1) {
+      const bytes = Buffer.from(`swipe-png-${i}-0123456789`);
+      const signed = await callApi("/api/photos/upload-url", "POST", {
+        contentType: "image/png",
+        mediaType: "IMAGE",
+        sizeBytes: bytes.length,
+      });
+      const uploadUrl = signed.json?.upload?.url;
+      if (!uploadUrl) break;
+      // ストレージへのPUTはブラウザからだと別オリジンになるので Node 側から送る
+      await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "content-type": "image/png", "content-length": String(bytes.length) },
+        body: bytes,
+      });
+      const made = await callApi("/api/photos", "POST", {
+        contentType: "image/png",
+        mediaUrl: signed.json.publicUrl,
+        sizeBytes: bytes.length,
+        albumId: swipeAlbumId,
+        gameTitle: `スワイプ${i}`,
+      });
+      if (made.json?.photo?.id) createdPhotoIds.push(made.json.photo.id);
+    }
+
+    rec(
+      "B99",
+      EXPECTED[0][1],
+      "アルバム1件 / 写真3枚",
+      `アルバム=${swipeAlbumId ? "作れた" : "作れない"} / 写真${createdPhotoIds.length}枚`,
+      Boolean(swipeAlbumId) && createdPhotoIds.length === 3
+    );
+
+    await page.goto(`${BASE}/albums/${swipeAlbumId}`, { waitUntil: "networkidle" });
+    await page.locator("main img").first().click();
+    await page.waitForSelector("div.fixed.inset-0.z-50", { timeout: 10000 });
+
+    const mediaBox = "div.fixed.inset-0.z-50 > div.relative";
+    const shownUrl = () =>
+      page.evaluate((sel) => document.querySelector(`${sel} img`)?.getAttribute("src") ?? null, mediaBox);
+    const transform = () =>
+      page.evaluate((sel) => {
+        const el = document.querySelector(sel);
+        return el ? getComputedStyle(el).transform : "要素なし";
+      }, mediaBox);
+
+    // **払う座標はメディアの箱の中から取る。** 外側（背景）で払うと、確認したいのが
+    // 送りなのか背景タップなのか混ざる（最初はそれで B102 以降が全部崩れた）。
+    // テスト用の画像は中身がPNGではないので読み込みに失敗し、箱は読み込み中の
+    // プレースホルダ（50vw × 50vh）のまま。そこを基準にする
+    const box = await page.locator(mediaBox).boundingBox();
+    const midY = box ? Math.round(box.y + box.height / 2) : 420;
+    const leftX = box ? Math.round(box.x + box.width * 0.15) : 110;
+    const rightX = box ? Math.round(box.x + box.width * 0.85) : 280;
+
+    const cdp = await touchContext.newCDPSession(page);
+    /** 指1本で (fromX,fromY) から (toX,toY) へ払う。離すまでの途中で onMid を呼ぶ */
+    async function swipe(fromX, fromY, toX, toY, onMid) {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x: fromX, y: fromY }],
+      });
+      const steps = 4;
+      for (let i = 1; i <= steps; i += 1) {
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [
+            {
+              x: fromX + ((toX - fromX) * i) / steps,
+              y: fromY + ((toY - fromY) * i) / steps,
+            },
+          ],
+        });
+      }
+      if (onMid) await onMid();
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await page.waitForTimeout(400);
+    }
+
+    const first = await shownUrl();
+
+    // 払っている最中の追従。閾値（画面幅の15%＝約59px）を十分に超える量で動かす
+    let midTransform = "未取得";
+    await swipe(rightX, midY, leftX, midY, async () => {
+      midTransform = await transform();
+    });
+    rec(
+      "B100",
+      EXPECTED[1][1],
+      "translateX が付いている",
+      midTransform,
+      midTransform.startsWith("matrix(") && !midTransform.startsWith("matrix(1, 0, 0, 1, 0, 0)")
+    );
+
+    const second = await shownUrl();
+    rec(
+      "B101",
+      EXPECTED[2][1],
+      "別のメディアになる",
+      first === second ? "変わらない" : "変わった",
+      Boolean(first) && Boolean(second) && first !== second
+    );
+
+    await swipe(leftX, midY, rightX, midY);
+    const backToFirst = await shownUrl();
+    rec(
+      "B102",
+      EXPECTED[3][1],
+      "1枚目に戻る",
+      backToFirst === first ? "戻った" : "戻らない",
+      backToFirst === first
+    );
+
+    // 閾値（約59px）に届かない払い
+    await swipe(rightX, midY, rightX - 30, midY);
+    const afterSmall = await shownUrl();
+    const restedTransform = await transform();
+    rec(
+      "B103",
+      EXPECTED[4][1],
+      "変わらない / 位置も戻る",
+      `${afterSmall === first ? "変わらない" : "変わった"} / transform=${restedTransform}`,
+      afterSmall === first && (restedTransform === "none" || restedTransform === "matrix(1, 0, 0, 1, 0, 0)")
+    );
+
+    // 縦の払い（説明パネルを縦に動かしたいときに送られては困る）
+    await swipe(Math.round((leftX + rightX) / 2), midY + 150, Math.round((leftX + rightX) / 2), midY - 150);
+    const afterVertical = await shownUrl();
+    rec(
+      "B104",
+      EXPECTED[5][1],
+      "変わらない",
+      afterVertical === first ? "変わらない" : "変わった",
+      afterVertical === first
+    );
+
+    // 最後まで送ってから、さらに左へ払う
+    await swipe(rightX, midY, leftX, midY);
+    await swipe(rightX, midY, leftX, midY);
+    const last = await shownUrl();
+    await swipe(rightX, midY, leftX, midY);
+    const afterEdge = await shownUrl();
+    rec(
+      "B105",
+      EXPECTED[6][1],
+      "変わらない",
+      afterEdge === last ? "変わらない" : "変わった",
+      Boolean(last) && afterEdge === last
+    );
+
+    // **背景を払っても、閉じない・ページを離れないこと。** 落とし穴が2つある:
+    //   1. タッチ操作の最後にブラウザが click を合成するので、何もしないと
+    //      「背景タップ＝閉じる」が走る
+    //   2. Chromium は横のオーバースクロールを「スワイプで戻る」として扱うので、
+    //      `touch-action: pan-y` が無いと**前のページへ遷移する**（実測で空のページに飛んだ）
+    // どちらも「Lightboxが消える」という同じ見え方になるので、URLまで見て区別する。
+    // **座標を決め打ちにしない。** 下部の❤️と説明のパネルは中身で高さが変わるので、
+    // 「メディアの箱の下＋40px」のような固定値だとパネルの上を叩くことがある
+    // （2回目の通しだけ「タップしても閉じない」で落ちた）。
+    // オーバーレイ自身がその点に居ることを `elementFromPoint` で確かめてから使う
+    const backdrop = await page.evaluate((sel) => {
+      const ov = document.querySelector(sel);
+      const b = document.querySelector(`${sel} > div.relative`)?.getBoundingClientRect();
+      const cx = Math.round(window.innerWidth / 2);
+      const rows = [];
+      if (b) {
+        rows.push(Math.round(b.y / 2)); // 箱の上の余白
+        rows.push(Math.round(b.bottom + (window.innerHeight - b.bottom) / 2)); // 箱の下の余白
+      }
+      rows.push(Math.round(window.innerHeight / 2));
+      for (const y of rows) {
+        // 払う始点・終点・タップ点のどれもオーバーレイでなければ使えない
+        const xs = [70, cx, 340];
+        if (xs.every((x) => document.elementFromPoint(x, y) === ov)) {
+          return { y, at: "overlay" };
+        }
+      }
+      // 見つからなければ、何に当たっているかを返して原因が分かるようにする
+      const y = rows[0] ?? 100;
+      const hit = document.elementFromPoint(70, y);
+      return { y, at: `${hit?.tagName}.${(hit?.className ?? "").toString().split(" ")[0]}` };
+    }, "div.fixed.inset-0.z-50");
+
+    const backdropY = backdrop.y;
+    const urlBeforeBackdrop = new URL(page.url()).pathname;
+    const beforeBackdrop = await shownUrl();
+    await swipe(70, backdropY, 340, backdropY);
+    const openAfterBackdropSwipe = (await page.locator("div.fixed.inset-0.z-50").count()) > 0;
+    const urlAfterBackdrop = new URL(page.url()).pathname;
+    const movedByBackdrop = openAfterBackdropSwipe ? await shownUrl() : null;
+    // 背景をタップしたら閉じる（こちらは従来どおり壊していないこと）
+    await page.touchscreen.tap(70, backdropY);
+    await page.waitForTimeout(400);
+    const closedByTap = (await page.locator("div.fixed.inset-0.z-50").count()) === 0;
+    rec(
+      "B108",
+      EXPECTED[8][1],
+      "開いたまま / 同じURL / 前のメディアへ / タップで閉じる",
+      `払った後=${openAfterBackdropSwipe ? "開いている" : "閉じた"} / URL=${
+        urlBeforeBackdrop === urlAfterBackdrop ? "同じ" : `${urlBeforeBackdrop}→${urlAfterBackdrop}`
+      } / 送り=${beforeBackdrop === movedByBackdrop ? "変わらず" : "変わった"} / タップ後=${
+        closedByTap ? "閉じた" : "開いている"
+      }`,
+      openAfterBackdropSwipe &&
+        urlBeforeBackdrop === urlAfterBackdrop &&
+        Boolean(movedByBackdrop) &&
+        movedByBackdrop !== beforeBackdrop &&
+        closedByTap,
+      `払った位置 y=${backdropY}（その点に居るのは ${backdrop.at}）`
+    );
+
+    // 矢印ボタン（スワイプを足したことで壊していないか）。タップで閉じたので開き直す。
+    // **閉じ切れていなければ先にEscで閉じる**——開いたままだとサムネイルのクリックが
+    // オーバーレイに遮られ、ここから先が全部「未確認」になる
+    if ((await page.locator("div.fixed.inset-0.z-50").count()) > 0) {
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(300);
+    }
+    await page.locator("main img").first().click();
+    await page.waitForSelector("div.fixed.inset-0.z-50", { timeout: 10000 });
+    const beforeArrow = await shownUrl();
+    await page.getByRole("button", { name: "次の写真" }).click();
+    await page.waitForTimeout(300);
+    const afterArrow = await shownUrl();
+    rec(
+      "B106",
+      EXPECTED[8][1],
+      "次のメディアになる",
+      afterArrow === beforeArrow ? "変わらない" : "変わった",
+      Boolean(beforeArrow) && Boolean(afterArrow) && afterArrow !== beforeArrow
+    );
+
+    rec("B107", EXPECTED[9][1], "無し", problems.slice(0, 3).join(" / ") || "無し", problems.length === 0);
+  } catch (e) {
+    for (const [id, item] of EXPECTED) {
+      if (recorded.has(id)) continue;
+      rows.push({
+        id,
+        item,
+        expected: "—",
+        actual: "未確認",
+        ok: false,
+        note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}`,
+      });
+    }
+  } finally {
+    // 後片付けは作ったときと同じ経路（API）で。DB直で消すとキャッシュが飛ばず、
+    // 次に走るスイートが消えた写真をクリックして落ちる（docs/lessons.md）
+    try {
+      for (const id of createdPhotoIds) {
+        await page.evaluate((pid) => fetch(`/api/photos/${pid}`, { method: "DELETE" }), id);
+      }
+      if (swipeAlbumId) {
+        await page.evaluate((aid) => fetch(`/api/albums/${aid}`, { method: "DELETE" }), swipeAlbumId);
+      }
+    } catch {
+      // 片付けに失敗しても結果の表は残す
+    }
+    await page.close();
+    await touchContext.close();
+  }
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));
