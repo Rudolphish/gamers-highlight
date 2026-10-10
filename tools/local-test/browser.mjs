@@ -1863,6 +1863,42 @@ for (const [id, label, path] of targets) {
       note: "",
     });
 
+    // **PC幅ではアイコンの名前を知る手段がホバーのツールチップだけ**なので、それが
+    // 実際に読めることを見る。`opacity` と矩形は「出ている」と答えるのに画面には無い、
+    // という壊れ方をする（レールの `<nav>` に `overflow-y-auto` を付けたときに実際に起きた。
+    // `overflow-y: auto` は `overflow-x` も `auto` にするため、レールの外に出る
+    // ツールチップが切り取られる。実測: `scrollWidth 202 > clientWidth 84`）。
+    // 見分けられるのは `elementFromPoint` だけ
+    await pcPage.locator("aside").getByRole("link", { name: "アルバム" }).hover();
+    await pcPage.waitForTimeout(400);
+    const tooltip = await pcPage.evaluate(() => {
+      const tip = [...document.querySelectorAll("aside span")].find((e) => e.textContent === "アルバム");
+      if (!tip) return { found: false, opacity: null, hit: false };
+      const r = tip.getBoundingClientRect();
+      // ツールチップには `pointer-events-none` が付いている。**`elementFromPoint` は
+      // pointer-events: none の要素を飛ばして下の要素を返す**ので、そのままでは必ず
+      // 「居ない」になる（これで一度、直っているのに落ち続けた）。測る間だけ戻す
+      const previous = tip.style.pointerEvents;
+      tip.style.pointerEvents = "auto";
+      const at = document.elementFromPoint(r.x + 5, r.y + r.height / 2);
+      tip.style.pointerEvents = previous;
+      return {
+        found: true,
+        opacity: getComputedStyle(tip).opacity,
+        hit: at === tip || tip.contains(at),
+      };
+    });
+    rows.push({
+      id: "B98",
+      item: "PC幅でアイコンにホバーすると名前が実際に読める",
+      expected: "その位置にツールチップが居る",
+      actual: tooltip.found
+        ? `opacity=${tooltip.opacity} / その位置に居る=${tooltip.hit}`
+        : "ツールチップが無い",
+      ok: tooltip.found && tooltip.opacity === "1" && tooltip.hit,
+      note: "",
+    });
+
     // **長いページでナビが流れていかないこと。** レールは `sticky top-0 h-[100dvh]` で
     // 画面に残す。これが無いと親のフレックスに引き伸ばされ、スクロールすると
     // アイコンが上に抜けていく（PCでだけ起きるので390pxだけ見ていると気づけない）
@@ -1903,6 +1939,7 @@ for (const [id, label, path] of targets) {
     for (const [id, item] of [
       ["B94", "PC幅ではアイコンレールが出ている"],
       ["B95", "PC幅ではハンバーガーが出ない"],
+      ["B98", "PC幅でアイコンにホバーすると名前が実際に読める"],
       ["B97", "PC幅で長いページをスクロールしてもナビが残る"],
       ["B96", "PC幅で横スクロールが出ない"],
     ]) {

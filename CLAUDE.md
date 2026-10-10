@@ -207,6 +207,13 @@ PC幅のアイコンレールは親のフレックスに引き伸ばされるた
 **高さの固定（`h-[100dvh]`）の両方**が要る。高さを与えないと伸びきって sticky が効かない。
 入れる前は長いページでアイコンが上に抜けていた（`browser.mjs` の B97）。
 
+### レールの `<nav>` に `overflow-y-auto` を付けてはいけない
+
+アイコンの名前は `absolute left-full` のツールチップで**レールの外に**出している。
+`overflow-y: auto` は `overflow-x` も `auto` にするので、**ここで切り取られる**
+（実測: `scrollWidth 202 > clientWidth 84`）。PC幅で名前を知る手段はこれだけなので、
+切れると8個の無印アイコンに戻る。項目が増えても付けない（`browser.mjs` の B98）。
+
 ナビの項目は `components/layout/navItems.ts` が正本。レール（`Sidebar`）とドロワー
 （`MobileNav`）の両方が読むので、**片方だけに足すと画面幅で行ける場所が変わる。**
 
