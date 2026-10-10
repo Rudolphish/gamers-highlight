@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { X, ChevronLeft, ChevronRight, Trash2, Info } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { PhotoReactionButton, type ReactionState } from "@/components/photo/PhotoReactionButton";
@@ -75,9 +75,98 @@ export function Lightbox({
     }
   }
 
+  // ── 横に払って送る（スマホ） ────────────────────────────
+  //
+  // **YouTubeは対象外。** 埋め込みは別オリジンのiframeなので、プレーヤーの上で起きた
+  // タッチはこちらに一切届かない。周囲の余白だけ効く状態にすると「効くときと効かないときが
+  // ある」になって、かえって分かりにくい。
+  //
+  // 動画は中央を払えば効く（再生バーの上はブラウザ側が先に取るので、そこだけ競合する）。
+  const swipeEnabled = mediaType === "IMAGE" || mediaType === "VIDEO";
+
+  // 指の開始位置と「横に払っていると判断したか」。判断は一度決めたら離すまで変えない
+  // ——途中で縦に逸れるたびに追従が切り替わると、指に貼り付いている感じが壊れる
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const axis = useRef<"undecided" | "horizontal" | "vertical">("undecided");
+  const [dragX, setDragX] = useState(0);
+  const [settling, setSettling] = useState(false);
+  // 送るかの判定に使う**実際の**移動量。`dragX` は端で4分の1に縮めた表示用の値なので、
+  // それで判定すると端だけ閾値が厳しくなって挙動が変わる
+  const rawDx = useRef(0);
+
+  // 送るかどうかの閾値は画面幅の15%。端のときは送らずに戻すだけなので、
+  // 追従も4分の1に抑えて「これ以上は無い」を手触りで返す
+  const SWIPE_RATIO = 0.15;
+  const EDGE_RESISTANCE = 0.25;
+  const AXIS_LOCK_PX = 10;
+
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (!swipeEnabled || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      touchStart.current = { x: t.clientX, y: t.clientY };
+      axis.current = "undecided";
+      rawDx.current = 0;
+      setSettling(false);
+      setDragX(0);
+    },
+    [swipeEnabled]
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      const start = touchStart.current;
+      if (!start || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+
+      if (axis.current === "undecided") {
+        // どちらの向きに払っているかが決まるまでは何もしない。縦のほうが大きければ
+        // 以降この指は無視する（説明パネルを縦にスクロールしたいときの邪魔をしない）
+        if (Math.abs(dx) < AXIS_LOCK_PX && Math.abs(dy) < AXIS_LOCK_PX) return;
+        axis.current = Math.abs(dx) > Math.abs(dy) ? "horizontal" : "vertical";
+      }
+      if (axis.current !== "horizontal") return;
+
+      rawDx.current = dx;
+      const atEdge = (dx < 0 && !hasNext) || (dx > 0 && !hasPrev);
+      setDragX(atEdge ? dx * EDGE_RESISTANCE : dx);
+    },
+    [hasNext, hasPrev]
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    const start = touchStart.current;
+    const decided = axis.current;
+    touchStart.current = null;
+    axis.current = "undecided";
+    if (!start || decided === "undecided") return;
+
+    // 縦に払ったと判断した指は何もしない（説明パネルを縦に動かしたいときの邪魔をしない）。
+    //
+    // **払った直後の click を捨てる処理は入れていない。** 一度入れたが、外しても
+    // B99〜B108 が全件通る（＝何も守っていない）うえ、**次の本物のタップまで食べて
+    // 背景タップで閉じられなくなった**。`touch-pan-y` を入れる前に「払うと閉じる」と
+    // 見えていたのは、横の払いがブラウザの「スワイプで戻る」に取られてページごと
+    // 離れていたのが原因だった（B108 はURLまで見てこれを区別する）
+    if (decided !== "horizontal") return;
+
+    const threshold = window.innerWidth * SWIPE_RATIO;
+    const moved = rawDx.current;
+    rawDx.current = 0;
+    setSettling(true);
+    setDragX(0);
+
+    if (moved <= -threshold && hasNext) onNext?.();
+    else if (moved >= threshold && hasPrev) onPrev?.();
+  }, [hasNext, hasPrev, onNext, onPrev]);
+
   // 前へ/次へで写真を切り替えた際、直前の写真の読み込み完了状態を引きずらないようにリセットする
   useEffect(() => {
     setLoaded(false);
+    setDragX(0);
+    setSettling(false);
   }, [mediaUrl]);
 
   useEffect(() => {
@@ -96,12 +185,23 @@ export function Lightbox({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      // **`touch-pan-y` が無いと、横の払いがブラウザのジェスチャに取られる。**
+      // Chromium は横のオーバースクロールを「スワイプで戻る」として扱うので、
+      // 画面の左端あたりから右へ払うと**前のページへ遷移してしまう**
+      // （実測: 直接開いていたため空のページに飛び、Lightboxごと消えた）。
+      // 縦は譲る——説明パネルを縦にスクロールしたいため。
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm ${
+        swipeEnabled ? "touch-pan-y" : ""
+      }`}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose?.();
         }
       }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
     >
       {/* 情報パネル切り替えボタン */}
       {meta && (
@@ -155,7 +255,14 @@ export function Lightbox({
       )}
 
       {/* メディアコンテンツ */}
-      <div className="relative flex max-h-[90vh] max-w-[90vw] items-center justify-center overflow-hidden rounded-sm">
+      {/* **動かすのはメディアの箱だけ。** 外側に付けると矢印ボタンや❤️・情報パネルまで
+          一緒にずれて、指を離すまで押せる位置が変わってしまう */}
+      <div
+        className={`relative flex max-h-[90vh] max-w-[90vw] items-center justify-center overflow-hidden rounded-sm ${
+          settling ? "transition-transform duration-200" : ""
+        }`}
+        style={dragX !== 0 ? { transform: `translateX(${dragX}px)` } : undefined}
+      >
         {mediaType === "YOUTUBE" ? (
           // **iframeで埋め込む。** APIキーもクォータも要らない（動画IDだけで組み立てられる）。
           // nocookie ドメインを使うのは、見ただけで視聴履歴のCookieが置かれないようにするため。
@@ -169,11 +276,14 @@ export function Lightbox({
             className="aspect-video h-[50vh] max-h-[90vh] w-[90vw] max-w-[1280px] border-0"
           />
         ) : mediaType === "VIDEO" ? (
+          // `touch-auto` で動画だけは横のジェスチャを戻す。上の `touch-pan-y` が
+          // 効いたままだと**再生バーを横にドラッグしてシークできなくなる**。
+          // そのぶん、動画の上を払ったときは送りではなくブラウザ側の操作になる
           <video
             src={mediaUrl}
             controls
             autoPlay
-            className="max-h-[90vh] max-w-[90vw] object-contain"
+            className="max-h-[90vh] max-w-[90vw] touch-auto object-contain"
           />
         ) : (
           <>

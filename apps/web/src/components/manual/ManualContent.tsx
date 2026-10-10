@@ -525,6 +525,15 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
             パソコンなど横に広い画面では、三本線のボタンは出ません。代わりに画面の左端に
             アイコンだけの細い列が常に出ていて、アイコンにカーソルを合わせると名前が出ます。
           </p>
+          <p>
+            <strong className="text-steam-text">写真を見ているとき</strong>は、
+            <strong className="text-steam-text">横に払って次／前の写真へ移れます</strong>。
+            少しだけ払ったときは動かずに元に戻ります。左右の矢印ボタンも残してあります。
+          </p>
+          <p className="text-steam-muted">
+            YouTubeの動画ではプレーヤーの操作が優先されるので、払っても移りません。
+            動画も、再生バーの上では払えません（シーク操作が優先されます）。
+          </p>
         </div>
       ),
     },
