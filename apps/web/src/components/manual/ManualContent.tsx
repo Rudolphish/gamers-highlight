@@ -507,6 +507,28 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
       ),
     },
     {
+      id: "mobile",
+      title: "スマホで使うとき（メニューの出し方）",
+      body: (
+        <div className="flex flex-col gap-3">
+          <p>
+            スマホのような細い画面では、<strong className="text-steam-text">画面左上の三本線のボタン</strong>
+            からメニューを開きます。ホーム・グループ・アルバム・アップロード・マニュアル・検索・設定が、
+            アイコンと文字で並びます。
+          </p>
+          <p>
+            閉じ方は4通りあります：<strong className="text-steam-text">行きたい場所を選ぶ</strong>、
+            右上の×、<strong className="text-steam-text">メニューの外側（暗くなっている部分）をタップ</strong>、
+            キーボードのEscキー。
+          </p>
+          <p className="text-steam-muted">
+            パソコンなど横に広い画面では、三本線のボタンは出ません。代わりに画面の左端に
+            アイコンだけの細い列が常に出ていて、アイコンにカーソルを合わせると名前が出ます。
+          </p>
+        </div>
+      ),
+    },
+    {
       id: "account",
       title: "アカウントの設定（Discord連携・表示名）",
       body: (

@@ -111,7 +111,7 @@ export function Lightbox({
               e.stopPropagation();
               setShowMeta((v) => !v);
             }}
-            className="rounded-full bg-black/60 p-2 text-white/80 hover:bg-black hover:text-white transition"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white/80 transition hover:bg-black hover:text-white"
             aria-label="情報を表示"
           >
             <Info size={20} />
@@ -125,7 +125,7 @@ export function Lightbox({
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="rounded-full bg-black/60 p-2 text-white/80 transition hover:bg-[#eb4b4b] hover:text-white disabled:opacity-50"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white/80 transition hover:bg-[#eb4b4b] hover:text-white disabled:opacity-50"
             aria-label="削除"
           >
             {deleting ? <Spinner size={20} /> : <Trash2 size={20} />}
@@ -134,7 +134,7 @@ export function Lightbox({
         {onClose && (
           <button
             onClick={onClose}
-            className="rounded-full bg-black/60 p-2 text-white/80 hover:bg-black hover:text-white transition"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white/80 transition hover:bg-black hover:text-white"
             aria-label="閉じる"
           >
             <X size={20} />

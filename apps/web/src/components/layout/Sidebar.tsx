@@ -3,41 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { FileText, Film, Home, Search, Settings, ShieldCheck, Upload, Users } from "lucide-react";
+import { getNavGroups, isNavItemActive } from "./navItems";
 
-const NAV_GROUPS = [
-  {
-    label: "ナビゲーション",
-    items: [
-      { href: "/", label: "ホーム", icon: Home },
-      { href: "/groups", label: "グループ", icon: Users },
-      { href: "/albums", label: "アルバム", icon: Film },
-      { href: "/upload", label: "アップロード", icon: Upload },
-      { href: "/manual", label: "マニュアル", icon: FileText },
-    ],
-  },
-  {
-    label: "管理",
-    items: [
-      { href: "/search", label: "検索", icon: Search },
-      { href: "/settings/discord", label: "設定", icon: Settings },
-    ],
-  },
-];
-
-// 管理者だけに出すリンク（実際の権限判定はページ側でサーバー側に行わせる）
-const ADMIN_GROUP = {
-  label: "管理者",
-  items: [{ href: "/admin", label: "使用量・メディア", icon: ShieldCheck }],
-};
-
+// PC（640px以上）のアイコンレール。**640px未満では出さない**——ラベルが hover の
+// ツールチップしか無く、タッチ端末では何のアイコンか知る手段が無いため。
+// 細い画面は `MobileNav` のドロワーが受け持つ（項目の定義は `navItems.ts` で共通）。
+//
+// 本文は body がスクロールするので、`sticky` で画面に残す。高さを `100dvh` で
+// 固定しているのは、親のフレックスに引き伸ばされると sticky が効かないため。
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const navGroups = session?.user?.isAdmin ? [...NAV_GROUPS, ADMIN_GROUP] : NAV_GROUPS;
+  const navGroups = getNavGroups(session?.user?.isAdmin);
 
   return (
-    <aside className="flex w-20 flex-shrink-0 flex-col border-r border-steam-border bg-steam-panel py-4">
+    <aside className="sticky top-0 hidden h-[100dvh] w-20 flex-shrink-0 flex-col border-r border-steam-border bg-steam-panel py-4 sm:flex">
       <div className="mb-6 flex items-center justify-center px-2">
         <Link
           href="/"
@@ -48,17 +28,18 @@ export function Sidebar() {
         </Link>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-6 px-1">
+      <nav className="flex flex-1 flex-col gap-6 overflow-y-auto px-1">
         {navGroups.map((group) => (
           <div key={group.label} className="space-y-2">
             <p className="px-2 text-3xs uppercase tracking-[0.3em] text-steam-muted">{group.label}</p>
             <div className="space-y-1">
               {group.items.map((item) => {
-                const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+                const active = isNavItemActive(pathname, item.href);
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
+                    aria-current={active ? "page" : undefined}
                     className={`group relative flex items-center justify-center rounded-sm px-2.5 py-2 font-mono text-xs ${
                       active ? "bg-steam-surface text-steam-blue" : "text-steam-muted"
                     }`}
