@@ -1649,22 +1649,31 @@ for (const [id, label, path] of targets) {
 // ブロックごと try/catch で包んである。**入口ごとにガードを置くのでは足りない**
 // （クリックの連鎖はどこで止まっても以降が全部消える。docs/lessons.md）
 {
-  const EXPECTED = [
-    ["B84", "スマホ幅ではアイコンレールが出ない"],
-    ["B85", "スマホ幅ではハンバーガーが出る"],
-    ["B86", "ハンバーガーを押すと全項目が文字つきで出て、画面を覆う"],
-    ["B87", "ドロワーのリンクで遷移し、ドロワーが閉じる"],
-    ["B88", "Escで閉じる"],
-    ["B89", "背景のタップで閉じる（本文には抜けない）"],
-    ["B90", "開いている間は背面のスクロールが止まる"],
-    ["B91", "横スクロールが出ない（スマホ幅・表のあるページ）"],
-    ["B92", "本文は window がスクロールする（高さを固定したスクローラを作っていない）"],
-    ["B93", "ナビの開閉で例外が出ない"],
-  ];
+  // 項目名はIDで引く（添字で引くと、順番を入れ替えた瞬間に別の項目名が入る）
+  const EXPECTED = {
+    B84: "スマホ幅ではアイコンレールが出ない",
+    B85: "スマホ幅ではハンバーガーが出る",
+    B86: "ハンバーガーを押すと全項目が文字つきで出て、画面を覆う",
+    B87: "ドロワーのリンクで遷移し、ドロワーが閉じる",
+    B88: "Escで閉じる",
+    B89: "背景のタップで閉じる（本文には抜けない）",
+    B90: "開いている間は背面のスクロールが止まる",
+    B91: "横スクロールが出ない（スマホ幅・表のあるページ）",
+    B92: "本文は window がスクロールする（高さを固定したスクローラを作っていない）",
+    B93: "ナビの開閉で例外が出ない",
+  };
   const recorded = new Set();
-  const rec = (id, item, expected, actual, ok, note = "") => {
+  // **記録した順ではなくID順で表に入れる。** 確認の都合で順番が前後するため、
+  // そのまま push すると表の行がID順にならず読みにくい（レビューで指摘された）
+  const localRows = [];
+  const rec = (id, expected, actual, ok, note = "") => {
     recorded.add(id);
-    rows.push({ id, item, expected, actual, ok, note });
+    localRows.push({ id, item: EXPECTED[id], expected, actual, ok, note });
+  };
+  const flushRows = () => {
+    localRows.sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));
+    rows.push(...localRows);
+    localRows.length = 0;
   };
 
   const page = await context.newPage();
@@ -1683,11 +1692,11 @@ for (const [id, label, path] of targets) {
 
     const rail = page.locator("aside");
     const railVisible = (await rail.count()) > 0 && (await rail.first().isVisible());
-    rec("B84", EXPECTED[0][1], "出ていない", railVisible ? "出ている" : "出ていない", !railVisible);
+    rec("B84", "出ていない", railVisible ? "出ている" : "出ていない", !railVisible);
 
     const hamburger = page.getByRole("button", { name: "メニューを開く" });
     const hamburgerVisible = (await hamburger.count()) > 0 && (await hamburger.isVisible());
-    rec("B85", EXPECTED[1][1], "出ている", hamburgerVisible ? "出ている" : "出ていない", hamburgerVisible);
+    rec("B85", "出ている", hamburgerVisible ? "出ている" : "出ていない", hamburgerVisible);
 
     await hamburger.click();
     const drawer = page.getByRole("dialog", { name: "ナビゲーション" });
@@ -1704,7 +1713,6 @@ for (const [id, label, path] of targets) {
     const labelled = linkTexts.filter((t) => t.trim().length > 0);
     rec(
       "B86",
-      EXPECTED[2][1],
       "8項目すべてに文字あり / 画面の高さを覆う",
       `リンク${linkTexts.length}件 / 文字あり${labelled.length}件 / 高さ${Math.round(drawerBox?.height ?? 0)}（画面${viewportHeight}）`,
       linkTexts.length === 8 && labelled.length === 8 && coversScreen,
@@ -1713,7 +1721,7 @@ for (const [id, label, path] of targets) {
 
     // 背面のスクロールが止まっているか（開いている今のうちに見る）
     const bodyOverflow = await page.evaluate(() => getComputedStyle(document.body).overflow);
-    rec("B90", EXPECTED[6][1], "hidden", bodyOverflow, bodyOverflow === "hidden");
+    rec("B90", "hidden", bodyOverflow, bodyOverflow === "hidden");
 
     await drawer.getByRole("link", { name: "アルバム" }).click();
     await page.waitForURL("**/albums", { timeout: 15000 });
@@ -1722,7 +1730,6 @@ for (const [id, label, path] of targets) {
     const restoredOverflow = await page.evaluate(() => getComputedStyle(document.body).overflow);
     rec(
       "B87",
-      EXPECTED[3][1],
       "/albums へ遷移 / 閉じている / 背面のスクロールが戻る",
       `${new URL(page.url()).pathname} / ${stillOpen ? "開いている" : "閉じている"} / overflow=${restoredOverflow}`,
       new URL(page.url()).pathname === "/albums" && !stillOpen && restoredOverflow !== "hidden"
@@ -1734,7 +1741,7 @@ for (const [id, label, path] of targets) {
     await page.keyboard.press("Escape");
     await page.waitForTimeout(200);
     const afterEsc = await page.getByRole("dialog", { name: "ナビゲーション" }).count();
-    rec("B88", EXPECTED[4][1], "0件", `${afterEsc}件`, afterEsc === 0);
+    rec("B88", "0件", `${afterEsc}件`, afterEsc === 0);
 
     // **閉じ方の確認は1つずつ、状態を戻してから。** Escが効かないときに開いたままだと、
     // 次の「メニューを開く」が背景に遮られてブロックごと落ちる（壊して確認したときに踏んだ）
@@ -1751,7 +1758,6 @@ for (const [id, label, path] of targets) {
     // リンクに抜け、遷移のついでにドロワーが閉じるので「閉じた」だけでは通ってしまう
     rec(
       "B89",
-      EXPECTED[5][1],
       "0件 / 遷移しない",
       `${afterBackdrop}件 / ${urlBeforeBackdrop === urlAfterBackdrop ? "遷移なし" : `${urlBeforeBackdrop}→${urlAfterBackdrop}`}`,
       afterBackdrop === 0 && urlBeforeBackdrop === urlAfterBackdrop
@@ -1773,7 +1779,6 @@ for (const [id, label, path] of targets) {
     const overflowing = widths.filter((w) => w.scrollWidth > w.clientWidth + 1);
     rec(
       "B91",
-      EXPECTED[7][1],
       "どのページも横に溢れない",
       overflowing.length === 0
         ? "溢れなし"
@@ -1797,17 +1802,16 @@ for (const [id, label, path] of targets) {
     });
     rec(
       "B92",
-      EXPECTED[8][1],
       "ページが伸びていて window がスクロールする",
       `伸びている=${scrollState.scrollable} / scrollY=${scrollState.scrollY}`,
       scrollState.scrollable && scrollState.scrollY > 0
     );
 
-    rec("B93", EXPECTED[9][1], "無し", problems.slice(0, 3).join(" / ") || "無し", problems.length === 0);
+    rec("B93", "無し", problems.slice(0, 3).join(" / ") || "無し", problems.length === 0);
   } catch (e) {
-    for (const [id, item] of EXPECTED) {
+    for (const [id, item] of Object.entries(EXPECTED)) {
       if (recorded.has(id)) continue;
-      rows.push({
+      localRows.push({
         id,
         item,
         expected: "—",
@@ -1817,12 +1821,35 @@ for (const [id, label, path] of targets) {
       });
     }
   } finally {
+    flushRows();
     await page.close();
   }
 }
 
 // PC幅（1280px）の骨組み。**390pxだけ見ていると640px以上を壊しても気づけない。**
 {
+  // 他の2ブロックと同じ形に揃える。**項目名を記録側と catch 側の2箇所に書いていたのが
+  // 今回の欠陥の温床だった**（`localRows` に移したのに catch の判定は `rows` のままで、
+  // 途中で落ちると記録済みの行まで「未確認」で二重に積まれる形になっていた）
+  const EXPECTED = {
+    B94: "PC幅ではアイコンレールが出ている",
+    B95: "PC幅ではハンバーガーが出ない",
+    B96: "PC幅で横スクロールが出ない",
+    B97: "PC幅で長いページをスクロールしてもナビが残る",
+    B98: "PC幅でアイコンにホバーすると名前が実際に読める",
+  };
+  const recorded = new Set();
+  // 確認の都合で順番が前後するので、ID順に並べ直してから表へ入れる
+  const localRows = [];
+  const rec = (id, expected, actual, ok, note = "") => {
+    recorded.add(id);
+    localRows.push({ id, item: EXPECTED[id], expected, actual, ok, note });
+  };
+  const flushRows = () => {
+    localRows.sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));
+    rows.push(...localRows);
+    localRows.length = 0;
+  };
   const pcContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   await pcContext.addCookies([
     {
@@ -1843,25 +1870,21 @@ for (const [id, label, path] of targets) {
 
     const rail = pcPage.locator("aside");
     const railVisible = (await rail.count()) > 0 && (await rail.first().isVisible());
-    rows.push({
-      id: "B94",
-      item: "PC幅ではアイコンレールが出ている",
-      expected: "出ている",
-      actual: railVisible ? "出ている" : "出ていない",
-      ok: railVisible,
-      note: "",
-    });
+    rec(
+      "B94",
+      "出ている",
+      railVisible ? "出ている" : "出ていない",
+      railVisible
+    );
 
     const hamburger = pcPage.getByRole("button", { name: "メニューを開く" });
     const hamburgerVisible = (await hamburger.count()) > 0 && (await hamburger.isVisible());
-    rows.push({
-      id: "B95",
-      item: "PC幅ではハンバーガーが出ない",
-      expected: "出ていない",
-      actual: hamburgerVisible ? "出ている" : "出ていない",
-      ok: !hamburgerVisible,
-      note: "",
-    });
+    rec(
+      "B95",
+      "出ていない",
+      hamburgerVisible ? "出ている" : "出ていない",
+      !hamburgerVisible
+    );
 
     // **PC幅ではアイコンの名前を知る手段がホバーのツールチップだけ**なので、それが
     // 実際に読めることを見る。`opacity` と矩形は「出ている」と答えるのに画面には無い、
@@ -1888,16 +1911,14 @@ for (const [id, label, path] of targets) {
         hit: at === tip || tip.contains(at),
       };
     });
-    rows.push({
-      id: "B98",
-      item: "PC幅でアイコンにホバーすると名前が実際に読める",
-      expected: "その位置にツールチップが居る",
-      actual: tooltip.found
+    rec(
+      "B98",
+      "その位置にツールチップが居る",
+      tooltip.found
         ? `opacity=${tooltip.opacity} / その位置に居る=${tooltip.hit}`
         : "ツールチップが無い",
-      ok: tooltip.found && tooltip.opacity === "1" && tooltip.hit,
-      note: "",
-    });
+      tooltip.found && tooltip.opacity === "1" && tooltip.hit
+    );
 
     // **長いページでナビが流れていかないこと。** レールは `sticky top-0 h-[100dvh]` で
     // 画面に残す。これが無いと親のフレックスに引き伸ばされ、スクロールすると
@@ -1913,40 +1934,38 @@ for (const [id, label, path] of targets) {
     const scrolled = await pcPage.evaluate(() => Math.round(window.scrollY));
     const viewportH = pcPage.viewportSize().height;
     const navStays = box !== null && box.y >= 0 && box.y < viewportH;
-    rows.push({
-      id: "B97",
-      item: "PC幅で長いページをスクロールしてもナビが残る",
-      expected: "画面内に居る",
-      actual: box === null ? "リンクが無い" : `y=${Math.round(box.y)}（scrollY=${scrolled} / 画面高=${viewportH}）`,
-      ok: navStays && scrolled > 0,
-      note: "",
-    });
+    rec(
+      "B97",
+      "画面内に居る",
+      box === null ? "リンクが無い" : `y=${Math.round(box.y)}（scrollY=${scrolled} / 画面高=${viewportH}）`,
+      navStays && scrolled > 0
+    );
 
     await pcPage.goto(`${BASE}/`, { waitUntil: "networkidle" });
     const pcWidth = await pcPage.evaluate(() => {
       const el = document.documentElement;
       return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
     });
-    rows.push({
-      id: "B96",
-      item: "PC幅で横スクロールが出ない",
-      expected: "溢れなし",
-      actual: `${pcWidth.scrollWidth}/${pcWidth.clientWidth}`,
-      ok: pcWidth.scrollWidth <= pcWidth.clientWidth + 1,
-      note: "",
-    });
+    rec(
+      "B96",
+      "溢れなし",
+      `${pcWidth.scrollWidth}/${pcWidth.clientWidth}`,
+      pcWidth.scrollWidth <= pcWidth.clientWidth + 1
+    );
   } catch (e) {
-    for (const [id, item] of [
-      ["B94", "PC幅ではアイコンレールが出ている"],
-      ["B95", "PC幅ではハンバーガーが出ない"],
-      ["B98", "PC幅でアイコンにホバーすると名前が実際に読める"],
-      ["B97", "PC幅で長いページをスクロールしてもナビが残る"],
-      ["B96", "PC幅で横スクロールが出ない"],
-    ]) {
-      if (rows.some((r) => r.id === id)) continue;
-      rows.push({ id, item, expected: "—", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+    for (const [id, item] of Object.entries(EXPECTED)) {
+      if (recorded.has(id)) continue;
+      localRows.push({
+        id,
+        item,
+        expected: "—",
+        actual: "未確認",
+        ok: false,
+        note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}`,
+      });
     }
   } finally {
+    flushRows();
     await pcPage.close();
     await pcContext.close();
   }
@@ -1963,22 +1982,32 @@ for (const [id, label, path] of targets) {
 // `dispatchEvent` した合成イベントでは、自分のハンドラを呼んだだけになり
 // 「ジェスチャが効く」ことの確認にならない。**
 {
-  const EXPECTED = [
-    ["B99", "スワイプ用のデータが用意できる（アルバムと写真3枚）"],
-    ["B100", "払っている最中はメディアが指に追従する"],
-    ["B101", "左へ払うと次のメディアになる"],
-    ["B102", "右へ払うと前のメディアに戻る"],
-    ["B103", "閾値に届かない払いでは切り替わらない"],
-    ["B104", "縦に払っても切り替わらない"],
-    ["B105", "最後のメディアで左へ払っても変わらない"],
-    ["B106", "矢印ボタンは従来どおり動く"],
-    ["B108", "背景を払っても閉じない・ページを離れない（タップでは閉じる）"],
-    ["B107", "スワイプ操作で例外が出ない"],
-  ];
+  // **項目名は配列の添字で引かない。** 以前そうしていて、途中で項目を1つ挟んだときに
+  // B106 に B108 の名前が入った（表に同じ名前の行が2つ並ぶ）。IDで引けばずれない
+  const EXPECTED = {
+    B99: "スワイプ用のデータが用意できる（アルバムと写真3枚）",
+    B100: "払っている最中はメディアが指に追従する",
+    B101: "左へ払うと次のメディアになる",
+    B102: "右へ払うと前のメディアに戻る",
+    B103: "閾値に届かない払いでは切り替わらない",
+    B104: "縦に払っても切り替わらない",
+    B105: "最後のメディアで左へ払っても変わらない",
+    B106: "矢印ボタンは従来どおり動く",
+    B107: "スワイプ操作で例外が出ない",
+    B108: "背景を払っても閉じない・ページを離れない（タップでは閉じる）",
+  };
   const recorded = new Set();
-  const rec = (id, item, expected, actual, ok, note = "") => {
+  // **記録した順ではなくID順で表に入れる。** 確認の都合で順番が前後するため、
+  // そのまま push すると表の行がID順にならず読みにくい（レビューで指摘された）
+  const localRows = [];
+  const rec = (id, expected, actual, ok, note = "") => {
     recorded.add(id);
-    rows.push({ id, item, expected, actual, ok, note });
+    localRows.push({ id, item: EXPECTED[id], expected, actual, ok, note });
+  };
+  const flushRows = () => {
+    localRows.sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));
+    rows.push(...localRows);
+    localRows.length = 0;
   };
 
   const touchContext = await browser.newContext({
@@ -2062,7 +2091,6 @@ for (const [id, label, path] of targets) {
 
     rec(
       "B99",
-      EXPECTED[0][1],
       "アルバム1件 / 写真3枚",
       `アルバム=${swipeAlbumId ? "作れた" : "作れない"} / 写真${createdPhotoIds.length}枚`,
       Boolean(swipeAlbumId) && createdPhotoIds.length === 3
@@ -2123,7 +2151,6 @@ for (const [id, label, path] of targets) {
     });
     rec(
       "B100",
-      EXPECTED[1][1],
       "translateX が付いている",
       midTransform,
       midTransform.startsWith("matrix(") && !midTransform.startsWith("matrix(1, 0, 0, 1, 0, 0)")
@@ -2132,7 +2159,6 @@ for (const [id, label, path] of targets) {
     const second = await shownUrl();
     rec(
       "B101",
-      EXPECTED[2][1],
       "別のメディアになる",
       first === second ? "変わらない" : "変わった",
       Boolean(first) && Boolean(second) && first !== second
@@ -2142,7 +2168,6 @@ for (const [id, label, path] of targets) {
     const backToFirst = await shownUrl();
     rec(
       "B102",
-      EXPECTED[3][1],
       "1枚目に戻る",
       backToFirst === first ? "戻った" : "戻らない",
       backToFirst === first
@@ -2154,7 +2179,6 @@ for (const [id, label, path] of targets) {
     const restedTransform = await transform();
     rec(
       "B103",
-      EXPECTED[4][1],
       "変わらない / 位置も戻る",
       `${afterSmall === first ? "変わらない" : "変わった"} / transform=${restedTransform}`,
       afterSmall === first && (restedTransform === "none" || restedTransform === "matrix(1, 0, 0, 1, 0, 0)")
@@ -2165,7 +2189,6 @@ for (const [id, label, path] of targets) {
     const afterVertical = await shownUrl();
     rec(
       "B104",
-      EXPECTED[5][1],
       "変わらない",
       afterVertical === first ? "変わらない" : "変わった",
       afterVertical === first
@@ -2179,7 +2202,6 @@ for (const [id, label, path] of targets) {
     const afterEdge = await shownUrl();
     rec(
       "B105",
-      EXPECTED[6][1],
       "変わらない",
       afterEdge === last ? "変わらない" : "変わった",
       Boolean(last) && afterEdge === last
@@ -2225,13 +2247,17 @@ for (const [id, label, path] of targets) {
     const openAfterBackdropSwipe = (await page.locator("div.fixed.inset-0.z-50").count()) > 0;
     const urlAfterBackdrop = new URL(page.url()).pathname;
     const movedByBackdrop = openAfterBackdropSwipe ? await shownUrl() : null;
-    // 背景をタップしたら閉じる（こちらは従来どおり壊していないこと）
+    // 背景をタップしたら閉じる（こちらは従来どおり壊していないこと）。
+    // **払った直後にタップしてはいけない。** ブラウザはダブルタップかどうかを待つため、
+    // 直前のジェスチャから間を置かないと **click を一切合成しない**
+    // （実測: 0ms・400msでは click 0件、800msで1件。アプリ側の問題ではない）。
+    // 400msで待っていたせいで、通しの2回目だけ落ちていた
+    await page.waitForTimeout(900);
     await page.touchscreen.tap(70, backdropY);
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(500);
     const closedByTap = (await page.locator("div.fixed.inset-0.z-50").count()) === 0;
     rec(
       "B108",
-      EXPECTED[8][1],
       "開いたまま / 同じURL / 前のメディアへ / タップで閉じる",
       `払った後=${openAfterBackdropSwipe ? "開いている" : "閉じた"} / URL=${
         urlBeforeBackdrop === urlAfterBackdrop ? "同じ" : `${urlBeforeBackdrop}→${urlAfterBackdrop}`
@@ -2261,17 +2287,16 @@ for (const [id, label, path] of targets) {
     const afterArrow = await shownUrl();
     rec(
       "B106",
-      EXPECTED[8][1],
       "次のメディアになる",
       afterArrow === beforeArrow ? "変わらない" : "変わった",
       Boolean(beforeArrow) && Boolean(afterArrow) && afterArrow !== beforeArrow
     );
 
-    rec("B107", EXPECTED[9][1], "無し", problems.slice(0, 3).join(" / ") || "無し", problems.length === 0);
+    rec("B107", "無し", problems.slice(0, 3).join(" / ") || "無し", problems.length === 0);
   } catch (e) {
-    for (const [id, item] of EXPECTED) {
+    for (const [id, item] of Object.entries(EXPECTED)) {
       if (recorded.has(id)) continue;
-      rows.push({
+      localRows.push({
         id,
         item,
         expected: "—",
@@ -2281,6 +2306,7 @@ for (const [id, label, path] of targets) {
       });
     }
   } finally {
+    flushRows();
     // 後片付けは作ったときと同じ経路（API）で。DB直で消すとキャッシュが飛ばず、
     // 次に走るスイートが消えた写真をクリックして落ちる（docs/lessons.md）
     try {
