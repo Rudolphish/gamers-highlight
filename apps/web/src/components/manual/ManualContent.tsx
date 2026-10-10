@@ -169,6 +169,14 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
             <strong className="text-steam-text">提案するとDiscordにも通知が飛びます</strong>
             （「ゲームが提案されたとき」の通知先を設定している場合。下の「Discordへの通知」を参照）。
           </p>
+          <p>
+            <strong className="text-steam-text">提案は提案した人ごとに区画が分かれます。</strong>
+            各区画に出るのは既定で5件までで、残りは「他N件を表示」で開けます。
+            自分の区画のカードには順位の選択欄が出るので、1位〜5位を付けると
+            その順に並びます（順位を付けていないものは新しい順であとに続きます）。
+            <strong className="text-steam-text">順位を変えられるのは提案した本人だけ</strong>
+            で、他の人の並びには影響しません。
+          </p>
         </div>
       ),
     },
