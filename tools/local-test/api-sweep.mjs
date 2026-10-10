@@ -65,6 +65,11 @@ const cases = [
   // オーナー（admin）でも他人の区画の並びには触れない＝403
   ["R31", "提案の順位は提案者本人だけ", "PATCH", `/api/groups/${ids.groupId}/proposals/${ids.proposalId}/rank`, { rank: 1 }, { anon: 401, outsider: 403, admin: 403, member: 200 }],
   ["R32", "順位の範囲外は拒否", "PATCH", `/api/groups/${ids.groupId}/proposals/${ids.proposalId}/rank`, { rank: 0 }, { member: 400 }],
+  // アルバムとゲームの連携。**ゲームリストを触る操作なのでEDITOR以上**に揃えてある。
+  // 対象は adminOnlyAlbum（ゲーム未連携）なので、解除を投げても状態は変わらない
+  // ——他のスイートが前提にしている seed の連携を壊さないため
+  ["R33", "アルバムの連携変更は要ログイン・要権限", "PATCH", `/api/albums/${ids.adminOnlyAlbumId}/game`, { steamAppId: null }, { anon: 401, outsider: 403, admin: 200 }],
+  ["R34", "連携変更の不正なbodyは400", "PATCH", `/api/albums/${ids.adminOnlyAlbumId}/game`, { steamAppId: -1 }, { admin: 400 }],
 ];
 
 const rows = [];

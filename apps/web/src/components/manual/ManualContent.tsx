@@ -181,6 +181,43 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
       ),
     },
     {
+      id: "album-steam-link",
+      title: "アルバムとゲームを連携する（間違えたときの直し方）",
+      body: (
+        <div className="flex flex-col gap-3">
+          <p>
+            アルバム詳細の<strong className="text-steam-text">「Steam連携」</strong>からは、
+            2つの別のことができます。
+          </p>
+          <ul className="ml-4 list-disc space-y-1">
+            <li>
+              <strong className="text-steam-text">サムネイルに使う</strong>
+              ：アルバムのカバー画像にSteamのヘッダー画像を使います（ゲームとの連携はしません）。
+            </li>
+            <li>
+              <strong className="text-steam-text">このゲームに連携</strong>
+              ：グループのゲームリストに追加して、アルバムから「ゲーム詳細を見る」で
+              そのゲームのページへ行けるようにします。
+            </li>
+          </ul>
+          <p>
+            <strong className="text-steam-text">間違えたときは付け替えられます。</strong>
+            モーダルの上部に「現在のゲーム: ◯◯」と出るので、違っていたら別のゲームを検索して
+            「このゲームに付け替え」を押してください。確認が出たあとに切り替わります。
+            そのとき<strong className="text-steam-text">間違って追加したゲームをゲームリストからも消すか</strong>
+            をチェックで選べます（消すと、そのゲームに付いた他のメンバーの「気になる」も消えます）。
+          </p>
+          <p className="text-steam-muted/70">
+            補足：「ゲームとの連携を解除する」を押すと、ゲームリストにはそのまま残したうえで
+            アルバムとの紐付けだけを外せます。サムネイルは変わりません（戻したいときは
+            「Steam画像を解除して投稿写真に戻す」を使ってください）。
+            1つのゲームに連携できるアルバムは1つまでなので、他のアルバムが使っているゲームへは
+            付け替えられません（その場合は先に相手側で解除してください）。
+          </p>
+        </div>
+      ),
+    },
+    {
       id: "game-detail",
       title: "ゲーム詳細で分かること",
       body: (

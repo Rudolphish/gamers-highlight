@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
-import { invalidateGroup } from "@/lib/cacheTags";
+import { invalidateAlbum, invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activityLog";
 import { getOrFetchExternalGameData } from "@/lib/externalGameCache";
@@ -73,6 +73,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       data: { albumId },
       include: { addedBy: true },
     });
+    // **この分岐でも無効化する。** 以前はここだけ呼んでおらず、既にリストにあるゲームを
+    // アルバムへ紐付け直したときにグループとアルバムのキャッシュが残り、
+    // 「連携したのに画面に出ない」が起きた（しかも時間では直らない）。
+    // ハンドラ全体では下の方で invalidateGroup を呼んでいるため、
+    // `audit-invalidation.mjs` では検出できない形だった（早期returnの中）。
+    invalidateAlbum(albumId, params.id);
     return NextResponse.json({ game: updated });
   }
 
