@@ -1294,6 +1294,172 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── 提案の区画分けと順位 ──
+// **件数が増えたときに読めること**がこの機能の目的なので、
+// 「区画が人ごとに分かれる」「1区画は5件まで」「6件目は展開で出る」を画面から見る。
+{
+  const page = await context.newPage();
+  const problems = [];
+  page.on("pageerror", (e) => problems.push(`例外: ${e.message}`.slice(0, 140)));
+
+  const callApi = (path, method, body) =>
+    page.evaluate(
+      async ([p, m, b]) => {
+        const res = await fetch(p, {
+          method: m,
+          headers: b ? { "content-type": "application/json" } : {},
+          body: b ? JSON.stringify(b) : undefined,
+        });
+        return { status: res.status, json: await res.json().catch(() => null) };
+      },
+      [path, method, body ?? null]
+    );
+
+  await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+
+  // **他人の提案も自分で用意する。** seedの提案（member の GTA V）は、通しで流すと
+  // flows が過半数まで投票して昇格させるのでPENDINGから外れ、区画が1つになる。
+  // 他スイートが動かす値を前提にしてはいけない（docs/lessons.md）
+  const memberCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await memberCtx.addCookies([
+    {
+      name: "next-auth.session-token",
+      value: await encode({
+        token: { name: "member", email: "member@example.com", sub: "member@example.com" },
+        secret: SECRET,
+        maxAge: 3600,
+      }),
+      domain: "127.0.0.1",
+      path: "/",
+      httpOnly: true,
+    },
+  ]);
+  const memberPage = await memberCtx.newPage();
+  await memberPage.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "domcontentloaded" });
+  const OTHERS_TITLE = "区画テスト（他人）";
+  const othersProposal = await memberPage.evaluate(
+    async ([gid, title]) => {
+      const res = await fetch(`/api/groups/${gid}/proposals`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ steamAppId: 7700100, title }),
+      });
+      return (await res.json().catch(() => null))?.proposal?.id ?? null;
+    },
+    [ids.groupId, OTHERS_TITLE]
+  );
+
+  // admin の提案を6件作る（5件の上限と「他N件」を踏むのに6件必要）。
+  // **seedのゲームリストと被らないapp IDを使う**（既にリストにあるものは409で作れない）
+  const titles = [
+    "区画テスト1",
+    "区画テスト2",
+    "区画テスト3",
+    "区画テスト4",
+    "区画テスト5",
+    "区画テスト6",
+  ];
+  const created = [];
+  for (let i = 0; i < titles.length; i++) {
+    const res = await callApi(`/api/groups/${ids.groupId}/proposals`, "POST", {
+      steamAppId: 7700001 + i,
+      title: titles[i],
+    });
+    if (res.json?.proposal?.id) created.push({ id: res.json.proposal.id, title: titles[i] });
+  }
+
+  await page.reload({ waitUntil: "networkidle" });
+
+  /** 自分の区画に出ている順位の選択欄のラベル（＝可視カードのタイトル順） */
+  const myVisibleTitles = () =>
+    page.locator('select[aria-label$="の順位"]').evaluateAll((els) =>
+      els.map((e) => (e.getAttribute("aria-label") ?? "").replace(/の順位$/, ""))
+    );
+
+  const sectionCount = await page.getByText(/・提案\d+件/).count();
+  const mineHeading = await page.getByText(/（あなた）・提案\d+件/).count();
+  rows.push({
+    id: "B71",
+    item: "提案が提案者ごとの区画に分かれる",
+    expected: "区画2つ以上 / 自分の区画に（あなた）",
+    actual: `区画${sectionCount}個 / 自分の見出し${mineHeading}個`,
+    ok: created.length === 6 && !!othersProposal && sectionCount >= 2 && mineHeading === 1,
+    note:
+      created.length === 6 && othersProposal
+        ? ""
+        : `提案の用意に失敗（自分${created.length}件 / 他人=${othersProposal ? "あり" : "なし"}）`,
+  });
+
+  const visibleBefore = await myVisibleTitles();
+  const moreButton = page.getByRole("button", { name: /他\d+件を表示/ });
+  const hasMore = (await moreButton.count()) > 0;
+  rows.push({
+    id: "B72",
+    item: "1区画は既定5件で、残りは「他N件を表示」に隠れる",
+    expected: "5件 / ボタンあり",
+    actual: `${visibleBefore.length}件 / ボタン=${hasMore ? "あり" : "なし"}`,
+    ok: visibleBefore.length === 5 && hasMore,
+    note: visibleBefore.join(","),
+  });
+
+  if (hasMore) await moreButton.first().click();
+  await page.waitForTimeout(300);
+  const visibleAfter = await myVisibleTitles();
+  rows.push({
+    id: "B73",
+    item: "展開すると隠れていた分が出る",
+    expected: "6件",
+    actual: `${visibleAfter.length}件`,
+    ok: visibleAfter.length === 6,
+    note: "",
+  });
+
+  // **他人のカードには順位の選択欄を出さない**（上で member として作った提案で見る）
+  rows.push({
+    id: "B74",
+    item: "他人の提案には順位の選択欄が出ない",
+    expected: "含まれない",
+    actual: visibleAfter.includes(OTHERS_TITLE) ? "含まれている" : "含まれない",
+    ok: !visibleAfter.includes(OTHERS_TITLE),
+    note: "",
+  });
+
+  // いちばん古い「区画テスト1」に1位を付けると、自分の区画の先頭に来る
+  // （順位が無いうちは新しい順なので、本来は最後に近い位置にいる）
+  await page.getByLabel("区画テスト1の順位").selectOption("1");
+  await page.waitForTimeout(1500);
+  const reordered = await myVisibleTitles();
+  rows.push({
+    id: "B75",
+    item: "順位を付けると自分の区画の先頭に来る",
+    expected: "区画テスト1",
+    actual: reordered[0] ?? "（空）",
+    ok: reordered[0] === "区画テスト1",
+    note: reordered.join(","),
+  });
+
+  rows.push({
+    id: "B76",
+    item: "区画分けと順位変更で例外が出ない",
+    expected: "無し",
+    actual: problems.slice(0, 3).join(" / ") || "無し",
+    ok: problems.length === 0,
+    note: "",
+  });
+
+  // 後片付け（作ったときと同じ経路で消す）
+  for (const c of created) {
+    await callApi(`/api/groups/${ids.groupId}/proposals/${c.id}`, "DELETE");
+  }
+  if (othersProposal) {
+    // 他人の提案は admin（グループのオーナー）からでも取り下げられる
+    await callApi(`/api/groups/${ids.groupId}/proposals/${othersProposal}`, "DELETE");
+  }
+  await memberPage.close();
+  await memberCtx.close();
+  await page.close();
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));

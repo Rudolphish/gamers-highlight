@@ -268,11 +268,23 @@ model GroupGameProposal {
   status       ProposalStatus @default(PENDING)
   createdAt    DateTime       @default(now())
 
+  /// 提案者が自分の提案に付ける順位。**null＝順位なし**（新しい順で並ぶ）。
+  /// グループ画面は提案者ごとに区画を分け、順位のあるものを先に、残りを新しい順で出す。
+  ///
+  /// **一意制約は張っていない。** 順位は「その提案者のPENDINGな提案の中で 1..n」を保つように
+  /// 詰め直すが、詰め直しは行ごとのUPDATEになるので、途中で一時的に同じ番号が2行並ぶ。
+  /// PostgreSQLの一意制約は文ごとに見るため、**正しい詰め直しでも制約に引っかかって落ちる**
+  /// （Prismaには遅延制約を書く手段が無い）。一意性は `rankProposal()` の実装と
+  /// `tools/local-test/flows.mjs` のテストで担保している。
+  rank Int?
+
   group      Group                       @relation(fields: [groupId], references: [id], onDelete: Cascade)
   proposedBy User                        @relation("ProposalProposedBy", fields: [proposedById], references: [id])
   reactions  GroupGameProposalReaction[]
 
   @@index([groupId])
+  /// 区画ごとの並べ替えで「この人のPENDINGな提案」を引くため
+  @@index([groupId, proposedById])
   @@map("group_game_proposals")
 }
 

@@ -64,6 +64,12 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
     coverUrl: proposalHeaderImages.get(p.steamAppId) ?? p.coverUrl,
     proposedById: p.proposedById,
     proposedByName: p.proposedBy.name ?? p.proposedBy.email ?? "メンバー",
+    rank: p.rank,
+    // **数値（エポックミリ秒）で渡す。** この値は `getGroupContent` の `unstable_cache` を
+    // 通って来るので、キャッシュヒットの回は `Date` ではなくISO文字列で返る
+    // （`CLAUDE.md` の「unstable_cache は Date を文字列にして返す」）。
+    // `new Date(x)` はどちらでも通るため、ここで数値に揃えてしまう。
+    createdAt: new Date(p.createdAt).getTime(),
     reactions: p.reactions.map((r) => ({ userId: r.userId, type: r.type })),
   }));
 

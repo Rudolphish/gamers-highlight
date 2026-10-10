@@ -2627,6 +2627,149 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   check("F179 グループを消すと通知の設定も消える", orphan === 0, `${orphan}件`);
 }
 
+// ───────────────────────────────────────────────────────────
+// 提案の順位（提案者ごとの区画の並び）
+//
+// **提案者本人だけが並べ替えられる**こと、順位が「その人の中で1..n」に詰め直されること、
+// 順位なしが新しい順で後ろに続くこと、を見る。
+// ───────────────────────────────────────────────────────────
+{
+  // 専用のグループを作る。既存のテストグループには他のスイートが提案を足すので、
+  // 「この人の提案だけで1..n」を数えるには自分で用意したほうが確実
+  const made = await api("/api/groups", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { name: `順位テスト用グループ-${randomUUID().slice(0, 8)}` },
+  });
+  const rankGroupId = made.json?.group?.id ?? null;
+  check("F185 順位テスト用のグループを作れる", !!rankGroupId, made.text);
+
+  // member も提案できるようにメンバーへ加える。
+  // **このAPIが受け取るのは userId ではなく email**（`members/route.ts`）。
+  // userId を渡すと body.email が undefined のまま Prisma に渡り、400ではなく500が返る
+  const added = await api(`/api/groups/${rankGroupId}/members`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { email: "member@example.com", role: "VIEWER" },
+  });
+  check("F185b memberをグループに追加できる", added.status === 201, `${added.status} ${added.text.slice(0, 120)}`);
+
+  /** 提案を1件作ってIDを返す。作成順に意味があるので順番に呼ぶ */
+  async function propose(cookie, steamAppId, title) {
+    const res = await api(`/api/groups/${rankGroupId}/proposals`, {
+      method: "POST",
+      cookie,
+      body: { steamAppId, title },
+    });
+    return res.json?.proposal?.id ?? null;
+  }
+
+  // admin が4件、member が1件。admin の4件は作成順に a1→a4（a4がいちばん新しい）
+  const a1 = await propose(adminCookie, 570, "Dota 2");
+  const a2 = await propose(adminCookie, 440, "Team Fortress 2");
+  const a3 = await propose(adminCookie, 730, "Counter-Strike 2");
+  const a4 = await propose(adminCookie, 252490, "Rust");
+  const m1 = await propose(memberCookie, 892970, "Valheim");
+  check("F186 提案を5件作れる", [a1, a2, a3, a4, m1].every(Boolean), `${a1},${a2},${a3},${a4},${m1}`);
+
+  const setRank = (proposalId, rank, cookie = adminCookie) =>
+    api(`/api/groups/${rankGroupId}/proposals/${proposalId}/rank`, {
+      method: "PATCH",
+      cookie,
+      body: { rank },
+    });
+
+  /** admin の提案を順位順（順位なしは新しい順）で並べてIDの配列にする */
+  async function adminOrder() {
+    const rows = await db.groupGameProposal.findMany({
+      where: { groupId: rankGroupId, proposedById: (await db.user.findUnique({ where: { email: "admin@example.com" } })).id },
+      select: { id: true, rank: true, createdAt: true },
+    });
+    return rows
+      .sort((x, y) => {
+        if (x.rank !== null && y.rank !== null) return x.rank - y.rank;
+        if (x.rank !== null) return -1;
+        if (y.rank !== null) return 1;
+        return y.createdAt.getTime() - x.createdAt.getTime();
+      })
+      .map((r) => r.id);
+  }
+
+  // 順位を付けていない状態は新しい順（a4, a3, a2, a1）
+  check(
+    "F187 順位が無いうちは新しい順で並ぶ",
+    JSON.stringify(await adminOrder()) === JSON.stringify([a4, a3, a2, a1]),
+    JSON.stringify(await adminOrder())
+  );
+
+  // a1 を1位にすると、a1 が先頭。残りは新しい順のまま後ろに続く
+  const r1 = await setRank(a1, 1);
+  check(
+    "F188 1位を付けた提案が先頭に来る",
+    r1.status === 200 && JSON.stringify(await adminOrder()) === JSON.stringify([a1, a4, a3, a2]),
+    `${r1.status} / ${JSON.stringify(await adminOrder())}`
+  );
+
+  // a2 を1位にすると a1 は2位へ押し出される。**番号は1,2と詰まっていること**
+  await setRank(a2, 1);
+  const ranksAfter = await db.groupGameProposal.findMany({
+    where: { groupId: rankGroupId, rank: { not: null } },
+    select: { id: true, rank: true },
+    orderBy: { rank: "asc" },
+  });
+  check(
+    "F189 割り込むと既存の順位が押し出され、1..nに詰まる",
+    JSON.stringify(ranksAfter.map((r) => [r.id, r.rank])) === JSON.stringify([[a2, 1], [a1, 2]]),
+    JSON.stringify(ranksAfter.map((r) => [r.id, r.rank]))
+  );
+
+  // 件数を超える順位（5位）を指定しても、歯抜けにならず末尾（3位）になる
+  await setRank(a3, 5);
+  const clamped = await db.groupGameProposal.findUnique({ where: { id: a3 }, select: { rank: true } });
+  check("F190 件数を超える順位は末尾に詰められる", clamped.rank === 3, `${clamped.rank}`);
+
+  // 順位なしに戻すと、後ろが詰まる（a1:2位 → 1位、a3:3位 → 2位）
+  await setRank(a2, null);
+  const afterClear = await db.groupGameProposal.findMany({
+    where: { groupId: rankGroupId, rank: { not: null } },
+    select: { id: true, rank: true },
+    orderBy: { rank: "asc" },
+  });
+  check(
+    "F191 順位なしに戻すと後続が詰まる",
+    JSON.stringify(afterClear.map((r) => [r.id, r.rank])) === JSON.stringify([[a1, 1], [a3, 2]]),
+    JSON.stringify(afterClear.map((r) => [r.id, r.rank]))
+  );
+
+  // **他人の提案の順位は変えられない。** 区画はその人のウィッシュリストなので、
+  // オーナー（このグループの作成者＝admin）であっても他人の並びは触れない
+  const otherUsers = await setRank(m1, 1, adminCookie);
+  check("F192 他人の提案の順位は変えられない（オーナーでも403）", otherUsers.status === 403, otherUsers.status);
+
+  const memberOwn = await setRank(m1, 1, memberCookie);
+  check("F193 自分の提案なら順位を付けられる", memberOwn.status === 200, memberOwn.text);
+
+  // 他人が1位を付けても、こちらの区画の順位は動かない（区画は独立している）
+  const adminStill = await db.groupGameProposal.findUnique({ where: { id: a1 }, select: { rank: true } });
+  check("F194 他人の順位付けは自分の区画に影響しない", adminStill.rank === 1, `${adminStill.rank}`);
+
+  // 範囲外・型違いは400
+  const tooBig = await setRank(a1, 1000);
+  check("F195 範囲外の順位は400", tooBig.status === 400, tooBig.status);
+
+  // 未ログインは401
+  const anon = await api(`/api/groups/${rankGroupId}/proposals/${a1}/rank`, {
+    method: "PATCH",
+    body: { rank: 1 },
+  });
+  check("F196 未ログインでは順位を変えられない", anon.status === 401, anon.status);
+
+  // 後片付け（作ったときと同じ経路で消す）
+  if (rankGroupId) {
+    await api(`/api/groups/${rankGroupId}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

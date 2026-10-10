@@ -4,6 +4,13 @@ import { groupTag } from "./cacheTags";
 import { coverPhotoQuery } from "./albumCoverPolicy";
 
 /**
+ * グループ画面が1回で読む提案の上限。**超えた分は区画に出ない。**
+ * 4人で各自20件積んでも届かない値にしてある（提案は取り下げるまで消えないので、
+ * 無制限にすると件数ぶんの転送量がそのまま乗る）。
+ */
+export const PROPOSAL_PAGE_SIZE = 200;
+
+/**
  * グループ詳細ページが読む中身。**権限判定はここに入れない。**
  *
  * 呼ぶ側が先に `hasGroupPermission` を通し、通った場合だけ呼ぶこと。
@@ -39,6 +46,10 @@ export function getGroupContent(groupId: string, albumPageSize: number) {
           proposals: {
             where: { status: "PENDING" },
             orderBy: { createdAt: "desc" },
+            // **上限を入れてある。** 提案は取り下げるまで残り、ウィッシュリストとして
+            // 使われているので増え続ける。無制限だと件数ぶんの転送量がそのまま乗る。
+            // 画面は提案者ごとに既定5件しか出すので、ここは「区画を作るのに十分な量」でよい。
+            take: PROPOSAL_PAGE_SIZE,
             include: { proposedBy: true, reactions: true },
           },
           // 通知の設定（種類ごとの送り先）。オーナーにしか出さないが、
@@ -47,6 +58,7 @@ export function getGroupContent(groupId: string, albumPageSize: number) {
         },
       }),
     // ページ件数が変われば別のキャッシュになるようキーに含める
+    // （提案の上限は定数なのでキーに入れない。変えるときはデプロイで全体が入れ替わる）
     ["group-content", groupId, String(albumPageSize)],
     { tags: [groupTag(groupId)] }
   )();

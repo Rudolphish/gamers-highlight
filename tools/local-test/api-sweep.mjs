@@ -61,6 +61,10 @@ const cases = [
   ["R28", "ユーザー一覧は要ログイン", "GET", "/api/users", null, { anon: 401, admin: 200 }],
   ["R29", "自分の情報は要ログイン", "GET", "/api/users/me", null, { anon: 401, admin: 200 }],
   ["R30", "アップロードURL発行は要ログイン", "POST", "/api/photos/upload-url", { contentType: "image/png", sizeBytes: 1024 }, { anon: 401, admin: 201 }],
+  // 提案の順位。**提案者本人だけ**が変えられる（seedの提案者は member）。
+  // オーナー（admin）でも他人の区画の並びには触れない＝403
+  ["R31", "提案の順位は提案者本人だけ", "PATCH", `/api/groups/${ids.groupId}/proposals/${ids.proposalId}/rank`, { rank: 1 }, { anon: 401, outsider: 403, admin: 403, member: 200 }],
+  ["R32", "順位の範囲外は拒否", "PATCH", `/api/groups/${ids.groupId}/proposals/${ids.proposalId}/rank`, { rank: 0 }, { member: 400 }],
 ];
 
 const rows = [];
