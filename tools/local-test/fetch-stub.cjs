@@ -53,6 +53,27 @@ function appdetails(url) {
 
 function storesearch(url) {
   const term = new URL(url).searchParams.get("term") ?? "";
+
+  // **「ウィッチャー」で引いたときだけ別のゲームを返す。**
+  // 既定の結果は ELDEN RING だけで、アルバムのSteam連携を「別のゲームへ付け替える」
+  // 画面の確認ができなかった（付け替え先が検索結果に出ないため）。
+  // 既定の結果を変えると既存のテストに影響するので、検索語で分けている。
+  // 292030 は seed がゲームリストに入れてあるもの（アルバムには未連携）。
+  if (term.includes("ウィッチャー") || term.toLowerCase().includes("witcher")) {
+    return json({
+      total: 1,
+      items: [
+        {
+          id: 292030,
+          name: "ウィッチャー3",
+          type: "app",
+          tiny_image:
+            "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/292030/capsule.jpg",
+        },
+      ],
+    });
+  }
+
   return json({
     total: 3,
     items: [

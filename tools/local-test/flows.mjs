@@ -2770,6 +2770,185 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ───────────────────────────────────────────────────────────
+// アルバムとゲームの連携の付け替え・解除
+//
+// **間違えた連携を直す経路。** これが無かったため、アルバムから辿るゲーム詳細が
+// 別のゲームのまま固定されていた（ユーザー報告）。
+// 他スイートの状態に寄りかからないよう、専用のグループとアルバムを作って試す。
+// ───────────────────────────────────────────────────────────
+{
+  const made = await api("/api/groups", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { name: `連携テスト用グループ-${randomUUID().slice(0, 8)}` },
+  });
+  const linkGroupId = made.json?.group?.id ?? null;
+
+  const madeAlbum = await api("/api/albums", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { title: "連携テスト用アルバム", groupId: linkGroupId },
+  });
+  const linkAlbumId = madeAlbum.json?.album?.id ?? null;
+  check("F197 連携テスト用のグループとアルバムを作れる", !!linkGroupId && !!linkAlbumId, `${made.text.slice(0, 80)} / ${madeAlbum.text.slice(0, 80)}`);
+
+  const relink = (body) =>
+    api(`/api/albums/${linkAlbumId}/game`, { method: "PATCH", cookie: adminCookie, body });
+
+  /** そのアルバムに紐付いているゲーム（無ければ null） */
+  const linkedGame = () =>
+    db.groupGame.findUnique({
+      where: { albumId: linkAlbumId },
+      select: { id: true, steamAppId: true, title: true },
+    });
+
+  // 最初の連携（リストに無いゲーム → 新しく作られる）
+  const first = await relink({ steamAppId: 1091500, title: "Cyberpunk 2077" });
+  const afterFirst = await linkedGame();
+  check(
+    "F198 リストに無いゲームへの連携で、ゲームが作られて紐付く",
+    first.status === 200 && afterFirst?.steamAppId === 1091500,
+    `${first.status} / ${afterFirst?.steamAppId}`
+  );
+
+  // サムネイル（Album.steamAppId）も連携先に合う
+  const albumAfterFirst = await db.album.findUnique({
+    where: { id: linkAlbumId },
+    select: { steamAppId: true },
+  });
+  check(
+    "F199 連携するとアルバムのサムネイルも同じゲームになる",
+    albumAfterFirst?.steamAppId === 1091500,
+    `${albumAfterFirst?.steamAppId}`
+  );
+
+  // **付け替え。** 既定では元のゲームをリストから消さない
+  const second = await relink({ steamAppId: 570, title: "Dota 2" });
+  const afterSecond = await linkedGame();
+  const previousStillListed = await db.groupGame.findUnique({
+    where: { groupId_steamAppId: { groupId: linkGroupId, steamAppId: 1091500 } },
+    select: { albumId: true },
+  });
+  check(
+    "F200 別のゲームへ付け替えられる（元のゲームはリストに残る）",
+    second.status === 200 && afterSecond?.steamAppId === 570 && !!previousStillListed,
+    `${second.status} / 連携=${afterSecond?.steamAppId} / 元=${previousStillListed ? "残っている" : "消えた"}`
+  );
+
+  // **二重に紐付かない。** 外してから付けているので、元のゲームの albumId は null
+  check(
+    "F201 付け替え後、元のゲームの紐付けは外れている",
+    previousStillListed?.albumId === null,
+    `${previousStillListed?.albumId}`
+  );
+
+  // 同じゲームをもう一度指定しても壊れない（冪等）
+  const again = await relink({ steamAppId: 570, title: "Dota 2" });
+  check(
+    "F202 同じゲームへの連携は冪等",
+    again.status === 200 && (await linkedGame())?.steamAppId === 570,
+    `${again.status}`
+  );
+
+  // **他のアルバムの連携は奪わない。** もう1つアルバムを作って別のゲームと連携させ、
+  // そのゲームへ付け替えようとすると409
+  const otherAlbum = await api("/api/albums", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { title: "連携テスト用アルバム2", groupId: linkGroupId },
+  });
+  const otherAlbumId = otherAlbum.json?.album?.id ?? null;
+  await api(`/api/albums/${otherAlbumId}/game`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { steamAppId: 1174180, title: "レッド・デッド・リデンプション2" },
+  });
+  const steal = await relink({ steamAppId: 1174180, title: "レッド・デッド・リデンプション2" });
+  const stillOther = await db.groupGame.findUnique({
+    where: { groupId_steamAppId: { groupId: linkGroupId, steamAppId: 1174180 } },
+    select: { albumId: true },
+  });
+  check(
+    "F203 他のアルバムと連携しているゲームへは付け替えられない（409）",
+    steal.status === 409 && stillOther?.albumId === otherAlbumId,
+    `${steal.status} / ${stillOther?.albumId === otherAlbumId ? "相手の連携は無事" : "奪ってしまった"}`
+  );
+
+  // **removePrevious で元のゲームをリストから消す。** 画面では確認ダイアログを挟む操作
+  const withRemoval = await relink({
+    steamAppId: 1245620,
+    title: "ELDEN RING",
+    removePrevious: true,
+  });
+  const removed = await db.groupGame.findUnique({
+    where: { groupId_steamAppId: { groupId: linkGroupId, steamAppId: 570 } },
+  });
+  check(
+    "F204 removePrevious を付けると元のゲームがリストから消える",
+    withRemoval.status === 200 && removed === null && (await linkedGame())?.steamAppId === 1245620,
+    `${withRemoval.status} / 元=${removed ? "残っている" : "消えた"}`
+  );
+
+  // 解除。ゲームはリストに残り、サムネイルも触らない
+  const unlink = await relink({ steamAppId: null });
+  const afterUnlink = await linkedGame();
+  const gameStillThere = await db.groupGame.findUnique({
+    where: { groupId_steamAppId: { groupId: linkGroupId, steamAppId: 1245620 } },
+  });
+  const albumAfterUnlink = await db.album.findUnique({
+    where: { id: linkAlbumId },
+    select: { steamAppId: true },
+  });
+  check(
+    "F205 連携を解除できる（ゲームはリストに残り、サムネイルはそのまま）",
+    unlink.status === 200 &&
+      afterUnlink === null &&
+      !!gameStillThere &&
+      albumAfterUnlink?.steamAppId === 1245620,
+    `${unlink.status} / 連携=${afterUnlink} / ゲーム=${gameStillThere ? "残" : "消"} / サムネ=${albumAfterUnlink?.steamAppId}`
+  );
+
+  // 連携が無い状態で解除しても落ちない
+  const unlinkTwice = await relink({ steamAppId: null });
+  check("F206 連携が無い状態の解除は何もしない", unlinkTwice.status === 200, unlinkTwice.status);
+
+  // 範囲外・未ログイン・部外者
+  const bad = await relink({ steamAppId: 0, title: "x" });
+  check("F207 範囲外のapp IDは400", bad.status === 400, bad.status);
+
+  const anon = await api(`/api/albums/${linkAlbumId}/game`, {
+    method: "PATCH",
+    body: { steamAppId: null },
+  });
+  check("F208 未ログインでは連携を変えられない", anon.status === 401, anon.status);
+
+  const byOutsider = await api(`/api/albums/${linkAlbumId}/game`, {
+    method: "PATCH",
+    cookie: outsiderCookie,
+    body: { steamAppId: null },
+  });
+  check("F209 部外者は連携を変えられない", byOutsider.status === 403, byOutsider.status);
+
+  // **VIEWERでは変えられない。** ゲームリストを触る操作なのでEDITOR以上に揃えてある
+  await api(`/api/groups/${linkGroupId}/members`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { email: "member@example.com", role: "VIEWER" },
+  });
+  const byViewer = await api(`/api/albums/${linkAlbumId}/game`, {
+    method: "PATCH",
+    cookie: memberCookie,
+    body: { steamAppId: 570, title: "Dota 2" },
+  });
+  check("F210 VIEWERは連携を変えられない（EDITOR以上）", byViewer.status === 403, byViewer.status);
+
+  // 後片付け（グループを消すとアルバムもゲームも落ちる）
+  if (linkGroupId) {
+    await api(`/api/groups/${linkGroupId}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

@@ -1460,6 +1460,185 @@ for (const [id, label, path] of targets) {
   await page.close();
 }
 
+// ── Steam連携のモーダル（現在のゲームの表示・付け替え・解除） ──
+// **アイコンだけで何をするボタンか分からなかった**のと、**間違えた連携を直せなかった**のが
+// 直したかったところ。画面から「いまどのゲームと連携しているか」が読めることまで見る。
+//
+// **全体を try/catch で包んでいる。** この手の「クリックの連鎖」は、どこか1つの入口が
+// 出ない壊れ方をすると locator が30秒待って例外になり、**スイート全体が止まって
+// 結果表がまるごと消える**（docs/lessons.md）。壊して確認するたびにそれを踏んだので、
+// 残りの項目を「未確認」として埋める形にした。
+{
+  const page = await context.newPage();
+  const problems = [];
+  page.on("pageerror", (e) => problems.push(`例外: ${e.message}`.slice(0, 140)));
+
+  const EXPECTED = [
+    ["B77", "いま連携しているゲームが名前で出る"],
+    ["B78", "連携中のゲームの行にだけ印が出る"],
+    ["B79", "付け替えは確認を挟む（押しただけでは変わらない）"],
+    ["B80", "確認してから付け替えると連携先が変わる"],
+    ["B81", "付け替えても元のゲームはリストに残る"],
+    ["B82", "連携を解除すると「ゲーム詳細を見る」が消える"],
+    ["B83", "連携の付け替え・解除で例外が出ない"],
+  ];
+
+  // 連携中のゲーム名は**グループのゲームリストから引く**。
+  // `GET /api/albums/:id` は groupGame を含まないため（members だけ）
+  const linkedTitle = () =>
+    page.evaluate(
+      async ([gid, aid]) => {
+        const res = await fetch(`/api/groups/${gid}/games`);
+        const data = await res.json().catch(() => null);
+        return (data?.games ?? []).find((g) => g.albumId === aid)?.title ?? null;
+      },
+      [ids.groupId, ids.albumId]
+    );
+
+  try {
+    // seedの「エルデンリング」アルバムは ELDEN RING（1245620）と連携済み
+    await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Steam連携" }).click();
+    await page.waitForTimeout(300);
+
+    const currentShown = await page.getByText("現在のゲーム: ELDEN RING").count();
+    rows.push({
+      id: "B77",
+      item: "いま連携しているゲームが名前で出る",
+      expected: "1件",
+      actual: `${currentShown}件`,
+      ok: currentShown === 1,
+      note: "",
+    });
+
+    // 連携中のゲームを検索すると、その行だけに印が出る
+    await page.getByLabel("ゲーム名で検索").fill("ELDEN RING");
+    await page.getByRole("button", { name: "検索", exact: true }).click();
+    await page.waitForTimeout(800);
+    const badgeOnLinked = await page.getByText("これと連携中", { exact: true }).count();
+
+    // 別のゲームを検索して付け替える。**確認を挟む**ので、押しただけでは変わらない
+    await page.getByLabel("ゲーム名で検索").fill("ウィッチャー");
+    await page.getByRole("button", { name: "検索", exact: true }).click();
+    await page.waitForTimeout(800);
+
+    // **連携していない行には印を出さない。** 以前は連携済みのとき全行が同じ印に変わり、
+    // どのゲームと連携しているのか画面から読めなかった（「アイコンが分かりづらい」の正体）。
+    // 連携中の行で1件・連携していない行で0件の**両方**を見ないと、
+    // 「全行に印を出す」壊れ方を検出できない。
+    // 数えるのは**バッジの文言だけ**。ボタンのラベルは「連携中」で別の文字にしてある
+    // （同じ文字だと両方に当たって件数の意味が無くなる——最初これで判定を間違えた）
+    const badgeOnOther = await page.getByText("これと連携中", { exact: true }).count();
+    rows.push({
+      id: "B78",
+      item: "連携中のゲームの行にだけ印が出る",
+      expected: "連携中=1件 / 他=0件",
+      actual: `連携中=${badgeOnLinked}件 / 他=${badgeOnOther}件`,
+      ok: badgeOnLinked === 1 && badgeOnOther === 0,
+      note: "",
+    });
+
+    await page.getByRole("button", { name: /このゲームに付け替え/ }).first().click();
+    await page.waitForTimeout(300);
+
+    const confirmShown = await page
+      .getByText(/「ELDEN RING」から「ウィッチャー3」に付け替えます/)
+      .count();
+    const linkedBeforeConfirm = await linkedTitle();
+    rows.push({
+      id: "B79",
+      item: "付け替えは確認を挟む（押しただけでは変わらない）",
+      expected: "確認あり / まだELDEN RING",
+      actual: `確認${confirmShown}件 / ${linkedBeforeConfirm ?? "（連携なし）"}`,
+      ok: confirmShown === 1 && linkedBeforeConfirm === "ELDEN RING",
+      note: "",
+    });
+
+    // 「付け替える」で反映される
+    await page.getByRole("button", { name: "付け替える" }).click();
+    await page.waitForTimeout(1800);
+    const afterRelink = await linkedTitle();
+    rows.push({
+      id: "B80",
+      item: "確認してから付け替えると連携先が変わる",
+      expected: "ウィッチャー3",
+      actual: afterRelink ?? "（連携なし）",
+      ok: afterRelink === "ウィッチャー3",
+      note: "",
+    });
+
+    // 元のゲーム（ELDEN RING）はリストに残っている
+    const eldenStillListed = await page.evaluate(async (gid) => {
+      const res = await fetch(`/api/groups/${gid}/games`);
+      const data = await res.json().catch(() => null);
+      return (data?.games ?? []).some((g) => g.steamAppId === 1245620);
+    }, ids.groupId);
+    rows.push({
+      id: "B81",
+      item: "付け替えても元のゲームはリストに残る",
+      expected: "残る",
+      actual: eldenStillListed ? "残る" : "消えた",
+      ok: eldenStillListed,
+      note: "",
+    });
+
+    // 解除すると「ゲーム詳細を見る」が消える
+    await page.reload({ waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Steam連携" }).click();
+    await page.waitForTimeout(300);
+    await page.getByRole("button", { name: /ゲームとの連携を解除する/ }).click();
+    await page.waitForTimeout(1800);
+    const detailLink = await page.getByRole("link", { name: /ゲーム詳細を見る/ }).count();
+    rows.push({
+      id: "B82",
+      item: "連携を解除すると「ゲーム詳細を見る」が消える",
+      expected: "0件",
+      actual: `${detailLink}件`,
+      ok: detailLink === 0,
+      note: "",
+    });
+
+    rows.push({
+      id: "B83",
+      item: "連携の付け替え・解除で例外が出ない",
+      expected: "無し",
+      actual: problems.slice(0, 3).join(" / ") || "無し",
+      ok: problems.length === 0,
+      note: "",
+    });
+  } catch (e) {
+    // 途中で止まったぶんは「未確認」として残す（表を消さない）
+    for (const [id, item] of EXPECTED) {
+      if (rows.some((r) => r.id === id)) continue;
+      rows.push({
+        id,
+        item,
+        expected: "—",
+        actual: "未確認",
+        ok: false,
+        note: `途中で止まった: ${String(e?.message ?? e).slice(0, 80)}`,
+      });
+    }
+  } finally {
+    // 後片付け：seedの状態（ELDEN RINGと連携）に戻す。
+    // **戻さないと同じDBに2回流したときの2回目が変わる**（docs/lessons.md）。
+    // 壊れて途中で止まった場合も戻すので finally に置く
+    await page
+      .evaluate(
+        async ([aid]) => {
+          await fetch(`/api/albums/${aid}/game`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ steamAppId: 1245620, title: "ELDEN RING" }),
+          });
+        },
+        [ids.albumId]
+      )
+      .catch(() => {});
+    await page.close();
+  }
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));

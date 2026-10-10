@@ -143,6 +143,10 @@ export default async function AlbumDetailPage({
               initialQuery={album.gameTitle ?? album.title}
               hasSteamCover={album.steamAppId !== null}
               linkedGameId={album.groupGame?.id}
+              // **名前とapp IDも渡す。** どのゲームと連携しているかを画面に出すため。
+              // これが無いと、間違ったゲームに連携していることに気づけない
+              linkedGameTitle={album.groupGame?.title}
+              linkedSteamAppId={album.groupGame?.steamAppId}
             />
           )}
           {isOwner && <DeleteAlbumButton albumId={album.id} groupId={album.groupId} />}
