@@ -84,7 +84,7 @@ export function PhotoReactionButton({
         aria-pressed={state.reacted}
         aria-label={state.reacted ? "リアクションを取り消す" : "リアクションする"}
         className={`inline-flex items-center gap-1 rounded-sm border font-mono transition ${
-          size === "lg" ? "px-2.5 py-1.5 text-xs" : "px-1.5 py-0.5 text-3xs"
+          size === "lg" ? "min-h-[44px] px-3 text-xs" : "px-1.5 py-0.5 text-3xs"
         } ${
           state.reacted
             ? "border-[#e05a5a]/60 bg-steam-bg/80 text-[#e05a5a]"

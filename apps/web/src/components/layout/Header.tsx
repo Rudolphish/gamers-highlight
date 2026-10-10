@@ -5,6 +5,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import { ChevronDown, ChevronUp, LogOut, User } from "lucide-react";
 import { useState } from "react";
 import { Spinner } from "@/components/ui/Spinner";
+import { MobileNav } from "./MobileNav";
 
 export function Header() {
   const { data: session, status } = useSession();
@@ -35,11 +36,16 @@ export function Header() {
       {/* 本文（main）は最大幅なしの全幅レイアウトなので、ヘッダー側も幅を絞らずに
           同じ左右パディングで揃える。1600px 超のモニタでロゴだけ内側にずれるのを防ぐ。 */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link href="/" className="flex items-center gap-3">
-          <span className="font-display text-xl font-black tracking-tight text-steam-text sm:text-2xl">
-            Share<span className="text-steam-blue">Staq</span>
-          </span>
-        </Link>
+        {/* ハンバーガーは 640px 未満だけ出る（`MobileNav` 側で `sm:hidden`）。
+            640px 以上はサイドバーのレールが出ているので、ここには何も出ない。 */}
+        <div className="flex min-w-0 items-center gap-2">
+          <MobileNav />
+          <Link href="/" className="flex items-center gap-3">
+            <span className="font-display text-xl font-black tracking-tight text-steam-text sm:text-2xl">
+              Share<span className="text-steam-blue">Staq</span>
+            </span>
+          </Link>
+        </div>
 
         <div className="flex items-center gap-3">
           <div className="hidden rounded-full border border-steam-border bg-steam-surface px-3 py-2 text-xs font-mono text-steam-muted sm:flex">
@@ -57,7 +63,7 @@ export function Header() {
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-steam-bg text-sm font-semibold text-steam-blue">
                   {initials || <User size={14} />}
                 </span>
-                <span className="text-sm font-medium text-steam-text">{displayName}</span>
+                <span className="hidden text-sm font-medium text-steam-text sm:inline">{displayName}</span>
                 {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </button>
 

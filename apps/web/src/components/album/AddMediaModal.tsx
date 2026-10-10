@@ -117,7 +117,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
       <button
         onClick={() => setOpen(true)}
         aria-label="写真・動画を追加"
-        className="flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
+        className="flex min-h-[44px] items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 font-mono text-xs font-bold text-[#0e1b12]"
       >
         <Plus size={14} /> 追加
       </button>

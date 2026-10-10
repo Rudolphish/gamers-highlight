@@ -1639,6 +1639,319 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ───────────────────────────────────────────────────────────────
+// モバイルのナビゲーションとスクロール（B84〜B96）
+//
+// **このスイートは最初から 390×844（スマホ相当）で走っている**ので、ここで見るのは
+// ドロワー側。PC幅（1280px）は下で別の context を作って骨組みだけ見る——
+// 640px以上を壊しても、390pxだけ見ていると誰も気づけない。
+//
+// ブロックごと try/catch で包んである。**入口ごとにガードを置くのでは足りない**
+// （クリックの連鎖はどこで止まっても以降が全部消える。docs/lessons.md）
+{
+  const EXPECTED = [
+    ["B84", "スマホ幅ではアイコンレールが出ない"],
+    ["B85", "スマホ幅ではハンバーガーが出る"],
+    ["B86", "ハンバーガーを押すと全項目が文字つきで出て、画面を覆う"],
+    ["B87", "ドロワーのリンクで遷移し、ドロワーが閉じる"],
+    ["B88", "Escで閉じる"],
+    ["B89", "背景のタップで閉じる（本文には抜けない）"],
+    ["B90", "開いている間は背面のスクロールが止まる"],
+    ["B91", "横スクロールが出ない（スマホ幅・表のあるページ）"],
+    ["B92", "本文は window がスクロールする（高さを固定したスクローラを作っていない）"],
+    ["B93", "ナビの開閉で例外が出ない"],
+  ];
+  const recorded = new Set();
+  const rec = (id, item, expected, actual, ok, note = "") => {
+    recorded.add(id);
+    rows.push({ id, item, expected, actual, ok, note });
+  };
+
+  const page = await context.newPage();
+  const problems = [];
+  page.on("pageerror", (e) => problems.push(`例外: ${e.message}`.slice(0, 140)));
+  page.on("console", (m) => {
+    if (m.type() !== "error") return;
+    const text = m.text();
+    if (IGNORED.some((re) => re.test(text))) return;
+    if (text.includes("Failed to load resource") && IGNORED.some((re) => re.test(m.location()?.url ?? ""))) return;
+    problems.push(text.slice(0, 140));
+  });
+
+  try {
+    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+
+    const rail = page.locator("aside");
+    const railVisible = (await rail.count()) > 0 && (await rail.first().isVisible());
+    rec("B84", EXPECTED[0][1], "出ていない", railVisible ? "出ている" : "出ていない", !railVisible);
+
+    const hamburger = page.getByRole("button", { name: "メニューを開く" });
+    const hamburgerVisible = (await hamburger.count()) > 0 && (await hamburger.isVisible());
+    rec("B85", EXPECTED[1][1], "出ている", hamburgerVisible ? "出ている" : "出ていない", hamburgerVisible);
+
+    await hamburger.click();
+    const drawer = page.getByRole("dialog", { name: "ナビゲーション" });
+    const linkTexts = await drawer.getByRole("link").allInnerTexts();
+    // **高さも見る。** リンクの数と文字だけを見ていたら、ドロワーがヘッダーの帯の中
+    // （高さ74px）にしか出ていない状態でも通った。`Header` の `backdrop-blur-lg` が
+    // `position: fixed` の包含ブロックになるのが原因で、いまは body へポータルしている
+    const drawerBox = await drawer.boundingBox();
+    const viewportHeight = page.viewportSize().height;
+    const coversScreen = drawerBox !== null && drawerBox.height >= viewportHeight * 0.9;
+    // admin なので 管理者リンクも入って8項目（navItems.ts: 5 + 2 + 1）。
+    // **文字が出ていることまで見る**——アイコンだけに戻ると、このスイートでは
+    // 「リンクはある」で通ってしまう
+    const labelled = linkTexts.filter((t) => t.trim().length > 0);
+    rec(
+      "B86",
+      EXPECTED[2][1],
+      "8項目すべてに文字あり / 画面の高さを覆う",
+      `リンク${linkTexts.length}件 / 文字あり${labelled.length}件 / 高さ${Math.round(drawerBox?.height ?? 0)}（画面${viewportHeight}）`,
+      linkTexts.length === 8 && labelled.length === 8 && coversScreen,
+      labelled.join(",")
+    );
+
+    // 背面のスクロールが止まっているか（開いている今のうちに見る）
+    const bodyOverflow = await page.evaluate(() => getComputedStyle(document.body).overflow);
+    rec("B90", EXPECTED[6][1], "hidden", bodyOverflow, bodyOverflow === "hidden");
+
+    await drawer.getByRole("link", { name: "アルバム" }).click();
+    await page.waitForURL("**/albums", { timeout: 15000 });
+    await page.waitForTimeout(300);
+    const stillOpen = (await page.getByRole("dialog", { name: "ナビゲーション" }).count()) > 0;
+    const restoredOverflow = await page.evaluate(() => getComputedStyle(document.body).overflow);
+    rec(
+      "B87",
+      EXPECTED[3][1],
+      "/albums へ遷移 / 閉じている / 背面のスクロールが戻る",
+      `${new URL(page.url()).pathname} / ${stillOpen ? "開いている" : "閉じている"} / overflow=${restoredOverflow}`,
+      new URL(page.url()).pathname === "/albums" && !stillOpen && restoredOverflow !== "hidden"
+    );
+
+    await page.reload({ waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "メニューを開く" }).click();
+    await page.getByRole("dialog", { name: "ナビゲーション" }).waitFor({ timeout: 5000 });
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+    const afterEsc = await page.getByRole("dialog", { name: "ナビゲーション" }).count();
+    rec("B88", EXPECTED[4][1], "0件", `${afterEsc}件`, afterEsc === 0);
+
+    // **閉じ方の確認は1つずつ、状態を戻してから。** Escが効かないときに開いたままだと、
+    // 次の「メニューを開く」が背景に遮られてブロックごと落ちる（壊して確認したときに踏んだ）
+    await page.reload({ waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "メニューを開く" }).click();
+    await page.getByRole("dialog", { name: "ナビゲーション" }).waitFor({ timeout: 5000 });
+    // ドロワーは左端（288px）なので、右端を叩けば背景に当たる
+    const urlBeforeBackdrop = new URL(page.url()).pathname;
+    await page.mouse.click(370, 400);
+    await page.waitForTimeout(300);
+    const afterBackdrop = await page.getByRole("dialog", { name: "ナビゲーション" }).count();
+    const urlAfterBackdrop = new URL(page.url()).pathname;
+    // **遷移していないことまで見る。** 背景が画面を覆えていないとクリックが本文の
+    // リンクに抜け、遷移のついでにドロワーが閉じるので「閉じた」だけでは通ってしまう
+    rec(
+      "B89",
+      EXPECTED[5][1],
+      "0件 / 遷移しない",
+      `${afterBackdrop}件 / ${urlBeforeBackdrop === urlAfterBackdrop ? "遷移なし" : `${urlBeforeBackdrop}→${urlAfterBackdrop}`}`,
+      afterBackdrop === 0 && urlBeforeBackdrop === urlAfterBackdrop
+    );
+
+    // **横スクロールが出ないこと。** `/admin/users` は中に min-w-[820px] の表がある。
+    // 抑えているのは `app/(main)/layout.tsx` の内側 div（`overflow-y-auto` が
+    // `overflow-x` も `auto` にする）。そこを外すとページ全体が横に流れる
+    const widths = [];
+    for (const path of ["/", "/admin/users"]) {
+      await page.goto(BASE + path, { waitUntil: "networkidle" });
+      widths.push(
+        await page.evaluate((p) => {
+          const el = document.documentElement;
+          return { path: p, scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
+        }, path)
+      );
+    }
+    const overflowing = widths.filter((w) => w.scrollWidth > w.clientWidth + 1);
+    rec(
+      "B91",
+      EXPECTED[7][1],
+      "どのページも横に溢れない",
+      overflowing.length === 0
+        ? "溢れなし"
+        : overflowing.map((w) => `${w.path}: ${w.scrollWidth}>${w.clientWidth}`).join(" / "),
+      overflowing.length === 0,
+      widths.map((w) => `${w.path}=${w.scrollWidth}/${w.clientWidth}`).join(" ")
+    );
+
+    // **本文は window がスクロールする。** レイアウトの内側 div に高さ（`h-screen` など）を
+    // 入れると本物のスクローラになり、`window.scrollY` が動かなくなる——スマホでURLバーが
+    // 引っ込まず、縦を常時損する。`min-h` だけなら中身に合わせて伸びるので起きない
+    // （この項目は `h-screen overflow-y-auto` に変えると実際に落ちることを確認済み）
+    await page.goto(`${BASE}/manual`, { waitUntil: "networkidle" });
+    const scrollState = await page.evaluate(async () => {
+      window.scrollTo(0, 0);
+      const el = document.documentElement;
+      const scrollable = el.scrollHeight > el.clientHeight + 1;
+      window.scrollBy(0, 300);
+      await new Promise((r) => setTimeout(r, 200));
+      return { scrollable, scrollY: Math.round(window.scrollY) };
+    });
+    rec(
+      "B92",
+      EXPECTED[8][1],
+      "ページが伸びていて window がスクロールする",
+      `伸びている=${scrollState.scrollable} / scrollY=${scrollState.scrollY}`,
+      scrollState.scrollable && scrollState.scrollY > 0
+    );
+
+    rec("B93", EXPECTED[9][1], "無し", problems.slice(0, 3).join(" / ") || "無し", problems.length === 0);
+  } catch (e) {
+    for (const [id, item] of EXPECTED) {
+      if (recorded.has(id)) continue;
+      rows.push({
+        id,
+        item,
+        expected: "—",
+        actual: "未確認",
+        ok: false,
+        note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}`,
+      });
+    }
+  } finally {
+    await page.close();
+  }
+}
+
+// PC幅（1280px）の骨組み。**390pxだけ見ていると640px以上を壊しても気づけない。**
+{
+  const pcContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  await pcContext.addCookies([
+    {
+      name: "next-auth.session-token",
+      value: await encode({
+        token: { name: "admin", email: "admin@example.com", sub: "admin@example.com" },
+        secret: SECRET,
+        maxAge: 3600,
+      }),
+      domain: "127.0.0.1",
+      path: "/",
+      httpOnly: true,
+    },
+  ]);
+  const pcPage = await pcContext.newPage();
+  try {
+    await pcPage.goto(`${BASE}/`, { waitUntil: "networkidle" });
+
+    const rail = pcPage.locator("aside");
+    const railVisible = (await rail.count()) > 0 && (await rail.first().isVisible());
+    rows.push({
+      id: "B94",
+      item: "PC幅ではアイコンレールが出ている",
+      expected: "出ている",
+      actual: railVisible ? "出ている" : "出ていない",
+      ok: railVisible,
+      note: "",
+    });
+
+    const hamburger = pcPage.getByRole("button", { name: "メニューを開く" });
+    const hamburgerVisible = (await hamburger.count()) > 0 && (await hamburger.isVisible());
+    rows.push({
+      id: "B95",
+      item: "PC幅ではハンバーガーが出ない",
+      expected: "出ていない",
+      actual: hamburgerVisible ? "出ている" : "出ていない",
+      ok: !hamburgerVisible,
+      note: "",
+    });
+
+    // **PC幅ではアイコンの名前を知る手段がホバーのツールチップだけ**なので、それが
+    // 実際に読めることを見る。`opacity` と矩形は「出ている」と答えるのに画面には無い、
+    // という壊れ方をする（レールの `<nav>` に `overflow-y-auto` を付けたときに実際に起きた。
+    // `overflow-y: auto` は `overflow-x` も `auto` にするため、レールの外に出る
+    // ツールチップが切り取られる。実測: `scrollWidth 202 > clientWidth 84`）。
+    // 見分けられるのは `elementFromPoint` だけ
+    await pcPage.locator("aside").getByRole("link", { name: "アルバム" }).hover();
+    await pcPage.waitForTimeout(400);
+    const tooltip = await pcPage.evaluate(() => {
+      const tip = [...document.querySelectorAll("aside span")].find((e) => e.textContent === "アルバム");
+      if (!tip) return { found: false, opacity: null, hit: false };
+      const r = tip.getBoundingClientRect();
+      // ツールチップには `pointer-events-none` が付いている。**`elementFromPoint` は
+      // pointer-events: none の要素を飛ばして下の要素を返す**ので、そのままでは必ず
+      // 「居ない」になる（これで一度、直っているのに落ち続けた）。測る間だけ戻す
+      const previous = tip.style.pointerEvents;
+      tip.style.pointerEvents = "auto";
+      const at = document.elementFromPoint(r.x + 5, r.y + r.height / 2);
+      tip.style.pointerEvents = previous;
+      return {
+        found: true,
+        opacity: getComputedStyle(tip).opacity,
+        hit: at === tip || tip.contains(at),
+      };
+    });
+    rows.push({
+      id: "B98",
+      item: "PC幅でアイコンにホバーすると名前が実際に読める",
+      expected: "その位置にツールチップが居る",
+      actual: tooltip.found
+        ? `opacity=${tooltip.opacity} / その位置に居る=${tooltip.hit}`
+        : "ツールチップが無い",
+      ok: tooltip.found && tooltip.opacity === "1" && tooltip.hit,
+      note: "",
+    });
+
+    // **長いページでナビが流れていかないこと。** レールは `sticky top-0 h-[100dvh]` で
+    // 画面に残す。これが無いと親のフレックスに引き伸ばされ、スクロールすると
+    // アイコンが上に抜けていく（PCでだけ起きるので390pxだけ見ていると気づけない）
+    await pcPage.goto(`${BASE}/manual`, { waitUntil: "networkidle" });
+    await pcPage.evaluate(() => window.scrollTo(0, 900));
+    await pcPage.waitForTimeout(300);
+    // **`isVisible()` では測れない。** Playwright の可視判定はビューポート内かを見ないので、
+    // 上に抜けていったリンクも「見えている」と返る（これで一度誤判定した）。
+    // 画面内に居るかは bounding box の y で見る
+    const navAfterScroll = pcPage.locator("aside").getByRole("link", { name: "ShareStaq ホーム" });
+    const box = (await navAfterScroll.count()) > 0 ? await navAfterScroll.boundingBox() : null;
+    const scrolled = await pcPage.evaluate(() => Math.round(window.scrollY));
+    const viewportH = pcPage.viewportSize().height;
+    const navStays = box !== null && box.y >= 0 && box.y < viewportH;
+    rows.push({
+      id: "B97",
+      item: "PC幅で長いページをスクロールしてもナビが残る",
+      expected: "画面内に居る",
+      actual: box === null ? "リンクが無い" : `y=${Math.round(box.y)}（scrollY=${scrolled} / 画面高=${viewportH}）`,
+      ok: navStays && scrolled > 0,
+      note: "",
+    });
+
+    await pcPage.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    const pcWidth = await pcPage.evaluate(() => {
+      const el = document.documentElement;
+      return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
+    });
+    rows.push({
+      id: "B96",
+      item: "PC幅で横スクロールが出ない",
+      expected: "溢れなし",
+      actual: `${pcWidth.scrollWidth}/${pcWidth.clientWidth}`,
+      ok: pcWidth.scrollWidth <= pcWidth.clientWidth + 1,
+      note: "",
+    });
+  } catch (e) {
+    for (const [id, item] of [
+      ["B94", "PC幅ではアイコンレールが出ている"],
+      ["B95", "PC幅ではハンバーガーが出ない"],
+      ["B98", "PC幅でアイコンにホバーすると名前が実際に読める"],
+      ["B97", "PC幅で長いページをスクロールしてもナビが残る"],
+      ["B96", "PC幅で横スクロールが出ない"],
+    ]) {
+      if (rows.some((r) => r.id === id)) continue;
+      rows.push({ id, item, expected: "—", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+    }
+  } finally {
+    await pcPage.close();
+    await pcContext.close();
+  }
+}
+
 await browser.close();
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));
