@@ -1,6 +1,7 @@
 // B: 実ブラウザで主要ページを開き、ページ例外・ハイドレーションエラーを拾う。
 import { encode } from "next-auth/jwt";
 import { writeResults } from "./_results.mjs";
+import { watchPageErrors, writePageErrors } from "./_pageerrors.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3000";
 const SECRET = process.env.NEXTAUTH_SECRET ?? "local-integration-test-secret";
@@ -95,7 +96,7 @@ const rows = [];
 for (const [id, label, path] of targets) {
   const page = await context.newPage();
   const problems = [];
-  page.on("pageerror", (e) => problems.push(`例外: ${e.message}`.slice(0, 140)));
+  watchPageErrors(page, problems);
   page.on("console", (m) => {
     if (m.type() !== "error") return;
     const text = m.text();
@@ -1035,7 +1036,7 @@ for (const [id, label, path] of targets) {
 {
   const page = await context.newPage();
   const problems = [];
-  page.on("pageerror", (e) => problems.push(`例外: ${e.message}`.slice(0, 140)));
+  watchPageErrors(page, problems);
   // 4xx/5xxを拾う。署名やPUTが失敗しても画面は「失敗しました」としか出ないので、
   // どこで落ちたかはHTTPを見ないと分からない（lessons.md）
   const bad = [];
@@ -1161,7 +1162,7 @@ for (const [id, label, path] of targets) {
   ]);
   const page = await memberContext.newPage();
   const problems = [];
-  page.on("pageerror", (e) => problems.push(`例外: ${e.message}`.slice(0, 140)));
+  watchPageErrors(page, problems);
   const bad = [];
   page.on("response", (r) => {
     if (r.status() >= 400 && !IGNORED.some((re) => re.test(r.url()))) {
@@ -1300,7 +1301,7 @@ for (const [id, label, path] of targets) {
 {
   const page = await context.newPage();
   const problems = [];
-  page.on("pageerror", (e) => problems.push(`例外: ${e.message}`.slice(0, 140)));
+  watchPageErrors(page, problems);
 
   const callApi = (path, method, body) =>
     page.evaluate(
@@ -1471,7 +1472,7 @@ for (const [id, label, path] of targets) {
 {
   const page = await context.newPage();
   const problems = [];
-  page.on("pageerror", (e) => problems.push(`例外: ${e.message}`.slice(0, 140)));
+  watchPageErrors(page, problems);
 
   const EXPECTED = [
     ["B77", "いま連携しているゲームが名前で出る"],
@@ -1678,7 +1679,7 @@ for (const [id, label, path] of targets) {
 
   const page = await context.newPage();
   const problems = [];
-  page.on("pageerror", (e) => problems.push(`例外: ${e.message}`.slice(0, 140)));
+  watchPageErrors(page, problems);
   page.on("console", (m) => {
     if (m.type() !== "error") return;
     const text = m.text();
@@ -2030,7 +2031,7 @@ for (const [id, label, path] of targets) {
   ]);
   const page = await touchContext.newPage();
   const problems = [];
-  page.on("pageerror", (e) => problems.push(`例外: ${e.message}`.slice(0, 140)));
+  watchPageErrors(page, problems);
   page.on("console", (m) => {
     if (m.type() !== "error") return;
     const text = m.text();
@@ -2337,6 +2338,9 @@ for (const [id, label, path] of targets) {
 }
 
 await browser.close();
+// **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
+// 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）
+writePageErrors("browser");
 const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
 console.table(rows.filter((r) => !r.ok));
 process.exitCode = summary.failed > 0 ? 1 : 0;
