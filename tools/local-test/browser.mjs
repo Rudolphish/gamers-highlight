@@ -2248,12 +2248,24 @@ for (const [id, label, path] of targets) {
     const urlAfterBackdrop = new URL(page.url()).pathname;
     const movedByBackdrop = openAfterBackdropSwipe ? await shownUrl() : null;
     // 背景をタップしたら閉じる（こちらは従来どおり壊していないこと）。
+    //
     // **払った直後にタップしてはいけない。** ブラウザはダブルタップかどうかを待つため、
-    // 直前のジェスチャから間を置かないと **click を一切合成しない**
-    // （実測: 0ms・400msでは click 0件、800msで1件。アプリ側の問題ではない）。
-    // 400msで待っていたせいで、通しの2回目だけ落ちていた
-    await page.waitForTimeout(900);
-    await page.touchscreen.tap(70, backdropY);
+    // 直前のジェスチャから間を置かないと **click を一切合成しない**（手元の Chromium では
+    // 0ms・400msで click 0件、800msで1件）。アプリ側の問題ではない。
+    //
+    // **待ち時間で解決しようとして2回失敗した。** 900msに延ばしても、CIの Chrome 154 では
+    // まだ落ちた（手元は Playwright の Chromium で版が違う）。**時間に頼らず、前の
+    // ジェスチャが残っていない状態を作り直してから**タップする
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator("main img").first().click();
+    await page.waitForSelector("div.fixed.inset-0.z-50", { timeout: 10000 });
+    const tapY = await page.evaluate((sel) => {
+      const ov = document.querySelector(sel);
+      const b = document.querySelector(`${sel} > div.relative`)?.getBoundingClientRect();
+      const y = b ? Math.round(b.y / 2) : 100;
+      return document.elementFromPoint(70, y) === ov ? y : Math.round(window.innerHeight / 2);
+    }, "div.fixed.inset-0.z-50");
+    await page.touchscreen.tap(70, tapY);
     await page.waitForTimeout(500);
     const closedByTap = (await page.locator("div.fixed.inset-0.z-50").count()) === 0;
     rec(
@@ -2269,7 +2281,7 @@ for (const [id, label, path] of targets) {
         Boolean(movedByBackdrop) &&
         movedByBackdrop !== beforeBackdrop &&
         closedByTap,
-      `払った位置 y=${backdropY}（その点に居るのは ${backdrop.at}）`
+      `払った位置 y=${backdropY}（${backdrop.at}） / タップ位置 y=${tapY}`
     );
 
     // 矢印ボタン（スワイプを足したことで壊していないか）。タップで閉じたので開き直す。
