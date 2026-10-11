@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { applySnapshot, type PlaySnapshot } from "@/lib/playLog";
+import { notifyFinishedPlays, notifyPlayStarted } from "@/lib/playLogNotify";
 
 /**
  * Botが送る「いま、どのVCで誰が何を遊んでいるか」。プレイ記録の行の開閉はここで決まる。
@@ -62,5 +63,14 @@ export async function POST(req: Request) {
   if (!snapshot) return NextResponse.json({ error: "invalid snapshot" }, { status: 400 });
 
   const result = await applySnapshot(snapshot);
+
+  // 通知はここで送る（playLog.ts はDiscordに触らない）。**通知で落ちても記録の結果は返す**——
+  // 500を返すとBotは「送れなかった」として同じスナップショットを送り直し続ける
+  try {
+    for (const id of result.openedIds ?? []) await notifyPlayStarted(id);
+    await notifyFinishedPlays();
+  } catch (err) {
+    console.error("[playlog] 通知の処理に失敗", err);
+  }
   return NextResponse.json({ ok: true, ...result });
 }

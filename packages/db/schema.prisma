@@ -184,6 +184,8 @@ enum GroupNotificationKind {
   PRICE_DROP
   /// 週に一度のまとめ
   WEEKLY_SUMMARY
+  /// プレイ記録の開始と終了（docs/play-log.md）
+  PLAY_LOG
 }
 
 // Steam/YouTube/HowLongToBeatへの外部問い合わせ結果をsteamAppId単位でキャッシュする。
@@ -644,6 +646,9 @@ model GroupPlaySession {
   /// 推定を含む。Botが落ちていた間に終わったものを「最後に生きていた時刻」で閉じた、
   /// または落ちていた間をまたいで続きとしてつないだ
   estimated            Boolean   @default(false)
+  /// 終了を通知した時刻。閉じてから10分戻らなかったら送る（すぐ送ると、途切れて戻った回にも「終わった」が出る）。
+  /// 送り先が無いグループでも埋める（毎回探し直さないため）。送信に失敗したら null に戻して次で送り直す
+  endNotifiedAt        DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

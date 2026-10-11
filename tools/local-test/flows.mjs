@@ -3399,6 +3399,150 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 }
 
+// ── プレイ記録の通知（種類 PLAY_LOG） ──
+// 開始は行を作った瞬間、終了は閉じて10分戻らなかったら（生存報告のついでに拾う）。
+// Discordへの投稿はスタブが /tmp/stub-discord.log に本文ごと残すので、それで見る
+{
+  const fs = await import("node:fs");
+  const DISCORD_LOG = "/tmp/stub-discord.log";
+  const ADMIN = "100000000000000001";
+  const MEMBER = "100000000000000002";
+  const VC = "800000000000000005";
+  const APP = "510000000000000055";
+  const internal = { "x-internal-secret": INTERNAL_SECRET };
+  const posts = () =>
+    (fs.existsSync(DISCORD_LOG) ? fs.readFileSync(DISCORD_LOG, "utf8").split("\n").filter(Boolean) : []).map(
+      (l) => JSON.parse(JSON.parse(l).body ?? "{}").content ?? ""
+    );
+  const postsSince = (mark) => posts().slice(mark);
+  const snapshot = (participants) =>
+    api("/api/internal/play-log/snapshot", {
+      method: "POST",
+      headers: internal,
+      body: {
+        guildId: group.guildId,
+        activities: participants.length
+          ? [{ voiceChannelId: VC, applicationId: APP, name: "通知テストのゲーム", participants: participants.map((d) => ({ discordUserId: d, since: null })) }]
+          : [],
+      },
+    });
+  const heartbeat = () => api("/api/internal/bot-heartbeat", { method: "POST", headers: internal });
+  const setTarget = (channelId) =>
+    api(`/api/groups/${group.id}/notifications`, {
+      method: "PATCH",
+      cookie: adminCookie,
+      body: { kind: "PLAY_LOG", channelId },
+    });
+  const rows = () => db.groupPlaySession.findMany({ where: { groupId: group.id }, orderBy: { createdAt: "asc" } });
+  const backdate = (id, startMinAgo, endMinAgo) =>
+    db.groupPlaySession.update({
+      where: { id },
+      data: { startedAt: new Date(Date.now() - startMinAgo * 60000), endedAt: new Date(Date.now() - endMinAgo * 60000) },
+    });
+
+  await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+  await heartbeat(); // 次の生存報告を「途切れていない」扱いにする（長く落ちていた後の最初の報告では終了を送らない）
+
+  try {
+    // 送り先が無い間は何も送らない
+    let mark = posts().length;
+    await snapshot([ADMIN, MEMBER]);
+    const silent = postsSince(mark).filter((c) => c.includes("通知テストのゲーム"));
+    await snapshot([]);
+    await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+
+    await setTarget("900000000000000011");
+    mark = posts().length;
+    await snapshot([ADMIN, MEMBER]);
+    await snapshot([ADMIN, MEMBER]); // 同じ状態の送り直し（冪等）で二重に出ないこと
+    const started = postsSince(mark).filter((c) => c.includes("通知テストのゲーム"));
+    check(
+      "F270 プレイ記録が始まると通知チャンネルへ「記録を始めました」と参加者が1回だけ出る（送り先が無ければ出ない）",
+      silent.length === 0 && started.length === 1 && started[0].includes("記録を始めました") && started[0].includes("参加:"),
+      JSON.stringify({ silent, started })
+    );
+
+    // 閉じた直後は送らない → 10分戻らなかったら、生存報告のついでに終了を送る
+    mark = posts().length;
+    await snapshot([]);
+    await heartbeat();
+    const tooEarly = postsSince(mark).filter((c) => c.includes("遊びました"));
+    let [row] = await rows();
+    await backdate(row.id, 71, 11);
+    await heartbeat();
+    await heartbeat(); // 2回目で二重に送らないこと
+    const ended = postsSince(mark).filter((c) => c.includes("遊びました"));
+    [row] = await rows();
+    check(
+      "F271 終了は閉じてすぐには出さず、10分戻らなかったら遊んだ時間つきで1回だけ出る",
+      tooEarly.length === 0 &&
+        ended.length === 1 &&
+        ended[0].includes("通知テストのゲーム") &&
+        ended[0].includes("1時間") &&
+        row.endNotifiedAt !== null,
+      JSON.stringify({ tooEarly, ended, endNotifiedAt: row.endNotifiedAt })
+    );
+
+    // 途切れて10分以内に戻った回は、終了も2回目の開始も出さない（同じ1回として続く）
+    await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+    mark = posts().length;
+    await snapshot([ADMIN, MEMBER]);
+    await snapshot([]);
+    await snapshot([ADMIN, MEMBER]);
+    await heartbeat();
+    const resumed = postsSince(mark).filter((c) => c.includes("通知テストのゲーム"));
+    check(
+      "F272 途切れて10分以内に戻った回は、終了も2回目の開始も出さない",
+      resumed.length === 1 && resumed[0].includes("記録を始めました") && (await rows()).length === 1,
+      JSON.stringify(resumed)
+    );
+    await snapshot([]);
+
+    // Discordへの投稿に失敗したら「送った」にせず、次の生存報告で送り直す
+    [row] = await rows();
+    await backdate(row.id, 30, 12);
+    mark = posts().length;
+    fs.writeFileSync("/tmp/stub-fail", "discord.com");
+    try {
+      await heartbeat();
+    } finally {
+      fs.rmSync("/tmp/stub-fail", { force: true });
+    }
+    const afterFail = (await rows())[0];
+    await heartbeat();
+    const retried = postsSince(mark).filter((c) => c.includes("遊びました"));
+    check(
+      "F273 終了の通知に失敗したら「送った」の印を戻し、次の生存報告で送り直す",
+      afterFail.endNotifiedAt === null && retried.length === 1 && (await rows())[0].endNotifiedAt !== null,
+      JSON.stringify({ afterFail: afterFail.endNotifiedAt, retried })
+    );
+
+    // 長く落ちていた後の最初の生存報告では終了を送らない（直後の起動処理でつなぎ直されうる）。2回目からは送る
+    await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+    await snapshot([ADMIN, MEMBER]);
+    await snapshot([]);
+    [row] = await rows();
+    await backdate(row.id, 40, 15);
+    await db.botHeartbeat.update({ where: { id: "bot" }, data: { lastSeenAt: new Date(Date.now() - 60 * 60000) } });
+    mark = posts().length;
+    await heartbeat();
+    const afterDown = postsSince(mark).filter((c) => c.includes("遊びました"));
+    await heartbeat();
+    const afterUp = postsSince(mark).filter((c) => c.includes("遊びました"));
+    check(
+      "F274 Botが長く落ちていた後の最初の生存報告では終了を送らず、次の報告で送る",
+      afterDown.length === 0 && afterUp.length === 1,
+      JSON.stringify({ afterDown, afterUp })
+    );
+  } catch (e) {
+    check("F270x プレイ記録の通知の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    fs.rmSync("/tmp/stub-fail", { force: true });
+    await setTarget("");
+    await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+  }
+}
+
 // ───────────────────────────────────────────────────────────
 // テストの棚卸し（2026-10-11）で見つかった抜け
 // ───────────────────────────────────────────────────────────

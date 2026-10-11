@@ -211,6 +211,8 @@ export async function applySnapshot(snapshot: PlaySnapshot, now = new Date()) {
   const resumeAfter = snapshot.resumeAfter ? new Date(snapshot.resumeAfter) : null;
   let opened = 0;
   let continued = 0;
+  /** 新しく始まった行。開始の通知に使う（つなぎ直した行は含めない） */
+  const openedIds: string[] = [];
 
   for (const a of resolved) {
     // 同じVC・同じゲームの進行中 → 同じゲームでVCだけ移った進行中 の順に探す
@@ -228,7 +230,9 @@ export async function applySnapshot(snapshot: PlaySnapshot, now = new Date()) {
           where: { id: session.id },
           // `estimated` は触らない。Botの停止で閉じた行（estimated）をつないだ場合は、
           // 落ちていた間を「遊んでいた」と推定しているので、印は残したままにする
-          data: { endedAt: null, voiceChannelId: a.voiceChannelId },
+          // 終了の通知は閉じてから10分後なので普段は未送信のまま。送った後につながったとき
+          // （Botの再起動の直後に送信が遅れた等）は外して、本当に終わったときにもう一度送る
+          data: { endedAt: null, voiceChannelId: a.voiceChannelId, endNotifiedAt: null },
         }),
         ...syncParticipants(session.id, session.participants, a.participants, now),
       ]);
@@ -236,7 +240,7 @@ export async function applySnapshot(snapshot: PlaySnapshot, now = new Date()) {
     }
 
     const groupGameId = await matchGroupGame(group.id, a);
-    await db.groupPlaySession.create({
+    const created = await db.groupPlaySession.create({
       data: {
         groupId: group.id,
         groupGameId,
@@ -251,6 +255,7 @@ export async function applySnapshot(snapshot: PlaySnapshot, now = new Date()) {
       },
     });
     opened++;
+    openedIds.push(created.id);
   }
 
   const toClose = open.filter((s) => !claimed.has(s.id));
@@ -265,7 +270,7 @@ export async function applySnapshot(snapshot: PlaySnapshot, now = new Date()) {
     ]);
   }
 
-  return { opened, continued, closed: toClose.length };
+  return { opened, continued, closed: toClose.length, openedIds };
 }
 
 /**
