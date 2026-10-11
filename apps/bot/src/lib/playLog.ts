@@ -34,6 +34,11 @@ export function activityKey(a: { applicationId: string | null; name: string }): 
 /**
  * VCごと・ゲームごとに、対象者のうち誰が遊んでいるかをまとめる。**2人以上の組だけ**を返す。
  *
+ * - **プレイ中が見えない対象者も、そのVCで見えているゲームが1つだけならその組に数える**
+ *   （2026-10-11 ユーザー判断）。Discordで「オンライン状態を隠す」にしている人は、Botからは
+ *   オフライン・プレイ中なしにしか見えない。グループの4人中3人がこの設定で、最初に遊んだ回は
+ *   見えるのが1人だけになり記録が0件だった。代わりに、VCで雑談しているだけの人も数える。
+ *   見えているゲームが2つ以上のVCでは、どれに入れるか決められないので数えない
  * - 対象者（`eligible`）に入っていない人は数えない。Webへも送らない（アプリに同意していない人の
  *   情報を持たないため）
  * - 1人が同時に複数の「プレイ中」を持つことはまず無いが、あればそれぞれに数える
@@ -45,11 +50,16 @@ export function computePlayingGroups(
   eligible: Set<string>
 ): PlayingGroup[] {
   const groups = new Map<string, PlayingGroup>();
+  const silentByChannel = new Map<string, string[]>();
 
   for (const v of voice) {
     if (!eligible.has(v.userId)) continue;
-    for (const a of activitiesOf(v.userId)) {
-      if (a.type !== ACTIVITY_PLAYING || !a.name) continue;
+    const playing = activitiesOf(v.userId).filter((a) => a.type === ACTIVITY_PLAYING && a.name);
+    if (playing.length === 0) {
+      silentByChannel.set(v.channelId, [...(silentByChannel.get(v.channelId) ?? []), v.userId]);
+      continue;
+    }
+    for (const a of playing) {
       const key = `${v.channelId}\u0000${activityKey(a)}`;
       let g = groups.get(key);
       if (!g) {
@@ -60,6 +70,12 @@ export function computePlayingGroups(
         g.participants.push({ discordUserId: v.userId, since: a.startedAt });
       }
     }
+  }
+
+  for (const [channelId, silent] of silentByChannel) {
+    const inChannel = [...groups.values()].filter((g) => g.voiceChannelId === channelId);
+    if (inChannel.length !== 1) continue;
+    for (const userId of silent) inChannel[0].participants.push({ discordUserId: userId, since: null });
   }
 
   return [...groups.values()]
@@ -142,7 +158,7 @@ export function describePlayStatus(v: PlayStatusView): string {
       const playing = m.activities.filter((a) => a.type === ACTIVITY_PLAYING && a.name);
       lines.push(
         playing.length === 0
-          ? `　${mention(m.userId)}：**プレイ中が届いていません**`
+          ? `　${mention(m.userId)}：**プレイ中が届いていません**（VCで見えているゲームが1つだけなら、その組に数えます）`
           : `　${mention(m.userId)}：${playing.map((a) => `${a.name}（アプリID${a.applicationId ? "あり" : "なし"}）`).join("、")}`
       );
     }
@@ -157,7 +173,7 @@ export function describePlayStatus(v: PlayStatusView): string {
     lines.push(
       groups.length > 0
         ? `→ いま記録される組：${groups.map((g) => `${g.name}（${g.participants.length}人）`).join("、")}`
-        : "→ いまは記録の条件（対象者2人以上が同じゲーム）を満たしていません"
+        : "→ いまは記録の条件（同じVCに対象者2人以上・うち誰かのプレイ中が見えていて、ゲームが1つに決まる）を満たしていません"
     );
 
     // 候補1：本人には見えていても、Discordの設定でBotに届かないことがある
@@ -166,8 +182,9 @@ export function describePlayStatus(v: PlayStatusView): string {
     );
     if (silent.length > 0) {
       lines.push(
-        "※ プレイ中が届いていない人は、Discordの「設定 → アクティビティのプライバシー」で" +
-          "アクティビティの共有がオフになっていないか確認してください（本人の画面に出ていても、オフだとBotには届きません）"
+        "※ プレイ中が届かない主な原因は、ステータスを「オンライン状態を隠す」にしていること、または" +
+          "「設定 → アクティビティのプライバシー」でアクティビティの共有がオフになっていること。" +
+          "どちらも本人の画面には出ていてもBotには届きません"
       );
     }
 
