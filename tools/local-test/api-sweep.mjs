@@ -93,6 +93,9 @@ const cases = [
   ["R53", "グループの招待の取り消しはオーナーだけ", "DELETE", `/api/groups/${ids.groupId}/invites/${ids.inviteId}`, null, { anon: 401, member: 403, outsider: 403 }],
   ["R54", "グループのメンバーの役割変更はオーナーだけ", "PATCH", `/api/groups/${ids.groupId}/members/${ids.memberId}`, { role: "VIEWER" }, { anon: 401, member: 403, outsider: 403 }],
   ["R55", "グループのメンバーを外すのはオーナーだけ", "DELETE", `/api/groups/${ids.groupId}/members/${ids.memberId}`, null, { anon: 401, member: 403, outsider: 403 }],
+  // email が無いと以前は500だった。オーナーでも400で止まり、何も書き換わらない
+  ["R56", "アルバムのメンバー追加で email が無ければ400", "POST", `/api/albums/${ids.albumId}/members`, { role: "VIEWER" }, { admin: 400 }],
+  ["R57", "グループのメンバー追加で email が無ければ400", "POST", `/api/groups/${ids.groupId}/members`, { role: "VIEWER", email: 123 }, { admin: 400 }],
 ];
 
 const rows = [];

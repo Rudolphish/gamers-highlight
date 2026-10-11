@@ -22,6 +22,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const body = await req.json().catch(() => ({})); // { email: string, role: "EDITOR" | "VIEWER" }
   const role = parseMemberRole(body.role);
   if (!role) return NextResponse.json({ error: INVALID_ROLE_MESSAGE }, { status: 400 });
+  // email が無い・文字列でないと findUnique が例外を投げて500になる（role と同じ形の穴）
+  if (typeof body.email !== "string" || body.email.trim() === "") {
+    return NextResponse.json({ error: "email を指定してください" }, { status: 400 });
+  }
   const invitee = await db.user.findUnique({ where: { email: body.email } });
   if (!invitee) {
     return NextResponse.json({ error: "user not found" }, { status: 404 });
