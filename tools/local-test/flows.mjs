@@ -3117,13 +3117,15 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     const off = await opt(MEMBER, "off");
     const membersAfterOff = await api(`/api/internal/play-log/members?guildId=${guildId}`, { headers: internal });
     await snapshot([act("ウィッチャー3", WITCHER_APP, [ADMIN, MEMBER])]);
-    const countAfterOff = (await sessions()).length;
+    // **行の数では見ない。** 直前に閉じた同じゲームの行が10分以内なら「続き」として開き直すので、
+    // 数えてしまっても行は増えない（壊して確かめたら、行数の条件だけでは落ちなかった）
+    const openAfterOff = await db.groupPlaySession.count({ where: { groupId: group.id, endedAt: null } });
     check(
       "F225 /playlog off で外れた人は数えない（2人いても記録が始まらない）",
       off.json?.status === "opted-out" &&
         !(membersAfterOff.json?.discordUserIds ?? []).includes(MEMBER) &&
-        countAfterOff === rows.length,
-      JSON.stringify({ off: off.json, ids: membersAfterOff.json?.discordUserIds, before: rows.length, after: countAfterOff })
+        openAfterOff === 0,
+      JSON.stringify({ off: off.json, ids: membersAfterOff.json?.discordUserIds, open: openAfterOff })
     );
     const pastStillThere = await db.groupPlayParticipant.count({ where: { userId: memberUser.id } });
     check("F226 外れても過去の参加記録は残る", pastStillThere > 0, pastStillThere);
@@ -3171,7 +3173,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     );
 
     // 落ちる前から続いていた組（since が前回生きていた時刻より前）は、閉じた行の続きとしてつなぐ
-    await db.groupPlaySession.deleteMany({ where: { id: rows[1].id } });
+    await db.groupPlaySession.deleteMany({ where: { id: rows[1]?.id ?? "" } });
     const since = lastSeen.getTime() - 30 * 60 * 1000;
     await snapshot([act("ウィッチャー3", WITCHER_APP, [ADMIN, MEMBER], { since })], { resumeAfter: lastSeen.toISOString() });
     rows = await sessions();
@@ -3219,6 +3221,10 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
         listCount === 1,
       `${detail.status} / 合計=${detail.text.includes("1時間33分")} / 一覧=${listCount}`
     );
+  } catch (e) {
+    // **途中で落ちても後ろのスイートと表を道連れにしない。** 例外のまま抜けると flows 全体が止まり、
+    // 結果の表も書かれない（壊して確かめたとき F230 の手前で実際にそうなった）
+    check("F211x プレイ記録のブロックが途中で例外になった（以降は未確認）", false, e?.stack ?? e);
   } finally {
     await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
     await db.playLogOptOut.deleteMany({ where: { groupId: group.id } });
