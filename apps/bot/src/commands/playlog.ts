@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction } from "discord.js";
 import { setPlayLogOpt, type PlayLogStatus } from "../lib/apiClient.js";
-import { refreshPlayMembersNow } from "../lib/playTracker.js";
+import { describePlayStatusFor, refreshPlayMembersNow } from "../lib/playTracker.js";
 
 // /playlog on|off|status … プレイ記録（グループで一緒に遊んだ時間）から外れる・戻る・状態を見る。
 //
@@ -79,5 +79,20 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     );
   }
 
-  await interaction.editReply(message(status, action));
+  if (action !== "status") {
+    await interaction.editReply(message(status, action));
+    return;
+  }
+
+  // status は「いまBotからどう見えているか」も返す。記録が付かないときの切り分け用
+  // （プレイ中が届いていない／同じゲームが別扱い／Webに弾かれた、が1回で分かる）。
+  // 他の人へのメンションは本人にしか見えないが、念のため通知は飛ばさない
+  const detail = await describePlayStatusFor(interaction.guildId, interaction.user.id).catch((err) => {
+    console.error("[playlog] 状態の表示に失敗", err);
+    return "（Botから見えている様子の取得に失敗しました）";
+  });
+  await interaction.editReply({
+    content: `${message(status, action)}\n\n${detail}`.slice(0, 2000),
+    allowedMentions: { parse: [] },
+  });
 }

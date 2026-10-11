@@ -179,12 +179,15 @@ export async function fetchPlayLogMembers(
   }
 }
 
-/** いまの状態を送る。**失敗したら false**（呼び出し側は「送れた」と記録せず、次の機会に送り直す） */
+/**
+ * いまの状態を送る。**失敗したら ok: false**（呼び出し側は「送れた」と記録せず、次の機会に送り直す）。
+ * 理由を返すのは `/playlog status` で本人に見せるため（ログを見られない場面でも切り分けられるように）
+ */
 export async function sendPlaySnapshot(payload: {
   guildId: string;
   activities: PlayingGroup[];
   resumeAfter?: string | null;
-}): Promise<boolean> {
+}): Promise<{ ok: true } | { ok: false; reason: string }> {
   try {
     const res = await fetch(`${BASE_URL}/api/internal/play-log/snapshot`, {
       method: "POST",
@@ -192,13 +195,14 @@ export async function sendPlaySnapshot(payload: {
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
-      console.error(`[apiClient] play-log snapshot failed: ${res.status} ${await res.text()}`);
-      return false;
+      const body = (await res.text()).slice(0, 200);
+      console.error(`[apiClient] play-log snapshot failed: ${res.status} ${body}`);
+      return { ok: false, reason: `HTTP ${res.status} ${body}`.trim() };
     }
-    return true;
+    return { ok: true };
   } catch (err) {
     console.error("[apiClient] play-log snapshot failed", err);
-    return false;
+    return { ok: false, reason: err instanceof Error ? err.message : String(err) };
   }
 }
 

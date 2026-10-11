@@ -273,8 +273,10 @@ export async function applySnapshot(snapshot: PlaySnapshot, now = new Date()) {
  *
  * - 閉じてから10分以内（`MERGE_GAP_MS`）なら、同じ1回として続ける
  * - 起動直後（`resumeAfter` あり）は、Botが落ちたことで閉じた行（`estimated`）を、
- *   **参加者2人以上のアクティビティが落ちる前から続いているとき**だけつなぐ。
- *   開始時刻が分からないものはつながない（一晩落ちていた間を「遊んでいた」にしないため）
+ *   **参加者の誰かのアクティビティが落ちる前から続いているとき**だけつなぐ。
+ *   開始時刻が分からないものはつながない（一晩落ちていた間を「遊んでいた」にしないため）。
+ *   以前は「2人以上」だったが、プレイ中が見えない人（オンライン状態を隠す）も組に数えるように
+ *   したため、開始時刻が分かるのが1人だけの組が普通にある（2026-10-11）
  */
 async function findResumable(
   groupId: string,
@@ -301,7 +303,7 @@ async function findResumable(
   const continuing = [...a.participants.values()].filter(
     (since) => since !== null && since <= resumeAfter.getTime()
   ).length;
-  if (continuing < 2) return null;
+  if (continuing < 1) return null;
 
   return db.groupPlaySession.findFirst({
     where: {

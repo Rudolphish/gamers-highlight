@@ -1,6 +1,11 @@
 import type { Client, Guild } from "discord.js";
 import { fetchPlayLogMembers, notifyPlayLogBotStarted, sendPlaySnapshot } from "./apiClient.js";
-import { computePlayingGroups, snapshotSignature, type ActivityLike } from "./playLog.js";
+import {
+  computePlayingGroups,
+  describePlayStatus,
+  snapshotSignature,
+  type ActivityLike,
+} from "./playLog.js";
 
 /**
  * プレイ記録の見張り役。VCの出入りとプレイ状況の変化を受けて、サーバーごとに
@@ -26,6 +31,8 @@ type GuildState = {
   timer: NodeJS.Timeout | null;
   /** 送信を直列にする（順序が入れ替わって古い状態で上書きしないため） */
   chain: Promise<void>;
+  /** 最後に送った結果（成否と理由）。`/playlog status` で見せる。`lastSent`（最後に送れた内容）とは別物 */
+  lastSendResult: { at: number; ok: boolean; groups: number; reason?: string } | null;
 };
 
 const states = new Map<string, GuildState>();
@@ -38,7 +45,7 @@ const pendingResume = new Map<string, string>();
 function stateOf(guildId: string): GuildState {
   let s = states.get(guildId);
   if (!s) {
-    s = { eligible: null, membersFetchedAt: 0, lastSent: null, timer: null, chain: Promise.resolve() };
+    s = { eligible: null, membersFetchedAt: 0, lastSent: null, timer: null, chain: Promise.resolve(), lastSendResult: null };
     states.set(guildId, s);
   }
   return s;
@@ -50,7 +57,11 @@ async function refreshMembers(guildId: string, force = false): Promise<void> {
   const res = await fetchPlayLogMembers(guildId);
   // 取れなかったときは前回の一覧のまま（Webが落ちている間に全員を対象外にしない）
   if (!res) return;
-  s.eligible = res.group ? new Set(res.discordUserIds) : null;
+  const next = res.group ? new Set(res.discordUserIds) : null;
+  if ((next?.size ?? null) !== (s.eligible?.size ?? null)) {
+    console.log(`[playlog] guild=${guildId} 対象者 ${next ? `${next.size}人` : "なし（グループ無し）"}`);
+  }
+  s.eligible = next;
   s.membersFetchedAt = Date.now();
 }
 
@@ -81,8 +92,16 @@ async function sync(guildId: string, { force = false }: { force?: boolean } = {}
   if (!force && signature === s.lastSent) return;
 
   const resumeAfter = pendingResume.get(guildId) ?? null;
-  const ok = await sendPlaySnapshot({ guildId, activities: groups, resumeAfter });
-  if (ok) {
+  const result = await sendPlaySnapshot({ guildId, activities: groups, resumeAfter });
+  s.lastSendResult = result.ok
+    ? { at: Date.now(), ok: true, groups: groups.length }
+    : { at: Date.now(), ok: false, groups: groups.length, reason: result.reason };
+  if (result.ok) {
+    // 送れたことも1行残す。以前は失敗しか出さず、「送っていない」と「送れた」が区別できなかった
+    console.log(
+      `[playlog] guild=${guildId} 送信: ${groups.length}組` +
+        (groups.length ? `（${groups.map((g) => `${g.name}×${g.participants.length}`).join("、")}）` : "")
+    );
     s.lastSent = signature;
     pendingResume.delete(guildId);
   }
@@ -111,6 +130,38 @@ export function schedulePlaySync(guildId: string | null | undefined): void {
 export async function refreshPlayMembersNow(guildId: string): Promise<void> {
   await refreshMembers(guildId, true);
   if (ready) await enqueue(guildId);
+}
+
+/**
+ * `/playlog status` 用。対象者を取り直して1回同期してから、打った人のVCの見え方を文字にする。
+ * 同期を挟むのは、「最後の送信」を今の状態に揃えるため（変化が無ければ送らないのは普段と同じ）
+ */
+export async function describePlayStatusFor(guildId: string, userId: string): Promise<string> {
+  await refreshPlayMembersNow(guildId);
+  const s = stateOf(guildId);
+  const guild = client?.guilds.cache.get(guildId);
+  const channelId = guild?.voiceStates.cache.get(userId)?.channelId ?? null;
+  const inVoice =
+    guild && channelId
+      ? [...guild.voiceStates.cache.values()]
+          .filter((v) => v.channelId === channelId)
+          .map((v) => ({
+            userId: v.id,
+            eligible: s.eligible?.has(v.id) ?? false,
+            // 対象外の人のプレイ状況は持たない（表示側でも出さないが、そもそも渡さない）
+            activities: s.eligible?.has(v.id) ? activitiesOf(guild, v.id) : [],
+          }))
+      : [];
+  return describePlayStatus({
+    now: Date.now(),
+    ready,
+    eligibleCount: s.membersFetchedAt ? (s.eligible?.size ?? 0) : null,
+    membersFetchedAt: s.membersFetchedAt || null,
+    voiceChannelId: channelId,
+    voiceChannelName: (channelId && guild?.channels?.cache.get(channelId)?.name) || null,
+    inVoice,
+    lastSend: s.lastSendResult,
+  });
 }
 
 /** 定期の取り直し。送れていなかった分の送り直しも兼ねる（生存報告と同じ間隔で呼ぶ） */
