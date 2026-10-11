@@ -3270,6 +3270,70 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const withSince = { ...presences, a: [playing("Game A", "1", 123)] };
   const sigB = snapshotSignature(computePlayingGroups(voice, (id) => withSince[id] ?? [], new Set(["a", "b"])));
   check("F233 Botの判定：開始時刻が揺れただけでは送り直さない", sigA === sigB, `${sigA} / ${sigB}`);
+
+  // `/playlog status` の診断表示（4人で遊んだのに0件だった件の切り分け用）
+  const { describePlayStatus } = await import("../../apps/bot/dist/lib/playLog.js");
+  const NOW = 1_800_000_000_000;
+  const view = (inVoice, extra = {}) =>
+    describePlayStatus({
+      now: NOW,
+      ready: true,
+      eligibleCount: 4,
+      membersFetchedAt: NOW - 60_000,
+      voiceChannelId: "v1",
+      voiceChannelName: "雑談",
+      inVoice,
+      lastSend: { at: NOW - 120_000, ok: true, groups: 0 },
+      ...extra,
+    });
+
+  const silentText = view([
+    { userId: "a", eligible: true, activities: [playing("Game A", "1")] },
+    { userId: "b", eligible: true, activities: [] },
+    { userId: "x", eligible: false, activities: [playing("秘密のゲーム", "9")] },
+  ]);
+  check(
+    "F264 /playlog status：プレイ中が届いていない対象者を名指しし、設定の確認を促す（対象外の人のゲームは出さない）",
+    /<@b>：\*\*プレイ中が届いていません/.test(silentText) &&
+      silentText.includes("アクティビティのプライバシー") &&
+      silentText.includes("<@x>：対象外") &&
+      !silentText.includes("秘密のゲーム") &&
+      silentText.includes("記録の条件") &&
+      !silentText.includes("いま記録される組"),
+    silentText
+  );
+
+  const splitText = view([
+    { userId: "a", eligible: true, activities: [playing("Game A", "1")] },
+    { userId: "b", eligible: true, activities: [playing("game a", null)] },
+  ]);
+  const okText = view([
+    { userId: "a", eligible: true, activities: [playing("Game A", "1")] },
+    { userId: "b", eligible: true, activities: [playing("Game A", "1")] },
+  ]);
+  check(
+    "F265 /playlog status：同じ名前でアプリIDが違うと「別のゲームとして数えている」と出す（揃っていれば組として出す）",
+    splitText.includes("別のゲームとして数えています") &&
+      !splitText.includes("いま記録される組") &&
+      okText.includes("いま記録される組：Game A（2人）") &&
+      !okText.includes("別のゲームとして") &&
+      !okText.includes("プレイ中が届いていません"),
+    `${splitText}\n---\n${okText}`
+  );
+
+  const failedText = view([], {
+    voiceChannelId: null,
+    lastSend: { at: NOW - 180_000, ok: false, groups: 1, reason: "HTTP 500 boom" },
+  });
+  const notFetched = view([], { eligibleCount: null, membersFetchedAt: null, lastSend: null });
+  check(
+    "F266 /playlog status：送信の失敗は理由つきで出す・対象者を取れていない・まだ送っていない、も区別して出す",
+    failedText.includes("**失敗**（HTTP 500 boom）") &&
+      failedText.includes("VCに入っていません") &&
+      notFetched.includes("対象者の一覧をWebから取れていません") &&
+      notFetched.includes("まだ一度もしていません"),
+    `${failedText}\n---\n${notFetched}`
+  );
 }
 
 // ───────────────────────────────────────────────────────────
@@ -3664,7 +3728,9 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
 }
 
 {
-  const { startPlayTracker, refreshPlayMembersNow } = await import("../../apps/bot/dist/lib/playTracker.js");
+  const { startPlayTracker, refreshPlayMembersNow, describePlayStatusFor } = await import(
+    "../../apps/bot/dist/lib/playTracker.js"
+  );
   const internal = { "x-internal-secret": INTERNAL_SECRET };
   const APP = "510000000000000077";
   const VC = "800000000000000009";
@@ -3691,6 +3757,16 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       "F262 Botの起動時に、VCで一緒に遊んでいる組がWebへ送られ記録が始まる（部外者は数えない）",
       rows.length === 1 && rows[0].endedAt === null && rows[0].participants.length === 2,
       JSON.stringify(rows.map((r) => ({ endedAt: r.endedAt, n: r.participants.length })))
+    );
+
+    // 本物のBotの状態から組み立てる（純粋関数の F264〜F266 と違い、追跡側が値を渡せているか）
+    const statusText = await describePlayStatusFor(group.guildId, "100000000000000001");
+    check(
+      "F267 /playlog status：Botの追跡状態から、VCの対象者・組・最後の送信の成功が出る（部外者は対象外）",
+      statusText.includes("いま記録される組：ウィッチャー3（2人）") &&
+        statusText.includes("<@100000000000000003>：対象外") &&
+        /最後の送信：.*成功（記録中の組 1）/.test(statusText),
+      statusText
     );
 
     // 1人がVCを抜ける → 対象者が1人になる → 次の送信で閉じる

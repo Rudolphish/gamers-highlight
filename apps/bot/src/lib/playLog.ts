@@ -84,3 +84,117 @@ export function snapshotSignature(groups: PlayingGroup[]): string {
     groups.map((g) => [g.voiceChannelId, activityKey(g), g.participants.map((p) => p.discordUserId)])
   );
 }
+
+// ── `/playlog status` の診断表示 ──────────────────────────────
+//
+// 4人で遊んだのに記録が0件だったとき、原因の候補（プレイ中がBotに届いていない／同じゲームが
+// 別扱いになって1人ずつに分かれた／送ったがWebに弾かれた）を外から区別できなかった。
+// 成功は何もログに残らない作りだったため。遊んでいる最中に打てば、Botから見えている状態を
+// そのまま本人に返す。**ここは文字を組み立てるだけ**（Discordに触らない）。
+
+export type StatusMember = {
+  userId: string;
+  /** 対象者か。対象外の人のプレイ状況は表示しない（同意していない人の情報を出さないため） */
+  eligible: boolean;
+  activities: ActivityLike[];
+};
+
+export type PlayStatusView = {
+  now: number;
+  /** 起動処理（進行中の記録を閉じる）が済んでいるか。済むまでは送らない */
+  ready: boolean;
+  /** 対象者の一覧。null＝まだ一度も取れていない */
+  eligibleCount: number | null;
+  membersFetchedAt: number | null;
+  /** 打った人がいるVC。null＝VCにいない */
+  voiceChannelId: string | null;
+  voiceChannelName: string | null;
+  inVoice: StatusMember[];
+  lastSend: { at: number; ok: boolean; groups: number; reason?: string } | null;
+};
+
+const mention = (id: string) => `<@${id}>`;
+const ago = (now: number, at: number) => {
+  const min = Math.max(0, Math.round((now - at) / 60000));
+  return min === 0 ? "1分以内" : `${min}分前`;
+};
+const nameKey = (name: string) => name.normalize("NFKC").toLowerCase().replace(/\s+/g, "");
+
+export function describePlayStatus(v: PlayStatusView): string {
+  const lines: string[] = ["**いまBotから見えている様子**"];
+
+  if (!v.ready) lines.push("・Botの起動処理がまだ終わっていません（終わるまでは送りません）");
+  if (v.eligibleCount === null || v.membersFetchedAt === null) {
+    lines.push("・対象者の一覧をWebから取れていません（Webに繋がっていない可能性があります）");
+  } else {
+    lines.push(`・このサーバーの対象者：${v.eligibleCount}人（${ago(v.now, v.membersFetchedAt)}に取得）`);
+  }
+
+  if (v.voiceChannelId === null) {
+    lines.push("・あなたはいまVCに入っていません。VCで遊んでいる最中に打つと、一緒にいる人の見え方が出ます");
+  } else {
+    lines.push(`・VC「${v.voiceChannelName ?? v.voiceChannelId}」にいる人：`);
+    for (const m of v.inVoice) {
+      if (!m.eligible) {
+        lines.push(`　${mention(m.userId)}：対象外（連携していない・グループのメンバーでない・外れている、のどれか）`);
+        continue;
+      }
+      const playing = m.activities.filter((a) => a.type === ACTIVITY_PLAYING && a.name);
+      lines.push(
+        playing.length === 0
+          ? `　${mention(m.userId)}：**プレイ中が届いていません**`
+          : `　${mention(m.userId)}：${playing.map((a) => `${a.name}（アプリID${a.applicationId ? "あり" : "なし"}）`).join("、")}`
+      );
+    }
+
+    const eligible = new Set(v.inVoice.filter((m) => m.eligible).map((m) => m.userId));
+    const byId = new Map(v.inVoice.map((m) => [m.userId, m.activities]));
+    const groups = computePlayingGroups(
+      v.inVoice.map((m) => ({ userId: m.userId, channelId: v.voiceChannelId as string })),
+      (id) => byId.get(id) ?? [],
+      eligible
+    );
+    lines.push(
+      groups.length > 0
+        ? `→ いま記録される組：${groups.map((g) => `${g.name}（${g.participants.length}人）`).join("、")}`
+        : "→ いまは記録の条件（対象者2人以上が同じゲーム）を満たしていません"
+    );
+
+    // 候補1：本人には見えていても、Discordの設定でBotに届かないことがある
+    const silent = v.inVoice.filter(
+      (m) => m.eligible && !m.activities.some((a) => a.type === ACTIVITY_PLAYING && a.name)
+    );
+    if (silent.length > 0) {
+      lines.push(
+        "※ プレイ中が届いていない人は、Discordの「設定 → アクティビティのプライバシー」で" +
+          "アクティビティの共有がオフになっていないか確認してください（本人の画面に出ていても、オフだとBotには届きません）"
+      );
+    }
+
+    // 候補2：同じ名前なのにアプリIDが違う（有無を含む）と、別のゲームとして数えて組が割れる
+    const keysByName = new Map<string, Set<string>>();
+    for (const m of v.inVoice) {
+      if (!m.eligible) continue;
+      for (const a of m.activities) {
+        if (a.type !== ACTIVITY_PLAYING || !a.name) continue;
+        const set = keysByName.get(nameKey(a.name)) ?? new Set<string>();
+        set.add(activityKey(a));
+        keysByName.set(nameKey(a.name), set);
+      }
+    }
+    if ([...keysByName.values()].some((s) => s.size > 1)) {
+      lines.push("※ 同じゲーム名なのに、アプリIDが人によって違う（付いている人と付いていない人がいる）ため、別のゲームとして数えています");
+    }
+  }
+
+  // 候補3：送ったが弾かれた
+  if (v.lastSend === null) {
+    lines.push("・Webへの送信：起動してからまだ一度もしていません");
+  } else if (v.lastSend.ok) {
+    lines.push(`・最後の送信：${ago(v.now, v.lastSend.at)}・成功（記録中の組 ${v.lastSend.groups}）`);
+  } else {
+    lines.push(`・最後の送信：${ago(v.now, v.lastSend.at)}・**失敗**（${v.lastSend.reason ?? "理由不明"}）`);
+  }
+
+  return lines.join("\n");
+}

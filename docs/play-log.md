@@ -91,6 +91,15 @@ Botで拾う形にした（各自のPCに何も入れなくてよい）。
   英字にしたのは、入力中にIMEを切り替えなくて済むようにするためと、既存の `/tag` に揃えるため
 - サブコマンドは `on` / `off` / `status`。返信は本人にだけ見える形（ephemeral）
 - 未連携の人が打ったら、断って連携画面（`/settings/discord`）へ案内する
+- `status` は**いまBotからどう見えているか**も返す（2026-10-11 追加）。打った人と同じVCにいる人ごとに
+  「プレイ中のゲーム名とアプリIDの有無／プレイ中が届いていない／対象外」、いま記録される組、
+  対象者の数、Webへの最後の送信の成否と失敗理由。対象外の人のゲームは出さない
+
+**記録が付かないときは、遊んでいる最中に `/playlog status` を打つ。** 4人で遊んだのに記録が0件
+だったとき、原因の候補（①プレイ中がBotに届いていない＝Discordのアクティビティの共有がオフ、
+②同じゲームのアプリIDが人によって違い1人ずつに分かれた、③送ったがWebに弾かれた）を
+外から区別できなかった。**送れたときに何も残さない作りだった**ため（Botのログも失敗しか出さず、
+そのPCを落とすと見られない）。いまは送れたときも `[playlog] guild=... 送信: N組` を1行出す。
 
 ---
 
@@ -261,7 +270,7 @@ M2（ホーム・週次まとめ）、M3（活動カレンダーのグループ�
 | `apps/web/src/app/api/cron/check-bot-health` | Botが落ちていたら、進行中の行を最後に生きていた時刻で閉じる |
 | `apps/bot/src/lib/playLog.ts` | 検知の純粋関数（VC＋プレイ状況＋対象者 → 遊んでいる組） |
 | `apps/bot/src/lib/playTracker.ts` | Discordのイベントを受けて、変わったときだけスナップショットを送る |
-| `apps/bot/src/commands/playlog.ts` | `/playlog on|off|status`（日本語表示「プレイ記録」） |
+| `apps/bot/src/commands/playlog.ts` | `/playlog on|off|status`（日本語表示「プレイ記録」）。`status` はBotからの見え方も返す（文字の組み立ては `lib/playLog.ts` の `describePlayStatus`） |
 
 ### 実装で決めたこと（設計書に無かったもの）
 
