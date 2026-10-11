@@ -547,7 +547,13 @@ for (const [id, label, path] of targets) {
   await page.waitForTimeout(300);
   await page.locator(`${LIGHTBOX} textarea`).fill(TEXT);
   await page.locator(`${LIGHTBOX} [aria-label="説明を保存"]`).click();
-  await page.waitForTimeout(900);
+  // **時間ではなく「保存が終わって編集欄が閉じた」ことを待つ。** 編集欄は PATCH の応答を
+  // 受けてから閉じるので、固定の900msだとCIで応答が遅い回に編集中のまま読んで落ちた
+  // （表の備考に「18/500 保存」＝編集欄の文字数表示が出ていた）
+  await page
+    .locator(`${LIGHTBOX} textarea`)
+    .waitFor({ state: "detached", timeout: 10000 })
+    .catch(() => {});
 
   const savedText = (await page.locator(LIGHTBOX).first().textContent()) ?? "";
   rows.push({

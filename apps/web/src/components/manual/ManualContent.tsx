@@ -236,6 +236,40 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
       ),
     },
     {
+      id: "play-log",
+      title: "グループで遊んだ時間（プレイ記録）",
+      body: (
+        <div className="flex flex-col gap-3">
+          <p>
+            DiscordのVCに集まって、<strong className="text-steam-text">2人以上が同じゲームを遊んでいる間</strong>
+            を、Botが自動で記録します。何かを押す必要はありません。記録はゲーム詳細の
+            「グループで遊んだ時間」に、合計時間・直近の記録・一緒に遊んだメンバーとして出ます。
+          </p>
+          <p>
+            数えるのは、Discordに「〇〇をプレイ中」と出ているときだけです。VCにいても1人だけが遊んでいる
+            （他の人は雑談している）間は記録しません。アプリとDiscordを連携していない人は数に入りません。
+          </p>
+          <p>
+            <strong className="text-steam-text">記録されたくないとき</strong>は、Discordで
+            <code className="mx-1 rounded-sm bg-steam-panel px-1">/playlog off</code>
+            （日本語の表示では「プレイ記録」）を使います。外れるのはそのサーバーのグループだけで、
+            これまでの記録は残ります。戻すときは <code className="mx-1 rounded-sm bg-steam-panel px-1">/playlog on</code>、
+            いまの状態は <code className="mx-1 rounded-sm bg-steam-panel px-1">/playlog status</code> で分かります。
+          </p>
+          <p>
+            <strong className="text-steam-text">「ゲームが分からないプレイ」が出たとき</strong>
+            ：Discordに出ていた名前がゲームリストと一致しなかったものです。グループ画面の「みんなのゲーム」の上に出るので、
+            どのゲームか選んでください。過去の記録にも反映され、次からは自動で当たります。リストに無いゲームなら、
+            先にゲームを追加すると自動で結びつきます。
+          </p>
+          <p className="text-steam-muted/70">
+            補足：途中で10分以内に戻ってきた場合は、続けて1回として数えます。5分未満の記録は一覧に出しません（合計には含みます）。
+            「推定」の印は、Botが止まっていた間をまたいだ記録です（止まっていた間は確認できないため、時刻が推定になります）。
+          </p>
+        </div>
+      ),
+    },
+    {
       id: "price-notify",
       title: "Discordへの通知",
       body: (

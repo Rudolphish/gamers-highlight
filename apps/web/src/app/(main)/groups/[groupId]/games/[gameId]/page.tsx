@@ -16,6 +16,8 @@ import { HltbCard } from "@/components/group/HltbCard";
 import { InterestButton } from "@/components/group/InterestButton";
 import { RefreshGameDataButton } from "@/components/group/RefreshGameDataButton";
 import { REFRESH_INTERVAL_MS } from "@/lib/externalGameCache";
+import { getGamePlaySummary } from "@/lib/playLog";
+import { GroupPlayLogPanel } from "@/components/game/GroupPlayLogPanel";
 
 const STATUS_LABEL = {
   WISHLIST: "気になる",
@@ -63,6 +65,12 @@ export default async function GroupGameDetailPage({
   const canRefresh = await hasGroupPermission(params.groupId, currentUser.id, "EDITOR");
 
   const { reviews, reviewItems, price, news, itad } = await loadGameDetailData(game.steamAppId);
+
+  // グループで遊んだ時間（docs/play-log.md）。読めなくてもページは落とさず、区画だけ出さない
+  const playSummary = await getGamePlaySummary(game.id).catch((e) => {
+    console.error("[game] play summary failed", e);
+    return null;
+  });
 
   const coverUrl = game.coverUrl ?? steamHeaderImageUrl(game.steamAppId);
   // 保存時に検証済みだが、埋め込みsrcに使う前に念のため形式を再チェックする
@@ -141,6 +149,7 @@ export default async function GroupGameDetailPage({
 
         {/* 右：最新ニュース全文 + レビュー + 価格の値動き */}
         <div className="flex flex-col gap-4">
+          {playSummary && <GroupPlayLogPanel summary={playSummary} />}
           <GameNewsPanel news={news} />
           <GameReviewsPanel reviews={reviewItems} />
           <GamePricePanel price={price} itad={itad} />

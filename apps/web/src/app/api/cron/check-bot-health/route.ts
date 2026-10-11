@@ -5,6 +5,7 @@ import { checkFreeTierUsage } from "@/lib/usageAlerts";
 import { runActivityMaintenance } from "@/lib/activityRollup";
 import { sendWeeklySummaryIfDue } from "@/lib/weeklyNotify";
 import { APP_SETTING_KEYS, getAppSetting } from "@/lib/appSettings";
+import { closeOpenSessionsAt } from "@/lib/playLog";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +20,9 @@ const STALE_THRESHOLD_MS = 3 * 60 * 60 * 1000; // 3時間
 // 2. 無料枠（R2・DB）の使用率が閾値を超えていないか
 // 3. 活動ログの日次ロールアップと、1年より古い生ログの掃除
 // 4. 週次まとめのDiscord通知（未送信の完了週があれば送る）
+// 5. Botが落ちていたら、進行中のプレイ記録を最後に生きていた時刻で閉じる
 //
-// **パス名はBotの死活監視だけを指しているが、実際は上の4つを行う。**
+// **パス名はBotの死活監視だけを指しているが、実際は上の5つを行う。**
 // Hobbyプランのcronは2本までで既に埋まっており（もう1本はcheck-wishlist-prices）、
 // 3本目を足せないため日次の処理をここに相乗りさせている。
 // 日次の見張りを増やす場合もここに足すこと。
@@ -70,6 +72,16 @@ export async function GET(req: Request) {
     });
   }
 
+  // **進行中のプレイ記録を閉じる。** Botが落ちたまま戻らないと、行が「進行中」のまま残る
+  // （閉じるのは本来、次に起動したときの bot-started）。最後に生きていた時刻で閉じ、
+  // 推定の印を付ける。戻ってきたときにまだ遊んでいれば、Botの側で続きとしてつなぎ直す。
+  const closedPlays = heartbeat
+    ? await closeOpenSessionsAt(heartbeat.lastSeenAt).catch((e) => {
+        console.error("[cron] closing play sessions failed", e);
+        return null;
+      })
+    : 0;
+
   // **管理者向けのチャンネルへ1通だけ送る。** Botが動いていないのは運用の話で、
   // グループのメンバーには関係がない（「管理者だけ分かればいい」という判断）。
   // 宛先はエラー通知と同じチャンネル——どちらも「アプリの調子がおかしい」の知らせで、
@@ -89,6 +101,7 @@ export async function GET(req: Request) {
     down: true,
     lastSeenAt: heartbeat?.lastSeenAt ?? null,
     notified,
+    closedPlays,
     usage,
     activity,
     weekly,
