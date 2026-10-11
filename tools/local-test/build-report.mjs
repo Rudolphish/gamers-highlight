@@ -9,7 +9,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "../../docs/test-results.md");
 
 // レポートに出す順番
-const ORDER = ["pages", "api", "flows", "external-failure", "browser"];
+const ORDER = ["pages", "api", "flows", "external-failure", "query-budget", "browser"];
 
 if (!existsSync(RESULTS_DIR)) {
   console.error("results/ が無い。先に各スイートを実行すること（run-all.mjs）");

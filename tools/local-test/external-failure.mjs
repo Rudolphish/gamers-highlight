@@ -20,6 +20,10 @@ const targets = [
   ["X03", "ゲーム詳細（Steam・ITAD・YouTubeを全部引く）", `/groups/${ids.groupId}/games/${ids.gameId}`],
   ["X04", "アルバム一覧（Steamのカバーを引く）", "/albums"],
   ["X05", "管理・使用量（R2とDBを実測する）", "/admin"],
+  // 2026-10-11 の棚卸しで足した。どれもゲームの外部情報（カバー・価格・クリア時間）を引くページ
+  ["X06", "提案詳細（Steam・ITADを引く）", `/groups/${ids.groupId}/proposals/${ids.proposalId}`],
+  ["X07", "アルバム詳細（Steamのカバーを引く）", `/albums/${ids.albumId}`],
+  ["X08", "グループ一覧（Steamのカバーを引く）", "/groups"],
 ];
 
 // fetch-stub.cjs がこのファイルを見て、書かれたホストへの外部呼び出しを500にする

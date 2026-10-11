@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
+import { INVALID_ROLE_MESSAGE, parseMemberRole } from "@/lib/memberRole";
 import { logActivity } from "@/lib/activityLog";
 
 // POST /api/groups/:id/members … メンバー招待（権限指定）
@@ -13,7 +14,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const allowed = await hasGroupPermission(params.id, actor.id, "OWNER");
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const body = await req.json(); // { email: string, role: "EDITOR" | "VIEWER" }
+  const body = await req.json().catch(() => ({})); // { email: string, role: "EDITOR" | "VIEWER" }
+  const role = parseMemberRole(body.role);
+  if (!role) return NextResponse.json({ error: INVALID_ROLE_MESSAGE }, { status: 400 });
+  // email が無い・文字列でないと findUnique が例外を投げて500になる（role と同じ形の穴）
+  if (typeof body.email !== "string" || body.email.trim() === "") {
+    return NextResponse.json({ error: "email を指定してください" }, { status: 400 });
+  }
   const invitee = await db.user.findUnique({ where: { email: body.email } });
   if (!invitee) {
     return NextResponse.json({ error: "user not found" }, { status: 404 });
@@ -32,8 +39,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const member = await db.groupMember.upsert({
     where: { groupId_userId: { groupId: params.id, userId: invitee.id } },
-    update: { role: body.role },
-    create: { groupId: params.id, userId: invitee.id, role: body.role },
+    update: { role },
+    create: { groupId: params.id, userId: invitee.id, role },
   });
 
   invalidateGroup(params.id);

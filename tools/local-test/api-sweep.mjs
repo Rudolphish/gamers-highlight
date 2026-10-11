@@ -51,11 +51,12 @@ const cases = [
   ["R23", "写真の説明は見られる人なら書ける", "PATCH", `/api/photos/${ids.memberPhotoId}`, { description: "テストの説明" }, { anon: 401, outsider: 403, member: 200 }],
   ["R24", "未分類の写真には説明を付けられない", "PATCH", `/api/photos/${ids.unclassifiedPhotoId}`, { description: "x" }, { admin: 400 }],
   ["R25", "説明の文字数上限を超えると拒否", "PATCH", `/api/photos/${ids.memberPhotoId}`, { description: "あ".repeat(501) }, { admin: 400 }],
-  ["R21", "cron（Bot死活）はシークレット必須", "GET", "/api/cron/check-bot-health", null, { anon: 401 }],
-  ["R22", "内部API（ゲーム一覧）はシークレット必須", "GET", "/api/internal/group-games?guildId=1", null, { anon: 401 }],
-  ["R23", "Discord取り込みはシークレット必須", "POST", "/api/discord/ingest", {}, { anon: 401 }],
-  ["R24", "ゲーム判別（内部API）はシークレット必須", "POST", "/api/internal/assign-game", {}, { anon: 401 }],
-  ["R25", "Steam検索は要ログイン", "GET", "/api/steam/search?q=elden", null, { anon: 401, admin: 200 }],
+  // R35〜R39 はもと R21〜R25 と重複していた組（2026-10-11 に振り直した。表で別の項目が同じIDに並び、取り違えやすかった）
+  ["R35", "cron（Bot死活）はシークレット必須", "GET", "/api/cron/check-bot-health", null, { anon: 401 }],
+  ["R36", "内部API（ゲーム一覧）はシークレット必須", "GET", "/api/internal/group-games?guildId=1", null, { anon: 401 }],
+  ["R37", "Discord取り込みはシークレット必須", "POST", "/api/discord/ingest", {}, { anon: 401 }],
+  ["R38", "ゲーム判別（内部API）はシークレット必須", "POST", "/api/internal/assign-game", {}, { anon: 401 }],
+  ["R39", "Steam検索は要ログイン", "GET", "/api/steam/search?q=elden", null, { anon: 401, admin: 200 }],
   ["R26", "写真検索は要ログイン", "GET", "/api/photos/search?q=ELDEN", null, { anon: 401, admin: 200 }],
   ["R27", "ゲーム横断検索は要ログイン", "GET", "/api/search/group-games?q=elden", null, { anon: 401, admin: 200 }],
   ["R28", "ユーザー一覧は要ログイン", "GET", "/api/users", null, { anon: 401, admin: 200 }],
@@ -70,6 +71,31 @@ const cases = [
   // ——他のスイートが前提にしている seed の連携を壊さないため
   ["R33", "アルバムの連携変更は要ログイン・要権限", "PATCH", `/api/albums/${ids.adminOnlyAlbumId}/game`, { steamAppId: null }, { anon: 401, outsider: 403, admin: 200 }],
   ["R34", "連携変更の不正なbodyは400", "PATCH", `/api/albums/${ids.adminOnlyAlbumId}/game`, { steamAppId: -1 }, { admin: 400 }],
+
+  // ── 2026-10-11 の棚卸しで「一度も叩いていなかった」APIの権限 ──
+  // **成功する側（オーナー・管理者）はここでは叩かない。** 叩くと seed の状態が変わり、
+  // 後ろのスイートの前提（部外者はアルバムを見られない等）が崩れる。中身は flows で確かめて戻す。
+  // アルバムのメンバー管理はアルバムのオーナーだけ（member はアルバムのEDITORなので403）
+  ["R40", "アルバムのメンバー追加はアルバムのオーナーだけ", "POST", `/api/albums/${ids.albumId}/members`, { email: "outsider@example.com", role: "VIEWER" }, { anon: 401, member: 403, outsider: 403 }],
+  ["R41", "アルバムのメンバーの役割変更はアルバムのオーナーだけ", "PATCH", `/api/albums/${ids.albumId}/members/${ids.memberId}`, { role: "VIEWER" }, { anon: 401, member: 403, outsider: 403 }],
+  ["R42", "アルバムのメンバーを外すのはアルバムのオーナーだけ", "DELETE", `/api/albums/${ids.albumId}/members/${ids.memberId}`, null, { anon: 401, member: 403, outsider: 403 }],
+  // タグ一覧は以前、認証も権限も無かった（未ログインでもサーバーIDとタグが読めた）
+  ["R43", "アルバムのタグ一覧は見られる人だけ", "GET", `/api/albums/${ids.otherAlbumId}/tags`, null, { anon: 401, admin: 403, outsider: 200 }],
+  ["R44", "アルバムのタグ追加はアルバムのEDITOR以上", "POST", `/api/albums/${ids.albumId}/tags`, { guildId: "900000000000000001", tag: "intruder" }, { anon: 401, outsider: 403 }],
+  ["R45", "アルバムのタグ削除はアルバムのEDITOR以上", "DELETE", `/api/albums/${ids.albumId}/tags/no-such-tag`, null, { anon: 401, outsider: 403 }],
+  ["R46", "許可リストの削除は管理者だけ", "DELETE", "/api/allowlist/no-such-entry", null, { anon: 403, member: 403, outsider: 403, admin: 404 }],
+  ["R47", "チャンネル対応の一覧は要ログイン", "GET", "/api/discord/channel-mappings", null, { anon: 401, admin: 200 }],
+  ["R48", "チャンネル対応の追加はグループのEDITOR以上", "POST", "/api/discord/channel-mappings", { guildId: "900000000000000001", channelId: "700000000000000099", gameTitle: "侵入" }, { anon: 401, outsider: 403 }],
+  ["R49", "チャンネル対応の削除は要ログイン", "DELETE", "/api/discord/channel-mappings/no-such-mapping", null, { anon: 401, admin: 404 }],
+  ["R50", "Discord連携の確認は要ログイン", "GET", "/api/discord/link", null, { anon: 401, admin: 200 }],
+  ["R51", "/tag の受け口はシークレット必須", "POST", "/api/discord/tag", {}, { anon: 401 }],
+  ["R52", "Discordのチャンネル一覧はグループのオーナーだけ", "GET", `/api/groups/${ids.groupId}/discord-channels`, null, { anon: 401, member: 403, outsider: 403 }],
+  ["R53", "グループの招待の取り消しはオーナーだけ", "DELETE", `/api/groups/${ids.groupId}/invites/${ids.inviteId}`, null, { anon: 401, member: 403, outsider: 403 }],
+  ["R54", "グループのメンバーの役割変更はオーナーだけ", "PATCH", `/api/groups/${ids.groupId}/members/${ids.memberId}`, { role: "VIEWER" }, { anon: 401, member: 403, outsider: 403 }],
+  ["R55", "グループのメンバーを外すのはオーナーだけ", "DELETE", `/api/groups/${ids.groupId}/members/${ids.memberId}`, null, { anon: 401, member: 403, outsider: 403 }],
+  // email が無いと以前は500だった。オーナーでも400で止まり、何も書き換わらない
+  ["R56", "アルバムのメンバー追加で email が無ければ400", "POST", `/api/albums/${ids.albumId}/members`, { role: "VIEWER" }, { admin: 400 }],
+  ["R57", "グループのメンバー追加で email が無ければ400", "POST", `/api/groups/${ids.groupId}/members`, { role: "VIEWER", email: 123 }, { admin: 400 }],
 ];
 
 const rows = [];

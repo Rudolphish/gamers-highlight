@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activityLog";
+import { invalidateGroup } from "@/lib/cacheTags";
 
 // GET /api/discord/channel-mappings … 自分が所属するグループのサーバー分のみ返す
 export async function GET() {
@@ -63,6 +64,9 @@ export async function POST(req: Request) {
       occurredAt: album.createdAt,
       detail: { auto: true },
     });
+    // 作った自動アルバムをグループ画面に出す。**これが無く、作ったアルバムがグループ画面に
+    // 出なかった**（キャッシュが温まっていると時間では直らない。2026-10-11 の棚卸しで F246 が拾った）
+    invalidateGroup(group.id);
   }
 
   const mapping = await db.discordChannelMapping.create({

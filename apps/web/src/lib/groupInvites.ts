@@ -143,43 +143,57 @@ export async function registerAllowlistFromInvite(discordUserId: string): Promis
   try {
     const token = cookies().get(INVITE_COOKIE)?.value;
     if (!token) return;
-
-    const invite = await findInviteByToken(token);
-    const result = validateInvite(invite);
-    if (!result.ok || !invite) return;
-
-    const issuer = invite.createdBy.name ?? invite.createdBy.email ?? "不明";
-
-    await db.$transaction(async (tx) => {
-      // 既に許可リストにいる人（＝再ログインや既存メンバー）は消費しない
-      const existing = await tx.allowlistEntry.findFirst({ where: { discordUserId } });
-      if (existing) return;
-
-      // 同時に複数人が踏んでも上限を超えないよう、条件付き更新で消費する
-      const updated = await tx.groupInvite.updateMany({
-        where: {
-          id: invite.id,
-          revokedAt: null,
-          expiresAt: { gt: new Date() },
-          usedCount: { lt: invite.maxUses },
-        },
-        data: { usedCount: { increment: 1 } },
-      });
-      if (updated.count === 0) return;
-
-      // discordUserIdの一意制約で落ちた場合はトランザクションごと巻き戻り、消費も取り消される
-      await tx.allowlistEntry.create({
-        data: {
-          discordUserId,
-          inviteId: invite.id,
-          note: `招待リンク経由（${invite.group.name} / 発行: ${issuer}）`,
-        },
-      });
-    });
+    await consumeInviteForAllowlist(token, discordUserId);
   } catch (e) {
     // ここで例外を投げるとログイン自体が落ちる。登録できなければ通常の判定に委ねる
     console.error("[invite] failed to register allowlist entry", e);
   }
+}
+
+export type InviteConsumeResult = "registered" | "already-allowed" | "invalid" | "exhausted";
+
+/**
+ * `registerAllowlistFromInvite` の本体。**Cookieを読まない**ので、Next.jsのリクエストの外からも
+ * 呼べる（`tools/local-test/lib-checks.mts` が直接呼んで確かめている。ログインの途中で動く処理は
+ * DiscordのOAuthを通さないと届かず、総合テストからは叩けないため）。
+ */
+export async function consumeInviteForAllowlist(
+  token: string,
+  discordUserId: string
+): Promise<InviteConsumeResult> {
+  const invite = await findInviteByToken(token);
+  const result = validateInvite(invite);
+  if (!result.ok || !invite) return "invalid";
+
+  const issuer = invite.createdBy.name ?? invite.createdBy.email ?? "不明";
+
+  return db.$transaction(async (tx) => {
+    // 既に許可リストにいる人（＝再ログインや既存メンバー）は消費しない
+    const existing = await tx.allowlistEntry.findFirst({ where: { discordUserId } });
+    if (existing) return "already-allowed" as const;
+
+    // 同時に複数人が踏んでも上限を超えないよう、条件付き更新で消費する
+    const updated = await tx.groupInvite.updateMany({
+      where: {
+        id: invite.id,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+        usedCount: { lt: invite.maxUses },
+      },
+      data: { usedCount: { increment: 1 } },
+    });
+    if (updated.count === 0) return "exhausted" as const;
+
+    // discordUserIdの一意制約で落ちた場合はトランザクションごと巻き戻り、消費も取り消される
+    await tx.allowlistEntry.create({
+      data: {
+        discordUserId,
+        inviteId: invite.id,
+        note: `招待リンク経由（${invite.group.name} / 発行: ${issuer}）`,
+      },
+    });
+    return "registered" as const;
+  });
 }
 
 export type AcceptResult =

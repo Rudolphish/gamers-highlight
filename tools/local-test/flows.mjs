@@ -2,6 +2,9 @@
 import { encode } from "next-auth/jwt";
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { writeResults } from "./_results.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3000";
@@ -9,6 +12,7 @@ const SECRET = process.env.NEXTAUTH_SECRET ?? "local-integration-test-secret";
 const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET ?? "local-internal-secret";
 const CRON_SECRET = process.env.CRON_SECRET ?? "local-cron-secret";
 const db = new PrismaClient();
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
 const results = [];
 /** name は「F01 説明」の形。IDと項目名に分けて記録する */
@@ -3266,6 +3270,444 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const withSince = { ...presences, a: [playing("Game A", "1", 123)] };
   const sigB = snapshotSignature(computePlayingGroups(voice, (id) => withSince[id] ?? [], new Set(["a", "b"])));
   check("F233 Botの判定：開始時刻が揺れただけでは送り直さない", sigA === sigB, `${sigA} / ${sigB}`);
+}
+
+// ───────────────────────────────────────────────────────────
+// テストの棚卸し（2026-10-11）で見つかった抜け
+// ───────────────────────────────────────────────────────────
+//
+// 一度も叩いていなかったAPIの「成功する側」と、招待で過去に踏んだ落とし穴の再現。
+// 権限の「弾く側」は api-sweep（R40〜R55）にある。どれも作ったものは同じ経路で戻す。
+
+// ── HTTPからは届かない処理（ログインの途中で動く招待の消費・管理者の判定） ──
+// tsx で Web のライブラリを直接呼ぶ。中身は lib-checks.mts
+{
+  try {
+    const out = execFileSync(
+      join(ROOT, "node_modules/.bin/tsx"),
+      ["--tsconfig", "apps/web/tsconfig.json", "tools/local-test/lib-checks.mts"],
+      { cwd: ROOT, encoding: "utf8", env: process.env, timeout: 120000 }
+    );
+    const rows = JSON.parse(out.trim().split("\n").pop());
+    for (const r of rows) check(`${r.id} ${r.item}`, r.ok, r.detail);
+  } catch (e) {
+    check("F234x ライブラリの直接確認が起動できなかった（以降は未確認）", false, e?.stderr || e?.stack || e);
+  }
+}
+
+// ── アルバムのメンバー管理 ──
+{
+  const outsiderUser = await db.user.findUnique({ where: { email: "outsider@example.com" } });
+  const albumApi = (cookie) => api(`/api/albums/${album.id}`, { cookie });
+  let added = null;
+  try {
+    const before = await albumApi(outsiderCookie);
+    added = await api(`/api/albums/${album.id}/members`, {
+      method: "POST",
+      cookie: adminCookie,
+      body: { email: "outsider@example.com", role: "VIEWER" },
+    });
+    const seen = await albumApi(outsiderCookie);
+    check(
+      "F239 アルバムのオーナーがメンバーを足すと、その人が見られるようになる",
+      before.status === 403 && added.status === 201 && seen.status === 200,
+      `${before.status} → 追加${added.status} → ${seen.status}`
+    );
+
+    const patched = await api(`/api/albums/${album.id}/members/${outsiderUser.id}`, {
+      method: "PATCH",
+      cookie: adminCookie,
+      body: { role: "EDITOR" },
+    });
+    const row = await db.albumMember.findUnique({
+      where: { albumId_userId: { albumId: album.id, userId: outsiderUser.id } },
+    });
+    check("F240 アルバムのメンバーの役割を変えられる", patched.status === 200 && row?.role === "EDITOR", `${patched.status} / ${row?.role}`);
+
+    // 役割の値は EDITOR / VIEWER だけ。以前は知らない値で500、"OWNER" はそのまま通っていた
+    const owner = await api(`/api/albums/${album.id}/members/${outsiderUser.id}`, {
+      method: "PATCH",
+      cookie: adminCookie,
+      body: { role: "OWNER" },
+    });
+    const junk = await api(`/api/albums/${album.id}/members`, {
+      method: "POST",
+      cookie: adminCookie,
+      body: { email: "outsider@example.com", role: "ADMIN" },
+    });
+    const stranger = await api(`/api/albums/${album.id}/members/no-such-user`, {
+      method: "PATCH",
+      cookie: adminCookie,
+      body: { role: "VIEWER" },
+    });
+    check(
+      "F241 アルバムの役割に OWNER や知らない値は渡せず（400）、メンバーでない人は404",
+      owner.status === 400 && junk.status === 400 && stranger.status === 404,
+      `OWNER=${owner.status} / 知らない値=${junk.status} / 非メンバー=${stranger.status}`
+    );
+
+    const removed = await api(`/api/albums/${album.id}/members/${outsiderUser.id}`, { method: "DELETE", cookie: adminCookie });
+    const afterApi = await albumApi(outsiderCookie);
+    const afterPage = await api(`/albums/${album.id}`, { cookie: outsiderCookie });
+    const removedAgain = await api(`/api/albums/${album.id}/members/${outsiderUser.id}`, { method: "DELETE", cookie: adminCookie });
+    check(
+      "F242 外すとAPIでも画面でも見られなくなり（キャッシュが残らない）、二度目の削除は404",
+      removed.status === 200 &&
+        afterApi.status === 403 &&
+        afterPage.text.includes("NEXT_NOT_FOUND") &&
+        !afterPage.text.includes("総合テスト用のアルバム") &&
+        removedAgain.status === 404,
+      `${removed.status} / API=${afterApi.status} / 画面=${afterPage.text.includes("NEXT_NOT_FOUND") ? "not-found" : "見えている"} / 再削除=${removedAgain.status}`
+    );
+  } catch (e) {
+    check("F239x アルバムのメンバー管理の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    // 途中で落ちても部外者をアルバムに残さない（後ろのスイートの前提が崩れる）
+    await api(`/api/albums/${album.id}/members/${outsiderUser.id}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
+// ── アルバムのタグ ──
+{
+  const tagName = `gapcheck${Date.now()}`;
+  const addTag = await api(`/api/albums/${album.id}/tags`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { guildId: group.guildId, tag: tagName },
+  });
+  const tagId = addTag.json?.tag?.id;
+  const listed = await api(`/api/albums/${album.id}/tags`, { cookie: memberCookie });
+  const delTag = await api(`/api/albums/${album.id}/tags/${tagId}`, { method: "DELETE", cookie: adminCookie });
+  const listedAfter = await api(`/api/albums/${album.id}/tags`, { cookie: memberCookie });
+  const has = (r) => (r.json?.tags ?? []).some((t) => t.tag === tagName);
+  check(
+    "F243 アルバムにタグを足して一覧に出し、消せる（見られるメンバーは一覧を読める）",
+    addTag.status === 201 && listed.status === 200 && has(listed) && delTag.status === 200 && !has(listedAfter),
+    `追加${addTag.status} / 一覧${listed.status}:${has(listed)} / 削除${delTag.status} / 後:${has(listedAfter)}`
+  );
+}
+
+// ── 許可リストの削除 ──
+{
+  const email = `gapcheck-${randomUUID().slice(0, 8)}@example.com`;
+  const created = await api("/api/allowlist", { method: "POST", cookie: adminCookie, body: { email } });
+  const entryId = created.json?.entry?.id;
+  const del = await api(`/api/allowlist/${entryId}`, { method: "DELETE", cookie: adminCookie });
+  const gone = entryId ? await db.allowlistEntry.findUnique({ where: { id: entryId } }) : "no-id";
+  check("F244 管理者は許可リストから外せる", created.status === 201 && del.status === 200 && gone === null, `${created.status} / ${del.status} / ${gone}`);
+
+  // 自分自身の登録は消せない（消すと次のログインで締め出され、直せる人がいなくなる）
+  const self = await db.allowlistEntry.findFirst({ where: { email: "admin@example.com" } });
+  const selfDel = self ? await api(`/api/allowlist/${self.id}`, { method: "DELETE", cookie: adminCookie }) : { status: "seedに無い" };
+  const selfStill = self ? await db.allowlistEntry.findUnique({ where: { id: self.id } }) : null;
+  check("F245 管理者が自分自身の登録を消そうとすると400で、登録は残る", selfDel.status === 400 && !!selfStill, `${selfDel.status} / 残:${!!selfStill}`);
+}
+
+// ── Discordのチャンネル対応 ──
+{
+  const gameTitle = `チャンネル対応テスト-${randomUUID().slice(0, 6)}`;
+  // 先にグループ画面を開いてキャッシュを温めておく（作った自動アルバムが出るか＝無効化を見るため）
+  await api(`/groups/${group.id}`, { cookie: adminCookie });
+  const made = await api("/api/discord/channel-mappings", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { guildId: group.guildId, channelId: "700000000000000123", gameTitle },
+  });
+  const mappingId = made.json?.mapping?.id;
+  const autoAlbumId = made.json?.mapping?.autoAlbumId;
+  try {
+    const listed = await api("/api/discord/channel-mappings", { cookie: adminCookie });
+    const inList = JSON.stringify(listed.json ?? {}).includes(mappingId ?? "-");
+    const groupPage = await api(`/groups/${group.id}`, { cookie: adminCookie });
+    check(
+      "F246 チャンネル対応を作ると一覧に出て、専用の自動アルバムがグループ画面にも出る",
+      made.status === 201 && inList && groupPage.text.includes(gameTitle),
+      `${made.status} / 一覧:${inList} / グループ画面:${groupPage.text.includes(gameTitle)}`
+    );
+    const del = await api(`/api/discord/channel-mappings/${mappingId}`, { method: "DELETE", cookie: adminCookie });
+    const gone = mappingId ? await db.discordChannelMapping.findUnique({ where: { id: mappingId } }) : "no-id";
+    check("F247 チャンネル対応を消せる", del.status === 200 && gone === null, `${del.status} / ${gone}`);
+  } finally {
+    if (autoAlbumId) await api(`/api/albums/${autoAlbumId}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
+// ── Discord連携の確認・Discordのチャンネル一覧・/tag の受け口 ──
+{
+  const link = await api("/api/discord/link", { cookie: adminCookie });
+  check("F248 Discord連携済みの人には linked: true が返る", link.status === 200 && link.json?.linked === true, link.text.slice(0, 80));
+
+  const channels = await api(`/api/groups/${group.id}/discord-channels`, { cookie: adminCookie });
+  check(
+    "F249 オーナーはグループのDiscordのチャンネル一覧を取れる",
+    channels.status === 200 && Array.isArray(channels.json?.channels),
+    `${channels.status} ${channels.text.slice(0, 80)}`
+  );
+
+  // /tag：直近のDiscordの投稿に、既にあるタグのアルバムを付ける
+  const messageId = `tagcheck-${randomUUID()}`;
+  const ingest = await api("/api/discord/ingest", {
+    method: "POST",
+    headers: { "x-internal-secret": INTERNAL_SECRET },
+    body: {
+      discordUserId: "100000000000000002",
+      channelId: "700000000000000001",
+      guildId: group.guildId,
+      attachmentUrl: "http://127.0.0.1:9100/gh-local/photos/shot1.png",
+      contentType: "image/png",
+      sizeBytes: 1024,
+      discordMessageId: messageId,
+      postedAt: new Date().toISOString(),
+    },
+  });
+  const photo = await db.photo.findFirst({ where: { discordMessageId: { startsWith: messageId } } });
+  try {
+    const existingTag = await db.discordGameTag.findFirst({ where: { guildId: group.guildId }, orderBy: { createdAt: "asc" } });
+    const tagged = await api("/api/discord/tag", {
+      method: "POST",
+      headers: { "x-internal-secret": INTERNAL_SECRET },
+      body: { discordUserId: "100000000000000002", guildId: group.guildId, gameTitle: existingTag?.gameTitle ?? "x", tag: existingTag?.tag ?? "x" },
+    });
+    const after = photo ? await db.photo.findUnique({ where: { id: photo.id } }) : null;
+    check(
+      "F250 /tag で直近の投稿に既存のタグのアルバムが付く",
+      ingest.status < 300 && !!existingTag && tagged.status === 200 && after?.albumId === existingTag?.autoAlbumId,
+      `取り込み${ingest.status} / タグ${!!existingTag} / ${tagged.status} ${tagged.text.slice(0, 60)} / album=${after?.albumId}`
+    );
+    const unlinked = await api("/api/discord/tag", {
+      method: "POST",
+      headers: { "x-internal-secret": INTERNAL_SECRET },
+      body: { discordUserId: "100000000000000777", guildId: group.guildId, gameTitle: "x", tag: "x" },
+    });
+    check("F251 連携していない人の /tag は404", unlinked.status === 404, unlinked.status);
+  } finally {
+    // アルバムに入ったのでキャッシュに載っている。API経由で消す（lessons.md）
+    if (photo) await api(`/api/photos/${photo.id}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
+// ── グループのメンバー管理と、招待の落とし穴（取り消し・グループ削除） ──
+{
+  const made = await api("/api/groups", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { name: `メンバー管理テスト-${randomUUID().slice(0, 8)}` },
+  });
+  const gid = made.json?.group?.id;
+  const memberUser = await db.user.findUnique({ where: { email: "member@example.com" } });
+  const pending = ["199000000000000020", "199000000000000021", "199000000000000022"];
+  try {
+    const added = await api(`/api/groups/${gid}/members`, {
+      method: "POST",
+      cookie: adminCookie,
+      body: { email: "member@example.com", role: "VIEWER" },
+    });
+    const patched = await api(`/api/groups/${gid}/members/${memberUser.id}`, {
+      method: "PATCH",
+      cookie: adminCookie,
+      body: { role: "EDITOR" },
+    });
+    const row = await db.groupMember.findUnique({ where: { groupId_userId: { groupId: gid, userId: memberUser.id } } });
+    const joined = await db.activityLog.count({ where: { groupId: gid, kind: "member.joined", targetId: memberUser.id } });
+    check(
+      "F252 グループのメンバーの役割を変えられ、役割の変更では「加入」が増えない",
+      added.status === 201 && patched.status === 200 && row?.role === "EDITOR" && joined === 1,
+      `追加${added.status} / 変更${patched.status} / ${row?.role} / 加入${joined}件`
+    );
+
+    const owner = await api(`/api/groups/${gid}/members/${memberUser.id}`, { method: "PATCH", cookie: adminCookie, body: { role: "OWNER" } });
+    const junk = await api(`/api/groups/${gid}/members`, { method: "POST", cookie: adminCookie, body: { email: "member@example.com", role: "" } });
+    const stranger = await api(`/api/groups/${gid}/members/no-such-user`, { method: "DELETE", cookie: adminCookie });
+    check(
+      "F253 グループの役割に OWNER や空の値は渡せず（400）、メンバーでない人は404",
+      owner.status === 400 && junk.status === 400 && stranger.status === 404,
+      `OWNER=${owner.status} / 空=${junk.status} / 非メンバー=${stranger.status}`
+    );
+
+    const removed = await api(`/api/groups/${gid}/members/${memberUser.id}`, { method: "DELETE", cookie: adminCookie });
+    const view = await api(`/api/groups/${gid}`, { cookie: memberCookie });
+    check("F254 外したメンバーはグループを見られなくなる", removed.status === 200 && view.status === 403, `${removed.status} / ${view.status}`);
+
+    // 招待の取り消しで、リンクを踏んでログインしただけの人（未加入の予約）が許可リストから消える。
+    // **revokedAt を立てるだけでは足りない**（CLAUDE.md）。別の有効なリンクの予約は残る
+    const issue = () => api(`/api/groups/${gid}/invites`, { method: "POST", cookie: adminCookie, body: { role: "VIEWER", maxUses: 5, expiresInHours: 24 } });
+    const inv1 = (await issue()).json?.invite;
+    const inv2 = (await issue()).json?.invite;
+    // 予約の作り方（ログイン時の消費）そのものは F236 で確かめているので、ここは行を直接置く
+    await db.allowlistEntry.create({ data: { discordUserId: pending[0], inviteId: inv1.id, note: "棚卸しテスト（取り消すリンク）" } });
+    await db.allowlistEntry.create({ data: { discordUserId: pending[1], inviteId: inv2.id, note: "棚卸しテスト（残るリンク）" } });
+    const revoke = await api(`/api/groups/${gid}/invites/${inv1.id}`, { method: "DELETE", cookie: adminCookie });
+    const revokedEntry = await db.allowlistEntry.findFirst({ where: { discordUserId: pending[0] } });
+    const otherEntry = await db.allowlistEntry.findFirst({ where: { discordUserId: pending[1] } });
+    check(
+      "F255 招待を取り消すと、そのリンクを踏んだだけの人の許可リスト登録が消える（他のリンクの分は残る）",
+      revoke.status === 200 && revokedEntry === null && !!otherEntry,
+      `${revoke.status} / 取り消した分:${revokedEntry ? "残っている" : "消えた"} / 他:${otherEntry ? "残" : "消"}`
+    );
+
+    // グループを消すと、未加入の予約も消える（onDelete: Cascade。SetNull だと恒久ログインになる）
+    await db.allowlistEntry.create({ data: { discordUserId: pending[2], inviteId: inv2.id, note: "棚卸しテスト（グループ削除）" } });
+    const del = await api(`/api/groups/${gid}`, { method: "DELETE", cookie: adminCookie });
+    const leftovers = await db.allowlistEntry.count({ where: { discordUserId: { in: pending.slice(1) } } });
+    check(
+      "F256 グループを消すと、そのグループのリンクを踏んだだけの人の許可リスト登録も消える",
+      del.status === 200 && leftovers === 0,
+      `${del.status} / 残った予約${leftovers}件`
+    );
+  } catch (e) {
+    check("F252x グループのメンバー管理・招待の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    await db.allowlistEntry.deleteMany({ where: { discordUserId: { in: pending } } });
+    if (gid) await api(`/api/groups/${gid}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
+// ── 動画のサムネイルを、別の行が参照している間は消さない ──
+// サムネイルには写真の行が無いので、素朴に「行を消したらファイルも消す」と全動画のサムネイルが壊れる（CLAUDE.md）。
+// アルバムに入れない（未分類）ので、行をDB直で作ってもキャッシュには載らない
+{
+  const key = `gapcheck/${randomUUID()}.png`;
+  const url = `http://127.0.0.1:9100/gh-local/${key}`;
+  await fetch(url, { method: "PUT", headers: { "content-type": "image/png" }, body: Buffer.alloc(16) });
+  const memberUser = await db.user.findUnique({ where: { email: "member@example.com" } });
+  const image = await db.photo.create({
+    data: { mediaType: "IMAGE", mediaUrl: url, uploaderId: memberUser.id, source: "MANUAL", sizeBytes: 16 },
+  });
+  const video = await db.photo.create({
+    data: {
+      mediaType: "VIDEO",
+      mediaUrl: `http://127.0.0.1:9100/gh-local/gapcheck/${randomUUID()}.mp4`,
+      thumbnailUrl: url,
+      uploaderId: memberUser.id,
+      source: "MANUAL",
+      sizeBytes: 16,
+    },
+  });
+  try {
+    const delImage = await api(`/api/photos/${image.id}`, { method: "DELETE", cookie: adminCookie });
+    const stillThere = (await fetch(url, { method: "HEAD" })).status;
+    check(
+      "F257 写真を消しても、動画のサムネイルとして参照されているファイルは残る",
+      delImage.status === 200 && stillThere === 200,
+      `${delImage.status} / ファイル${stillThere}`
+    );
+    const delVideo = await api(`/api/photos/${video.id}`, { method: "DELETE", cookie: adminCookie });
+    const goneNow = (await fetch(url, { method: "HEAD" })).status;
+    check(
+      "F258 最後の参照（動画）を消すと、サムネイルのファイルも消える（孤児を残さない）",
+      delVideo.status === 200 && goneNow === 404,
+      `${delVideo.status} / ファイル${goneNow}`
+    );
+  } finally {
+    await db.photo.deleteMany({ where: { id: { in: [image.id, video.id] } } });
+  }
+}
+
+// ── Botのイベント処理（偽のDiscordオブジェクトを渡し、送り先のWebは本物） ──
+// 遡り取り込み（F134〜）と同じ形。Discordには繋がらないので、Botが受け取るオブジェクトの
+// うち処理が読む分だけを持たせる
+{
+  process.env.INTERNAL_API_BASE_URL ??= BASE;
+  process.env.INTERNAL_API_SECRET ??= INTERNAL_SECRET;
+  const { handleMessageCreate } = await import("../../apps/bot/dist/handlers/messageCreate.js");
+
+  const replies = [];
+  const fakeMessage = (id, { bot = false, contentType = "image/png", name = "clipboard.png" } = {}) => ({
+    id,
+    author: { bot, id: "100000000000000002", tag: "tester" },
+    content: "",
+    channelId: "700000000000000001",
+    guildId: group.guildId,
+    createdTimestamp: Date.now(),
+    attachments: new Map([
+      [`a-${id}`, { id: `att-${id}`, url: "http://127.0.0.1:9100/gh-local/photos/shot1.png", contentType, size: 1024, name }],
+    ]),
+    reply: async (payload) => {
+      replies.push({ id, payload });
+      return {};
+    },
+  });
+  const prefix = `botmsg-${randomUUID().slice(0, 8)}`;
+  const photosOf = (id) => db.photo.findMany({ where: { discordMessageId: { startsWith: `${id}:` } } });
+  const repliesTo = (id) => replies.filter((r) => r.id === id);
+  const made = [];
+  try {
+    await handleMessageCreate(fakeMessage(`${prefix}-bot`, { bot: true }));
+    await handleMessageCreate(fakeMessage(`${prefix}-txt`, { contentType: "text/plain", name: "memo.txt" }));
+    const skipped = (await photosOf(`${prefix}-bot`)).length + (await photosOf(`${prefix}-txt`)).length;
+    check("F259 Botの投稿と、画像・動画以外の添付は取り込まない（質問もしない）", skipped === 0 && replies.length === 0, `取り込み${skipped}件 / 質問${replies.length}回`);
+
+    await handleMessageCreate(fakeMessage(`${prefix}-clip`));
+    const clip = await photosOf(`${prefix}-clip`);
+    made.push(...clip);
+    const asked = repliesTo(`${prefix}-clip`);
+    check(
+      "F260 ゲームが分からない投稿は未分類で取り込み、「どのゲーム？」を1回だけ聞く",
+      clip.length === 1 && clip[0].albumId === null && asked.length === 1 && asked[0].payload?.components?.length === 1,
+      `取り込み${clip.length}件 / album=${clip[0]?.albumId} / 質問${asked.length}回`
+    );
+
+    await handleMessageCreate(fakeMessage(`${prefix}-steam`, { name: "1245620_20260810120000_1.png" }));
+    const steam = await photosOf(`${prefix}-steam`);
+    made.push(...steam);
+    check(
+      "F261 Steamのスクショ（ファイル名にapp ID）は、聞かずにアルバムが決まる",
+      steam.length === 1 && steam[0].albumId !== null && repliesTo(`${prefix}-steam`).length === 0,
+      `取り込み${steam.length}件 / album=${steam[0]?.albumId} / 質問${repliesTo(`${prefix}-steam`).length}回`
+    );
+  } catch (e) {
+    check("F259x Botの投稿の取り込みの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    // アルバムに入ったものはキャッシュに載るので API 経由で消す（lessons.md）
+    for (const p of made) await api(`/api/photos/${p.id}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
+{
+  const { startPlayTracker, refreshPlayMembersNow } = await import("../../apps/bot/dist/lib/playTracker.js");
+  const internal = { "x-internal-secret": INTERNAL_SECRET };
+  const APP = "510000000000000077";
+  const VC = "800000000000000009";
+  const people = ["100000000000000001", "100000000000000002", "100000000000000003"]; // admin, member, outsider
+  const startedAt = new Date(Date.now() - 60 * 1000);
+  const guild = {
+    id: group.guildId,
+    voiceStates: { cache: new Map(people.map((id) => [id, { id, channelId: VC }])) },
+    presences: {
+      cache: new Map(
+        people.map((id) => [id, { activities: [{ type: 0, name: "ウィッチャー3", applicationId: APP, timestamps: { start: startedAt } }] }])
+      ),
+    },
+  };
+  const client = { guilds: { cache: new Map([[group.guildId, guild]]) } };
+  const sessions = () => db.groupPlaySession.findMany({ where: { groupId: group.id }, include: { participants: true } });
+
+  await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+  await api("/api/internal/bot-heartbeat", { method: "POST", headers: internal });
+  try {
+    await startPlayTracker(client, null);
+    let rows = await sessions();
+    check(
+      "F262 Botの起動時に、VCで一緒に遊んでいる組がWebへ送られ記録が始まる（部外者は数えない）",
+      rows.length === 1 && rows[0].endedAt === null && rows[0].participants.length === 2,
+      JSON.stringify(rows.map((r) => ({ endedAt: r.endedAt, n: r.participants.length })))
+    );
+
+    // 1人がVCを抜ける → 対象者が1人になる → 次の送信で閉じる
+    guild.voiceStates.cache.delete("100000000000000002");
+    await refreshPlayMembersNow(group.guildId);
+    rows = await sessions();
+    check(
+      "F263 1人がVCを抜けて条件が崩れると、次の送信で記録が閉じる",
+      rows.length === 1 && rows[0].endedAt !== null,
+      JSON.stringify(rows.map((r) => ({ endedAt: r.endedAt })))
+    );
+  } catch (e) {
+    check("F262x Botのプレイ状況の送信の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+    await db.discordAppSteamMapping.deleteMany({ where: { discordApplicationId: APP } });
+  }
 }
 
 const summary = writeResults("flows", "F: 主要導線", results);

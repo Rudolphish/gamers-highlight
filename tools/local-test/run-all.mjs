@@ -39,6 +39,8 @@ const outcomes = {
   api: run("api-sweep.mjs", env),
   flows: run("flows.mjs", env),
   "external-failure": run("external-failure.mjs", env),
+  // ログを読んでクエリ数を数える。手元は PG_LOG（Postgres の -l で指定したファイル）を渡す
+  "query-budget": run("query-budget.mjs", env),
   browser: run("browser.mjs", env),
 };
 
