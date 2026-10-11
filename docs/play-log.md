@@ -281,8 +281,15 @@ M2（ホーム・週次まとめ）、M3（活動カレンダーのグループ�
 
 ### 本番に入れる手順（順序どおりに）
 
-1. `pnpm --filter @gamers-highlight/db exec prisma db push`（**ローカルが最新か確認してから**。
-   追加だけなので既存データには触らない）
+1. スキーマを本番へ反映する。追加だけなので既存データには触らない。2通りある:
+   - **Supabaseのコネクタ経由**（2026-10-11 ユーザー判断でこちらに寄せる）：master の
+     `schema.prisma` → このブランチの `schema.prisma` の差分SQLを作り、ユーザーに見せてから
+     `apply_migration` で流す。本番の接続情報をクラウド環境に置かずに済む。
+     差分SQLは `npx prisma migrate diff --from-schema-datamodel <master の schema.prisma>
+     --to-schema-datamodel packages/db/schema.prisma --script` で作る（**流す前に `list_tables` で
+     本番が master と同じ形か＝新しいテーブルがまだ無いかを確かめる**）
+   - ユーザーの手元で `pnpm --filter @gamers-highlight/db exec prisma db push`
+     （**ローカルが最新か確認してから**）
 2. Webのデプロイ（PRのマージで自動）
 3. Botの入れ替え：`pnpm --filter bot pm2:restart`
 4. コマンドの登録：`pnpm --filter bot deploy-commands`（`/playlog` が出るようになる）
