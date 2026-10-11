@@ -119,30 +119,56 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        # 文書だけの変更かを調べるのに、比べる相手のコミットが要る
+        with:
+          fetch-depth: 0
+
+      # **文書だけの変更（docs/ と *.md）なら、ビルドとテストを飛ばす。** ビルドも画面も変わらないのに
+      # 毎回4分待っていた（2026-10-11 のテストの棚卸しで判断）。ジョブ自体は走らせて「成功」で終わらせる
+      # ——ワークフローごと止める（paths-ignore）と、必須チェックに指定されていた場合に
+      # 文書だけのPRが「待ち」のまま止まる。分からないときは飛ばさない側に倒す
+      - name: 文書だけの変更かを調べる
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then base="${{ github.event.pull_request.base.sha }}"; else base="${{ github.event.before }}"; fi
+          files=$(git diff --name-only "$base" "${{ github.sha }}" 2>/dev/null) || files=""
+          echo "$files"
+          if [ -n "$files" ] && ! echo "$files" | grep -vqE '^docs/|\.md$'; then
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "文書だけの変更なので、ビルドとテストを飛ばす"
+          else
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-node@v4
+        if: steps.changes.outputs.code == 'true'
         with:
           node-version: 22
 
       # checks ジョブと同じ理由で corepack を使う（pnpm/action-setup は 429 で落ちた）
       - name: pnpm を有効にする
+        if: steps.changes.outputs.code == 'true'
         run: corepack enable pnpm
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
 
       - name: pnpm ストアの場所を調べる
+        if: steps.changes.outputs.code == 'true'
         run: echo "PNPM_STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
 
       - uses: actions/cache@v4
+        if: steps.changes.outputs.code == 'true'
         with:
           path: ${{ env.PNPM_STORE_PATH }}
           key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: pnpm-${{ runner.os }}-
 
-      - run: pnpm install --frozen-lockfile
+      - if: steps.changes.outputs.code == 'true'
+        run: pnpm install --frozen-lockfile
 
       # `prisma db push` は使わない（ローカル手順と同じ理由。README参照）
       - name: スキーマを流す
+        if: steps.changes.outputs.code == 'true'
         run: |
           npx prisma migrate diff --from-empty \
             --to-schema-datamodel packages/db/schema.prisma --script > /tmp/gh-schema.sql
@@ -151,6 +177,7 @@ jobs:
       # 値は全部ローカル専用のダミー。外部へは fetch-stub.cjs / mock-r2.mjs が
       # 差し替わるので実際には使われない（キーが存在しないとコードが早期returnする箇所があるため置く）
       - name: apps/web/.env.local を作る
+        if: steps.changes.outputs.code == 'true'
         run: |
           cat > apps/web/.env.local <<'EOF'
           DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/gh"
@@ -176,17 +203,20 @@ jobs:
       # `dev` ではなく本番ビルドで確認する。`dev` だとNext.js自身のエラーオーバーレイが出て
       # アプリ側のエラーバウンダリの挙動が見えない（README参照）
       - name: ビルド
+        if: steps.changes.outputs.code == 'true'
         run: pnpm --filter web build
 
       # Botも組む。F の「落ちていた間の遡り取り込み」が apps/bot/dist を直接読むため
       # （Discordには繋がず、偽のクライアントを渡して取り込み経路だけを通す）
       - name: Botをビルド
+        if: steps.changes.outputs.code == 'true'
         run: pnpm --filter bot build
 
       # ステップが終わってもプロセスを残す必要があるので nohup で切り離す。
       # ログは成果物として持ち帰りたいので、ワークスペース内に置く
       # （upload-artifact はワークスペース外の絶対パスを混ぜると扱いが変わるため）。
       - name: 模擬R2を起動
+        if: steps.changes.outputs.code == 'true'
         run: |
           mkdir -p ci-logs
           nohup node tools/local-test/mock-r2.mjs > ci-logs/mock-r2.log 2>&1 &
@@ -197,6 +227,7 @@ jobs:
           echo "模擬R2が起動しませんでした"; cat ci-logs/mock-r2.log; exit 1
 
       - name: アプリを起動（外部APIはスタブ）
+        if: steps.changes.outputs.code == 'true'
         run: |
           mkdir -p ci-logs
           NODE_OPTIONS="--require $PWD/tools/local-test/fetch-stub.cjs" \
@@ -211,6 +242,7 @@ jobs:
           echo "アプリが起動しませんでした"; tail -50 ci-logs/web.log; exit 1
 
       - name: テストデータを入れる
+        if: steps.changes.outputs.code == 'true'
         run: |
           node tools/local-test/seed.mjs
           echo "SEED_IDS=$(node tools/local-test/ids.mjs)" >> "$GITHUB_ENV"
@@ -220,16 +252,28 @@ jobs:
       # （以前ここに「run-all は browser.mjs をスキップして exit 0 にするから使わない」と
       # 書いていた。その穴は browser.mjs 側を落とすように直したので、理由としては消えている）
       - name: P ページの到達性と権限
+        if: steps.changes.outputs.code == 'true'
         run: node tools/local-test/sweep.mjs
 
       - name: R APIの権限
+        if: steps.changes.outputs.code == 'true'
         run: node tools/local-test/api-sweep.mjs
 
       - name: F 主要導線
+        if: steps.changes.outputs.code == 'true'
         run: node tools/local-test/flows.mjs
 
       - name: X 外部API全滅時
+        if: steps.changes.outputs.code == 'true'
         run: node tools/local-test/external-failure.mjs
+
+      # 主要ページのDBクエリ数に上限を置く（本番では1クエリ＝1往復の待ち時間になる。docs/perf-cache.md）。
+      # Postgres はサービスコンテナなので、ログは docker logs で読む
+      - name: Q 主要ページのDBクエリ数
+        if: steps.changes.outputs.code == 'true'
+        env:
+          PG_LOG_CMD: docker logs ${{ job.services.postgres.id }}
+        run: node tools/local-test/query-budget.mjs
 
       # ブラウザは**ランナーに最初から入っているものを使う**（ubuntu-latest には
       # Google Chrome と Chromium が同梱されている）。`playwright-core install chromium` だと
@@ -242,6 +286,7 @@ jobs:
       # `npx playwright-core install chromium` でPlaywright同梱のビルドを入れて
       # CHROMIUM_PATH をそれに向けること。
       - name: ブラウザを探す
+        if: steps.changes.outputs.code == 'true'
         run: |
           for c in "$CHROME_BIN" google-chrome google-chrome-stable chromium chromium-browser; do
             [ -n "$c" ] || continue
@@ -259,6 +304,7 @@ jobs:
       # ハイドレーション後にクライアントで効く挙動——初期フィルタ・並び替え・
       # localStorageへの保存など——は素通りする）。
       - name: B 実ブラウザでの描画
+        if: steps.changes.outputs.code == 'true'
         run: node tools/local-test/browser.mjs
 
       # 落ちたときに「どの項目がどうNGだったか」を持ち帰れるようにする。

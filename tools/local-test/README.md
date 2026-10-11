@@ -74,6 +74,7 @@ node tools/local-test/sweep.mjs             # P: ページの到達性と権限
 node tools/local-test/api-sweep.mjs         # R: APIの権限
 node tools/local-test/flows.mjs             # F: 主要導線
 node tools/local-test/external-failure.mjs  # X: 外部API全滅時
+PG_LOG=/tmp/pg.log node tools/local-test/query-budget.mjs  # Q: 主要ページのDBクエリ数（PG_LOG は Postgres の -l で渡したファイル）
 node tools/local-test/browser.mjs           # B: 実ブラウザ（CHROMIUM_PATH で使うブラウザを指定）
 node tools/local-test/build-report.mjs      # 表だけ作り直す
 node tools/local-test/audit-invalidation.mjs  # キャッシュ無効化の静的チェック（サーバー不要）
@@ -131,8 +132,10 @@ CIは `results/` をアーティファクトとして保存するので、CIで�
 | `fetch-stub.cjs` | Steam/ITAD/YouTube/HowLongToBeat/Discord の差し替え。`--require` で読ませる |
 | `sweep.mjs` | **P**: 全ページを未ログイン＋3役割で開き、期待ステータスと突き合わせる |
 | `api-sweep.mjs` | **R**: APIの権限を役割ごとに期待値と突き合わせる |
-| `flows.mjs` | **F**: アップロード・招待・提案・ゲーム追加・Discord取り込み・エラー通報・cron・活動ログ・週次まとめ・週次通知・活動カレンダー・アルバムの更新順・**Botの遡り取り込み**（`apps/bot/dist` を読む。Discordには繋がず偽のクライアントを渡す） を通しで確認 |
+| `flows.mjs` | **F**: アップロード・招待・提案・ゲーム追加・Discord取り込み・エラー通報・cron・活動ログ・週次まとめ・週次通知・活動カレンダー・アルバムの更新順・プレイ記録・メンバー管理・**Botのイベント処理**（遡り取り込み・投稿の取り込み・プレイ状況の送信。`apps/bot/dist` を読む。Discordには繋がず偽のオブジェクトを渡す） を通しで確認 |
 | `external-failure.mjs` | **X**: 外部APIを全滅させてもページが500にならないこと |
+| `query-budget.mjs` | **Q**: 主要ページ1回の描画のDBクエリ数に上限を置き、超えたら落とす。数え方は `query-count.mjs` と同じだが、設定をSQLで切り替えるので**CIでも動く**（ログは手元なら `PG_LOG`、CIなら `PG_LOG_CMD="docker logs …"`）。上限を上げるときは理由をファイル内に書く |
+| `lib-checks.mts` | Webのライブラリ関数を tsx で**直接**呼ぶ確認。HTTPからは届かない処理（ログインの途中で動く招待の消費、`ADMIN_EMAILS` 未設定時の管理者判定）のためだけに置く。`flows.mjs` が起動して F234〜F238 として表に載せる |
 | `browser.mjs` | **B**: 実ブラウザ（Chromium）で開いて例外が出ないこと。ブラウザは `CHROMIUM_PATH` で指定する |
 | `query-count.mjs` | 1ページの描画で何回DBを引いているかを数える（`--save` / `--compare`）。本番はネットワーク越しで1クエリ＝1往復なので、**見るべきは所要時間ではなくクエリ数** |
 | `audit-invalidation.mjs` | キャッシュ無効化の呼び忘れ・GETへの混入を静的に洗い出す（サーバー不要） |
