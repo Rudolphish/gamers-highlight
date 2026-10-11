@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { notifyFinishedPlays } from "@/lib/playLogNotify";
+
+/**
+ * 前回の生存報告がこれより新しいときだけ、プレイ記録の終了の通知を送る（Botは15分おき）。
+ * 長く落ちていた後の最初の報告では送らない——Botが落ちている間に閉じた行は、この直後の
+ * 起動処理で「続き」としてつなぎ直されうるので、先に「終わった」を出すと嘘になる。
+ */
+const CONTINUOUS_MS = 20 * 60 * 1000;
 
 /**
  * Discord Bot（apps/bot、PM2常駐プロセス）が起動時＋定期的に叩く生存報告用の内部API。
@@ -31,6 +39,12 @@ export async function POST(req: Request) {
     update: { lastSeenAt: new Date() },
     create: { id: "bot", lastSeenAt: new Date() },
   });
+
+  // 遊び終わってから次のスナップショットが来ないことは普通にある（変化が無ければBotは送らない）。
+  // 終了の通知（閉じて10分後）を拾うのは、定期的に必ず来るこの報告
+  if (previous && Date.now() - previous.lastSeenAt.getTime() < CONTINUOUS_MS) {
+    await notifyFinishedPlays().catch((err) => console.error("[playlog] 終了の通知の処理に失敗", err));
+  }
 
   return NextResponse.json({
     ok: true,

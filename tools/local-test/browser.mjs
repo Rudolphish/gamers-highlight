@@ -966,21 +966,22 @@ for (const [id, label, path] of targets) {
   await page.getByRole("button", { name: /通知の設定/ }).click();
   await page.waitForTimeout(800);
 
-  // 文言の正本は apps/web/src/lib/notificationTargets.ts の NOTIFICATION_KINDS。
+  // 文言の正本は apps/web/src/lib/notificationTargets.ts の NOTIFICATION_KINDS。種類の数（B61・B62 の「1/4」）もここから取る。
   // ここはブラウザ側のスクリプトでTSを読めないので書き写している
   // （種類を入れ替えたときにここだけ古くなり、実際に1件落ちて気づいた）
   const labels = [
     "ゲームが提案されたとき",
     "ウィッシュリストが最安値を更新したとき",
     "週に一度のまとめ",
+    "プレイ記録の開始と終了",
   ];
   const shown = [];
   for (const l of labels) shown.push(await page.getByText(l, { exact: true }).count());
   rows.push({
     id: "B59",
-    item: "通知の設定に3種類が並ぶ",
-    expected: "3種類とも出る",
-    actual: `${shown.filter((n) => n > 0).length}/3`,
+    item: "通知の設定に4種類が並ぶ",
+    expected: "4種類とも出る",
+    actual: `${shown.filter((n) => n > 0).length}/4`,
     ok: shown.every((n) => n > 0),
     note: "",
   });
@@ -1011,7 +1012,7 @@ for (const [id, label, path] of targets) {
     item: "選んだ通知先が保存され、再読み込みしても残る",
     expected: "900000000000000012 / 1種類がオン",
     actual: `${saved} / ${counterText.trim()}`,
-    ok: saved === "900000000000000012" && counterText.includes("1/3"),
+    ok: saved === "900000000000000012" && counterText.includes(`1/${labels.length}`),
     note: "",
   });
 
@@ -1027,7 +1028,7 @@ for (const [id, label, path] of targets) {
     item: "「送らない」に戻せる（後片付け）",
     expected: "0種類がオン",
     actual: (await page.getByRole("button", { name: /通知の設定/ }).textContent())?.trim() ?? "",
-    ok: ((await page.getByRole("button", { name: /通知の設定/ }).textContent()) ?? "").includes("0/3") && cleared,
+    ok: ((await page.getByRole("button", { name: /通知の設定/ }).textContent()) ?? "").includes(`0/${labels.length}`) && cleared,
     note: "",
   });
 
