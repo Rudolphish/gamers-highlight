@@ -15,6 +15,8 @@ import { GameProposals } from "@/components/group/GameProposals";
 import { NotificationSettings } from "@/components/group/NotificationSettings";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { getSteamCoverUrls } from "@/lib/albumCover";
+import { getUnknownPlays } from "@/lib/playLog";
+import { UnknownPlays } from "@/components/group/UnknownPlays";
 
 // サーバーから取る上限。**ここを超えた分はグループ画面から辿れなくなる**ので、
 // 数十件規模なら全部載る値にしておく（ゲーム1本につきアルバム1つ作られるため、
@@ -110,6 +112,14 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
     ? await db.user.findMany({ select: { id: true, name: true, email: true } })
     : [];
   const inviteCandidates = allUsers.filter((u) => !existingIds.has(u.id));
+
+  // ゲームが分からなかったプレイ記録（docs/play-log.md）。**キャッシュには載せない**——
+  // Botのスナップショットで増えるのに、そちらから無効化する経路を作っていないため。
+  // 読めなくてもページは落とさず、区画を出さないだけにする
+  const unknownPlays = await getUnknownPlays(group.id).catch((e) => {
+    console.error("[group] unknown plays failed", e);
+    return [];
+  });
 
   // 組み立てURLは新しいタイトルで404になるため、appdetails由来の値を先に引く
   const steamCovers = await getSteamCoverUrls(group.albums.map((a) => a.steamAppId));
@@ -218,6 +228,13 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       <div className="mt-8">
         {/* プレイ中・クリア済みも含むので「気になっている」ではなくグループ全体のゲーム置き場として扱う */}
         <CollapsibleSection title="みんなのゲーム">
+          {unknownPlays.length > 0 && (
+            <UnknownPlays
+              groupId={group.id}
+              plays={unknownPlays}
+              games={gameCards.map((g) => ({ id: g.id, title: g.title }))}
+            />
+          )}
           <PlayStatusSummary groupId={group.id} games={gameCards} />
           <GroupGameList
             groupId={group.id}

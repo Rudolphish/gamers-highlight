@@ -24,6 +24,8 @@ async function main() {
   await db.externalGameCache.deleteMany();
   await db.apiUsage.deleteMany();
   await db.appSetting.deleteMany();
+  // プレイ記録の対応表はグループに紐づかない（グループを消しても残る）ので、ここで消す
+  await db.discordAppSteamMapping.deleteMany();
 
   const admin = await db.user.create({
     data: {

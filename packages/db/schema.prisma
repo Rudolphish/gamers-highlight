@@ -108,21 +108,23 @@ model User {
   discordUserId String?  @unique
   createdAt     DateTime @default(now())
 
-  ownedAlbums       Album[]                     @relation("AlbumOwner")
-  uploadedPhotos    Photo[]                     @relation("PhotoUploader")
-  albumMemberships  AlbumMember[]
-  channelMappings   DiscordChannelMapping[]
-  gameTags          DiscordGameTag[]
-  ownedGroups       Group[]                     @relation("GroupOwner")
-  groupMemberships  GroupMember[]
-  addedGroupGames   GroupGame[]                 @relation("GroupGameAddedBy")
-  proposedGames     GroupGameProposal[]         @relation("ProposalProposedBy")
-  proposalReactions GroupGameProposalReaction[]
-  gameInterests     GroupGameInterest[]
-  photoReactions    PhotoReaction[]
-  describedPhotos   Photo[]                     @relation("PhotoDescriptionEditor")
-  createdInvites    GroupInvite[]               @relation("GroupInviteCreatedBy")
-  usedInvites       GroupInviteUse[]            @relation("GroupInviteUsedBy")
+  ownedAlbums        Album[]                     @relation("AlbumOwner")
+  uploadedPhotos     Photo[]                     @relation("PhotoUploader")
+  albumMemberships   AlbumMember[]
+  channelMappings    DiscordChannelMapping[]
+  gameTags           DiscordGameTag[]
+  ownedGroups        Group[]                     @relation("GroupOwner")
+  groupMemberships   GroupMember[]
+  addedGroupGames    GroupGame[]                 @relation("GroupGameAddedBy")
+  proposedGames      GroupGameProposal[]         @relation("ProposalProposedBy")
+  proposalReactions  GroupGameProposalReaction[]
+  gameInterests      GroupGameInterest[]
+  photoReactions     PhotoReaction[]
+  describedPhotos    Photo[]                     @relation("PhotoDescriptionEditor")
+  createdInvites     GroupInvite[]               @relation("GroupInviteCreatedBy")
+  usedInvites        GroupInviteUse[]            @relation("GroupInviteUsedBy")
+  playParticipations GroupPlayParticipant[]
+  playLogOptOuts     PlayLogOptOut[]
 
   @@map("users")
 }
@@ -149,6 +151,9 @@ model Group {
   invites   GroupInvite[]
 
   notificationTargets GroupNotificationTarget[]
+
+  playSessions   GroupPlaySession[]
+  playLogOptOuts PlayLogOptOut[]
 
   @@map("groups")
 }
@@ -195,6 +200,10 @@ model ExternalGameCache {
   hltbMainExtraHours     Float?
   hltbCompletionistHours Float?
   hltbAllStylesHours     Float?
+  /// appdetails（`l` を付けない）が返す英語名。`GroupGame.title` は日本語名なので、
+  /// プレイ記録でDiscordの表示名と照らすときに使う（docs/play-log.md §2）。
+  /// **2026-10-11 より前の行には入っていない。** 照合時に足りなければその場で埋める
+  englishName            String?
   updatedAt              DateTime @updatedAt
 
   @@map("external_game_caches")
@@ -227,10 +236,11 @@ model GroupGame {
   lastKnownLowShop   String?
   lastPriceCheckedAt DateTime?
 
-  group     Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  album     Album?              @relation(fields: [albumId], references: [id], onDelete: SetNull)
-  addedBy   User                @relation("GroupGameAddedBy", fields: [addedById], references: [id])
-  interests GroupGameInterest[]
+  group        Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  album        Album?              @relation(fields: [albumId], references: [id], onDelete: SetNull)
+  addedBy      User                @relation("GroupGameAddedBy", fields: [addedById], references: [id])
+  interests    GroupGameInterest[]
+  playSessions GroupPlaySession[]
 
   @@unique([groupId, steamAppId])
   @@index([groupId])
@@ -607,4 +617,83 @@ model DailyActivity {
 
   @@id([groupId, date, kind])
   @@map("daily_activities")
+}
+
+// ───────────────────────────────────────────────────────────
+// プレイ記録（グループとして一緒に遊んだ時間）。設計は docs/play-log.md
+// ───────────────────────────────────────────────────────────
+
+/// グループとして一緒に遊んだ1回。**endedAt が null なら進行中。**
+///
+/// 「同じVCで、同じゲームをプレイ中の対象メンバーが2人以上」の間を1行にする。
+/// 始まりと終わりはBotのスナップショットからWebが決める（lib/playLog.ts）。
+/// 途中の記録をBotのメモリではなくここに持つのは、Botが落ちたときに痕跡ごと消えないようにするため。
+model GroupPlaySession {
+  id                   String    @id @default(cuid())
+  groupId              String
+  /// 3段の対応付けで当たらなければ null（名前だけで記録。グループ画面から選べる）
+  groupGameId          String?
+  /// 同じゲームかどうかの判定に使う。DiscordのアプリIDがあれば `app:<ID>`、無ければ `name:<正規化した名前>`
+  gameKey              String
+  discordApplicationId String?
+  /// Discordの表示名。当たらなかったときの手掛かりで、選ぶ画面にもこれを出す
+  activityName         String
+  voiceChannelId       String
+  startedAt            DateTime
+  endedAt              DateTime?
+  /// 推定を含む。Botが落ちていた間に終わったものを「最後に生きていた時刻」で閉じた、
+  /// または落ちていた間をまたいで続きとしてつないだ
+  estimated            Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  group        Group                  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupGame    GroupGame?             @relation(fields: [groupGameId], references: [id], onDelete: SetNull)
+  participants GroupPlayParticipant[]
+
+  @@index([groupId, endedAt])
+  @@index([groupId, gameKey])
+  @@index([groupGameId, startedAt])
+  @@map("group_play_sessions")
+}
+
+/// 参加者。**外れた人（PlayLogOptOut）も過去の行は残す**（グループで遊んだ事実なので）。
+/// 抜けて戻ってきた人は同じ行の leftAt を空に戻す。
+model GroupPlayParticipant {
+  sessionId String
+  userId    String
+  joinedAt  DateTime
+  leftAt    DateTime?
+
+  session GroupPlaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, userId])
+  @@index([userId])
+  @@map("group_play_participants")
+}
+
+/// 「DiscordのアプリID → Steam appId」。対応付けの1段目。
+/// **グループをまたいで共通**（Discordのアプリと Steam のゲームの対応はグループに依らない）。
+/// 2段目（名前の一致）で当たったとき、またはグループ画面で選ばれたときに増える。
+model DiscordAppSteamMapping {
+  discordApplicationId String   @id
+  steamAppId           Int
+  createdAt            DateTime @default(now())
+
+  @@map("discord_app_steam_mappings")
+}
+
+/// プレイ記録から外れた人。**行がある＝そのグループでは数えない**（`/playlog off`）。
+/// 既定は全員が対象なので、「数えてよい」側は行を持たない。
+model PlayLogOptOut {
+  groupId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@map("play_log_opt_outs")
 }

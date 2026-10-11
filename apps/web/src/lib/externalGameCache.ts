@@ -32,6 +32,8 @@ export const EXTERNAL_SOURCE_LABEL: Record<ExternalSource, string> = {
 type FetchOutcome = {
   data: ExternalGameData;
   headerImage: string | null;
+  /** appdetails の英語名。プレイ記録の照合に使う（docs/play-log.md）。取れなければ null */
+  englishName: string | null;
   /** 値が得られなかったソース。「障害」と「そもそも該当が無い」は区別しない */
   missing: ExternalSource[];
 };
@@ -82,6 +84,7 @@ async function fetchExternal(
       hltbAllStylesHours: hltb?.allStyles ?? null,
     },
     headerImage: steam.headerImage,
+    englishName: steam.name,
     missing,
   };
 }
@@ -153,6 +156,7 @@ export async function refreshExternalGameData(
   const {
     data: result,
     headerImage: fetchedHeader,
+    englishName: fetchedName,
     missing,
   } = await fetchExternal(steamAppId, title, need);
 
@@ -169,11 +173,12 @@ export async function refreshExternalGameData(
       }
     : result;
   const headerImage = fetchedHeader ?? existing?.headerImage ?? null;
+  const englishName = fetchedName ?? existing?.englishName ?? null;
 
   await db.externalGameCache.upsert({
     where: { steamAppId },
-    create: { steamAppId, ...merged, headerImage },
-    update: { ...merged, headerImage },
+    create: { steamAppId, ...merged, headerImage, englishName },
+    update: { ...merged, headerImage, englishName },
   });
 
   return { ...merged, headerImage, missing };
@@ -194,7 +199,11 @@ export async function getOrFetchExternalGameData(
     // （どちらも一時的に失敗するのが普通のサービスなので、これは必ず起きる）。
     // 不足しているソースだけを、間隔を空けて引き直す。
     if (toRetry.length > 0 && elapsed >= RETRY_MISSING_INTERVAL_MS) {
-      const { data: fetched, headerImage: fetchedHeader } = await fetchExternal(
+      const {
+        data: fetched,
+        headerImage: fetchedHeader,
+        englishName: fetchedName,
+      } = await fetchExternal(
         steamAppId,
         title,
         needOnly(toRetry),
@@ -212,10 +221,11 @@ export async function getOrFetchExternalGameData(
         hltbAllStylesHours: fetched.hltbAllStylesHours ?? cached.hltbAllStylesHours,
       };
       const headerImage = fetchedHeader ?? cached.headerImage;
+      const englishName = fetchedName ?? cached.englishName;
 
       await db.externalGameCache.update({
         where: { steamAppId },
-        data: { ...merged, headerImage },
+        data: { ...merged, headerImage, englishName },
       });
 
       return { ...merged, headerImage };
@@ -233,12 +243,12 @@ export async function getOrFetchExternalGameData(
     };
   }
 
-  const { data: result, headerImage } = await fetchExternal(steamAppId, title);
+  const { data: result, headerImage, englishName } = await fetchExternal(steamAppId, title);
 
   await db.externalGameCache.upsert({
     where: { steamAppId },
-    create: { steamAppId, ...result, headerImage },
-    update: { ...result, headerImage },
+    create: { steamAppId, ...result, headerImage, englishName },
+    update: { ...result, headerImage, englishName },
   });
 
   return { ...result, headerImage };

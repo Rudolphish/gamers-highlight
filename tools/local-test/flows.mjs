@@ -2949,6 +2949,319 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ───────────────────────────────────────────────────────────
+// プレイ記録（グループで一緒に遊んだ時間）。設計は docs/play-log.md
+// ───────────────────────────────────────────────────────────
+//
+// **Discordには繋がない。** Botが送るスナップショットを偽装して内部APIへ直に送り、
+// 行の開閉・対応付け・外れた人の扱いをDBで確かめる。検知の判定（VC＋プレイ状況 → 組）は
+// Botの純粋関数を apps/bot/dist から読んで確かめる。
+//
+// プレイ記録はキャッシュに載せていないので、後片付けはDB直でよい（lessons.md の
+// 「作ったデータは同じ経路で消す」はキャッシュに載るものの話）。
+{
+  const ADMIN = "100000000000000001";
+  const MEMBER = "100000000000000002";
+  const OUTSIDER = "100000000000000003";
+  const VC = "800000000000000001";
+  const VC2 = "800000000000000002";
+  const WITCHER_APP = "510000000000000001";
+  const UNKNOWN_APP = "510000000000000099";
+  const guildId = group.guildId;
+  const internal = { "x-internal-secret": INTERNAL_SECRET };
+
+  const witcher = await db.groupGame.findFirst({ where: { groupId: group.id, steamAppId: 292030 } });
+  const elden = await db.groupGame.findFirst({ where: { groupId: group.id, steamAppId: 1245620 } });
+
+  const snapshot = (activities, extra = {}) =>
+    api("/api/internal/play-log/snapshot", { method: "POST", headers: internal, body: { guildId, activities, ...extra } });
+  const act = (name, applicationId, ids, { vc = VC, since = null } = {}) => ({
+    voiceChannelId: vc,
+    applicationId,
+    name,
+    participants: ids.map((discordUserId) => ({ discordUserId, since })),
+  });
+  const sessions = () =>
+    db.groupPlaySession.findMany({ where: { groupId: group.id }, include: { participants: true }, orderBy: { createdAt: "asc" } });
+  const opt = (discordUserId, action, g = guildId) =>
+    api("/api/internal/play-log/opt", { method: "POST", headers: internal, body: { guildId: g, discordUserId, action } });
+
+  // 前のスイートや前回の実行が残したものを消してから始める（CIは毎回まっさらだが、手元は同じDBに流す）
+  await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+  await db.playLogOptOut.deleteMany({ where: { groupId: group.id } });
+  await db.discordAppSteamMapping.deleteMany({ where: { discordApplicationId: { in: [WITCHER_APP, UNKNOWN_APP] } } });
+  // 進行中の行を「プレイ中」と出すかは生存報告の新しさで決まる。テストの間は新しくしておく
+  await api("/api/internal/bot-heartbeat", { method: "POST", headers: internal });
+
+  try {
+    const noSecret = await api("/api/internal/play-log/snapshot", { method: "POST", body: { guildId, activities: [] } });
+    check("F211 共有シークレットが無いとスナップショットを受け付けない", noSecret.status === 401, noSecret.status);
+
+    const broken = await snapshot([{ voiceChannelId: "abc", name: "x", applicationId: null, participants: [] }]);
+    check("F212 形の壊れたスナップショットは400", broken.status === 400, broken.status);
+
+    const members = await api(`/api/internal/play-log/members?guildId=${guildId}`, { headers: internal });
+    const ids = members.json?.discordUserIds ?? [];
+    const noGroup = await api("/api/internal/play-log/members?guildId=999999999999999999", { headers: internal });
+    check(
+      "F213 対象者はグループのメンバーで連携済みの人だけ（部外者は入らない）",
+      members.status === 200 && ids.includes(ADMIN) && ids.includes(MEMBER) && !ids.includes(OUTSIDER) && noGroup.json?.group === false,
+      JSON.stringify({ ids, noGroup: noGroup.json })
+    );
+
+    // **1人だけでは数えない。** 部外者が一緒に遊んでいても人数に入らない
+    await snapshot([act("ウィッチャー3", WITCHER_APP, [ADMIN, OUTSIDER])]);
+    check("F214 ゲーム中が対象者1人だけなら記録しない（部外者は数に入らない）", (await sessions()).length === 0, (await sessions()).length);
+
+    // 2人以上 → 開く。日本語名（GroupGame.title）で当たり、アプリIDの対応が保存される
+    const first = await snapshot([act("ウィッチャー3", WITCHER_APP, [ADMIN, MEMBER, OUTSIDER])]);
+    let rows = await sessions();
+    const participantIds = rows[0]?.participants.map((p) => p.userId).sort() ?? [];
+    const adminUser = await db.user.findUnique({ where: { discordUserId: ADMIN } });
+    const memberUser = await db.user.findUnique({ where: { discordUserId: MEMBER } });
+    check(
+      "F215 VCで2人以上が同じゲームなら記録が始まり、参加者は対象者だけ",
+      first.status === 200 &&
+        rows.length === 1 &&
+        rows[0].endedAt === null &&
+        participantIds.length === 2 &&
+        participantIds.includes(adminUser.id) &&
+        participantIds.includes(memberUser.id),
+      JSON.stringify({ status: first.status, n: rows.length, participantIds })
+    );
+    const mapping = await db.discordAppSteamMapping.findUnique({ where: { discordApplicationId: WITCHER_APP } });
+    check(
+      "F216 日本語名で当たり、DiscordのアプリIDとSteamの対応が保存される",
+      rows[0]?.groupGameId === witcher.id && mapping?.steamAppId === 292030,
+      JSON.stringify({ game: rows[0]?.groupGameId, mapping })
+    );
+
+    await snapshot([act("ウィッチャー3", WITCHER_APP, [ADMIN, MEMBER])]);
+    check("F217 同じ状態を送り直しても行は増えない（冪等）", (await sessions()).length === 1, (await sessions()).length);
+
+    await snapshot([]);
+    rows = await sessions();
+    check(
+      "F218 条件が崩れたら閉じ、参加者の退出時刻も入る",
+      rows[0]?.endedAt !== null && rows[0]?.participants.every((p) => p.leftAt !== null),
+      JSON.stringify(rows[0])
+    );
+
+    // **10分以内に戻ってきたら同じ1回として続ける**（クラッシュで一時的に1人になった等）
+    await snapshot([act("ウィッチャー3", WITCHER_APP, [ADMIN, MEMBER], { vc: VC2 })]);
+    rows = await sessions();
+    check(
+      "F219 10分以内に同じゲームが戻ると同じ行を続ける（VCが変わっても）",
+      rows.length === 1 && rows[0].endedAt === null && rows[0].voiceChannelId === VC2 && rows[0].participants.every((p) => p.leftAt === null),
+      JSON.stringify(rows.map((r) => ({ endedAt: r.endedAt, vc: r.voiceChannelId })))
+    );
+
+    // 閉じて11分以上たった扱いにすると、次は別の1回になる。名前が違ってもアプリIDの対応（1段目）で当たる
+    await snapshot([]);
+    await db.groupPlaySession.updateMany({
+      where: { groupId: group.id },
+      data: { startedAt: new Date(Date.now() - 50 * 60 * 1000), endedAt: new Date(Date.now() - 11 * 60 * 1000) },
+    });
+    await snapshot([act("The Witcher 3 (renamed)", WITCHER_APP, [ADMIN, MEMBER])]);
+    rows = await sessions();
+    check(
+      "F220 途切れが10分を超えると別の1回になり、アプリIDの対応で名前が違っても当たる",
+      rows.length === 2 && rows[1].groupGameId === witcher.id,
+      JSON.stringify(rows.map((r) => ({ game: r.groupGameId, name: r.activityName })))
+    );
+    await snapshot([]);
+
+    // 2段目の英語名。アプリIDが無く、日本語名とも一致しない → appdetails の英語名で当たる
+    await snapshot([act("The Witcher 3: Wild Hunt", null, [ADMIN, MEMBER])]);
+    rows = await sessions();
+    check(
+      "F221 英語名（記号違い）でも当たる",
+      rows.length === 3 && rows[2].groupGameId === witcher.id,
+      JSON.stringify(rows.map((r) => ({ game: r.groupGameId, name: r.activityName })))
+    );
+    await snapshot([]);
+
+    // 分からないゲーム → 名前だけ記録 → グループ画面に出る → メンバーが選ぶ → 過去分にも反映
+    await snapshot([act("Mystery Game", UNKNOWN_APP, [ADMIN, MEMBER])]);
+    await snapshot([]);
+    rows = await sessions();
+    const unknown = rows.find((r) => r.discordApplicationId === UNKNOWN_APP);
+    const groupPage = await api(`/groups/${group.id}`, { cookie: memberCookie });
+    check(
+      "F222 当たらないゲームは名前だけ記録され、グループ画面に「ゲームが分からないプレイ」として出る",
+      unknown?.groupGameId === null && groupPage.text.includes("ゲームが分からないプレイ") && groupPage.text.includes("Mystery Game"),
+      `${unknown?.groupGameId} / ${groupPage.status}`
+    );
+
+    const byOutsider = await api(`/api/groups/${group.id}/play-log/assign`, {
+      method: "POST",
+      cookie: outsiderCookie,
+      body: { gameKey: unknown?.gameKey, groupGameId: elden.id },
+    });
+    check("F223 部外者は結びつけられない", byOutsider.status === 403, byOutsider.status);
+
+    const assigned = await api(`/api/groups/${group.id}/play-log/assign`, {
+      method: "POST",
+      cookie: memberCookie,
+      body: { gameKey: unknown?.gameKey, groupGameId: elden.id },
+    });
+    const afterAssign = await db.groupPlaySession.findUnique({ where: { id: unknown?.id ?? "" } });
+    const savedMapping = await db.discordAppSteamMapping.findUnique({ where: { discordApplicationId: UNKNOWN_APP } });
+    check(
+      "F224 メンバーが選ぶと過去分に反映され、次から自動で当たるよう対応が保存される",
+      assigned.status === 200 && afterAssign?.groupGameId === elden.id && savedMapping?.steamAppId === 1245620,
+      JSON.stringify({ status: assigned.status, game: afterAssign?.groupGameId, savedMapping })
+    );
+
+    // 外れる・戻る
+    const off = await opt(MEMBER, "off");
+    const membersAfterOff = await api(`/api/internal/play-log/members?guildId=${guildId}`, { headers: internal });
+    await snapshot([act("ウィッチャー3", WITCHER_APP, [ADMIN, MEMBER])]);
+    const countAfterOff = (await sessions()).length;
+    check(
+      "F225 /playlog off で外れた人は数えない（2人いても記録が始まらない）",
+      off.json?.status === "opted-out" &&
+        !(membersAfterOff.json?.discordUserIds ?? []).includes(MEMBER) &&
+        countAfterOff === rows.length,
+      JSON.stringify({ off: off.json, ids: membersAfterOff.json?.discordUserIds, before: rows.length, after: countAfterOff })
+    );
+    const pastStillThere = await db.groupPlayParticipant.count({ where: { userId: memberUser.id } });
+    check("F226 外れても過去の参加記録は残る", pastStillThere > 0, pastStillThere);
+
+    const on = await opt(MEMBER, "on");
+    const status = await opt(MEMBER, "status");
+    const unlinked = await opt("100000000000000777", "status");
+    const notMember = await opt(OUTSIDER, "status");
+    const noGroupOpt = await opt(MEMBER, "status", "999999999999999999");
+    check(
+      "F227 /playlog の状態（戻す・連携なし・メンバー外・グループなし）",
+      on.json?.status === "counted" &&
+        status.json?.status === "counted" &&
+        unlinked.json?.status === "unlinked" &&
+        notMember.json?.status === "not-member" &&
+        noGroupOpt.json?.status === "no-group",
+      JSON.stringify([on.json, status.json, unlinked.json, notMember.json, noGroupOpt.json])
+    );
+
+    // Botの再起動。進行中の行を「前回生きていた時刻」で閉じ、推定の印を付ける
+    await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+    await snapshot([act("ウィッチャー3", WITCHER_APP, [ADMIN, MEMBER])]);
+    const openRow = (await sessions())[0];
+    const lastSeen = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    await db.groupPlaySession.update({ where: { id: openRow.id }, data: { startedAt: new Date(lastSeen.getTime() - 60 * 60 * 1000) } });
+    const started = await api("/api/internal/play-log/bot-started", {
+      method: "POST",
+      headers: internal,
+      body: { previousSeenAt: lastSeen.toISOString() },
+    });
+    let closedRow = await db.groupPlaySession.findUnique({ where: { id: openRow.id } });
+    check(
+      "F228 Botの起動時、進行中の行は前回生きていた時刻で閉じられ「推定」になる",
+      started.json?.closed === 1 && closedRow?.estimated === true && closedRow?.endedAt?.getTime() === lastSeen.getTime(),
+      JSON.stringify({ started: started.json, closedRow })
+    );
+
+    // 開始時刻が分からない組はつながない（一晩落ちていた間を「遊んでいた」にしない）
+    await snapshot([act("ウィッチャー3", WITCHER_APP, [ADMIN, MEMBER])], { resumeAfter: lastSeen.toISOString() });
+    rows = await sessions();
+    check(
+      "F229 開始時刻が分からなければ、落ちていた間はつながず別の1回にする",
+      rows.length === 2 && rows[0].endedAt !== null,
+      JSON.stringify(rows.map((r) => ({ endedAt: r.endedAt, estimated: r.estimated })))
+    );
+
+    // 落ちる前から続いていた組（since が前回生きていた時刻より前）は、閉じた行の続きとしてつなぐ
+    await db.groupPlaySession.deleteMany({ where: { id: rows[1].id } });
+    const since = lastSeen.getTime() - 30 * 60 * 1000;
+    await snapshot([act("ウィッチャー3", WITCHER_APP, [ADMIN, MEMBER], { since })], { resumeAfter: lastSeen.toISOString() });
+    rows = await sessions();
+    check(
+      "F230 落ちる前から遊び続けていた組は、閉じた行の続きとしてつなぐ（推定のまま）",
+      rows.length === 1 && rows[0].id === openRow.id && rows[0].endedAt === null && rows[0].estimated === true,
+      JSON.stringify(rows.map((r) => ({ id: r.id === openRow.id, endedAt: r.endedAt, estimated: r.estimated })))
+    );
+    await snapshot([]);
+
+    // ゲーム詳細に出る。5分未満は一覧に出さず、合計には含める
+    await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+    const mk = (startMinAgo, minutes) =>
+      db.groupPlaySession.create({
+        data: {
+          groupId: group.id,
+          groupGameId: witcher.id,
+          gameKey: `app:${WITCHER_APP}`,
+          discordApplicationId: WITCHER_APP,
+          activityName: "ウィッチャー3",
+          voiceChannelId: VC,
+          startedAt: new Date(Date.now() - startMinAgo * 60 * 1000),
+          endedAt: new Date(Date.now() - (startMinAgo - minutes) * 60 * 1000),
+          participants: {
+            create: [
+              { userId: adminUser.id, joinedAt: new Date(Date.now() - startMinAgo * 60 * 1000) },
+              { userId: memberUser.id, joinedAt: new Date(Date.now() - startMinAgo * 60 * 1000) },
+            ],
+          },
+        },
+      });
+    await mk(300, 90); // 90分
+    await mk(100, 3); // 3分（一覧には出さない）
+    const detail = await api(`/groups/${group.id}/games/${witcher.id}`, { cookie: memberCookie });
+    // 一覧の区画の中だけを数える（ページの他の場所の <li> を拾わないように）
+    const listHtml = detail.text.split('data-testid="group-play-sessions"')[1]?.split("</ul>")[0] ?? "";
+    const listCount = (listHtml.match(/<li /g) ?? []).length;
+    check(
+      "F231 ゲーム詳細に合計（5分未満も含む）と参加者が出て、5分未満は一覧に出ない",
+      detail.status === 200 &&
+        detail.text.includes("グループで遊んだ時間") &&
+        detail.text.includes("1時間33分") &&
+        listHtml.includes("管理者ユーザー") &&
+        listHtml.includes("一般メンバー") &&
+        listCount === 1,
+      `${detail.status} / 合計=${detail.text.includes("1時間33分")} / 一覧=${listCount}`
+    );
+  } finally {
+    await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+    await db.playLogOptOut.deleteMany({ where: { groupId: group.id } });
+    await db.discordAppSteamMapping.deleteMany({ where: { discordApplicationId: { in: [WITCHER_APP, UNKNOWN_APP] } } });
+  }
+
+  // 検知の判定（Botの純粋関数）
+  const { computePlayingGroups, snapshotSignature } = await import("../../apps/bot/dist/lib/playLog.js");
+  const playing = (name, applicationId, startedAt = null) => ({ type: 0, name, applicationId, startedAt });
+  const presences = {
+    a: [playing("Game A", "1")],
+    b: [playing("Game A", "1"), { type: 2, name: "Spotify", applicationId: null, startedAt: null }],
+    c: [playing("Game A", "1")],
+    d: [playing("Game B", null)],
+    e: [playing("Game B", null)],
+    x: [playing("Game A", "1")],
+  };
+  const voice = [
+    { userId: "a", channelId: "v1" },
+    { userId: "b", channelId: "v1" },
+    { userId: "x", channelId: "v1" },
+    { userId: "c", channelId: "v2" },
+    { userId: "d", channelId: "v2" },
+    { userId: "e", channelId: "v2" },
+  ];
+  const groups = computePlayingGroups(voice, (id) => presences[id] ?? [], new Set(["a", "b", "c", "d", "e"]));
+  check(
+    "F232 Botの判定：同じVC・同じゲームの対象者2人以上だけが組になる（対象外・別VCの1人・音楽は数えない）",
+    groups.length === 2 &&
+      groups[0].voiceChannelId === "v1" &&
+      groups[0].participants.map((p) => p.discordUserId).join(",") === "a,b" &&
+      groups[1].voiceChannelId === "v2" &&
+      groups[1].name === "Game B" &&
+      groups[1].participants.length === 2,
+    JSON.stringify(groups)
+  );
+
+  const sigA = snapshotSignature(computePlayingGroups(voice, (id) => presences[id] ?? [], new Set(["a", "b"])));
+  const withSince = { ...presences, a: [playing("Game A", "1", 123)] };
+  const sigB = snapshotSignature(computePlayingGroups(voice, (id) => withSince[id] ?? [], new Set(["a", "b"])));
+  check("F233 Botの判定：開始時刻が揺れただけでは送り直さない", sigA === sigB, `${sigA} / ${sigB}`);
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();

@@ -1,6 +1,7 @@
 import "./env.js";
 import { REST, Routes } from "discord.js";
 import * as tagCommand from "./commands/tag.js";
+import * as playlogCommand from "./commands/playlog.js";
 
 // スラッシュコマンド定義をDiscord APIに登録する。コマンドを追加/変更した際に一度だけ実行する。
 // DISCORD_GUILD_IDが設定されていればそのサーバー限定で即時反映（開発向け）、
@@ -8,7 +9,7 @@ import * as tagCommand from "./commands/tag.js";
 const clientId = process.env.DISCORD_CLIENT_ID!;
 const guildId = process.env.DISCORD_GUILD_ID;
 
-const commands = [tagCommand.data.toJSON()];
+const commands = [tagCommand.data.toJSON(), playlogCommand.data.toJSON()];
 
 const rest = new REST().setToken(process.env.DISCORD_BOT_TOKEN!);
 

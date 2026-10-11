@@ -1,3 +1,5 @@
+import type { PlayingGroup } from "./playLog.js";
+
 const BASE_URL = process.env.INTERNAL_API_BASE_URL!;
 const SECRET = process.env.INTERNAL_API_SECRET!;
 
@@ -149,5 +151,98 @@ export async function sendHeartbeat(): Promise<{ previousSeenAt: Date | null }> 
   } catch (err) {
     console.error("[apiClient] heartbeat failed", err);
     return { previousSeenAt: null };
+  }
+}
+
+// ───────────────────────────────────────────────────────────
+// プレイ記録（docs/play-log.md）
+// ───────────────────────────────────────────────────────────
+
+/** そのサーバーで数えてよい人。グループが無いサーバーは group: false（そのサーバーは見ない） */
+export async function fetchPlayLogMembers(
+  guildId: string
+): Promise<{ group: boolean; discordUserIds: string[] } | null> {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/api/internal/play-log/members?guildId=${encodeURIComponent(guildId)}`,
+      { headers: { "x-internal-secret": SECRET } }
+    );
+    if (!res.ok) {
+      console.error(`[apiClient] play-log members failed: ${res.status}`);
+      return null;
+    }
+    const data = (await res.json()) as { group?: boolean; discordUserIds?: string[] };
+    return { group: Boolean(data.group), discordUserIds: data.discordUserIds ?? [] };
+  } catch (err) {
+    console.error("[apiClient] play-log members failed", err);
+    return null;
+  }
+}
+
+/** いまの状態を送る。**失敗したら false**（呼び出し側は「送れた」と記録せず、次の機会に送り直す） */
+export async function sendPlaySnapshot(payload: {
+  guildId: string;
+  activities: PlayingGroup[];
+  resumeAfter?: string | null;
+}): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/internal/play-log/snapshot`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-secret": SECRET },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      console.error(`[apiClient] play-log snapshot failed: ${res.status} ${await res.text()}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[apiClient] play-log snapshot failed", err);
+    return false;
+  }
+}
+
+/** 起動直後に1回。落ちていた間に終わったものとして、進行中の記録を前回生きていた時刻で閉じてもらう */
+export async function notifyPlayLogBotStarted(previousSeenAt: Date | null): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/internal/play-log/bot-started`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-secret": SECRET },
+      body: JSON.stringify({ previousSeenAt: previousSeenAt?.toISOString() ?? null }),
+    });
+    if (!res.ok) {
+      console.error(`[apiClient] play-log bot-started failed: ${res.status}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[apiClient] play-log bot-started failed", err);
+    return false;
+  }
+}
+
+export type PlayLogStatus = "no-group" | "unlinked" | "not-member" | "counted" | "opted-out";
+
+/** `/playlog on|off|status`。失敗したら null */
+export async function setPlayLogOpt(payload: {
+  guildId: string;
+  discordUserId: string;
+  action: "on" | "off" | "status";
+}): Promise<PlayLogStatus | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/internal/play-log/opt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-secret": SECRET },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      console.error(`[apiClient] play-log opt failed: ${res.status}`);
+      return null;
+    }
+    const data = (await res.json()) as { status?: PlayLogStatus };
+    return data.status ?? null;
+  } catch (err) {
+    console.error("[apiClient] play-log opt failed", err);
+    return null;
   }
 }

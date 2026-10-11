@@ -17,6 +17,8 @@ const APP_NAMES = {
   1245620: { ja: "ELDEN RING", en: "ELDEN RING" },
   271590: { ja: "グランド・セフト・オートV", en: "Grand Theft Auto V" },
   570: { ja: "Dota 2", en: "Dota 2" },
+  // プレイ記録の照合（英語名で当てる2段目）の確認用。seed の「ウィッチャー3」
+  292030: { ja: "ウィッチャー3 ワイルドハント", en: "The Witcher® 3: Wild Hunt" },
   1091500: { ja: "サイバーパンク2077", en: "Cyberpunk 2077" },
   1174180: { ja: "レッド・デッド・リデンプション2", en: "Red Dead Redemption 2" },
 };
