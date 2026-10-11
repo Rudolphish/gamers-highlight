@@ -11,7 +11,17 @@ async function invalidateAlbumWithGroup(albumId: string) {
 }
 
 // GET /api/albums/:id/tags … このアルバムに紐付いているハッシュタグ一覧
+//
+// **見られる人だけに返す。** 以前は認証も権限も無く、アルバムのIDさえ分かれば未ログインでも
+// DiscordのサーバーID・タグ・登録者のIDが読めた（テストの棚卸しで発覚。画面からは呼んでいない）。
+// 他のアルバムのAPI（GET /api/albums/:id）と同じ判定にそろえる。
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  const actor = await getCurrentUser();
+  if (!actor) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const allowed = await hasAlbumPermission(params.id, actor.id, "VIEWER");
+  if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+
   const tags = await db.discordGameTag.findMany({
     where: { autoAlbumId: params.id },
     orderBy: { createdAt: "asc" },

@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { invalidateAlbum } from "@/lib/cacheTags";
 import { db } from "@/lib/db";
 import { hasAlbumPermission } from "@/lib/permissions";
+import { INVALID_ROLE_MESSAGE, parseMemberRole } from "@/lib/memberRole";
 
 /** グループ詳細にもアルバム名が出るので、グループのタグも一緒に飛ばす */
 async function invalidateAlbumWithGroup(albumId: string) {
@@ -18,7 +19,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const allowed = await hasAlbumPermission(params.id, actor.id, "OWNER");
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const body = await req.json(); // { email: string, role: "EDITOR" | "VIEWER" }
+  const body = await req.json().catch(() => ({})); // { email: string, role: "EDITOR" | "VIEWER" }
+  const role = parseMemberRole(body.role);
+  if (!role) return NextResponse.json({ error: INVALID_ROLE_MESSAGE }, { status: 400 });
   const invitee = await db.user.findUnique({ where: { email: body.email } });
   if (!invitee) {
     return NextResponse.json({ error: "user not found" }, { status: 404 });
@@ -26,8 +29,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const member = await db.albumMember.upsert({
     where: { albumId_userId: { albumId: params.id, userId: invitee.id } },
-    update: { role: body.role },
-    create: { albumId: params.id, userId: invitee.id, role: body.role },
+    update: { role },
+    create: { albumId: params.id, userId: invitee.id, role },
   });
 
   await invalidateAlbumWithGroup(params.id);

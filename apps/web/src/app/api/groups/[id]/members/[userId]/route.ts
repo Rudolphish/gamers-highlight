@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
+import { INVALID_ROLE_MESSAGE, parseMemberRole } from "@/lib/memberRole";
 
 // PATCH /api/groups/:id/members/:userId … 権限変更
 // audit-activity-log: 意図的に記録しない（役割の変更と、メンバーの削除。
@@ -18,12 +19,16 @@ export async function PATCH(
   const allowed = await hasGroupPermission(params.id, actor.id, "OWNER");
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const body = await req.json(); // { role: "EDITOR" | "VIEWER" }
+  const body = await req.json().catch(() => ({})); // { role: "EDITOR" | "VIEWER" }
+  const role = parseMemberRole(body.role);
+  if (!role) return NextResponse.json({ error: INVALID_ROLE_MESSAGE }, { status: 400 });
 
-  const member = await db.groupMember.update({
-    where: { groupId_userId: { groupId: params.id, userId: params.userId } },
-    data: { role: body.role },
-  });
+  // メンバーでない人を指定されたら404（以前は update が例外を投げて500になっていた）
+  const where = { groupId_userId: { groupId: params.id, userId: params.userId } };
+  if (!(await db.groupMember.findUnique({ where, select: { id: true } }))) {
+    return NextResponse.json({ error: "not a member" }, { status: 404 });
+  }
+  const member = await db.groupMember.update({ where, data: { role } });
 
   invalidateGroup(params.id);
   return NextResponse.json({ member });
@@ -40,9 +45,10 @@ export async function DELETE(
   const allowed = await hasGroupPermission(params.id, actor.id, "OWNER");
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  await db.groupMember.delete({
-    where: { groupId_userId: { groupId: params.id, userId: params.userId } },
+  const { count } = await db.groupMember.deleteMany({
+    where: { groupId: params.id, userId: params.userId },
   });
+  if (count === 0) return NextResponse.json({ error: "not a member" }, { status: 404 });
 
   invalidateGroup(params.id);
   return NextResponse.json({ ok: true });
