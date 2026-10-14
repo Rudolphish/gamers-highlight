@@ -161,7 +161,7 @@ export async function sendHeartbeat(): Promise<{ previousSeenAt: Date | null }> 
 /** そのサーバーで数えてよい人。グループが無いサーバーは group: false（そのサーバーは見ない） */
 export async function fetchPlayLogMembers(
   guildId: string
-): Promise<{ group: boolean; discordUserIds: string[] } | null> {
+): Promise<{ group: boolean; discordUserIds: string[]; minParticipants: number } | null> {
   try {
     const res = await fetch(
       `${BASE_URL}/api/internal/play-log/members?guildId=${encodeURIComponent(guildId)}`,
@@ -171,8 +171,13 @@ export async function fetchPlayLogMembers(
       console.error(`[apiClient] play-log members failed: ${res.status}`);
       return null;
     }
-    const data = (await res.json()) as { group?: boolean; discordUserIds?: string[] };
-    return { group: Boolean(data.group), discordUserIds: data.discordUserIds ?? [] };
+    const data = (await res.json()) as { group?: boolean; discordUserIds?: string[]; minParticipants?: number };
+    return {
+      group: Boolean(data.group),
+      discordUserIds: data.discordUserIds ?? [],
+      // 古いWebは返さない。そのときは今までどおり2人
+      minParticipants: data.minParticipants === 1 ? 1 : 2,
+    };
   } catch (err) {
     console.error("[apiClient] play-log members failed", err);
     return null;

@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { getSteamAppSummary } from "./steam";
+import { getRawAppSetting, playLogMinParticipantsKey } from "./appSettings";
 
 /**
  * プレイ記録（グループとして一緒に遊んだ時間）。設計は docs/play-log.md。
@@ -64,6 +65,17 @@ export function normalizeGameName(name: string): string {
 
 export function gameKeyOf(activity: { applicationId: string | null; name: string }): string {
   return activity.applicationId ? `app:${activity.applicationId}` : `name:${normalizeGameName(activity.name)}`;
+}
+
+/** 記録の最少人数の既定。「一緒に遊んだ」なので2人 */
+export const PLAY_LOG_MIN_PARTICIPANTS_DEFAULT = 2;
+
+/**
+ * そのグループの記録の最少人数（1 か 2）。1 は管理者がテスト用に切り替えたときだけ
+ * （`playLogMinParticipantsKey` の説明を参照）。BotとWebの両方がこの値で判定する
+ */
+export async function getPlayLogMinParticipants(groupId: string): Promise<1 | 2> {
+  return (await getRawAppSetting(playLogMinParticipantsKey(groupId))) === "1" ? 1 : PLAY_LOG_MIN_PARTICIPANTS_DEFAULT;
 }
 
 /** グループで数えてよい人（Discord連携済み・外れていない・オーナーかメンバー）。Discordユーザー → User.id */
@@ -184,7 +196,7 @@ type ResolvedActivity = {
 /**
  * スナップショットを反映する。返り値は開いた・続けた・閉じた行の数（ログと確認用）。
  *
- * 人数の条件（2人以上）と対象者の絞り込みは**ここでもう一度かける**。Botの判定を
+ * 人数の条件（既定は2人以上。`getPlayLogMinParticipants`）と対象者の絞り込みは**ここでもう一度かける**。Botの判定を
  * 信用しきらないのは、Botの対象者一覧が古いまま（外れた直後など）でも数えないようにするため。
  */
 export async function applySnapshot(snapshot: PlaySnapshot, now = new Date()) {
@@ -192,6 +204,7 @@ export async function applySnapshot(snapshot: PlaySnapshot, now = new Date()) {
   if (!group) return { skipped: "no-group" as const };
 
   const eligible = await getEligibleMembers(group.id);
+  const minParticipants = await getPlayLogMinParticipants(group.id);
   const resolved: ResolvedActivity[] = [];
   for (const a of snapshot.activities) {
     const participants = new Map<string, number | null>();
@@ -199,7 +212,7 @@ export async function applySnapshot(snapshot: PlaySnapshot, now = new Date()) {
       const userId = eligible.get(p.discordUserId);
       if (userId) participants.set(userId, typeof p.since === "number" ? p.since : null);
     }
-    if (participants.size < 2) continue;
+    if (participants.size < minParticipants) continue;
     resolved.push({ ...a, gameKey: gameKeyOf(a), participants });
   }
 

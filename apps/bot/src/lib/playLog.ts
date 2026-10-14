@@ -32,7 +32,8 @@ export function activityKey(a: { applicationId: string | null; name: string }): 
 }
 
 /**
- * VCごと・ゲームごとに、対象者のうち誰が遊んでいるかをまとめる。**2人以上の組だけ**を返す。
+ * VCごと・ゲームごとに、対象者のうち誰が遊んでいるかをまとめる。**`minParticipants` 人以上の組だけ**を返す
+ * （既定2人。管理者が1人用のテストグループで動きを確かめるときだけ1人。Webの members API から来る）。
  *
  * - **プレイ中が見えない対象者も、そのVCで見えているゲームが1つだけならその組に数える**
  *   （2026-10-11 ユーザー判断）。Discordで「オンライン状態を隠す」にしている人は、Botからは
@@ -47,7 +48,8 @@ export function activityKey(a: { applicationId: string | null; name: string }): 
 export function computePlayingGroups(
   voice: VoiceMember[],
   activitiesOf: (userId: string) => ActivityLike[],
-  eligible: Set<string>
+  eligible: Set<string>,
+  minParticipants = 2
 ): PlayingGroup[] {
   const groups = new Map<string, PlayingGroup>();
   const silentByChannel = new Map<string, string[]>();
@@ -79,7 +81,7 @@ export function computePlayingGroups(
   }
 
   return [...groups.values()]
-    .filter((g) => g.participants.length >= 2)
+    .filter((g) => g.participants.length >= minParticipants)
     .map((g) => ({
       ...g,
       participants: [...g.participants].sort((a, b) => a.discordUserId.localeCompare(b.discordUserId)),
@@ -121,6 +123,8 @@ export type PlayStatusView = {
   ready: boolean;
   /** 対象者の一覧。null＝まだ一度も取れていない */
   eligibleCount: number | null;
+  /** 記録の最少人数（既定2。テスト用に1のことがある） */
+  minParticipants: number;
   membersFetchedAt: number | null;
   /** 打った人がいるVC。null＝VCにいない */
   voiceChannelId: string | null;
@@ -143,7 +147,10 @@ export function describePlayStatus(v: PlayStatusView): string {
   if (v.eligibleCount === null || v.membersFetchedAt === null) {
     lines.push("・対象者の一覧をWebから取れていません（Webに繋がっていない可能性があります）");
   } else {
-    lines.push(`・このサーバーの対象者：${v.eligibleCount}人（${ago(v.now, v.membersFetchedAt)}に取得）`);
+    lines.push(
+      `・このサーバーの対象者：${v.eligibleCount}人（${ago(v.now, v.membersFetchedAt)}に取得）` +
+        (v.minParticipants !== 2 ? `・**記録の最少人数：${v.minParticipants}人（動作確認用）**` : "")
+    );
   }
 
   if (v.voiceChannelId === null) {
@@ -168,12 +175,13 @@ export function describePlayStatus(v: PlayStatusView): string {
     const groups = computePlayingGroups(
       v.inVoice.map((m) => ({ userId: m.userId, channelId: v.voiceChannelId as string })),
       (id) => byId.get(id) ?? [],
-      eligible
+      eligible,
+      v.minParticipants
     );
     lines.push(
       groups.length > 0
         ? `→ いま記録される組：${groups.map((g) => `${g.name}（${g.participants.length}人）`).join("、")}`
-        : "→ いまは記録の条件（同じVCに対象者2人以上・うち誰かのプレイ中が見えていて、ゲームが1つに決まる）を満たしていません"
+        : `→ いまは記録の条件（同じVCに対象者${v.minParticipants}人以上・うち誰かのプレイ中が見えていて、ゲームが1つに決まる）を満たしていません`
     );
 
     // 候補1：本人には見えていても、Discordの設定でBotに届かないことがある

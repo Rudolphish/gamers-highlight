@@ -21,7 +21,8 @@ const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3000";
 const SECRET = process.env.NEXTAUTH_SECRET ?? "local-integration-test-secret";
 const ids = JSON.parse(process.env.SEED_IDS);
 
-// [ID, ページ, パス, 上限]。上限は 2026-10-11 の実測（2・4・3・1・5・5）に、揺れの分として +2 を足した値
+// [ID, ページ, パス, 上限]。上限は 2026-10-11 の実測（2・4・3・1・5・5）に、揺れの分として +2 を足した値。
+// Q05 は 2026-10-14 から 6（管理者が開くとプレイ記録の最少人数を1回読む。測っているのが管理者のため）
 const BUDGETS = [
   ["Q01", "ホーム", "/", 4],
   ["Q02", "アルバム一覧", "/albums", 6],

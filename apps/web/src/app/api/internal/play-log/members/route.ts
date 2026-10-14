@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getEligibleMembers } from "@/lib/playLog";
+import { getEligibleMembers, getPlayLogMinParticipants } from "@/lib/playLog";
 
 /**
  * プレイ記録で数えてよい人（Discord連携済み・外れていない・オーナーかメンバー）の Discord ユーザーID。
@@ -9,6 +9,7 @@ import { getEligibleMembers } from "@/lib/playLog";
  * GET /api/internal/play-log/members?guildId=...
  *
  * グループが無いサーバーは `{ group: false }`。Botはそのサーバーを見ない。
+ * `minParticipants` は記録の最少人数（既定2。管理者がテスト用に1にできる）。
  */
 export async function GET(req: Request) {
   const secret = req.headers.get("x-internal-secret");
@@ -22,6 +23,9 @@ export async function GET(req: Request) {
   const group = await db.group.findUnique({ where: { guildId }, select: { id: true } });
   if (!group) return NextResponse.json({ group: false, discordUserIds: [] });
 
-  const eligible = await getEligibleMembers(group.id);
-  return NextResponse.json({ group: true, discordUserIds: [...eligible.keys()] });
+  const [eligible, minParticipants] = await Promise.all([
+    getEligibleMembers(group.id),
+    getPlayLogMinParticipants(group.id),
+  ]);
+  return NextResponse.json({ group: true, discordUserIds: [...eligible.keys()], minParticipants });
 }

@@ -25,6 +25,8 @@ const MEMBERS_TTL_MS = 15 * 60 * 1000;
 type GuildState = {
   /** null＝このサーバーにはグループが無い（見ない） */
   eligible: Set<string> | null;
+  /** 記録の最少人数。対象者と一緒にWebから取る（既定2。管理者がテスト用に1にできる） */
+  minParticipants: number;
   membersFetchedAt: number;
   /** 最後に**送れた**内容。送れなかったときは更新しないので、次の機会に送り直す */
   lastSent: string | null;
@@ -45,7 +47,7 @@ const pendingResume = new Map<string, string>();
 function stateOf(guildId: string): GuildState {
   let s = states.get(guildId);
   if (!s) {
-    s = { eligible: null, membersFetchedAt: 0, lastSent: null, timer: null, chain: Promise.resolve(), lastSendResult: null };
+    s = { eligible: null, minParticipants: 2, membersFetchedAt: 0, lastSent: null, timer: null, chain: Promise.resolve(), lastSendResult: null };
     states.set(guildId, s);
   }
   return s;
@@ -61,7 +63,11 @@ async function refreshMembers(guildId: string, force = false): Promise<void> {
   if ((next?.size ?? null) !== (s.eligible?.size ?? null)) {
     console.log(`[playlog] guild=${guildId} 対象者 ${next ? `${next.size}人` : "なし（グループ無し）"}`);
   }
+  if (res.minParticipants !== s.minParticipants) {
+    console.log(`[playlog] guild=${guildId} 記録の最少人数 ${res.minParticipants}人`);
+  }
   s.eligible = next;
+  s.minParticipants = res.minParticipants;
   s.membersFetchedAt = Date.now();
 }
 
@@ -87,7 +93,7 @@ async function sync(guildId: string, { force = false }: { force?: boolean } = {}
   const voice = [...guild.voiceStates.cache.values()]
     .filter((v) => v.channelId !== null)
     .map((v) => ({ userId: v.id, channelId: v.channelId as string }));
-  const groups = computePlayingGroups(voice, (id) => activitiesOf(guild, id), s.eligible);
+  const groups = computePlayingGroups(voice, (id) => activitiesOf(guild, id), s.eligible, s.minParticipants);
   const signature = snapshotSignature(groups);
   if (!force && signature === s.lastSent) return;
 
@@ -156,6 +162,7 @@ export async function describePlayStatusFor(guildId: string, userId: string): Pr
     now: Date.now(),
     ready,
     eligibleCount: s.membersFetchedAt ? (s.eligible?.size ?? 0) : null,
+    minParticipants: s.minParticipants,
     membersFetchedAt: s.membersFetchedAt || null,
     voiceChannelId: channelId,
     voiceChannelName: (channelId && guild?.channels?.cache.get(channelId)?.name) || null,

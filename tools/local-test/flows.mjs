@@ -3341,6 +3341,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       now: NOW,
       ready: true,
       eligibleCount: 4,
+      minParticipants: 2,
       membersFetchedAt: NOW - 60_000,
       voiceChannelId: "v1",
       voiceChannelName: "雑談",
@@ -3396,6 +3397,19 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       notFetched.includes("対象者の一覧をWebから取れていません") &&
       notFetched.includes("まだ一度もしていません"),
     `${failedText}\n---\n${notFetched}`
+  );
+  // 最少人数（管理者がテスト用に1人へ切り替えたとき）。既定の2人では1人のプレイは組にならない
+  const solo = (min) =>
+    computePlayingGroups([{ userId: "a", channelId: "v1" }], () => [playing("Game A", "1")], new Set(["a"]), min);
+  const soloStatus = view([{ userId: "a", eligible: true, activities: [playing("Game A", "1")] }], { minParticipants: 1 });
+  check(
+    "F275 Botの判定：最少人数が1人のときだけ、1人のプレイも組になる（/playlog status にも最少人数が出る）",
+    solo(1).length === 1 &&
+      solo(undefined).length === 0 &&
+      solo(2).length === 0 &&
+      soloStatus.includes("いま記録される組：Game A（1人）") &&
+      soloStatus.includes("記録の最少人数：1人"),
+    JSON.stringify({ one: solo(1), def: solo(undefined) }) + "\n" + soloStatus
   );
 }
 
@@ -3539,6 +3553,75 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   } finally {
     fs.rmSync("/tmp/stub-fail", { force: true });
     await setTarget("");
+    await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+  }
+}
+
+// ── プレイ記録の最少人数（管理者だけがテスト用に1人へ切り替えられる） ──
+{
+  const internal = { "x-internal-secret": INTERNAL_SECRET };
+  const settings = (cookie, body) =>
+    api(`/api/groups/${group.id}/play-log/settings`, { method: "PATCH", cookie, body });
+  const members = async () =>
+    JSON.parse((await api(`/api/internal/play-log/members?guildId=${group.guildId}`, { headers: internal })).text);
+  const soloSnapshot = (on) =>
+    api("/api/internal/play-log/snapshot", {
+      method: "POST",
+      headers: internal,
+      body: {
+        guildId: group.guildId,
+        activities: on
+          ? [{ voiceChannelId: "800000000000000006", applicationId: "510000000000000066", name: "ソロ確認のゲーム", participants: [{ discordUserId: "100000000000000001", since: null }] }]
+          : [],
+      },
+    });
+  const rows = () => db.groupPlaySession.findMany({ where: { groupId: group.id } });
+
+  await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+  try {
+    const byMember = await settings(memberCookie, { minParticipants: 1 });
+    const invalid = await settings(adminCookie, { minParticipants: 3 });
+    const before = await members();
+    await soloSnapshot(true);
+    const soloAt2 = (await rows()).length;
+    await soloSnapshot(false);
+
+    const set1 = await settings(adminCookie, { minParticipants: 1 });
+    const after = await members();
+    await soloSnapshot(true);
+    const soloAt1 = await rows();
+    await soloSnapshot(false);
+    const groupPage = await api(`/groups/${group.id}`, { cookie: adminCookie });
+    const memberPage = await api(`/groups/${group.id}`, { cookie: memberCookie });
+
+    check(
+      "F276 最少人数は管理者だけが1人に切り替えられ、Botへの一覧に載り、1人のプレイも記録される（既定の2人では記録されない）",
+      byMember.status === 403 &&
+        invalid.status === 400 &&
+        before.minParticipants === 2 &&
+        soloAt2 === 0 &&
+        set1.status === 200 &&
+        after.minParticipants === 1 &&
+        soloAt1.length === 1 &&
+        soloAt1[0].activityName === "ソロ確認のゲーム" &&
+        groupPage.text.includes("プレイ記録の最少人数") &&
+        !memberPage.text.includes("プレイ記録の最少人数"),
+      JSON.stringify({
+        byMember: byMember.status,
+        invalid: invalid.status,
+        before: before.minParticipants,
+        soloAt2,
+        set1: set1.status,
+        after: after.minParticipants,
+        soloAt1: soloAt1.length,
+        adminSees: groupPage.text.includes("プレイ記録の最少人数"),
+        memberSees: memberPage.text.includes("プレイ記録の最少人数"),
+      })
+    );
+  } catch (e) {
+    check("F276x 最少人数の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    await settings(adminCookie, { minParticipants: 2 });
     await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
   }
 }
