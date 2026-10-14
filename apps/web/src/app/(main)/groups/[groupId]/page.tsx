@@ -15,7 +15,9 @@ import { GameProposals } from "@/components/group/GameProposals";
 import { NotificationSettings } from "@/components/group/NotificationSettings";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { getSteamCoverUrls } from "@/lib/albumCover";
-import { getUnknownPlays } from "@/lib/playLog";
+import { getPlayLogMinParticipants, getUnknownPlays } from "@/lib/playLog";
+import { isAdminEmail } from "@/lib/admin";
+import { PlayLogMinParticipantsSetting } from "@/components/group/PlayLogMinParticipantsSetting";
 import { UnknownPlays } from "@/components/group/UnknownPlays";
 
 // サーバーから取る上限。**ここを超えた分はグループ画面から辿れなくなる**ので、
@@ -47,6 +49,9 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
   if (!group) notFound();
 
   const isOwner = currentUser?.id === group.ownerId;
+  // プレイ記録の最少人数は管理者だけが見て変えられる（テスト用の切り替え）。キャッシュの外で毎回読む
+  const isAdmin = isAdminEmail(currentUser.email);
+  const playLogMin = isAdmin ? await getPlayLogMinParticipants(group.id) : null;
   const currentMembership = group.members.find((m) => m.userId === currentUser?.id);
   const canEditGames = isOwner || currentMembership?.role === "EDITOR";
   const likeThreshold = Math.floor((1 + group.members.length) / 2) + 1;
@@ -180,6 +185,11 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
                 targets={group.notificationTargets}
                 legacyChannelId={group.notificationChannelId}
               />
+            </div>
+          )}
+          {playLogMin !== null && (
+            <div className="mt-1.5">
+              <PlayLogMinParticipantsSetting groupId={group.id} initial={playLogMin} />
             </div>
           )}
         </div>

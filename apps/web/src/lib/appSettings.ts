@@ -41,6 +41,15 @@ export function weeklySummaryLastSentWeekKey(groupId: string): string {
   return `weeklySummaryLastSentWeek:${groupId}`;
 }
 
+/**
+ * プレイ記録の最少人数（グループごと）。値は "1" のときだけ置き、既定の2人は行を持たない。
+ * 1人用のテストグループで実際の動きを確かめるための切り替えで、**管理者だけが変えられる**
+ * （友人のグループで誤って1人にすると「一緒に遊んだ時間」にソロプレイが混ざる）。
+ */
+export function playLogMinParticipantsKey(groupId: string): string {
+  return `playLogMinParticipants:${groupId}`;
+}
+
 export async function getRawAppSetting(key: string): Promise<string | null> {
   const row = await db.appSetting.findUnique({ where: { key } });
   return row?.value ?? null;
