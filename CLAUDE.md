@@ -30,6 +30,17 @@
 なお `directUrl` が未設定でも `prisma generate` は成功する（実測済み）ため、
 Vercel のビルドが壊れることはない。影響するのは `db push` / `migrate` / `validate` だけ。
 
+### 新しいテーブルには RLS を付ける（`db push` は付けない）
+
+Supabase は Data API（PostgREST）で public スキーマを外に出している。**RLS が無効なテーブルは、
+anon キー（秘密扱いではない鍵）とURLを知っている人なら誰でも読み書き・削除できる。**
+2026-10-15 の脆弱性チェックまで全28テーブルがこの状態だった（許可リストへの自己追加で招待制も破れる）。
+
+アプリは `postgres` ロール（RLS を無視できる）で接続しているので、**ルール無しで有効にするだけでよい**。
+新しいテーブルを本番に作ったら `packages/db/sql/enable-rls.sql` を流し、アドバイザーで
+`rls_disabled_in_public` が0件か確かめる（`docs/review-checklist.md`）。
+「RLS Enabled No Policy」（INFO）は狙いどおりの状態なので残してよい。
+
 ### スキーマを変えたら push を忘れない
 
 Vercel はコードだけをデプロイする。**テーブルは自動では作られない。**

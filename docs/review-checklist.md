@@ -17,6 +17,7 @@
 - [ ] `packages/db/schema.prisma` の変更は破壊的でないか（既存カラムの削除・型変更で過去データが壊れないか）
 - [ ] マイグレーションではなく `db push` 前提の運用なので、本番に直接影響する変更でないか
 - [ ] `schema.prisma` を変えたPRは、**マージ前に本番のテーブル構成と突き合わせたか**（Supabaseコネクタ `Share_Staq` の `list_tables` / `information_schema`。CIは毎回まっさらなDBに流すので、本番が古いままでも必ず通る。#78 で `db push` を忘れて本番が500になった）。反映の手順は `docs/play-log.md` §10 と同じ
+- [ ] **新しいテーブルを本番に作ったら RLS を有効にしたか**（`packages/db/sql/enable-rls.sql` を流す。`db push` で作ったテーブルには付かず、anon キーで誰でも読み書きできる状態になる）。Supabase のアドバイザー（`get_advisors` の security）で `rls_disabled_in_public` が0件であることを確かめる
 
 ## 3. 認証・アクセス制御
 - [ ] 許可リスト（`AllowlistEntry`）による招待制ログインのロジックを壊していないか
