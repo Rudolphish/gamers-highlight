@@ -4,6 +4,13 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { db } from "./db";
 import { isAdminEmail } from "./admin";
 import { registerAllowlistFromInvite } from "./groupInvites";
+import { isStillAllowed, linkDiscordUser } from "./discordAccount";
+
+/**
+ * ログイン中の人が、いまも許可リストに載っているかを見直す間隔。
+ * 許可リストから外された人は、遅くともこの時間で締め出される（lib/discordAccount.ts の isStillAllowed）
+ */
+const ALLOWLIST_RECHECK_MS = 60 * 60 * 1000;
 
 // VercelなどHTTPSホスティング環境で発生する「State cookie was missing」対策。
 // NEXTAUTH_URLがhttpsならセキュアCookie（__Secure-/__Host-プレフィックス）を明示的に使う。
@@ -96,7 +103,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     // クローズドな友人グループ運用のため、許可リストに無いアカウントはログイン自体を拒否する。
     // Discordでログインした場合は discordUserId、それ以外はメールアドレスで照合する。
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       // 開発用ログインはprovider自体がNODE_ENV/ENABLE_DEV_LOGINの二重ガード付きのため、
       // 許可リストチェックは通さない（テスト専用アカウントなので許可リスト登録も不要にする）。
       if (DEV_LOGIN_ENABLED && account?.provider === "dev-login") {
@@ -105,6 +112,10 @@ export const authOptions: NextAuthOptions = {
 
       const discordUserId =
         account?.provider === "discord" ? account.providerAccountId : undefined;
+      // Discord のアカウントはメール未確認のまま使える。未確認のアドレスは照合にも保存にも使わない
+      // （lib/discordAccount.ts の説明を参照）
+      const emailVerified =
+        account?.provider !== "discord" || (profile as { verified?: boolean } | undefined)?.verified === true;
 
       // 招待リンク経由の初回ログインだけ、許可リストへの登録を代行する。
       // **下の許可リスト判定には手を触れていない。** ここは AllowlistEntry を作るだけで、
@@ -118,7 +129,7 @@ export const authOptions: NextAuthOptions = {
         where: {
           OR: [
             discordUserId ? { discordUserId } : undefined,
-            user.email ? { email: user.email } : undefined,
+            emailVerified && user.email ? { email: user.email } : undefined,
           ].filter(Boolean) as { discordUserId?: string; email?: string }[],
         },
       });
@@ -130,18 +141,19 @@ export const authOptions: NextAuthOptions = {
 
       // Discordでログインした場合、Botとの連携用にdiscordUserIdを永続化する。
       // これがないと、Discord Bot経由の投稿を「誰の投稿か」判定できない。
+      // **鍵は Discord のユーザーID**（以前はメールアドレスで upsert しており、乗っ取りの筋があった）
       if (discordUserId) {
-        await db.user.upsert({
-          where: { email: user.email ?? "" },
-          update: { discordUserId },
-          create: {
-            email: user.email ?? undefined,
-            name: user.name,
-            avatarUrl: user.image,
-            provider: "discord",
-            discordUserId,
-          },
+        const linked = await linkDiscordUser({
+          discordUserId,
+          email: user.email ?? null,
+          emailVerified,
+          name: user.name ?? null,
+          image: user.image ?? null,
         });
+        if (!linked.ok) {
+          console.warn(`[auth] blocked sign-in: ${linked.reason} discordUserId=${discordUserId}`);
+          return false;
+        }
       }
       return true;
     },
@@ -160,17 +172,47 @@ export const authOptions: NextAuthOptions = {
      * （`/api/allowlist/:id` のコメント参照）なので、毎回引いていた頃も
      * 「存在するか」を見ていただけで、締め出しの役には立っていなかった。
      */
-    async jwt({ token, user }) {
-      if (user?.email && !token.userId) {
-        const dbUser = await db.user.findUnique({
-          where: { email: user.email },
-          select: { id: true },
-        });
+    async jwt({ token, user, account }) {
+      // サインインの回。Discord なら Discord のユーザーIDで行を引く（メールアドレスでは引かない）。
+      // **token.email も DB の値で上書きする。** 管理者の判定（isAdminEmail）はこのメールを見るので、
+      // Discord から来た未確認のアドレスを使うと、他人のアドレスを名乗って管理者になれてしまう
+      if (user) {
+        const dbUser =
+          account?.provider === "discord"
+            ? await db.user.findUnique({ where: { discordUserId: account.providerAccountId }, select: { id: true, email: true } })
+            : user.email
+              ? await db.user.findUnique({ where: { email: user.email }, select: { id: true, email: true } })
+              : null;
+        if (dbUser) {
+          token.userId = dbUser.id;
+          token.email = dbUser.email;
+        }
+        token.devLogin = account?.provider === "dev-login" ? true : undefined;
+        token.allowCheckedAt = Date.now();
+        token.revoked = undefined;
+        return token;
+      }
+
+      // idを載せる前に発行されたトークン（使い続けると期限が延びるので今も残りうる）。1回だけ引いて載せる
+      if (!token.userId && token.email) {
+        const dbUser = await db.user.findUnique({ where: { email: token.email }, select: { id: true } });
         if (dbUser) token.userId = dbUser.id;
+      }
+
+      // **許可リストを1時間ごとに見直す。** 外された人は次の見直しで締め出す（開発用ログインは対象外）。
+      // 見直した時刻が無い古いトークンは、発行時刻（iat）から数える
+      const checkedAt = token.allowCheckedAt ?? (typeof token.iat === "number" ? token.iat * 1000 : 0);
+      if (token.userId && !token.devLogin && Date.now() - checkedAt > ALLOWLIST_RECHECK_MS) {
+        token.revoked = (await isStillAllowed(token.userId)) ? undefined : true;
+        token.allowCheckedAt = Date.now();
       }
       return token;
     },
     async session({ session, token }) {
+      // 締め出された人はログインしていない扱いにする（getCurrentUser も管理者の判定も通らなくなる）
+      if (token.revoked) {
+        return { ...session, user: undefined };
+      }
       if (session.user) {
         // idを載せる前に発行されたトークンにはこれが無い。呼び出し側は
         // lib/currentUser.ts の getCurrentUser() を使い、無ければDBに落とすこと。

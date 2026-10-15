@@ -1,4 +1,12 @@
-export { default } from "next-auth/middleware";
+import { withAuth } from "next-auth/middleware";
+
+// **許可リストから外されて締め出された人（token.revoked）も通さない。**
+// 見直し自体は lib/auth.ts の jwt コールバックで1時間ごとに行い、結果をトークンに書き込む。
+export default withAuth({
+  callbacks: {
+    authorized: ({ token }) => Boolean(token) && !token?.revoked,
+  },
+});
 
 // (main)配下（ホーム、グループ、アルバム、アップロード、マニュアル、設定など）はすべて要ログイン。
 // (auth)配下（ログイン画面）とAPI Routes、静的アセットは対象外。

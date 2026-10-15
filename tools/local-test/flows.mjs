@@ -3702,6 +3702,42 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── 許可リストから外された人は、ログインしたままでも締め出される（2026-10-15 脆弱性チェック） ──
+// 見直しは1時間ごと（lib/auth.ts の jwt）。ここでは「最後に見直したのが2時間前」のトークンを作って確かめる
+{
+  const tokenCookie = async (token) =>
+    `next-auth.session-token=${await encode({ token, secret: SECRET, maxAge: 3600 })}`;
+  const old = Date.now() - 2 * 60 * 60 * 1000;
+  let tempId = null;
+  try {
+    const temp = await db.user.create({
+      data: { email: `removed-${Date.now()}@example.com`, name: "外された人", provider: "discord", discordUserId: "197000000000000001" },
+    });
+    tempId = temp.id;
+    const admin = await db.user.findUnique({ where: { email: "admin@example.com" }, select: { id: true } });
+    const removed = await tokenCookie({ email: temp.email, sub: temp.email, userId: temp.id, allowCheckedAt: old });
+    const stillAllowed = await tokenCookie({ email: "admin@example.com", sub: "admin@example.com", userId: admin.id, allowCheckedAt: old });
+    const marked = await tokenCookie({ email: temp.email, sub: temp.email, userId: temp.id, allowCheckedAt: Date.now(), revoked: true });
+
+    const meRemoved = await api("/api/users/me", { cookie: removed });
+    const meAllowed = await api("/api/users/me", { cookie: stillAllowed });
+    const pageMarked = await api("/", { cookie: marked });
+    check(
+      "F283 許可リストから外された人は見直しの時点で API が401になり、締め出しの印が付いたら画面もログインへ戻される（載っている人は通る）",
+      meRemoved.status === 401 &&
+        meAllowed.status === 200 &&
+        pageMarked.status >= 300 &&
+        pageMarked.status < 400 &&
+        /signin|login/.test(pageMarked.headers.get("location") ?? ""),
+      JSON.stringify({ meRemoved: meRemoved.status, meAllowed: meAllowed.status, page: [pageMarked.status, pageMarked.headers.get("location")] })
+    );
+  } catch (e) {
+    check("F283x 締め出しの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    if (tempId) await db.user.deleteMany({ where: { id: tempId } });
+  }
+}
+
 // ───────────────────────────────────────────────────────────
 // テストの棚卸し（2026-10-11）で見つかった抜け
 // ───────────────────────────────────────────────────────────

@@ -4,6 +4,12 @@ declare module "next-auth/jwt" {
   interface JWT {
     /** DBの User.id。サインイン時に1回だけ引いてトークンに載せる（lib/auth.ts の jwt コールバック） */
     userId?: string;
+    /** 最後に許可リストを見直した時刻（ミリ秒）。1時間ごとに見直す（lib/auth.ts） */
+    allowCheckedAt?: number;
+    /** 見直しで許可リストから外れていたら true。ログインしていない扱いになる（middleware も通さない） */
+    revoked?: true;
+    /** 開発用ログイン。許可リストの見直しの対象外 */
+    devLogin?: true;
   }
 }
 
