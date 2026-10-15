@@ -4,11 +4,15 @@ import { db } from "@/lib/db";
 import { invalidateAlbumPhotos } from "@/lib/cacheTags";
 import { touchAlbum } from "@/lib/albumTouch";
 import { hasAlbumPermission } from "@/lib/permissions";
+import { isAdminEmail } from "@/lib/admin";
 
 // POST /api/photos/assign-album … 未分類（albumId無し）の投稿を、既存アルバムへまとめて追加する。
 // body: { photoIds: string[], albumId: string }
 // - 対象の写真は「自分がアップロードした未分類の投稿」のみ許可（他人の投稿を勝手に移動できないようにする）
-// - 移動先アルバムはEDITOR以上の権限が必要
+//   **ただし管理者（ADMIN_EMAILS）は他の人の未分類も移せる**（`/admin/media` の振り分け。2026-10-15 ユーザー判断）。
+//   Discordに上げたまま振り分けない人がいても、管理者が拾ってアルバムに入れられるようにするため。
+//   未分類でないもの（既にアルバムにある投稿）は管理者でも動かさない
+// - 移動先アルバムはEDITOR以上の権限が必要（管理者でも同じ。自分が編集できないアルバムには入れない）
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -28,7 +32,8 @@ export async function POST(req: Request) {
     where: {
       id: { in: photoIds },
       albumId: null, // 未分類のものだけ対象（既にアルバムがある投稿は誤操作防止のため対象外）
-      uploaderId: user.id, // 自分がアップロードしたものだけ
+      // 自分がアップロードしたものだけ（管理者は誰のものでも）
+      ...(isAdminEmail(user.email) ? {} : { uploaderId: user.id }),
     },
     data: { albumId },
   });

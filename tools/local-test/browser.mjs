@@ -2344,6 +2344,97 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── 管理者のメディア一覧から未分類を振り分ける（チェック → まとめて振り分け → モーダル） ──
+// 他の人の投稿を移せる権限は flows（F277・F278）で見ている。ここは画面の配線
+// （チェック・下の操作バー・モーダル・移した後に一覧から消える）を見る
+{
+  const page = await context.newPage();
+  const problems = [];
+  watchPageErrors(page, problems);
+  const made = [];
+  let albumId = null;
+  const callApi = (path, method, body) =>
+    page.evaluate(
+      async ([p, m, b]) => {
+        const res = await fetch(p, { method: m, headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined });
+        return { status: res.status, json: await res.json().catch(() => null) };
+      },
+      [path, method, body ?? null]
+    );
+  try {
+    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    albumId = (await callApi("/api/albums", "POST", { title: "振り分け確認用アルバム", groupId: ids.groupId })).json?.album?.id;
+    for (const label of ["甲", "乙"]) {
+      const bytes = Buffer.from(`assign-browser-${label}-0123456789`);
+      const signed = await callApi("/api/photos/upload-url", "POST", { contentType: "image/png", mediaType: "IMAGE", sizeBytes: bytes.length });
+      await fetch(signed.json.upload.url, {
+        method: "PUT",
+        headers: { "content-type": "image/png", "content-length": String(bytes.length) },
+        body: bytes,
+      });
+      const p = await callApi("/api/photos", "POST", { contentType: "image/png", mediaUrl: signed.json.publicUrl, sizeBytes: bytes.length, gameTitle: `画面振り分け${label}` });
+      if (p.json?.photo?.id) made.push(p.json.photo.id);
+    }
+
+    await page.goto(`${BASE}/admin/media?album=none`, { waitUntil: "networkidle" });
+    const rowOf = (label) => page.locator("tr", { hasText: `画面振り分け${label}` });
+
+    // 1件だけの「振り分け」はモーダルを開き、Escで閉じる（ページは離れない）
+    await rowOf("甲").getByRole("button", { name: "アルバムに振り分け" }).click();
+    const singleTitle = (await page.getByRole("dialog").textContent()) ?? "";
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+    const closed = (await page.getByRole("dialog").count()) === 0 && page.url().includes("/admin/media");
+    rows.push({
+      id: "B109",
+      item: "メディア一覧の未分類の「振り分け」でモーダルが開き（1件）、Escで閉じる",
+      expected: "（1件）が出て、閉じてもページに留まる",
+      actual: `${singleTitle.includes("（1件）") ? "1件" : singleTitle.slice(0, 40)} / 閉じた=${closed}`,
+      ok: singleTitle.includes("（1件）") && closed,
+      note: "",
+    });
+
+    // 2件をチェック → 下の操作バー → モーダルでグループとアルバムを選んで移す → 一覧から消える
+    await rowOf("甲").getByRole("checkbox").check();
+    await rowOf("乙").getByRole("checkbox").check();
+    const bar = (await page.getByText("未分類 2件を選択中").count()) > 0;
+    await page.getByRole("button", { name: /まとめて振り分け/ }).click();
+    const dialog = page.getByRole("dialog");
+    const bulkTitle = (await dialog.textContent()) ?? "";
+    await dialog.locator("#admin-assign-group").selectOption(ids.groupId);
+    await dialog.locator("#admin-assign-album").selectOption(albumId);
+    await dialog.getByRole("button", { name: "振り分ける" }).click();
+    await page.getByRole("dialog").waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
+    await rowOf("甲").waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
+    const gone = (await rowOf("甲").count()) === 0 && (await rowOf("乙").count()) === 0;
+
+    await page.goto(`${BASE}/admin/media`, { waitUntil: "networkidle" });
+    const inAlbum = ((await rowOf("甲").textContent()) ?? "").includes("振り分け確認用アルバム");
+    rows.push({
+      id: "B110",
+      item: "未分類を2件チェックして「まとめて振り分け」→ モーダルで選んで移すと、未分類の一覧から消えてアルバムに入る",
+      expected: "操作バー・（2件）・移した後に消える・アルバム名が付く",
+      actual: `バー=${bar} / ${bulkTitle.includes("（2件）") ? "2件" : "件数なし"} / 消えた=${gone} / アルバム=${inAlbum}`,
+      ok: bar && bulkTitle.includes("（2件）") && gone && inAlbum,
+      note: problems.slice(0, 2).join(" / "),
+    });
+  } catch (e) {
+    for (const id of ["B109", "B110"]) {
+      if (rows.some((r) => r.id === id)) continue;
+      rows.push({ id, item: "未分類の振り分け（メディア一覧）", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+    }
+  } finally {
+    // 作ったものは同じ経路（API）で消す（docs/lessons.md）
+    try {
+      for (const id of made) await callApi(`/api/photos/${id}`, "DELETE");
+      if (albumId) await callApi(`/api/albums/${albumId}`, "DELETE");
+    } catch {
+      // 片付けに失敗しても結果の表は残す
+    }
+    await page.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）

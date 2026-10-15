@@ -9,6 +9,9 @@ import { isAdminEmail } from "@/lib/admin";
 import { formatBytes } from "@/lib/adminStats";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { DeleteMediaButton } from "@/components/admin/DeleteMediaButton";
+import { AdminAssignProvider, AssignButton, AssignCheckbox } from "@/components/admin/AdminAssignUnclassified";
+import { getCurrentUser } from "@/lib/currentUser";
+import { getAssignTargets } from "@/lib/assignTargets";
 import type { MediaKind } from "@/lib/mediaKind";
 
 const PAGE_SIZE = 100;
@@ -17,11 +20,14 @@ const PAGE_SIZE = 100;
 // 通常画面はアルバム単位でしか見られないので、未分類やDiscord経由の投稿を含めて
 // 「全部でどれだけあるか」をここで把握できるようにする。
 //
+// **未分類の投稿は、誰の投稿でもここから振り分けられる**（チェックしてまとめて、または1件ずつ。
+// 2026-10-15 ユーザー判断）。振り分け先は管理者自身が編集できるアルバムだけ。
+//
 // 表示形式（一覧/サムネイル）と絞り込みはURLに持つ。ページ送りのリンクと同じ扱いにして、
 // ページを移動しても選んだ表示が保たれるようにするため。
 export const dynamic = "force-dynamic";
 
-type Search = { page?: string; type?: string; view?: string };
+type Search = { page?: string; type?: string; view?: string; album?: string };
 
 export default async function AdminMediaPage({ searchParams }: { searchParams: Search }) {
   const session = await getServerSession(authOptions);
@@ -33,9 +39,12 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
       : null;
   const view: "list" | "grid" = searchParams.view === "grid" ? "grid" : "list";
   const page = Math.max(1, Number(searchParams.page) || 1);
-  const where = type ? { mediaType: type } : {};
+  /** 未分類（どのアルバムにも入っていない）だけに絞るか。種別の絞り込みとは別に掛け合わせる */
+  const unassignedOnly = searchParams.album === "none";
+  const where = { ...(type ? { mediaType: type } : {}), ...(unassignedOnly ? { albumId: null } : {}) };
 
-  const [total, photos] = await Promise.all([
+  const me = await getCurrentUser();
+  const [total, photos, targets] = await Promise.all([
     db.photo.count({ where }),
     db.photo.findMany({
       where,
@@ -47,12 +56,14 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
         album: { include: { group: { select: { id: true, name: true } } } },
       },
     }),
+    me ? getAssignTargets(me.id) : Promise.resolve({ albums: [], groups: [] }),
   ]);
 
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const href = (params: Search) => {
     const q = new URLSearchParams();
     if (params.type) q.set("type", params.type);
+    if (params.album === "none") q.set("album", "none");
     if (params.view === "grid") q.set("view", "grid");
     if (params.page && params.page !== "1") q.set("page", params.page);
     const s = q.toString();
@@ -88,7 +99,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
         {FILTERS.map((f) => (
           <Link
             key={f.label}
-            href={href({ type: f.value ?? undefined, view })}
+            href={href({ type: f.value ?? undefined, view, album: searchParams.album })}
             className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
               type === f.value
                 ? "border-steam-blue text-steam-blue"
@@ -101,10 +112,23 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
 
         <span className="mx-1 h-4 w-px bg-steam-border" />
 
+        <Link
+          href={href({ type: type ?? undefined, view, album: unassignedOnly ? undefined : "none" })}
+          className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
+            unassignedOnly
+              ? "border-steam-blue text-steam-blue"
+              : "border-steam-border text-steam-muted hover:border-steam-blue"
+          }`}
+        >
+          未分類のみ
+        </Link>
+
+        <span className="mx-1 h-4 w-px bg-steam-border" />
+
         {VIEWS.map((v) => (
           <Link
             key={v.value}
-            href={href({ type: type ?? undefined, view: v.value })}
+            href={href({ type: type ?? undefined, view: v.value, album: searchParams.album })}
             aria-label={v.label}
             title={v.label}
             className={`inline-flex items-center gap-1 rounded-sm border px-2 py-1 font-mono text-3xs transition ${
@@ -122,6 +146,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
         </span>
       </div>
 
+      <AdminAssignProvider albums={targets.albums} groups={targets.groups}>
       {photos.length === 0 ? (
         <p className="mt-6 font-mono text-sm text-steam-muted">該当するメディアがありません。</p>
       ) : view === "grid" ? (
@@ -160,9 +185,15 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
                       )}
                     </span>
                   )}
-                  <span className="absolute right-1 top-1">
+                  <span className="absolute right-1 top-1 flex items-center gap-1">
+                    {!p.albumId && <AssignButton photoId={p.id} compact />}
                     <DeleteMediaButton photoId={p.id} label={displayName(p)} compact />
                   </span>
+                  {!p.albumId && (
+                    <span className="absolute bottom-1 left-1 rounded-sm bg-black/60 p-1 backdrop-blur-sm">
+                      <AssignCheckbox photoId={p.id} label={displayName(p)} />
+                    </span>
+                  )}
                 </div>
 
                 <div className="p-1.5">
@@ -178,9 +209,10 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
         </div>
       ) : (
         <div className="mt-4 overflow-x-auto rounded-sm border border-steam-border">
-          <table className="w-full min-w-[760px] border-collapse">
+          <table className="w-full min-w-[820px] border-collapse">
             <thead>
               <tr className="bg-steam-panel text-left font-mono text-4xs uppercase tracking-wide text-steam-muted">
+                <th className="px-3 py-2" aria-label="選択" />
                 <th className="px-3 py-2">種別</th>
                 <th className="px-3 py-2">ゲーム / ファイル</th>
                 <th className="px-3 py-2">投稿者</th>
@@ -194,6 +226,9 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
             <tbody>
               {photos.map((p) => (
                 <tr key={p.id} className="border-t border-steam-border bg-steam-surface align-middle">
+                  <td className="px-3 py-2">
+                    {!p.albumId && <AssignCheckbox photoId={p.id} label={displayName(p)} />}
+                  </td>
                   <td className="px-3 py-2">
                     {p.mediaType === "YOUTUBE" ? (
                       <Youtube size={13} className="text-[#ff4d4d]" />
@@ -226,7 +261,10 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
                         {p.album.group.name} / {p.album.title}
                       </Link>
                     ) : (
-                      <span className="text-steam-muted/60">未分類</span>
+                      <span className="inline-flex items-center gap-2">
+                        <span className="text-steam-muted/60">未分類</span>
+                        <AssignButton photoId={p.id} />
+                      </span>
                     )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-3xs text-steam-muted">
@@ -248,11 +286,13 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
         </div>
       )}
 
+      </AdminAssignProvider>
+
       {lastPage > 1 && (
         <div className="mt-4 flex items-center gap-2">
           {page > 1 && (
             <Link
-              href={href({ type: type ?? undefined, view, page: String(page - 1) })}
+              href={href({ type: type ?? undefined, view, page: String(page - 1), album: searchParams.album })}
               className="rounded-sm border border-steam-border px-3 py-1.5 font-mono text-3xs text-steam-text hover:border-steam-blue"
             >
               前へ
@@ -260,7 +300,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
           )}
           {page < lastPage && (
             <Link
-              href={href({ type: type ?? undefined, view, page: String(page + 1) })}
+              href={href({ type: type ?? undefined, view, page: String(page + 1), album: searchParams.album })}
               className="rounded-sm border border-steam-border px-3 py-1.5 font-mono text-3xs text-steam-text hover:border-steam-blue"
             >
               次へ
