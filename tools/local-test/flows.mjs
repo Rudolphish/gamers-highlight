@@ -3823,6 +3823,56 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   await db.errorReport.deleteMany({ where: { fingerprint: FP } });
 }
 
+// ── Discord が戻り先のURLに `iss` を付けてもログインが落ちない ──
+// 2026-10-15、Mac の Chrome だけログインが2回続けて失敗した。/admin/errors に残った理由は
+// 「issuer must be configured on the issuer」。Discord が戻り先に `iss`（RFC 9207）を付けるようになり、
+// 発行元を設定していない NextAuth の Discord 設定では照合の段階で落ちていた。
+// 本物のログインの手順（CSRF → ログイン開始で state と PKCE の Cookie を受け取る → その state で戻る）を通す。
+// 戻った後はトークンの交換で Discord に繋ぎに行くので、そこから先は失敗してよい（見るのは iss の照合を越えるか）
+{
+  await db.errorReport.deleteMany({ where: { fingerprint: { startsWith: "auth:" } } });
+  const cookieJar = new Map();
+  const keep = (res) => {
+    for (const c of res.headers.getSetCookie?.() ?? []) {
+      const [pair] = c.split(";");
+      const i = pair.indexOf("=");
+      cookieJar.set(pair.slice(0, i), pair.slice(i + 1));
+    }
+  };
+  const cookieHeader = () => [...cookieJar].map(([k, v]) => `${k}=${v}`).join("; ");
+  let detail = "";
+  let ok = false;
+  try {
+    const csrf = await fetch(`${BASE}/api/auth/csrf`);
+    keep(csrf);
+    const { csrfToken } = await csrf.json();
+    const start = await fetch(`${BASE}/api/auth/signin/discord`, {
+      method: "POST",
+      redirect: "manual",
+      headers: { "content-type": "application/x-www-form-urlencoded", cookie: cookieHeader() },
+      body: new URLSearchParams({ csrfToken, callbackUrl: `${BASE}/` }),
+    });
+    keep(start);
+    const authorizeUrl = new URL(start.headers.get("location") ?? "http://invalid/");
+    const state = authorizeUrl.searchParams.get("state");
+    const back = await fetch(
+      `${BASE}/api/auth/callback/discord?code=dummy-code&state=${encodeURIComponent(state ?? "")}&iss=${encodeURIComponent("https://discord.com")}`,
+      { redirect: "manual", headers: { cookie: cookieHeader() } }
+    );
+    const reports = await db.errorReport.findMany({ where: { fingerprint: { startsWith: "auth:" } } });
+    const text = reports.map((r) => r.message).join(" | ");
+    ok =
+      authorizeUrl.hostname === "discord.com" && !!state &&
+      reports.length > 0 && !/state|PKCE/.test(reports.map((r) => r.fingerprint).join(" ")) &&
+      !/issuer must be configured|iss mismatch/.test(text);
+    detail = `開始=${start.status} ${authorizeUrl.hostname} state=${!!state} / 戻り=${back.status} / 記録=${text}`;
+  } catch (e) {
+    detail = `途中で例外: ${e?.message ?? e}`;
+  }
+  check("F292 Discord が戻り先に iss を付けても、発行元の照合で落ちない（Mac で起きたログイン失敗）", ok, detail);
+  await db.errorReport.deleteMany({ where: { fingerprint: { startsWith: "auth:" } } });
+}
+
 // ───────────────────────────────────────────────────────────
 // テストの棚卸し（2026-10-11）で見つかった抜け
 // ───────────────────────────────────────────────────────────

@@ -115,6 +115,16 @@ HowLongToBeatは先方の仕様変更で落ちる前提、YouTubeは無料枠が
 コメントには「埋まっている項目は引き直さない」と書いてあったが実装がそうなっておらず、
 後追いレビューで初めて出た。
 
+### Discord のログインは戻り先に `iss` を付けてくる
+
+Discord は OAuth のログインから戻すURLに `iss`（RFC 9207）を付けるようになった（2026-10 時点で段階的）。
+openid-client は `iss` があると発行元と照合し、**発行元が未設定だと「issuer must be configured on the issuer」で落ちる**。
+NextAuth 組み込みの Discord 設定には発行元が無いので、`lib/auth.ts` で `issuer: "https://discord.com"` を足している。
+
+**`iss` が付く人と付かない人がいる**ので、「Mac でだけログインできない」という出方をした（他の端末は通る）。
+画面には `OAuthCallback` としか出ず、理由は `/admin/errors` に残した記録で分かった（`lib/authErrorLog.ts`）。
+`tools/local-test/flows.mjs` の F292 が、本物の手順（CSRF → ログイン開始 → `iss` 付きで戻る）で見ている。
+
 ### HowLongToBeat は非公式スクレイピング
 
 `/api/bleed`（認証は `/api/bleed/init`）。**先方の仕様変更で壊れる前提**。
