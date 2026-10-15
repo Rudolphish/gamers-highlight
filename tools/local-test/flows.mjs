@@ -3798,6 +3798,31 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 }
 
+// ── ログインの失敗の理由を /admin/errors に残す ──
+// 画面には `?error=OAuthCallback` という分類しか出ず、中身（確認用の Cookie が無い等）は
+// サーバーのログにしか無い。Mac でだけログインできない報告で、手元から理由が分からなかった（2026-10-15）
+{
+  const FP = "auth:OAUTH_CALLBACK_ERROR:state-missing";
+  await db.errorReport.deleteMany({ where: { fingerprint: FP } });
+  const MAC_SAFARI = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
+  // Discord から戻ってきたが、ログインを始めたときの Cookie が無い（別のブラウザで戻った・期限切れ等と同じ状態）
+  const hit = () =>
+    api("/api/auth/callback/discord?code=dummy-code&state=dummy-state", { headers: { "user-agent": MAC_SAFARI } });
+  const first = await hit();
+  const second = await hit();
+  const reports = await db.errorReport.findMany({ where: { fingerprint: FP } });
+  const r = reports[0];
+  check(
+    "F290 Discord から戻ったときの失敗は、理由（Cookieが無い）と端末（Mac / Safari）が /admin/errors に1行で残り、画面は OAuthCallback に戻る",
+    /error=OAuthCallback/.test(first.headers.get("location") ?? "") &&
+      reports.length === 1 && r.count === 2 &&
+      r.message.includes("確認用のCookie（state）が見つからない") && r.message.includes("Mac / Safari") &&
+      !r.message.includes("AppleWebKit"),
+    `location=${first.headers.get("location")} / ${second.status} / 行=${reports.length} count=${r?.count} / ${r?.message}`
+  );
+  await db.errorReport.deleteMany({ where: { fingerprint: FP } });
+}
+
 // ───────────────────────────────────────────────────────────
 // テストの棚卸し（2026-10-11）で見つかった抜け
 // ───────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import { linkDiscordUser, isStillAllowed } from "../../apps/web/src/lib/discordA
 import { authOptions } from "../../apps/web/src/lib/auth";
 import { isCronRequest } from "../../apps/web/src/lib/cronAuth";
 import { describeDbError } from "../../apps/web/src/lib/dbError";
+import { classifyAuthError } from "../../apps/web/src/lib/authErrorLog";
 
 type Row = { id: string; item: string; ok: boolean; detail: string };
 const rows: Row[] = [];
@@ -243,6 +244,26 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
     "想定外のDBの例外は決まった文言だけを返し、接続先やクエリを含めない（既知のコードは今までどおり理由を返す）",
     !/supabase|5432|prisma|invocation/i.test(generic) && generic.length > 0 && known === "同じ内容が既に登録されています。",
     { generic, known }
+  );
+}
+
+// ── ログインの失敗の記録は、外から作れる文をそのまま残さない ──
+// コールバックの `?error_description=` に書いた文はそのまま例外のメッセージになる。
+// 文や端末でまとめるキーが増えると、適当なURLを叩くだけで通知チャンネルを埋められる
+{
+  const crafted = (d: string) =>
+    classifyAuthError("OAUTH_CALLBACK_ERROR", { error: { name: "OPError", message: `weird (${d})` }, providerId: "discord" });
+  const a = crafted("<b>@everyone</b> 見てね https://evil.example/");
+  const b = crafted("別の文");
+  const state = classifyAuthError("OAUTH_CALLBACK_ERROR", { error: { name: "OAuthCallbackError", message: "State cookie was missing." } });
+  const fromClient = classifyAuthError("CLIENT_FETCH_ERROR", { message: "x", client: true });
+  const clientOauth = classifyAuthError("OAUTH_CALLBACK_ERROR", { message: "x", client: true });
+  check(
+    "F291",
+    "ログインの失敗の記録は、外から作れる文を英数字だけに削り、まとめるキーは分類だけで作る（ブラウザからの報告は記録しない）",
+    !!a && !!b && a.fingerprint === b.fingerprint && !/[<>@\/]/.test(a.message) && !a.message.includes("見てね") &&
+      state?.fingerprint === "auth:OAUTH_CALLBACK_ERROR:state-missing" && fromClient === null && clientOauth === null,
+    { a, b, state, fromClient, clientOauth }
   );
 }
 
