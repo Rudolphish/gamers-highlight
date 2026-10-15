@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { getAssignTargets } from "@/lib/assignTargets";
 import { UnclassifiedPhotoManager } from "@/components/photo/UnclassifiedPhotoManager";
 
 // 未分類（albumIdなし）の自分の投稿を一覧表示し、既存アルバムへ追加 or
@@ -18,23 +19,7 @@ export default async function UnclassifiedPage() {
     orderBy: { createdAt: "desc" },
   });
 
-  const albums = await db.album.findMany({
-    where: {
-      OR: [{ ownerId: user.id }, { members: { some: { userId: user.id } } }],
-    },
-    orderBy: { updatedAt: "desc" },
-    // **groupId も渡す。** アルバム名だけを並べると、別グループの同名アルバムに
-    // 振り分けてしまう（画面側でグループを選んでから絞り込む）
-    select: { id: true, title: true, groupId: true },
-  });
-
-  const groups = await db.group.findMany({
-    where: {
-      OR: [{ ownerId: user.id }, { members: { some: { userId: user.id } } }],
-    },
-    orderBy: { updatedAt: "desc" },
-    select: { id: true, name: true },
-  });
+  const { albums, groups } = await getAssignTargets(user.id);
 
   return (
     <main className="p-4 sm:p-6">

@@ -3626,6 +3626,82 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── 管理者が他の人の未分類を振り分ける（/admin/media） ──
+// メンバーが手動で上げた未分類の投稿を用意し、管理者だけが移せること・既にアルバムにある投稿は
+// 管理者でも動かないこと・一覧の「未分類のみ」に出ることを見る。作った写真は同じ経路（API）で消す
+{
+  const uploadAs = async (cookie, label, albumId) => {
+    const bytes = Buffer.from(`assign-${label}-0123456789`);
+    const signed = await api("/api/photos/upload-url", {
+      method: "POST",
+      cookie,
+      body: { contentType: "image/png", mediaType: "IMAGE", sizeBytes: bytes.length },
+    });
+    await fetch(signed.json.upload.url, {
+      method: "PUT",
+      headers: { "content-type": "image/png", "content-length": String(bytes.length) },
+      body: bytes,
+    });
+    const made = await api("/api/photos", {
+      method: "POST",
+      cookie,
+      body: { contentType: "image/png", mediaUrl: signed.json.publicUrl, sizeBytes: bytes.length, gameTitle: `振り分け確認${label}`, ...(albumId ? { albumId } : {}) },
+    });
+    return made.json?.photo?.id;
+  };
+  const assign = (cookie, photoIds, albumId) =>
+    api("/api/photos/assign-album", { method: "POST", cookie, body: { photoIds, albumId } });
+  const albumOf = async (id) => (await db.photo.findUnique({ where: { id }, select: { albumId: true } }))?.albumId ?? null;
+
+  const made = [];
+  try {
+    const target = await db.album.findFirst({ where: { groupId: group.id }, orderBy: { createdAt: "asc" } });
+    const other = await db.album.findFirst({ where: { groupId: group.id, id: { not: target.id } } });
+    const loose1 = await uploadAs(memberCookie, "A");
+    const loose2 = await uploadAs(memberCookie, "B");
+    const placed = other ? await uploadAs(memberCookie, "C", other.id) : null;
+    made.push(loose1, loose2, placed);
+
+    const listed = await api("/admin/media?album=none", { cookie: adminCookie });
+    const byOutsider = await assign(outsiderCookie, [loose1], target.id);
+    const byAdmin = await assign(adminCookie, [loose1, loose2, ...(placed ? [placed] : [])], target.id);
+
+    check(
+      "F277 管理者は他の人の未分類をまとめて振り分けられる（未分類のみの一覧に出る・既にアルバムにある投稿は動かない・他の人は動かせない）",
+      listed.status === 200 &&
+        listed.text.includes("振り分け確認A") &&
+        !listed.text.includes("振り分け確認C") &&
+        (byOutsider.status === 403 || byOutsider.json?.movedCount === 0) &&
+        byAdmin.json?.movedCount === 2 &&
+        (await albumOf(loose1)) === target.id &&
+        (await albumOf(loose2)) === target.id &&
+        (!placed || (await albumOf(placed)) === other.id),
+      JSON.stringify({
+        listed: listed.status,
+        listedA: listed.text.includes("振り分け確認A"),
+        listedC: listed.text.includes("振り分け確認C"),
+        byOutsider: [byOutsider.status, byOutsider.json?.movedCount],
+        byAdmin: byAdmin.json,
+        placedStays: placed ? (await albumOf(placed)) === other?.id : "アルバムが1つしか無く未確認",
+      })
+    );
+
+    // 管理者でなければ、他の人の未分類は（自分が編集できるアルバムでも）動かせない
+    const loose3 = await uploadAs(adminCookie, "D");
+    made.push(loose3);
+    const byMember = await assign(memberCookie, [loose3], target.id);
+    check(
+      "F278 管理者以外は他の人の未分類を振り分けられない（自分の投稿だけ）",
+      (byMember.status === 403 || byMember.json?.movedCount === 0) && (await albumOf(loose3)) === null,
+      JSON.stringify({ byMember: [byMember.status, byMember.json], albumId: await albumOf(loose3) })
+    );
+  } catch (e) {
+    check("F277x 未分類の振り分けの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    for (const id of made.filter(Boolean)) await api(`/api/photos/${id}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
 // ───────────────────────────────────────────────────────────
 // テストの棚卸し（2026-10-11）で見つかった抜け
 // ───────────────────────────────────────────────────────────
