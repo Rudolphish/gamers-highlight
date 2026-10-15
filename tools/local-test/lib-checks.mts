@@ -12,6 +12,8 @@ import { consumeInviteForAllowlist } from "../../apps/web/src/lib/groupInvites";
 import { adminEmails, isAdminConfigured, isAdminEmail } from "../../apps/web/src/lib/admin";
 import { linkDiscordUser, isStillAllowed } from "../../apps/web/src/lib/discordAccount";
 import { authOptions } from "../../apps/web/src/lib/auth";
+import { isCronRequest } from "../../apps/web/src/lib/cronAuth";
+import { describeDbError } from "../../apps/web/src/lib/dbError";
 
 type Row = { id: string; item: string; ok: boolean; detail: string };
 const rows: Row[] = [];
@@ -202,6 +204,46 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
     await db.allowlistEntry.deleteMany({ where: { email: allowMail } });
     await db.user.deleteMany({ where: { OR: [{ discordUserId: { in: [...ids, "198000000000000009"] } }, { email: { in: [victimMail, freeMail, allowMail] } }] } });
   }
+}
+
+// ── cron の合言葉は「未設定なら誰も通さない」（フェイルクローズ） ──
+// 総合テストのサーバーは CRON_SECRET を設定して起動するので、未設定の側はここでしか見られない
+{
+  const saved = process.env.CRON_SECRET;
+  const req = (auth?: string) => new Request("http://localhost/api/cron/check-bot-health", { headers: auth ? { authorization: auth } : {} });
+  try {
+    delete process.env.CRON_SECRET;
+    const unset = { undef: isCronRequest(req("Bearer undefined")), bare: isCronRequest(req("Bearer ")), none: isCronRequest(req()) };
+    process.env.CRON_SECRET = "";
+    const empty = { bare: isCronRequest(req("Bearer ")), undef: isCronRequest(req("Bearer undefined")) };
+    process.env.CRON_SECRET = "s3cret";
+    const set = { ok: isCronRequest(req("Bearer s3cret")), wrong: isCronRequest(req("Bearer s3creT")), longer: isCronRequest(req("Bearer s3cret!")), none: isCronRequest(req()) };
+    check(
+      "F286",
+      "CRON_SECRET が未設定・空なら cron を誰も呼べない（「Bearer undefined」でも通らない）。設定時は一致したときだけ通る",
+      !unset.undef && !unset.bare && !unset.none && !empty.bare && !empty.undef && set.ok && !set.wrong && !set.longer && !set.none,
+      { unset, empty, set }
+    );
+  } finally {
+    if (saved === undefined) delete process.env.CRON_SECRET;
+    else process.env.CRON_SECRET = saved;
+  }
+}
+
+// ── DBの例外を画面へ返すとき、中身（接続先・クエリ）を出さない ──
+// 想定外の例外は本番でしか起きないので、HTTPからは狙って起こせない
+{
+  const raw = new Error(
+    "\nInvalid `prisma.groupInvite.create()` invocation:\n\n\nCan't reach database server at `db.abcdefgh.supabase.co:5432`"
+  );
+  const generic = describeDbError(raw);
+  const known = describeDbError(Object.assign(new Error("Unique constraint failed on the fields: (`token`)"), { code: "P2002" }));
+  check(
+    "F288",
+    "想定外のDBの例外は決まった文言だけを返し、接続先やクエリを含めない（既知のコードは今までどおり理由を返す）",
+    !/supabase|5432|prisma|invocation/i.test(generic) && generic.length > 0 && known === "同じ内容が既に登録されています。",
+    { generic, known }
+  );
 }
 
 await db.$disconnect();

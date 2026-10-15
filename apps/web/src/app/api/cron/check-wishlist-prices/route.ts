@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isCronRequest } from "@/lib/cronAuth";
 import { db } from "@/lib/db";
 import { getItadSummary } from "@/lib/itad";
 import { postDiscordMessage } from "@/lib/discord";
@@ -12,8 +13,7 @@ export const maxDuration = 60;
 // 過去最安値が前回チェック時より下がっていたらDiscordチャンネルに通知する。
 // 初回チェック（前回記録が無い）は基準値を記録するだけで通知はしない（誤検知防止）。
 export async function GET(req: Request) {
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isCronRequest(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

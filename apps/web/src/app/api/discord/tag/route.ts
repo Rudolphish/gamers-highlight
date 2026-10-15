@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { invalidateAlbumPhotos } from "@/lib/cacheTags";
 import { touchAlbum } from "@/lib/albumTouch";
 import { logActivity } from "@/lib/activityLog";
+import { isOutsiderOfGuildGroup } from "@/lib/guildGroup";
 
 /**
  * Discord Botの/tagコマンドからのみ呼ばれる内部API。
@@ -31,6 +32,10 @@ export async function POST(req: Request) {
   const user = await db.user.findUnique({ where: { discordUserId } });
   if (!user) {
     return NextResponse.json({ error: "user not linked" }, { status: 404 });
+  }
+  // サーバーにいてもグループのメンバーでなければ付け替えさせない（理由は lib/guildGroup.ts）
+  if (await isOutsiderOfGuildGroup(guildId, user.id)) {
+    return NextResponse.json({ error: "not a member of the group for this guild" }, { status: 403 });
   }
 
   const photo = await db.photo.findFirst({

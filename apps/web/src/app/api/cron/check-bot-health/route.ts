@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isCronRequest } from "@/lib/cronAuth";
 import { db } from "@/lib/db";
 import { postDiscordMessage } from "@/lib/discord";
 import { checkFreeTierUsage } from "@/lib/usageAlerts";
@@ -27,8 +28,7 @@ const STALE_THRESHOLD_MS = 3 * 60 * 60 * 1000; // 3時間
 // 3本目を足せないため日次の処理をここに相乗りさせている。
 // 日次の見張りを増やす場合もここに足すこと。
 export async function GET(req: Request) {
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isCronRequest(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
