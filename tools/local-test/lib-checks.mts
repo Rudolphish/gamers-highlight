@@ -10,6 +10,8 @@ import { randomUUID } from "node:crypto";
 import { db } from "../../apps/web/src/lib/db";
 import { consumeInviteForAllowlist } from "../../apps/web/src/lib/groupInvites";
 import { adminEmails, isAdminConfigured, isAdminEmail } from "../../apps/web/src/lib/admin";
+import { linkDiscordUser, isStillAllowed } from "../../apps/web/src/lib/discordAccount";
+import { authOptions } from "../../apps/web/src/lib/auth";
 
 type Row = { id: string; item: string; ok: boolean; detail: string };
 const rows: Row[] = [];
@@ -107,6 +109,98 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
       where: { discordUserId: { in: [...people, "199000000000000004", "199000000000000009"] } },
     });
     await db.groupInvite.deleteMany({ where: { id: { in: [inviteId, extraInviteId].filter((x): x is string => !!x) } } });
+  }
+}
+
+// ── ログインの照合は Discord のユーザーID。未確認のメールアドレスは信用しない（2026-10-15 脆弱性チェック） ──
+// 以前はメールアドレスで User を upsert しており、他人の古いアドレスを名乗ると他人の行に入れた
+{
+  const A = "198000000000000001"; // 乗っ取られる側
+  const B = "198000000000000002"; // 名乗る側（許可リストにいるメンバー）
+  const C = "198000000000000003"; // 未確認のアドレスで初めて来る人
+  const mail = (s: string) => `${s}-${randomUUID().slice(0, 8)}@example.com`;
+  const victimMail = mail("victim");
+  const freeMail = mail("free");
+  const allowMail = mail("allow");
+  const ids = [A, B, C];
+  try {
+    const victim = await db.user.create({ data: { email: victimMail, name: "被害者", provider: "discord", discordUserId: A } });
+    await db.user.create({ data: { email: mail("b"), name: "メンバーB", provider: "discord", discordUserId: B } });
+
+    // B がAさんの（いまは Discord 側で空いた）アドレスを確認済みとして名乗っても、Aさんの行には入らない
+    const asB = await linkDiscordUser({ discordUserId: B, email: victimMail, emailVerified: true, name: "B", image: null });
+    // 結びついていない Discord ID がAさんのアドレスで来ても、Aさんの行には結ばない
+    const asNew = await linkDiscordUser({ discordUserId: "198000000000000009", email: victimMail, emailVerified: true, name: "?", image: null });
+    const victimAfter = await db.user.findUnique({ where: { id: victim.id }, select: { discordUserId: true, email: true } });
+    check(
+      "F279",
+      "他人のメールアドレスを名乗っても他人の行には入れない（照合は Discord のユーザーID）",
+      asB.ok && asB.userId !== victim.id && !asNew.ok && victimAfter?.discordUserId === A && victimAfter?.email === victimMail,
+      { asB, asNew, victimAfter }
+    );
+
+    // 未確認のアドレスは保存しない・許可リストのメール照合にも使わない
+    const asC = await linkDiscordUser({ discordUserId: C, email: freeMail, emailVerified: false, name: "C", image: null });
+    const cRow = asC.ok ? await db.user.findUnique({ where: { id: asC.userId }, select: { email: true } }) : null;
+    await db.allowlistEntry.create({ data: { email: allowMail, note: "lib-checks: メールだけの登録" } });
+    const signIn = authOptions.callbacks!.signIn!;
+    const tryLogin = (verified: boolean) =>
+      signIn({
+        user: { id: "x", email: allowMail, name: "D", image: null },
+        account: { provider: "discord", providerAccountId: "198000000000000004", type: "oauth" },
+        profile: { verified } as never,
+      } as never);
+    const unverified = await tryLogin(false);
+    const verified = await tryLogin(true);
+    check(
+      "F280",
+      "Discord で未確認のメールアドレスは保存せず、許可リストのメール照合にも使わない（確認済みなら通る）",
+      asC.ok && cRow?.email === null && unverified === false && verified === true,
+      { asC, cRow, unverified, verified }
+    );
+    ids.push("198000000000000004");
+
+    // jwt：サインインの回は Discord ID で行を引き、メールは DB の値にする（Discord から来た値ではなく）
+    const jwt = authOptions.callbacks!.jwt!;
+    const signedIn = await jwt({
+      token: { email: victimMail },
+      user: { id: "x", email: victimMail },
+      account: { provider: "discord", providerAccountId: B, type: "oauth" },
+    } as never);
+    const bRow = await db.user.findUnique({ where: { discordUserId: B }, select: { id: true, email: true } });
+    check(
+      "F281",
+      "ログインの回は Discord ID で本人の行を引き、管理者の判定に使うメールも DB の値にする",
+      signedIn.userId === bRow?.id && signedIn.email === bRow?.email && signedIn.email !== victimMail,
+      { signedIn: { userId: signedIn.userId, email: signedIn.email }, bRow }
+    );
+
+    // 許可リストの見直し：1時間たつと見直し、外されていれば締め出す（載っていれば通す・開発用ログインは見ない）
+    const old = Date.now() - 2 * 60 * 60 * 1000;
+    const notAllowed = await jwt({ token: { userId: victim.id, allowCheckedAt: old } } as never);
+    const admin = await db.user.findUnique({ where: { email: "admin@example.com" }, select: { id: true } });
+    const allowed = await jwt({ token: { userId: admin!.id, allowCheckedAt: old } } as never);
+    const fresh = await jwt({ token: { userId: victim.id, allowCheckedAt: Date.now() - 60 * 1000 } } as never);
+    const dev = await jwt({ token: { userId: victim.id, allowCheckedAt: old, devLogin: true } } as never);
+    const session = await authOptions.callbacks!.session!({ session: { user: { email: "x" }, expires: "" }, token: notAllowed } as never);
+    check(
+      "F282",
+      "許可リストから外された人は1時間ごとの見直しで締め出される（載っている人・見直し前・開発用ログインは通す）",
+      notAllowed.revoked === true &&
+        (notAllowed.allowCheckedAt as number) > old &&
+        !allowed.revoked &&
+        !fresh.revoked &&
+        !dev.revoked &&
+        (session as { user?: unknown }).user === undefined &&
+        (await isStillAllowed(admin!.id)) &&
+        !(await isStillAllowed(victim.id)),
+      { notAllowed: notAllowed.revoked, allowed: allowed.revoked, fresh: fresh.revoked, dev: dev.revoked, session }
+    );
+  } catch (e) {
+    check("F279x", "ログインの照合の確認が途中で例外になった（以降は未確認）", false, (e as Error)?.stack ?? e);
+  } finally {
+    await db.allowlistEntry.deleteMany({ where: { email: allowMail } });
+    await db.user.deleteMany({ where: { OR: [{ discordUserId: { in: [...ids, "198000000000000009"] } }, { email: { in: [victimMail, freeMail, allowMail] } }] } });
   }
 }
 
