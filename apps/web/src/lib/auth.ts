@@ -56,6 +56,13 @@ const providers: NextAuthOptions["providers"] = [
     clientId: process.env.DISCORD_CLIENT_ID!,
     clientSecret: process.env.DISCORD_CLIENT_SECRET!,
     checks: ["pkce", "state"],
+    // **発行元を書いておかないと、戻り先のURLに `iss` が付いた回だけログインが失敗する。**
+    // Discord はログインから戻すURLに `iss`（RFC 9207）を付けるようになった（2026-10 時点で段階的に）。
+    // openid-client は `iss` があると発行元と照合し、発行元が未設定だと
+    // 「issuer must be configured on the issuer」で落ちる。NextAuth 組み込みの Discord 設定には
+    // 発行元が無い（next-auth #12694 で議論中）。2026-10-15 に Mac の Chrome だけ2回続けて失敗した
+    // （/admin/errors に記録された理由で判明）。`iss` が付かない回は従来どおり通る
+    issuer: "https://discord.com",
   }),
 ];
 
