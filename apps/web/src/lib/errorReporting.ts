@@ -18,6 +18,11 @@ export type ErrorReportInput = {
   digest?: string | null;
   message: string;
   path: string;
+  /**
+   * まとめるキーを呼び出し側で決める（ログインの失敗など、文に外から作れる部分が混ざるもの）。
+   * 指定しないと digest か「メッセージ＋場所」から作る
+   */
+  fingerprint?: string;
 };
 
 /**
@@ -26,6 +31,7 @@ export type ErrorReportInput = {
  * 無い場合（クライアント側の例外）はメッセージとパスから作る。
  */
 function fingerprintOf(input: ErrorReportInput): string {
+  if (input.fingerprint) return input.fingerprint;
   if (input.digest) return `digest:${input.digest}`;
   return `msg:${createHash("sha256").update(`${input.message}|${input.path}`).digest("hex").slice(0, 32)}`;
 }

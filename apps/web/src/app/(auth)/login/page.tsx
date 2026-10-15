@@ -7,7 +7,7 @@ import { Spinner } from "@/components/ui/Spinner";
 
 // ログイン画面：OAuth（Discord）ログイン。
 // 許可リストに無いアカウントは lib/auth.ts の signIn コールバックで拒否され、
-// ?error=AccessDenied 付きでこの画面に戻ってくる。
+// ?error=AccessDenied 付きでこの画面に戻ってくる（他のコードは describeLoginError）。
 //
 // useSearchParams()を使うコンポーネントはNext.js 14ではSuspenseで
 // 包む必要があるため、ロジック部分を別コンポーネントに分離している。
@@ -19,13 +19,49 @@ export default function LoginPage() {
   );
 }
 
+/**
+ * NextAuth が `?error=` に付けてくるコードを、**ログインしようとしている本人向けの文言**にする。
+ *
+ * 以前は環境変数名（`NEXTAUTH_URL` など）や設定手順をそのまま出していた。見るのは
+ * 友人のメンバーで、直せるのは管理者だけなので、本人には「次に何をすればいいか」だけを出す。
+ * 原因の切り分けに要るコードは小さく添える（管理者に伝えてもらう用。サーバーのログと突き合わせる）。
+ *
+ * **知らないコードは中身を出さない。** signIn コールバックが例外を投げると、NextAuth は
+ * その例外メッセージ（Prisma のエラー文など）をそのまま `?error=` に入れてくる。
+ */
+function describeLoginError(code: string): { message: string; hint?: string; showCode: boolean } {
+  switch (code) {
+    case "AccessDenied":
+      return {
+        message: "このDiscordアカウントは、まだ招待されていません。",
+        hint: "招待リンクをもらっている場合は、そのリンクを開き直してからログインしてください。別のDiscordアカウントでログインしていないかも確かめてください。",
+        showCode: false,
+      };
+    // OAuthCallback: Discord から戻ってきたときの確認に失敗した（ログインを始めた画面と戻ってきた画面で
+    // ブラウザやアドレスが違う・15分以上かかった・Cookie がブロックされている、のどれかが多い）。
+    // Callback / OAuthSignin も同じく「途中で失敗した」として扱う
+    case "OAuthCallback":
+    case "Callback":
+    case "OAuthSignin":
+    case "State":
+      return {
+        message: "ログインの途中で失敗しました。もう一度「Discordでログイン」を押してください。",
+        hint: "続く場合は、ブックマークではなくこのページを開き直してから試してください。ログインを始めたのと同じブラウザで最後まで進める必要があります（途中で別のブラウザやDiscordアプリが開いた場合は失敗します）。",
+        showCode: true,
+      };
+    case "Configuration":
+      return { message: "ログインの設定に問題があり、いまはログインできません。管理者に連絡してください。", showCode: true };
+    default:
+      return { message: "ログインに失敗しました。時間をおいて、もう一度試してください。", showCode: false };
+  }
+}
+
+const KNOWN_CODES = new Set(["AccessDenied", "OAuthCallback", "Callback", "OAuthSignin", "State", "Configuration"]);
+
 function LoginForm() {
   const params = useSearchParams();
   const error = params.get("error");
-  const denied = error === "AccessDenied";
-  const configError = error === "Configuration";
-  const oauthCallbackError = error === "OAuthCallback";
-  const otherError = error && !denied && !configError && !oauthCallbackError;
+  const described = error ? describeLoginError(error) : null;
 
   const [provider, setProvider] = useState<"discord" | null>(null);
 
@@ -44,27 +80,15 @@ function LoginForm() {
         <p className="mt-2 text-sm text-steam-muted">招待されたメンバーのみアクセスできます</p>
       </div>
 
-      {denied && (
-        <p className="rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
-          このアカウントはまだ招待されていません。管理者に許可リストへの追加を依頼してください。
-        </p>
-      )}
-      {configError && (
-        <p className="rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
-          ログイン設定に不備があります。Vercel環境変数 `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`,
-          `NEXTAUTH_SECRET` の設定を確認してください。
-        </p>
-      )}
-      {oauthCallbackError && (
-        <p className="rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
-          OAuth コールバックでエラーが発生しました。Vercel の `NEXTAUTH_URL` を `https://YOUR_DOMAIN` に設定し、Discord の OAuth リダイレクト
-          URI に `https://YOUR_DOMAIN/api/auth/callback/discord` を登録してください。
-        </p>
-      )}
-      {otherError && (
-        <p className="rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
-          ログインでエラーが発生しました（{error}）。環境変数の設定を確認してください。
-        </p>
+      {described && (
+        <div role="alert" className="max-w-sm rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p>{described.message}</p>
+          {described.hint && <p className="mt-1.5 text-xs text-red-600">{described.hint}</p>}
+          {/* 管理者が原因を切り分けるためのコード。知らないコード（例外メッセージ）は出さない */}
+          {described.showCode && error && KNOWN_CODES.has(error) && (
+            <p className="mt-1.5 font-mono text-3xs text-red-500/80">{`エラーコード: ${error}`}</p>
+          )}
+        </div>
       )}
 
       <div className="flex flex-col gap-3 min-w-[240px]">

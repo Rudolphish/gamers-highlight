@@ -5,6 +5,7 @@ import { db } from "./db";
 import { isAdminEmail } from "./admin";
 import { registerAllowlistFromInvite } from "./groupInvites";
 import { isStillAllowed, linkDiscordUser } from "./discordAccount";
+import { logAuthError } from "./authErrorLog";
 
 /**
  * ログイン中の人が、いまも許可リストに載っているかを見直す間隔。
@@ -227,4 +228,6 @@ export const authOptions: NextAuthOptions = {
     },
   },
   session: { strategy: "jwt" },
+  // ログインの失敗の理由を /admin/errors にも残す（画面には分類しか出ず、中身はログにしか無いため。lib/authErrorLog.ts）
+  logger: { error: logAuthError },
 };

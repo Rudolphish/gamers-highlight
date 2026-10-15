@@ -2435,6 +2435,48 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── ログイン画面のエラーメッセージ（本人向けの文言か） ──
+// 以前は環境変数名や設定手順（`NEXTAUTH_URL` を設定し…）を、ログインしようとしている友人に出していた。
+// signIn が例外を投げると NextAuth はその例外メッセージを `?error=` に入れてくるので、
+// 知らないコードの中身を画面に出さないことも見る。ログイン画面は描画がクライアント側なので実ブラウザで見る
+{
+  const anon = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await anon.newPage();
+  const DEV_WORDS = /NEXTAUTH|DISCORD_CLIENT|Vercel|環境変数|YOUR_DOMAIN|リダイレクト URI|prisma|invocation/i;
+  const alertText = async (code) => {
+    await page.goto(`${BASE}/login?error=${encodeURIComponent(code)}`, { waitUntil: "networkidle" });
+    const alert = page.getByRole("alert");
+    return (await alert.count()) > 0 ? ((await alert.first().textContent()) ?? "") : "";
+  };
+  try {
+    const cases = {
+      OAuthCallback: await alertText("OAuthCallback"),
+      Configuration: await alertText("Configuration"),
+      AccessDenied: await alertText("AccessDenied"),
+      junk: await alertText("\nInvalid `prisma.user.update()` invocation: Unique constraint failed"),
+    };
+    const leaked = Object.entries(cases).filter(([, t]) => DEV_WORDS.test(t)).map(([k]) => k);
+    const ok =
+      leaked.length === 0 &&
+      cases.OAuthCallback.includes("もう一度") && cases.OAuthCallback.includes("エラーコード: OAuthCallback") &&
+      cases.Configuration.includes("管理者に連絡") &&
+      cases.AccessDenied.includes("招待されていません") &&
+      cases.junk.includes("ログインに失敗しました") && !cases.junk.includes("エラーコード");
+    rows.push({
+      id: "B111",
+      item: "ログイン失敗の表示が本人向けの文言で、環境変数名や例外メッセージを出さない（切り分け用のコードだけ小さく添える）",
+      expected: "開発者向けの語なし・コードごとの案内・知らないコードは中身を出さない",
+      actual: leaked.length ? `開発者向けの語が出た: ${leaked.join(", ")}` : Object.entries(cases).map(([k, t]) => `${k}=${t.slice(0, 18)}`).join(" / "),
+      ok,
+      note: ok ? "" : JSON.stringify(cases).slice(0, 300),
+    });
+  } catch (e) {
+    rows.push({ id: "B111", item: "ログイン失敗の表示（本人向けの文言）", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    await anon.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）
