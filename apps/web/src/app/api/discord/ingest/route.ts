@@ -7,6 +7,7 @@ import { uploadFromUrlToStorage } from "@/lib/storage";
 import { resolveMediaType, maxSizeFor, MAX_VIDEO_DURATION_SECONDS } from "@/lib/media-limits";
 import { parseSteamScreenshotName } from "@/lib/steamScreenshot";
 import { resolveOrCreateAlbum } from "@/lib/gameIdentify";
+import { isOutsiderOfGuildGroup } from "@/lib/guildGroup";
 
 /**
  * Discord Botからのみ呼ばれる内部API。
@@ -78,6 +79,10 @@ export async function POST(req: Request) {
   if (!user) {
     // 未連携ユーザーの投稿は取り込まない（設計書 4.2 参照）
     return NextResponse.json({ skipped: "user not linked" });
+  }
+  // サーバーにいてもグループのメンバーでなければ取り込まない（理由は lib/guildGroup.ts）
+  if (await isOutsiderOfGuildGroup(guildId, user.id)) {
+    return NextResponse.json({ skipped: "not a member of the group for this guild" });
   }
 
   let gameTitle: string | null = null;

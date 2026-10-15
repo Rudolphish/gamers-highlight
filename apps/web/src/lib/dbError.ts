@@ -21,8 +21,10 @@ export function describeDbError(e: unknown): string {
     return "同じ内容が既に登録されています。";
   }
 
-  const message = e instanceof Error ? e.message : String(e);
-  return message.split("\n").filter(Boolean).pop()?.slice(0, 200) || "不明なエラー";
+  // **それ以外は中身を返さない。** 以前は例外メッセージの最後の行をそのまま返していたが、
+  // Prismaのメッセージには接続先のホスト名やクエリの断片が入る（招待リンクを開いただけの
+  // 未加入の人にも返る経路がある）。原因はログ（dbErrorResponse の tag）で追う
+  return "データベースの処理に失敗しました。時間をおいて試してください。";
 }
 
 /**

@@ -34,7 +34,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const message =
       result.status === 404
         ? "直近10分以内のスクショが見つかりませんでした（先に画像/動画を投稿してから使ってください）"
-        : "タグ付けに失敗しました";
+        : result.status === 403
+          ? "このサーバーのグループのメンバーではないため、タグ付けできません"
+          : "タグ付けに失敗しました";
     await interaction.editReply(message);
     return;
   }

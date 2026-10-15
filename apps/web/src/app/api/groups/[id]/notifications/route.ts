@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 import { NOTIFICATION_KINDS } from "@/lib/notificationTargets";
+import { listGuildTextChannels } from "@/lib/discord";
 import type { GroupNotificationKind } from "@gamers-highlight/db";
 
 // PATCH /api/groups/:id/notifications … 通知の種類ごとに送り先チャンネルを決める（OWNERのみ）
@@ -48,6 +49,29 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const { kind, channelId } = parsed.data;
+
+  // **送り先はグループのDiscordサーバーの、投稿できるチャンネルに限る。**
+  // 形式だけ見ていた頃は、Botが入っている別のサーバーのチャンネルIDを書けば
+  // そこへグループの通知（メンバー名やゲーム名）を流せた。
+  // 一覧が取れないとき（サーバー未設定・Bot未参加・Discordの障害）も通さない。
+  // 「送らない」（空）はいつでも選べる
+  if (channelId !== "") {
+    const group = await db.group.findUnique({ where: { id: params.id }, select: { guildId: true } });
+    const channels = group?.guildId ? await listGuildTextChannels(group.guildId) : null;
+    if (!channels) {
+      return NextResponse.json(
+        { error: "Discordのチャンネル一覧を取得できないため、通知先を設定できません（サーバー未設定・Botが未参加・Discordの障害のいずれか）" },
+        { status: 409 }
+      );
+    }
+    if (!channels.some((c) => c.id === channelId)) {
+      return NextResponse.json(
+        { error: "グループのDiscordサーバーにある、投稿できるチャンネルを選んでください" },
+        { status: 400 }
+      );
+    }
+  }
+
   const where = { groupId_kind: { groupId: params.id, kind } };
 
   if (channelId === "") {

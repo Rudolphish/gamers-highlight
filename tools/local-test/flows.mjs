@@ -1608,7 +1608,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   // CIにネットワーク依存を持ち込まないよう、cron側は**DBに残る記録**で判定し、
   // 文面の中身はスタブを通る手動送信の方で見る。
   // ここからはグループ側の通知先を設定して確かめる（自動送信はこちらを見る）
-  await setWeeklyTarget("900000000000000077");
+  await setWeeklyTarget("900000000000000011");
   const cronRes = await runCron();
   const weekly = JSON.parse(cronRes.text).weekly;
   check(
@@ -2464,10 +2464,11 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const created = await api("/api/groups", {
     method: "POST",
     cookie: adminCookie,
-    body: { name: "提案通知テスト用グループ" },
+    // 通知先はグループのDiscordサーバーのチャンネルに限るので、サーバーを持たせる（スタブはどのサーバーにも同じ一覧を返す）
+    body: { name: "提案通知テスト用グループ", guildId: "900000000000000555" },
   });
   const notifyGroupId = created.json?.group?.id ?? null;
-  const CHANNEL = "900000000000000099";
+  const CHANNEL = "900000000000000011";
   const setTarget = (kind, channelId) =>
     api(`/api/groups/${notifyGroupId}/notifications`, {
       method: "PATCH",
@@ -2538,8 +2539,9 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 
   // Discordが落ちていても提案は成功する（通知の失敗で500にしない）
-  fs.writeFileSync("/tmp/stub-fail", "discord.com");
+  // 設定はDiscordが生きているうちに済ませる（一覧が取れないと通知先を保存できない）
   await setTarget("PROPOSAL", CHANNEL);
+  fs.writeFileSync("/tmp/stub-fail", "discord.com");
   const whenDown = await api(`/api/groups/${notifyGroupId}/proposals`, {
     method: "POST",
     cookie: adminCookie,
@@ -2566,7 +2568,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 
   // 種類ごとに違うチャンネルを指定できる
-  const OTHER = "900000000000000088";
+  const OTHER = "900000000000000012";
   await setTarget("PRICE_DROP", OTHER);
   const twoKinds = await db.groupNotificationTarget.findMany({
     where: { groupId: notifyGroupId },
@@ -2603,6 +2605,38 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     body: { kind: "PROPOSAL", channelId: CHANNEL },
   });
   check("F178 オーナー以外は通知先を変えられない", byMember.status === 403, byMember.status);
+
+  // **送り先はグループのDiscordサーバーのチャンネルに限る。** 形式だけ見ていた頃は、
+  // Botが入っている別サーバーのチャンネルIDを書けば、そこへグループの通知を流せた
+  const beforeForeign = await db.groupNotificationTarget.findMany({ where: { groupId: notifyGroupId }, select: { kind: true, channelId: true } });
+  const foreign = await setTarget("PRICE_DROP", "900000000000000099");
+  const voice = await setTarget("PRICE_DROP", "900000000000000014");
+  const afterForeign = await db.groupNotificationTarget.findMany({ where: { groupId: notifyGroupId }, select: { kind: true, channelId: true } });
+  check(
+    "F284 グループのサーバーに無いチャンネル・投稿できないチャンネル（ボイス）は400で、保存もされない",
+    foreign.status === 400 && voice.status === 400 && JSON.stringify(afterForeign) === JSON.stringify(beforeForeign),
+    `別サーバー=${foreign.status} / ボイス=${voice.status} / 前=${JSON.stringify(beforeForeign)} 後=${JSON.stringify(afterForeign)}`
+  );
+
+  // 一覧が取れないときも通さない（取れないから素通し、だと「Botが入っていないサーバー」を
+  // 名乗ったグループを作るだけで検証を外せる）。「送らない」だけはいつでも選べる
+  const noGuild = await api("/api/groups", { method: "POST", cookie: adminCookie, body: { name: "サーバー未設定の通知テスト" } });
+  const noGuildId = noGuild.json?.group?.id ?? null;
+  const noGuildSet = await api(`/api/groups/${noGuildId}/notifications`, {
+    method: "PATCH",
+    cookie: adminCookie,
+    body: { kind: "PROPOSAL", channelId: CHANNEL },
+  });
+  if (noGuildId) await api(`/api/groups/${noGuildId}`, { method: "DELETE", cookie: adminCookie });
+  fs.writeFileSync("/tmp/stub-fail", "discord.com");
+  const downSet = await setTarget("PRICE_DROP", "900000000000000013");
+  const downClear = await setTarget("WEEKLY_SUMMARY", "");
+  fs.rmSync("/tmp/stub-fail", { force: true });
+  check(
+    "F285 サーバー未設定のグループ・Discordが落ちているときは通知先を設定できない（409）が、「送らない」は選べる",
+    noGuildSet.status === 409 && downSet.status === 409 && downClear.status === 200,
+    `サーバー未設定=${noGuildSet.status} / 障害中=${downSet.status} / 障害中の送らない=${downClear.status}`
+  );
 
   // **別の種類の設定を、提案の通知先として使ってしまわないこと。**
   // 種類ごとに分けた意味がここにある。読み取り側が種類を見ていないと、
@@ -3738,6 +3772,32 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── セキュリティヘッダー（ページ・API・ログイン画面・リダイレクトの全部に付く） ──
+{
+  const targets = [
+    ["ページ", await api(`/groups/${group.id}`, { cookie: adminCookie })],
+    ["API", await api("/api/users/me", { cookie: adminCookie })],
+    ["ログイン画面", await api("/login")],
+    ["未ログインのリダイレクト", await api("/")],
+  ];
+  const want = {
+    "x-frame-options": "DENY",
+    "content-security-policy": "frame-ancestors 'none'",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "strict-origin-when-cross-origin",
+  };
+  const missing = targets.flatMap(([name, r]) =>
+    Object.entries(want)
+      .filter(([k, v]) => r.headers.get(k) !== v)
+      .map(([k]) => `${name}(${r.status}): ${k}=${r.headers.get(k)}`)
+  );
+  check(
+    "F289 どの応答にも iframe 埋め込み禁止・nosniff・Referer を絞るヘッダーが付く",
+    missing.length === 0,
+    missing.join(" / ")
+  );
+}
+
 // ───────────────────────────────────────────────────────────
 // テストの棚卸し（2026-10-11）で見つかった抜け
 // ───────────────────────────────────────────────────────────
@@ -3946,6 +4006,41 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       body: { discordUserId: "100000000000000777", guildId: group.guildId, gameTitle: "x", tag: "x" },
     });
     check("F251 連携していない人の /tag は404", unlinked.status === 404, unlinked.status);
+
+    // **サーバーにいる＝グループのメンバーではない。** 部外者（ログインはできるが、このグループには
+    // 入っていない人）の投稿が取り込まれると、他人のグループのアルバムに写真が入り、
+    // 初出の #タグ ならアルバムまで作られる。/tag も同じ
+    const outsiderMsg = `outsider-${randomUUID()}`;
+    const outsiderTag = `outsidertag${randomUUID().slice(0, 6)}`;
+    const outsiderIngest = await api("/api/discord/ingest", {
+      method: "POST",
+      headers: { "x-internal-secret": INTERNAL_SECRET },
+      body: {
+        discordUserId: "100000000000000003",
+        channelId: "700000000000000001",
+        guildId: group.guildId,
+        attachmentUrl: "http://127.0.0.1:9100/gh-local/photos/shot1.png",
+        contentType: "image/png",
+        sizeBytes: 1024,
+        discordMessageId: outsiderMsg,
+        postedAt: new Date().toISOString(),
+        rawTag: outsiderTag,
+      },
+    });
+    const outsiderPhotos = await db.photo.count({ where: { discordMessageId: outsiderMsg } });
+    const outsiderTags = await db.discordGameTag.count({ where: { guildId: group.guildId, tag: outsiderTag } });
+    const outsiderTagCmd = await api("/api/discord/tag", {
+      method: "POST",
+      headers: { "x-internal-secret": INTERNAL_SECRET },
+      body: { discordUserId: "100000000000000003", guildId: group.guildId, gameTitle: "部外者のゲーム", tag: outsiderTag },
+    });
+    const outsiderTagsAfter = await db.discordGameTag.count({ where: { guildId: group.guildId, tag: outsiderTag } });
+    check(
+      "F287 グループのメンバーでない人の投稿は取り込まず（写真もアルバムも作らない）、/tag も403",
+      outsiderIngest.status === 200 && /not a member/.test(outsiderIngest.text) && outsiderPhotos === 0 && outsiderTags === 0 &&
+        outsiderTagCmd.status === 403 && outsiderTagsAfter === 0,
+      `取り込み=${outsiderIngest.status} ${outsiderIngest.text.slice(0, 60)} / 写真${outsiderPhotos} タグ${outsiderTags} / tag=${outsiderTagCmd.status} タグ${outsiderTagsAfter}`
+    );
   } finally {
     // アルバムに入ったのでキャッシュに載っている。API経由で消す（lessons.md）
     if (photo) await api(`/api/photos/${photo.id}`, { method: "DELETE", cookie: adminCookie });

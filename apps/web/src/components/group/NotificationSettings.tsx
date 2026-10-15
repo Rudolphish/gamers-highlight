@@ -66,7 +66,11 @@ export function NotificationSettings({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind, channelId }),
       });
-      if (!res.ok) throw new Error("更新に失敗しました");
+      // 理由（別サーバーのチャンネル・一覧が取れない等）はAPIが文章で返すので、そのまま出す
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(typeof body?.error === "string" ? body.error : "更新に失敗しました");
+      }
       router.refresh();
     } catch (e) {
       setValues((v) => ({ ...v, [kind]: previous }));

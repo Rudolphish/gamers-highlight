@@ -50,6 +50,30 @@ const nextConfig = {
   },
   output: "standalone",
 
+  // 全ページ・全APIに付けるセキュリティヘッダー。
+  // - 他のサイトの iframe に埋め込ませない（透明に重ねて「削除」などを押させるクリックジャッキング対策。
+  //   古いブラウザ向けの X-Frame-Options と、CSP の frame-ancestors の両方を出す）
+  // - Content-Type を推測させない（アップロードされたファイルが別の種類として解釈されないように）
+  // - 他サイトへ遷移するときに URL のパス（アルバムIDなど）を Referer で渡さない
+  // - 使っていない端末の機能（カメラ・マイク・位置情報）を明示的に切る
+  //
+  // **CSP は frame-ancestors だけにしている。** script-src まで絞ると Next.js が埋め込む
+  // インラインスクリプトに nonce が要り、ページが白くなる壊れ方をする（確かめる手段がローカルの本番ビルドしかない）。
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+    ];
+  },
+
   // **この位置の outputFileTracingRoot は Next.js 14 では無視される**
   // （14 では `experimental` の下が正しい。トップレベルに昇格したのは 15）。
   // ビルドと起動のたびに `Unrecognized key(s) in object: 'outputFileTracingRoot'` が出るのはこれ。
