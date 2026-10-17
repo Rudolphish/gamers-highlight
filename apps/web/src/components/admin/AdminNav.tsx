@@ -8,6 +8,7 @@ const TABS = [
   { href: "/admin/users", label: "ユーザー" },
   { href: "/admin/weekly", label: "週次まとめ" },
   { href: "/admin/activity", label: "活動カレンダー" },
+  { href: "/admin/play-log", label: "プレイ記録" },
   { href: "/admin/invites", label: "招待リンク" },
   { href: "/admin/media", label: "メディア一覧" },
   { href: "/admin/errors", label: "エラー" },

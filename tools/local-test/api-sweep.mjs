@@ -41,6 +41,9 @@ const cases = [
   ["R17", "許可リスト追加は管理者のみ", "POST", "/api/allowlist", { email: "intruder@example.com" }, { member: 403, outsider: 403 }],
   ["R18", "エラー通知先の変更は管理者のみ", "POST", "/api/admin/error-notify", { channelId: "123" }, { member: 403, outsider: 403 }],
   ["R19", "招待の取り消し（管理者API）は管理者のみ", "DELETE", `/api/admin/invites/${ids.inviteId}`, null, { member: 403, outsider: 403 }],
+  ["R58", "プレイ記録の手動追加は管理者のみ", "POST", "/api/admin/play-sessions", { groupId: ids.groupId, startedAt: "2026-01-01T00:00:00Z", endedAt: "2026-01-01T01:00:00Z", participantIds: [] }, { anon: 403, member: 403, outsider: 403 }],
+  ["R59", "プレイ記録の修正は管理者のみ（無い記録は管理者でも404）", "PATCH", "/api/admin/play-sessions/no-such-session", { startedAt: "2026-01-01T00:00:00Z", endedAt: "2026-01-01T01:00:00Z", participantIds: [] }, { anon: 403, member: 403, outsider: 403, admin: 404 }],
+  ["R60", "プレイ記録の削除は管理者のみ（無い記録は管理者でも404）", "DELETE", "/api/admin/play-sessions/no-such-session", null, { anon: 403, member: 403, outsider: 403, admin: 404 }],
   ["R20", "cron（価格チェック）はシークレット必須", "GET", "/api/cron/check-wishlist-prices", null, { anon: 401 }],
   // 写真リアクション。閲覧できる人（VIEWER以上）なら誰でも押せる＝memberは200。
   // 部外者はそのアルバムを見られないので403、未ログインは401
