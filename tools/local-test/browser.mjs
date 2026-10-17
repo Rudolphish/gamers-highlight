@@ -2477,6 +2477,73 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── 管理者のプレイ記録の画面：追加 → 修正 → 削除がモーダルから通る ──
+// API の中身は flows の F293〜F296 で見ている。ここは画面の配線（モーダルの入力が API に渡り、一覧に反映されるか）だけ
+{
+  const page = await context.newPage();
+  // 3日前の 20:00〜21:30（JST）。他の記録と取り違えないよう日時で行を探す
+  const day = new Date(Date.now() + 9 * 3600000 - 3 * 86400000).toISOString().slice(0, 10);
+  const [, mm, dd] = day.split("-").map(Number);
+  const rowOf = () => page.locator("li[data-play-session]", { hasText: `${mm}/${dd}(` }).filter({ hasText: "20:00" });
+  let stage = "開く";
+  try {
+    await page.goto(`${BASE}/admin/play-log?group=${ids.groupId}`, { waitUntil: "networkidle" });
+    stage = "追加";
+    await page.getByRole("button", { name: "記録を追加" }).click();
+    const dialog = page.getByRole("dialog");
+    const gameOptions = await dialog.locator("#play-game option").evaluateAll((os) => os.map((o) => o.value).filter(Boolean));
+    await dialog.locator("#play-game").selectOption(gameOptions[0]);
+    await dialog.locator("#play-start").fill(`${day}T20:00`);
+    await dialog.locator("#play-end").fill(`${day}T21:30`);
+    await dialog.locator('input[type="checkbox"]').first().check();
+    await dialog.getByRole("button", { name: "追加する" }).click();
+    await dialog.waitFor({ state: "detached", timeout: 10000 });
+    await rowOf().first().waitFor({ timeout: 10000 });
+    const addedText = (await rowOf().first().textContent()) ?? "";
+
+    stage = "修正";
+    await rowOf().first().getByRole("button", { name: /記録を修正/ }).click();
+    const edit = page.getByRole("dialog");
+    await edit.locator("#play-end").fill(`${day}T22:00`);
+    await edit.getByRole("button", { name: "保存する" }).click();
+    await edit.waitFor({ state: "detached", timeout: 10000 });
+    await page.waitForFunction(() => document.body.innerText.includes("2時間"), null, { timeout: 10000 }).catch(() => {});
+    const editedText = (await rowOf().first().textContent()) ?? "";
+
+    stage = "削除";
+    page.once("dialog", (d) => d.accept());
+    await rowOf().first().getByRole("button", { name: /記録を削除/ }).click();
+    await rowOf().first().waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
+    const left = await rowOf().count();
+
+    const ok = addedText.includes("1時間30分") && addedText.includes("手動で追加") && editedText.includes("2時間") && !editedText.includes("2時間30分") && left === 0;
+    rows.push({
+      id: "B112",
+      item: "管理者のプレイ記録の画面で、モーダルから記録を追加・修正・削除でき、一覧に反映される",
+      expected: "追加=1時間30分（手動で追加）→ 修正=2時間 → 削除で消える",
+      actual: `追加=${addedText.includes("1時間30分")} / 修正=${editedText.includes("2時間")} / 残り=${left}`,
+      ok,
+      note: ok ? "" : `${addedText.slice(0, 80)} || ${editedText.slice(0, 80)}`,
+    });
+  } catch (e) {
+    rows.push({ id: "B112", item: "管理者のプレイ記録の画面（追加・修正・削除）", expected: "-", actual: "未確認", ok: false, note: `「${stage}」で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    // 残っていたら画面の削除ボタンで消す（作ったのと同じ経路。docs/lessons.md）
+    try {
+      await page.goto(`${BASE}/admin/play-log?group=${ids.groupId}`, { waitUntil: "networkidle" });
+      for (let i = 0; i < 5 && (await rowOf().count()) > 0; i++) {
+        page.once("dialog", (d) => d.accept());
+        await rowOf().first().getByRole("button", { name: /記録を削除/ }).click();
+        await page.waitForTimeout(1500);
+        await page.reload({ waitUntil: "networkidle" });
+      }
+    } catch {
+      // 片付けに失敗しても結果の表は残す
+    }
+    await page.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）

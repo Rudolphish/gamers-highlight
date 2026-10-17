@@ -3873,6 +3873,117 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   await db.errorReport.deleteMany({ where: { fingerprint: { startsWith: "auth:" } } });
 }
 
+// ── 管理者がプレイ記録を直す（時間の修正・削除・記録されなかった回の手動追加） ──
+// Bot が落ちていた・VC に入らずに遊んだ等で欠けた記録を、管理者が後から直す（2026-10-17 ユーザー判断）。
+// 画面は /admin/play-log、処理は lib/playLogAdmin.ts
+{
+  const fs = await import("node:fs");
+  const DISCORD_LOG = "/tmp/stub-discord.log";
+  const posts = () =>
+    (fs.existsSync(DISCORD_LOG) ? fs.readFileSync(DISCORD_LOG, "utf8").split("\n").filter(Boolean) : []).map(
+      (l) => JSON.parse(JSON.parse(l).body ?? "{}").content ?? ""
+    );
+  const internal = { "x-internal-secret": INTERNAL_SECRET };
+  const admin = await db.user.findFirst({ where: { email: "admin@example.com" } });
+  const member = await db.user.findFirst({ where: { email: "member@example.com" } });
+  const outsider = await db.user.findFirst({ where: { email: "outsider@example.com" } });
+  const game = await db.groupGame.findFirst({ where: { groupId: group.id }, orderBy: { createdAt: "asc" } });
+  const otherGroupGame = await db.groupGame.findFirst({ where: { groupId: { not: group.id } } });
+  const iso = (minAgo) => new Date(Date.now() - minAgo * 60000).toISOString();
+  const call = (method, path, body, cookie = adminCookie) => api(path, { method, cookie, body });
+  const made = [];
+  let openId = null;
+  try {
+    // 終了の通知の送り先を置いておく。**手で足した回に今さら「遊びました」が飛ばないこと**を見るため
+    // （閉じてから10分〜6時間のまだ送っていない行は、次の生存報告で終了の通知が飛ぶ）
+    await api(`/api/groups/${group.id}/notifications`, { method: "PATCH", cookie: adminCookie, body: { kind: "PLAY_LOG", channelId: "900000000000000011" } });
+    const created = await call("POST", "/api/admin/play-sessions", {
+      groupId: group.id,
+      groupGameId: game.id,
+      startedAt: iso(150),
+      endedAt: iso(30),
+      participantIds: [admin.id, member.id],
+    });
+    if (created.json?.id) made.push(created.json.id);
+    const row = created.json?.id
+      ? await db.groupPlaySession.findUnique({ where: { id: created.json.id }, include: { participants: true } })
+      : null;
+    const mark = posts().length;
+    await api("/api/internal/bot-heartbeat", { method: "POST", headers: internal });
+    const ended = posts().slice(mark).filter((c) => c.includes("遊びました"));
+    check(
+      "F293 管理者は記録されなかったプレイを手で足せる（ゲーム・時間・参加者が入り、今さら終了の通知は飛ばない）",
+      created.status === 201 && row?.groupGameId === game.id && row?.participants.length === 2 &&
+        row?.gameKey.startsWith("manual:") && row?.endNotifiedAt !== null && ended.length === 0,
+      `${created.status} ${created.text.slice(0, 80)} / 参加${row?.participants.length} / 通知=${ended.join(" | ")}`
+    );
+
+    // 入力の間違いは理由つきで弾く（どれも保存されない）
+    const base = { groupId: group.id, groupGameId: game.id, startedAt: iso(120), endedAt: iso(60), participantIds: [admin.id] };
+    const bad = {
+      reversed: await call("POST", "/api/admin/play-sessions", { ...base, startedAt: iso(60), endedAt: iso(120) }),
+      tooLong: await call("POST", "/api/admin/play-sessions", { ...base, startedAt: iso(60 * 30), endedAt: iso(60) }),
+      future: await call("POST", "/api/admin/play-sessions", { ...base, endedAt: new Date(Date.now() + 3600000).toISOString() }),
+      outsider: await call("POST", "/api/admin/play-sessions", { ...base, participantIds: [outsider.id] }),
+      otherGame: await call("POST", "/api/admin/play-sessions", { ...base, groupGameId: otherGroupGame?.id ?? "none" }),
+      noGame: await call("POST", "/api/admin/play-sessions", { ...base, groupGameId: null }),
+      nobody: await call("POST", "/api/admin/play-sessions", { ...base, participantIds: [] }),
+    };
+    const statuses = Object.fromEntries(Object.entries(bad).map(([k, r]) => [k, r.status]));
+    for (const r of Object.values(bad)) if (r.json?.id) made.push(r.json.id);
+    check(
+      "F294 逆転・24時間超え・未来・グループ外の参加者・他グループのゲーム・ゲーム無し・参加者0人は400で、保存されない",
+      Object.values(statuses).every((st) => st === 400) && Object.values(bad).every((r) => typeof r.json?.error === "string"),
+      JSON.stringify(statuses)
+    );
+
+    // 修正：時間を縮め、参加者を1人に。残った人の入った・抜けた時刻も新しい範囲に収まる
+    const id = created.json?.id;
+    const patched = await call("PATCH", `/api/admin/play-sessions/${id}`, {
+      startedAt: iso(140),
+      endedAt: iso(80),
+      participantIds: [admin.id],
+    });
+    const after = id ? await db.groupPlaySession.findUnique({ where: { id }, include: { participants: true } }) : null;
+    const p0 = after?.participants[0];
+    const inRange = !!p0 && p0.joinedAt >= after.startedAt && p0.leftAt !== null && p0.leftAt <= after.endedAt;
+    // 進行中の行は Bot がまだ開け閉めしているので、直せない・消せない
+    const open = await db.groupPlaySession.create({
+      data: { groupId: group.id, gameKey: "name:admin-edit-open", activityName: "進行中のテスト", voiceChannelId: "vc-admin-edit", startedAt: new Date(Date.now() - 600000) },
+    });
+    openId = open.id;
+    const openPatch = await call("PATCH", `/api/admin/play-sessions/${open.id}`, { startedAt: iso(20), endedAt: iso(5), participantIds: [admin.id] });
+    const openDelete = await call("DELETE", `/api/admin/play-sessions/${open.id}`);
+    check(
+      "F295 管理者は時間と参加者を直せる（参加者の時刻も範囲に収まる）。進行中の記録は直せず消せない（409）",
+      patched.status === 200 && after?.participants.length === 1 && Math.abs(after.endedAt.getTime() - Date.parse(iso(80))) < 120000 &&
+        inRange && openPatch.status === 409 && openDelete.status === 409,
+      `修正=${patched.status} ${patched.text.slice(0, 60)} / 参加${after?.participants.length} 範囲内=${inRange} / 進行中=${openPatch.status},${openDelete.status}`
+    );
+
+    // 削除：行も参加者も消える。2回目は404
+    const del = await call("DELETE", `/api/admin/play-sessions/${id}`);
+    const gone = id ? await db.groupPlaySession.count({ where: { id } }) : -1;
+    const goneP = id ? await db.groupPlayParticipant.count({ where: { sessionId: id } }) : -1;
+    const again = await call("DELETE", `/api/admin/play-sessions/${id}`);
+    if (del.status === 200) made.splice(made.indexOf(id), 1);
+    // 管理者以外は触れない
+    const byMember = await call("POST", "/api/admin/play-sessions", base, memberCookie);
+    const byMemberDel = await call("DELETE", `/api/admin/play-sessions/${open.id}`, undefined, memberCookie);
+    check(
+      "F296 管理者は記録を消せる（参加者ごと消え、2回目は404）。管理者以外は追加も削除もできない（403）",
+      del.status === 200 && gone === 0 && goneP === 0 && again.status === 404 && byMember.status === 403 && byMemberDel.status === 403,
+      `削除=${del.status} 残り=${gone}/${goneP} 再=${again.status} / メンバー=${byMember.status},${byMemberDel.status}`
+    );
+  } catch (e) {
+    check("F293x プレイ記録の管理の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    for (const id of made) await call("DELETE", `/api/admin/play-sessions/${id}`);
+    if (openId) await db.groupPlaySession.deleteMany({ where: { id: openId } });
+    await api(`/api/groups/${group.id}/notifications`, { method: "PATCH", cookie: adminCookie, body: { kind: "PLAY_LOG", channelId: "" } });
+  }
+}
+
 // ───────────────────────────────────────────────────────────
 // テストの棚卸し（2026-10-11）で見つかった抜け
 // ───────────────────────────────────────────────────────────
