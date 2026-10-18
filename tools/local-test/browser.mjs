@@ -2665,6 +2665,63 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── グループ画面の「最近の動き」（docs/play-log.md §11 の段階2） ──
+// 中身は lib-checks の F301・flows の F302。ここは実際の描画：スマホ幅（390px）で欄がアルバムより上に出て、
+// 横にはみ出さず、「カレンダーで見る」でグループの活動カレンダーに移れること
+{
+  const page = await context.newPage();
+  let sessionId = null;
+  try {
+    // 前のスイートが出来事を残している前提にしない。遊んだ記録を1件、管理者のAPIで足す（同じ経路で消す。docs/lessons.md）
+    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+    const start = new Date(Date.now() - 2 * 3600000);
+    sessionId = await page.evaluate(async ([groupId, gameId, adminId, startIso, endIso]) => {
+      const res = await fetch("/api/admin/play-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupId, groupGameId: gameId, startedAt: startIso, endedAt: endIso, participantIds: [adminId] }),
+      });
+      return res.ok ? (await res.json()).id : null;
+    }, [ids.groupId, ids.gameId, ids.adminId, start.toISOString(), new Date(start.getTime() + 40 * 60000).toISOString()]);
+    await page.reload({ waitUntil: "networkidle" });
+    const section = page.getByTestId("recent-activity");
+    const present = (await section.count()) > 0;
+    const box = present ? await section.boundingBox() : null;
+    // ナビにも「アルバム」があるので、本文の区画の見出しに限る
+    const albumHead = await page.locator("main").getByText("アルバム", { exact: true }).first().boundingBox();
+    const count = present ? await section.locator("li[data-kind]").count() : 0;
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    let moved = "";
+    let heading = "";
+    if (present) {
+      await section.getByRole("link", { name: /カレンダーで見る/ }).click();
+      await page.waitForURL(/\/activity/, { timeout: 10000 }).catch(() => {});
+      await page.waitForLoadState("networkidle");
+      moved = new URL(page.url()).pathname;
+      heading = ((await page.locator("main h1").first().textContent()) ?? "").trim();
+    }
+    const ok = !!box && !!albumHead && box.y < albumHead.y && count >= 1 && count <= 5 && !overflow &&
+      moved === `/groups/${ids.groupId}/activity` && heading.includes("活動カレンダー");
+    rows.push({
+      id: "B115",
+      item: "グループ画面の「最近の動き」がアルバムより上に1〜5件出て、スマホ幅で横にはみ出さず、「カレンダーで見る」でグループの活動カレンダーに移れる",
+      expected: "アルバムより上・1〜5件・はみ出しなし・/activity へ移る",
+      actual: `欄=${present} / 上=${box && albumHead ? box.y < albumHead.y : "?"} / 件数=${count} / はみ出し=${overflow} / 移動先=${moved} / 見出し=${heading}`,
+      ok,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B115", item: "グループ画面の「最近の動き」", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    try {
+      if (sessionId) await page.evaluate((id) => fetch(`/api/admin/play-sessions/${id}`, { method: "DELETE" }), sessionId);
+    } catch {
+      // 片付けに失敗しても結果の表は残す
+    }
+    await page.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）

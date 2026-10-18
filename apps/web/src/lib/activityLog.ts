@@ -121,7 +121,8 @@ export const ACTIVITY_EMOJI: Record<ActivityKind, string> = {
   "photo.reaction_removed": "💔",
   "album.created": "📁",
   "album.deleted": "🗂️",
-  "game.added": "🎮",
+  // 🎮 は遊んだ記録（プレイ記録）に使う。同じ記号だとタイムラインで区別がつかない（docs/play-log.md §11）
+  "game.added": "➕",
   "game.status_changed": "🔄",
   "game.removed": "🚫",
   "game.interest_added": "👀",
