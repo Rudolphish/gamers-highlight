@@ -234,7 +234,8 @@ const TIMELINE_LABELS: Record<ActivityKind, string> = {
   "game.removed": "ゲームを削除",
   "game.interest_added": "気になるを付けた",
   "game.interest_removed": "気になるを外した",
-  "proposal.created": "ゲームを提案",
+  // グループ画面では「ゲーム提案」を「ウィッシュリスト」と呼ぶ（2026-10-18 ユーザー判断）。投票・採用は仕組みの言い方なので「提案」のまま
+  "proposal.created": "ウィッシュリストに追加",
   "proposal.voted": "提案に投票",
   "proposal.vote_removed": "投票を取り消した",
   "proposal.accepted": "提案が通った",

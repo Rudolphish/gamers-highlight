@@ -441,5 +441,22 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
   }
 }
 
+// ── 「ゲーム提案」→「ウィッシュリスト」の言い方（2026-10-18 ユーザー判断） ──
+// グループ画面の「最近の動き」に出る行の文言。投票・採用（「提案に投票」「提案が通った」）は仕組みの言い方なのでそのまま
+{
+  const owner = await db.user.findFirst({ where: { email: "admin@example.com" }, select: { id: true } });
+  const group = await db.group.create({ data: { name: `ウィッシュリスト-${randomUUID().slice(0, 6)}`, ownerId: owner!.id } });
+  try {
+    await db.activityLog.create({ data: { kind: "proposal.created", targetId: randomUUID(), targetName: "候補のゲーム", groupId: group.id, actorId: owner!.id, occurredAt: new Date() } });
+    const entry = (await getRecentActivity(group.id)).flatMap((d) => d.entries)[0];
+    check("F303", "ウィッシュリストに入れた出来事は「ウィッシュリストに追加」と出る（「ゲームを提案」ではない）", entry?.label === "ウィッシュリストに追加" && entry?.emoji === "💡", { label: entry?.label, emoji: entry?.emoji });
+  } catch (e) {
+    check("F303x", "ウィッシュリストの言い方の確認が途中で例外になった（以降は未確認）", false, (e as Error)?.stack ?? e);
+  } finally {
+    await db.activityLog.deleteMany({ where: { groupId: group.id } }).catch(() => {});
+    await db.group.delete({ where: { id: group.id } }).catch(() => {});
+  }
+}
+
 await db.$disconnect();
 console.log(JSON.stringify(rows));
