@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { getSteamAppSummary } from "./steam";
+import { jstDateString } from "./jst";
 import { getRawAppSetting, playLogMinParticipantsKey } from "./appSettings";
 
 /**
@@ -583,6 +584,86 @@ export async function getGamePlaySummary(groupGameId: string, now = new Date(), 
   const lastPlayedAt = views[0].inProgress ? now.toISOString() : views[0].endedAt ?? views[0].startedAt;
 
   return { totalMs, sessionCount: shown.length, lastPlayedAt, recent: shown.slice(0, limit) };
+}
+
+export type PlayCalendarEntry = {
+  id: string;
+  startedAt: Date;
+  durationMs: number;
+  /** 結びついていればゲームリストの名前、無ければ Discord の表示名 */
+  title: string;
+  groupGameId: string | null;
+  participants: string[];
+  estimated: boolean;
+  inProgress: boolean;
+};
+
+export type PlayCalendar = {
+  /** JSTの `YYYY-MM-DD`（始まった日）→ その日の合計。遊んだ日だけが入る */
+  days: Record<string, { totalMs: number; sessionCount: number }>;
+  /** 新しい順 */
+  entries: PlayCalendarEntry[];
+};
+
+/**
+ * 活動カレンダーに載せるプレイ記録（docs/play-log.md §11）。`period` の間に**始まった**回を返す。
+ *
+ * - **日付をまたいだ回は始まった日（JST）にまとめる。** 夜中の1回が2日に割れて2つの思い出に見えないように
+ * - 出すのはゲーム詳細の一覧と同じく5分以上の回（進行中は短くても出す）。日の合計もその回だけで数えるので、
+ *   タイムラインに並んだ行と日のマスの数字が食い違わない
+ * - 日の合計は、同じゲームの重なりを1回だけ数えてからゲームごとに足す（`getGroupPlayTotals` と同じ考え方）。
+ *   結びついていない記録は Discord の名前ごとに1本として扱う（カレンダーには遊んだ事実をそのまま出す）
+ * - `ActivityLog` には写さず、ここで直接読む。写すと、つなぎ直した回や後から結びつけ直した回でずれる
+ */
+export async function getPlayCalendar(groupId: string, period: { start: Date; end: Date }, now = new Date()): Promise<PlayCalendar> {
+  const sessions = await db.groupPlaySession.findMany({
+    where: { groupId, startedAt: { gte: period.start, lt: period.end } },
+    orderBy: { startedAt: "desc" },
+    include: {
+      groupGame: { select: { title: true } },
+      participants: { orderBy: { joinedAt: "asc" }, include: { user: { select: { name: true } } } },
+    },
+  });
+  if (sessions.length === 0) return { days: {}, entries: [] };
+
+  // 生存報告を引くのは進行中の行があるときだけ（閉じた回だけの月に1往復を足さない）
+  const live = sessions.some((s) => s.endedAt === null) ? await effectiveNow(now) : { end: now, stale: false };
+  const entries: PlayCalendarEntry[] = [];
+  const spans = new Map<string, Map<string, Interval[]>>(); // 日 → ゲーム → 区間
+  for (const s of sessions) {
+    const span = sessionSpan(s, live);
+    const inProgress = s.endedAt === null && !live.stale;
+    const durationMs = span.end - span.start;
+    if (!inProgress && durationMs < MIN_DISPLAY_MS) continue;
+    entries.push({
+      id: s.id,
+      startedAt: s.startedAt,
+      durationMs,
+      title: s.groupGame?.title ?? s.activityName,
+      groupGameId: s.groupGameId,
+      // 表示名が無い人をメールで出さない（グループに公開する段階2でもそのまま使えるように）
+      participants: s.participants.map((p) => p.user.name ?? "メンバー"),
+      estimated: s.estimated || (s.endedAt === null && live.stale),
+      inProgress,
+    });
+    const day = jstDateString(s.startedAt);
+    const byGame = spans.get(day) ?? new Map<string, Interval[]>();
+    const key = s.groupGameId ?? `key:${s.gameKey}`;
+    byGame.set(key, [...(byGame.get(key) ?? []), span]);
+    spans.set(day, byGame);
+  }
+
+  const days: PlayCalendar["days"] = {};
+  for (const [day, byGame] of spans) {
+    let totalMs = 0;
+    let sessionCount = 0;
+    for (const list of byGame.values()) {
+      totalMs += unionMs(list);
+      sessionCount += list.length;
+    }
+    days[day] = { totalMs, sessionCount };
+  }
+  return { days, entries };
 }
 
 export type UnknownPlay = {

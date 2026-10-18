@@ -9,11 +9,15 @@ import {
   getMonthCalendar,
   getTimeline,
   jstMonthRange,
+  mergeTimeline,
+  playTimelineEntries,
   shiftMonth,
   type MonthCalendar,
   type TimelineEntry,
 } from "@/lib/activityFeed";
 import { JST_OFFSET_MS, jstDateString } from "@/lib/jst";
+import { getPlayCalendar, type PlayCalendar } from "@/lib/playLog";
+import { formatPlayDuration, formatPlayDurationShort } from "@/lib/playDuration";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { SectionError } from "@/components/admin/SectionError";
 
@@ -25,6 +29,9 @@ import { SectionError } from "@/components/admin/SectionError";
 //
 // **カレンダーは occurredAt（実際に起きた日時）で並べる。** 週次まとめが createdAt で
 // 数えるのと逆（docs/activity-log.md §9）。
+//
+// **プレイ記録（🎮）も載せる**（docs/play-log.md §11 の段階1）。ActivityLog には写さず GroupPlaySession を
+// 直接読み、日のマスには件数と別に「🎮＋その日の合計時間」を出す（濃淡は今までどおり件数だけで付ける）。
 export const dynamic = "force-dynamic";
 
 const WEEKDAY_HEADS = ["月", "火", "水", "木", "金", "土", "日"];
@@ -60,6 +67,7 @@ export default async function AdminActivityPage({
   let groups: { id: string; name: string }[] = [];
   let calendar: MonthCalendar | null = null;
   let timeline: TimelineEntry[] = [];
+  let play: PlayCalendar = { days: {}, entries: [] };
   let error: string | null = null;
   try {
     groups = await db.group.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
@@ -68,7 +76,13 @@ export default async function AdminActivityPage({
       : groups[0]?.id;
     if (groupId) {
       calendar = await getMonthCalendar(groupId, month);
-      timeline = await getTimeline(groupId, { date: selectedDate, month });
+      const [events, played] = await Promise.all([
+        getTimeline(groupId, { date: selectedDate, month }),
+        getPlayCalendar(groupId, calendar.range),
+      ]);
+      play = played;
+      const playEntries = selectedDate ? played.entries.filter((e) => jstDateString(e.startedAt) === selectedDate) : played.entries;
+      timeline = mergeTimeline(events, playTimelineEntries(groupId, playEntries));
     }
   } catch (e) {
     error = e instanceof Error ? e.message.split("\n")[0] : String(e);
@@ -84,6 +98,8 @@ export default async function AdminActivityPage({
   };
 
   const selectedDay = calendar?.days.find((d) => d.date === selectedDate) ?? null;
+  const selectedPlay = selectedDate ? play.days[selectedDate] : undefined;
+  const monthPlayMs = Object.values(play.days).reduce((sum, d) => sum + d.totalMs, 0);
 
   return (
     <main className="p-4 sm:p-6">
@@ -136,6 +152,7 @@ export default async function AdminActivityPage({
 
               <p className="font-mono text-3xs text-steam-muted">
                 この月の記録 {calendar.total} 件
+                {monthPlayMs > 0 && ` ・ 🎮 ${formatPlayDuration(monthPlayMs)}`}
               </p>
             </div>
 
@@ -165,18 +182,35 @@ export default async function AdminActivityPage({
                       )} ${d.date === selectedDate ? "outline outline-1 outline-steam-blue" : ""}`}
                     >
                       <span className="font-mono text-4xs">{d.day}</span>
-                      {d.total > 0 && (
-                        <>
-                          <span className="mt-auto font-display text-sm font-bold leading-none">
-                            {d.total}
-                          </span>
-                          <span className="truncate text-4xs leading-tight">
-                            {d.counts
-                              .slice(0, 3)
-                              .map((c) => c.emoji)
-                              .join("")}
-                          </span>
-                        </>
+                      {(d.total > 0 || play.days[d.date]) && (
+                        <span className="mt-auto flex min-w-0 flex-col">
+                          {d.total > 0 && (
+                            <>
+                              <span className="font-display text-sm font-bold leading-none">
+                                {d.total}
+                              </span>
+                              <span className="truncate text-4xs leading-tight">
+                                {d.counts
+                                  .slice(0, 3)
+                                  .map((c) => c.emoji)
+                                  .join("")}
+                              </span>
+                            </>
+                          )}
+                          {/* 件数とは別に出す。出来事が0件でプレイだけの日もある（濃淡は件数だけで付けるので、色で目立たせる） */}
+                          {play.days[d.date] && (
+                            // 🎮と時間は折り返せるように分けている。スマホ幅（1マス34px前後）では「🎮2h44m」が1行に入らず、
+                            // 切ると時間が読めなくなる。入る幅では1行、入らなければ🎮の下に時間が来る
+                            <span
+                              className="flex flex-wrap items-baseline font-mono text-4xs leading-tight text-steam-blue"
+                              data-play-ms={play.days[d.date].totalMs}
+                              title={formatPlayDuration(play.days[d.date].totalMs)}
+                            >
+                              <span>🎮</span>
+                              <span>{formatPlayDurationShort(play.days[d.date].totalMs)}</span>
+                            </span>
+                          )}
+                        </span>
                       )}
                     </Link>
                   ))}
@@ -195,8 +229,17 @@ export default async function AdminActivityPage({
 
                 {selectedDay && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
+                    {selectedPlay && (
+                      <span
+                        className="rounded-sm border border-steam-blue/50 px-1.5 py-0.5 font-mono text-4xs text-steam-blue"
+                        data-testid="day-play-total"
+                        data-play-ms={selectedPlay.totalMs}
+                      >
+                        {`🎮 ${formatPlayDuration(selectedPlay.totalMs)}`}
+                      </span>
+                    )}
                     {selectedDay.counts.length === 0 ? (
-                      <span className="font-mono text-3xs text-steam-muted">動きがありません</span>
+                      !selectedPlay && <span className="font-mono text-3xs text-steam-muted">動きがありません</span>
                     ) : (
                       selectedDay.counts.map((c) => (
                         <span
