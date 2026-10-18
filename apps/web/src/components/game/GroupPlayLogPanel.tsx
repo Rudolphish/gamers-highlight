@@ -1,5 +1,6 @@
 import { Gamepad2 } from "lucide-react";
 import type { GamePlaySummary } from "@/lib/playLog";
+import { formatPlayDuration } from "@/lib/playDuration";
 
 // グループで一緒に遊んだ時間（プレイ記録）。設計は docs/play-log.md。
 //
@@ -20,15 +21,8 @@ const timeFmt = new Intl.DateTimeFormat("ja-JP", {
   minute: "2-digit",
 });
 
-/** 「2時間30分」「45分」。1分未満は「1分未満」 */
-export function formatDuration(ms: number): string {
-  const minutes = Math.floor(ms / 60000);
-  if (minutes < 1) return "1分未満";
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}分`;
-  return m === 0 ? `${h}時間` : `${h}時間${m}分`;
-}
+/** 「2時間30分」「45分」。1分未満は「1分未満」（表記は lib/playDuration.ts に1つだけ置く） */
+const formatDuration = formatPlayDuration;
 
 export function GroupPlayLogPanel({ summary }: { summary: GamePlaySummary }) {
   return (
@@ -46,7 +40,7 @@ export function GroupPlayLogPanel({ summary }: { summary: GamePlaySummary }) {
         </p>
       ) : (
         <>
-          <p className="mt-3 font-display text-2xl font-bold text-steam-text" data-testid="group-play-total">
+          <p className="mt-3 font-display text-2xl font-bold text-steam-text" data-testid="group-play-total" data-play-ms={summary.totalMs}>
             {formatDuration(summary.totalMs)}
           </p>
           {summary.lastPlayedAt && (

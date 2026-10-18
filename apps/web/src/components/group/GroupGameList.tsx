@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Plus, X, Search, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { InterestButton, type InterestUser } from "@/components/group/InterestButton";
+import { formatPlayDuration } from "@/lib/playDuration";
 import { translateGenre } from "@/lib/steam";
 
 type GameStatus = "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
@@ -19,6 +20,8 @@ type GroupGameItem = {
   status: GameStatus;
   genres: string[];
   addedByName: string;
+  /** グループで遊んだ時間（ミリ秒）。0 なら出さない。数え方は lib/playLog.ts の getGroupPlayTotals */
+  playMs?: number;
   interestedUsers: InterestUser[];
 };
 
@@ -382,6 +385,11 @@ export function GroupGameList({
                   <p className="truncate font-mono text-4xs text-steam-muted/70">
                     {game.addedByName}が追加
                   </p>
+                  {!!game.playMs && game.playMs > 0 && (
+                    <p className="mt-0.5 truncate font-mono text-3xs text-[#a4d007]" data-play-ms={game.playMs}>
+                      {`🎮 ${formatPlayDuration(game.playMs)}`}
+                    </p>
+                  )}
                   {game.genres.length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">
                       {game.genres.slice(0, 2).map((g) => (

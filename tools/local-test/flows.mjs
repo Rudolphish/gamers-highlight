@@ -3984,6 +3984,57 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── グループ画面の帯（合計）とゲーム一覧の時間（docs/play-log.md §13） ──
+// 数え方の中身は lib-checks の F298。ここは画面に正しく出るか：帯の合計が増えた分だけ増える・ゲーム一覧の時間が
+// ゲーム詳細の合計と一致する・ゲームに結びついていない記録は入らない・記録の無いグループには帯が出ない
+{
+  // 一覧は既定で「プレイ中」「気になる」だけを出すので、そのどちらかのゲームを使う
+  const game = await db.groupGame.findFirst({ where: { groupId: group.id, status: { in: ["PLAYING", "WISHLIST"] } }, orderBy: { createdAt: "asc" } });
+  const bannerMs = (html) => Number(html.match(/data-testid="play-total-banner"[^>]*data-play-ms="(\d+)"/)?.[1] ?? 0);
+  // 同じゲーム詳細へのリンクは帯（いちばん遊んだゲーム）や「プレイ中」の集計にもある。
+  // 一覧のカードだけが持つ「〇〇が追加」の入ったリンクを探す
+  const listMs = (html, gameId) => {
+    const href = `/groups/${group.id}/games/${gameId}"`;
+    for (let at = html.indexOf(href); at >= 0; at = html.indexOf(href, at + 1)) {
+      const chunk = html.slice(at, html.indexOf("</a>", at));
+      if (chunk.includes("が追加")) return Number(chunk.match(/data-play-ms="(\d+)"/)?.[1] ?? 0);
+    }
+    return null;
+  };
+  const made = [];
+  try {
+    const before = await api(`/groups/${group.id}`, { cookie: adminCookie });
+    const base = Date.now() - 5 * 86400000;
+    const mk = (groupGameId, fromMin, toMin, key) =>
+      db.groupPlaySession.create({
+        data: { groupId: group.id, groupGameId, gameKey: key, activityName: key, voiceChannelId: "vc-banner", startedAt: new Date(base + fromMin * 60000), endedAt: new Date(base + toMin * 60000) },
+      }).then((r) => made.push(r.id));
+    await mk(game.id, 0, 75, "name:banner-a"); // 75分
+    await mk(null, 100, 160, "name:banner-unknown"); // 結びついていない60分（入らない）
+    const after = await api(`/groups/${group.id}`, { cookie: adminCookie });
+    const detail = await api(`/groups/${group.id}/games/${game.id}`, { cookie: adminCookie });
+    const detailMs = Number(detail.text.match(/data-testid="group-play-total"[^>]*data-play-ms="(\d+)"/)?.[1] ?? -1);
+    // 記録の無いグループ（作ったばかり）には帯が出ない
+    const fresh = await api("/api/groups", { method: "POST", cookie: adminCookie, body: { name: `帯なし確認-${randomUUID().slice(0, 6)}` } });
+    const freshId = fresh.json?.group?.id;
+    const freshPage = freshId ? await api(`/groups/${freshId}`, { cookie: adminCookie }) : null;
+    if (freshId) await api(`/groups/${freshId}`, { method: "DELETE", cookie: adminCookie });
+    const delta = bannerMs(after.text) - bannerMs(before.text);
+    const list = listMs(after.text, game.id);
+    check(
+      "F297 グループ画面の帯の合計とゲーム一覧の時間が出て、ゲーム詳細の合計と一致する（結びついていない記録は入らず、記録の無いグループに帯は出ない）",
+      after.status === 200 && delta === 75 * 60000 && list !== null && list === detailMs && list > 0 &&
+        after.text.includes("グループで遊んだ時間") && freshPage?.status === 200 && !freshPage.text.includes('data-testid="play-total-banner"'),
+      `増分=${delta / 60000}分 / 一覧=${list} 詳細=${detailMs} / 新規グループに帯=${freshPage?.text.includes('data-testid="play-total-banner"')}`
+    );
+  } catch (e) {
+    check("F297x グループ画面のプレイ時間の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    // プレイ記録はキャッシュに載せていないのでDBから直接消してよい
+    await db.groupPlaySession.deleteMany({ where: { id: { in: made } } });
+  }
+}
+
 // ───────────────────────────────────────────────────────────
 // テストの棚卸し（2026-10-11）で見つかった抜け
 // ───────────────────────────────────────────────────────────

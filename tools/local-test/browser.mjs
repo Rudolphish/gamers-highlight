@@ -2544,6 +2544,70 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── グループ画面の帯（合計プレイ時間）とゲーム一覧の時間（docs/play-log.md §13） ──
+// 数え方は lib-checks の F298、HTMLの値は flows の F297。ここは実際の描画：帯がアルバムより上に出て、
+// いちばん遊んだゲームへのリンクがあり、ゲーム一覧のカードに時間が出ること
+{
+  const page = await context.newPage();
+  let sessionId = null;
+  let visibleCards = [];
+  try {
+    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+    // **一覧に今見えているカードから選ぶ。** 特定のゲーム（seed の ELDEN RING）を決め打ちにすると、
+    // それまでのスイートがステータスを変えた・キャッシュに古いステータスが残った、で一覧の初期の絞り込みから外れ、
+    // カードが見つからずに落ちる（CIで1回そうなった。手元では再現しなかった）
+    visibleCards = await page.evaluate((gid) =>
+      [...document.querySelectorAll(`a[href^="/groups/${gid}/games/"]`)]
+        .filter((a) => (a.textContent ?? "").includes("が追加"))
+        .map((a) => ({ id: a.getAttribute("href").split("/").pop(), text: (a.textContent ?? "").slice(0, 30) })),
+    ids.groupId);
+    const gameId = visibleCards[0]?.id;
+    if (!gameId) throw new Error("一覧にカードが1枚も見えていない");
+    // 管理者のAPIで記録を足す（作ったのと同じ経路で消す。docs/lessons.md）
+    const start = new Date(Date.now() - 4 * 86400000);
+    const created = await page.evaluate(async ([groupId, gameId, adminId, startIso, endIso]) => {
+      const res = await fetch("/api/admin/play-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupId, groupGameId: gameId, startedAt: startIso, endedAt: endIso, participantIds: [adminId] }),
+      });
+      return res.ok ? (await res.json()).id : null;
+    }, [ids.groupId, gameId, ids.adminId, start.toISOString(), new Date(start.getTime() + 100 * 60000).toISOString()]);
+    sessionId = created;
+    await page.reload({ waitUntil: "networkidle" });
+    const banner = page.getByTestId("play-total-banner");
+    const bannerText = (await banner.count()) > 0 ? ((await banner.textContent()) ?? "") : "";
+    const bannerBox = (await banner.count()) > 0 ? await banner.boundingBox() : null;
+    // ナビにも「アルバム」があるので、本文の区画の見出しに限る
+    const albumHead = await page.locator("main").getByText("アルバム", { exact: true }).first().boundingBox();
+    const topLink = await banner.getByRole("link").count();
+    // 同じゲーム詳細へのリンクは帯にもあるので、一覧のカード（「〇〇が追加」がある方）に絞る
+    const card = page.locator(`a[href="/groups/${ids.groupId}/games/${gameId}"]`).filter({ hasText: "が追加" }).first();
+    const cardText = (await card.count()) > 0 ? ((await card.textContent()) ?? "") : "";
+    const ok =
+      !!created && bannerText.includes("グループで遊んだ時間") && bannerText.includes("時間") &&
+      !!bannerBox && !!albumHead && bannerBox.y < albumHead.y && topLink === 1 && cardText.includes("🎮");
+    rows.push({
+      id: "B113",
+      item: "グループ画面の頭に「グループで遊んだ時間」の帯がアルバムより上に出て、いちばん遊んだゲームへのリンクがあり、ゲーム一覧のカードに時間が出る",
+      expected: "帯あり・アルバムより上・リンク1つ・カードに🎮",
+      actual: `記録=${!!created} / 帯=${bannerText.slice(0, 40)} / 上=${bannerBox && albumHead ? bannerBox.y < albumHead.y : "?"} / リンク=${topLink} / カード=${cardText.includes("🎮")}`,
+      ok,
+      // 落ちたときの手掛かり：見えていたカード（ゲームID末尾と文字）
+      note: ok ? "" : `カード=${cardText.slice(0, 60)} / 見えていた=${visibleCards.map((c) => `${c.id.slice(-4)}:${c.text}`).join(", ").slice(0, 160)}`,
+    });
+  } catch (e) {
+    rows.push({ id: "B113", item: "グループ画面の帯とゲーム一覧の時間", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)} / 見えていた=${visibleCards.length}枚` });
+  } finally {
+    try {
+      if (sessionId) await page.evaluate((id) => fetch(`/api/admin/play-sessions/${id}`, { method: "DELETE" }), sessionId);
+    } catch {
+      // 片付けに失敗しても結果の表は残す
+    }
+    await page.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）

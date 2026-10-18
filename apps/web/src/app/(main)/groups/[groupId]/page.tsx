@@ -15,7 +15,8 @@ import { GameProposals } from "@/components/group/GameProposals";
 import { NotificationSettings } from "@/components/group/NotificationSettings";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { getSteamCoverUrls } from "@/lib/albumCover";
-import { getPlayLogMinParticipants, getUnknownPlays } from "@/lib/playLog";
+import { getGroupPlayTotals, getPlayLogMinParticipants, getUnknownPlays } from "@/lib/playLog";
+import { PlayTotalBanner } from "@/components/group/PlayTotalBanner";
 import { isAdminEmail } from "@/lib/admin";
 import { PlayLogMinParticipantsSetting } from "@/components/group/PlayLogMinParticipantsSetting";
 import { UnknownPlays } from "@/components/group/UnknownPlays";
@@ -80,6 +81,13 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
     reactions: p.reactions.map((r) => ({ userId: r.userId, type: r.type })),
   }));
 
+  // グループで遊んだ時間（帯とゲーム一覧）。**キャッシュに載せず毎回読む**（docs/play-log.md §13）。
+  // 取れなくてもページは出す（帯と時間が出ないだけ）
+  const playTotals = await getGroupPlayTotals(group.id).catch((e) => {
+    console.error("[group] プレイ時間の取得に失敗", e);
+    return null;
+  });
+
   const gameCards = group.games.map((g) => ({
     id: g.id,
     steamAppId: g.steamAppId,
@@ -88,6 +96,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
     status: g.status,
     genres: g.genres,
     addedByName: g.addedBy.name ?? g.addedBy.email ?? "メンバー",
+    playMs: playTotals?.byGame[g.id] ?? 0,
     interestedUsers: g.interests.map((i) => ({
       id: i.userId,
       name: i.user.name ?? i.user.email ?? "メンバー",
@@ -203,6 +212,20 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
           {isOwner && <DeleteGroupButton groupId={group.id} />}
         </div>
       </div>
+
+      {/* 記録が1件も無いグループでは出さない（これから使うグループで空の大きな枠が出ないように） */}
+      {playTotals && playTotals.totalMs > 0 && (
+        <PlayTotalBanner
+          groupId={group.id}
+          totalMs={playTotals.totalMs}
+          gameCount={playTotals.gameCount}
+          topGame={(() => {
+            const g = group.games.find((x) => x.id === playTotals.topGameId);
+            return g ? { id: g.id, title: g.title } : null;
+          })()}
+          lastPlayedAt={playTotals.lastPlayedAt}
+        />
+      )}
 
       <div className="mt-6">
         <CollapsibleSection

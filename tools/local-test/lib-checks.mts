@@ -15,6 +15,7 @@ import { authOptions } from "../../apps/web/src/lib/auth";
 import { isCronRequest } from "../../apps/web/src/lib/cronAuth";
 import { describeDbError } from "../../apps/web/src/lib/dbError";
 import { classifyAuthError } from "../../apps/web/src/lib/authErrorLog";
+import { getGamePlaySummary, getGroupPlayTotals } from "../../apps/web/src/lib/playLog";
 
 type Row = { id: string; item: string; ok: boolean; detail: string };
 const rows: Row[] = [];
@@ -265,6 +266,52 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
       state?.fingerprint === "auth:OAUTH_CALLBACK_ERROR:state-missing" && fromClient === null && clientOauth === null,
     { a, b, state, fromClient, clientOauth }
   );
+}
+
+// ── グループ画面の帯とゲーム一覧の時間（docs/play-log.md §13） ──
+// 数え方を直接確かめる。画面の表示は flows（F297）とブラウザ（B113）で見る
+{
+  const owner = await db.user.findFirst({ where: { email: "admin@example.com" }, select: { id: true } });
+  const group = await db.group.create({ data: { name: `帯の集計テスト-${randomUUID().slice(0, 6)}`, ownerId: owner!.id } });
+  try {
+    const mkGame = (title: string, steamAppId: number) =>
+      db.groupGame.create({ data: { groupId: group.id, title, steamAppId, status: "PLAYING", addedById: owner!.id } });
+    const [a, b, c, d] = await Promise.all([mkGame("重なりのあるゲーム", 9100001), mkGame("1回だけのゲーム", 9100002), mkGame("同じ時間のゲーム", 9100003), mkGame("30秒のゲーム", 9100004)]);
+    const base = Date.now() - 3 * 86400000;
+    const at = (min: number) => new Date(base + min * 60000);
+    const mk = (groupGameId: string | null, from: number, to: number, key: string) =>
+      db.groupPlaySession.create({
+        data: { groupId: group.id, groupGameId, gameKey: key, activityName: key, voiceChannelId: "vc-total", startedAt: at(from), endedAt: at(to) },
+      });
+    // A: 0〜60分と30〜90分（別々のVC。重なりは1回だけ数えて90分）。B: 45分。未結びつき: 60分（数えない）
+    await mk(a.id, 0, 60, "name:a1");
+    await mk(a.id, 30, 90, "name:a2");
+    await mk(b.id, 200, 245, "name:b");
+    await mk(null, 300, 360, "name:unknown");
+    await mk(d.id, 400, 400.5, "name:d"); // 30秒（1分未満は数えない）
+    const first = await getGroupPlayTotals(group.id);
+    const detailA = await getGamePlaySummary(a.id);
+    // C: A と同じ90分で、後に遊んだ → いちばん遊んだゲームは C になる
+    await mk(c.id, 500, 590, "name:c");
+    const second = await getGroupPlayTotals(group.id);
+    const empty = await getGroupPlayTotals(randomUUID());
+    const min = 60000;
+    check(
+      "F298",
+      "グループの合計は各ゲームの和（同じゲームの重なりは1回・未結びつきと1分未満は数えない）で、ゲーム詳細の合計と一致し、いちばん遊んだゲームは同じ時間なら後に遊んだ方",
+      first.byGame[a.id] === 90 * min && first.byGame[b.id] === 45 * min && first.byGame[d.id] === undefined &&
+        first.totalMs === 135 * min && first.gameCount === 2 && first.topGameId === a.id &&
+        detailA.totalMs === first.byGame[a.id] &&
+        second.totalMs === 225 * min && second.gameCount === 3 && second.topGameId === c.id &&
+        second.lastPlayedAt === at(590).toISOString() &&
+        empty.totalMs === 0 && empty.topGameId === null && empty.lastPlayedAt === null,
+      { first, detailA: detailA.totalMs, second: { totalMs: second.totalMs, gameCount: second.gameCount, top: second.topGameId, last: second.lastPlayedAt }, empty }
+    );
+  } catch (e) {
+    check("F298x", "帯の集計の確認が途中で例外になった（以降は未確認）", false, (e as Error)?.stack ?? e);
+  } finally {
+    await db.group.delete({ where: { id: group.id } }).catch(() => {});
+  }
 }
 
 await db.$disconnect();
