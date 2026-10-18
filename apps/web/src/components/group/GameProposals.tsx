@@ -212,18 +212,18 @@ export function GameProposals({
       {/* 提案は「みんなのゲーム」とは別の話（まだリストに入っていない候補）なので独立させる。
           モーダルは畳んでも操作できるよう、開閉するセクションの外に置く。 */}
       <CollapsibleSection
-        title="ゲーム提案"
+        title="ウィッシュリスト"
         headerAction={
           <button
             onClick={() => setOpen(true)}
             className="flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
           >
-            <Plus size={14} /> 提案する
+            <Plus size={14} /> 追加する
           </button>
         }
       >
       {localProposals.length === 0 ? (
-        <p className="mt-2 font-mono text-3xs text-steam-muted/70">まだ提案はありません。</p>
+        <p className="mt-2 font-mono text-3xs text-steam-muted/70">まだウィッシュリストは空です。</p>
       ) : (
         <div className="mt-2 flex flex-col gap-5">
           {sections.map((section) => {
@@ -240,7 +240,7 @@ export function GameProposals({
                     区切るため、`{name}・提案{n}件` と分けて書くと数字がテストから拾えない
                     （docs/lessons.md の「Reactは隣り合うテキストを区切る」） */}
                 <p className="font-mono text-2xs text-steam-muted">
-                  {`${section.proposerName}${isMine ? "（あなた）" : ""}・提案${section.proposals.length}件`}
+                  {`${section.proposerName}${isMine ? "（あなた）" : ""}・${section.proposals.length}件`}
                 </p>
 
                 <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -383,7 +383,7 @@ export function GameProposals({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md rounded-sm border border-steam-border bg-steam-surface p-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-lg font-semibold text-steam-text">ゲームを提案する</h2>
+              <h2 className="font-display text-lg font-semibold text-steam-text">ウィッシュリストに追加</h2>
               <button
                 onClick={() => setOpen(false)}
                 aria-label="閉じる"

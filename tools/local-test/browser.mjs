@@ -1384,8 +1384,9 @@ for (const [id, label, path] of targets) {
       els.map((e) => (e.getAttribute("aria-label") ?? "").replace(/の順位$/, ""))
     );
 
-  const sectionCount = await page.getByText(/・提案\d+件/).count();
-  const mineHeading = await page.getByText(/（あなた）・提案\d+件/).count();
+  // 区画の見出しは「名前・N件」（2026-10-18 に「ゲーム提案」を「ウィッシュリスト」へ改名し、「・提案N件」から変えた）
+  const sectionCount = await page.getByText(/^.+・\d+件$/).count();
+  const mineHeading = await page.getByText(/（あなた）・\d+件$/).count();
   rows.push({
     id: "B71",
     item: "提案が提案者ごとの区画に分かれる",
@@ -2715,6 +2716,105 @@ for (const [id, label, path] of targets) {
   } finally {
     try {
       if (sessionId) await page.evaluate((id) => fetch(`/api/admin/play-sessions/${id}`, { method: "DELETE" }), sessionId);
+    } catch {
+      // 片付けに失敗しても結果の表は残す
+    }
+    await page.close();
+  }
+}
+
+// ── グループ画面の見出しの大きさを「最近の動き」に揃える／「ゲーム提案」→「ウィッシュリスト」（2026-10-18 ユーザー判断） ──
+{
+  const page = await context.newPage();
+  let sessionId = null;
+  try {
+    // 「最近の動き」が必ず出るように、遊んだ記録を1件足す（作ったのと同じ経路で消す。docs/lessons.md）
+    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+    const start = new Date(Date.now() - 2 * 3600000);
+    sessionId = await page.evaluate(async ([groupId, gameId, adminId, startIso, endIso]) => {
+      const res = await fetch("/api/admin/play-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupId, groupGameId: gameId, startedAt: startIso, endedAt: endIso, participantIds: [adminId] }),
+      });
+      return res.ok ? (await res.json()).id : null;
+    }, [ids.groupId, ids.gameId, ids.adminId, start.toISOString(), new Date(start.getTime() + 40 * 60000).toISOString()]);
+    await page.reload({ waitUntil: "networkidle" });
+    const sizes = await page.evaluate(() => {
+      const size = (el) => (el ? getComputedStyle(el).fontSize : null);
+      const heads = [...document.querySelectorAll("main h2")];
+      const byText = (t) => heads.find((h) => (h.textContent ?? "").trim() === t);
+      return {
+        recent: size(byText("最近の動き")),
+        album: size(byText("アルバム")),
+        games: size(byText("みんなのゲーム")),
+        wishlist: size(byText("ウィッシュリスト")),
+        oldName: heads.some((h) => (h.textContent ?? "").includes("ゲーム提案")),
+      };
+    });
+    const ok = !!sizes.recent && sizes.album === sizes.recent && sizes.games === sizes.recent && sizes.wishlist === sizes.recent && !sizes.oldName;
+    rows.push({
+      id: "B116",
+      item: "グループ画面の「アルバム」「みんなのゲーム」「ウィッシュリスト」の見出しが「最近の動き」と同じ大きさで、「ゲーム提案」の見出しは残っていない",
+      expected: "4つとも同じ文字の大きさ・旧名なし",
+      actual: `最近の動き=${sizes.recent} / アルバム=${sizes.album} / みんなのゲーム=${sizes.games} / ウィッシュリスト=${sizes.wishlist} / 旧名=${sizes.oldName}`,
+      ok,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B116", item: "グループ画面の見出しの大きさ", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    try {
+      if (sessionId) await page.evaluate((id) => fetch(`/api/admin/play-sessions/${id}`, { method: "DELETE" }), sessionId);
+    } catch {
+      // 片付けに失敗しても結果の表は残す
+    }
+    await page.close();
+  }
+}
+
+// ── ゲーム詳細のプレイ履歴は枠の中でスクロールする（2026-10-18 ユーザー判断） ──
+// 記録を8回ぶん足して、一覧が縦に伸びず（枠の高さで止まり）、中身は枠の中でスクロールできること
+{
+  const page = await context.newPage();
+  const made = [];
+  try {
+    await page.goto(`${BASE}/groups/${ids.groupId}/games/${ids.gameId}`, { waitUntil: "networkidle" });
+    for (let i = 0; i < 8; i++) {
+      const start = new Date(Date.now() - (30 + i) * 86400000);
+      const id = await page.evaluate(async ([groupId, gameId, adminId, startIso, endIso]) => {
+        const res = await fetch("/api/admin/play-sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ groupId, groupGameId: gameId, startedAt: startIso, endedAt: endIso, participantIds: [adminId] }),
+        });
+        return res.ok ? (await res.json()).id : null;
+      }, [ids.groupId, ids.gameId, ids.adminId, start.toISOString(), new Date(start.getTime() + 60 * 60000).toISOString()]);
+      if (id) made.push(id);
+    }
+    await page.reload({ waitUntil: "networkidle" });
+    const list = page.getByTestId("group-play-sessions");
+    const m = (await list.count()) > 0
+      ? await list.evaluate((el) => {
+          const before = el.scrollTop;
+          el.scrollTop = el.scrollHeight;
+          return { rows: el.children.length, client: el.clientHeight, scroll: el.scrollHeight, moved: el.scrollTop > before, overflowY: getComputedStyle(el).overflowY };
+        })
+      : null;
+    const ok = made.length === 8 && !!m && m.rows >= 8 && m.scroll > m.client && m.moved && m.overflowY === "auto";
+    rows.push({
+      id: "B117",
+      item: "ゲーム詳細のプレイ履歴が縦に伸びず、枠の中でスクロールして見られる",
+      expected: "8回ぶん並び・枠より中身が高く・枠の中でスクロールできる",
+      actual: m ? `記録=${made.length} / 行=${m.rows} / 枠=${m.client}px 中身=${m.scroll}px / スクロール=${m.moved} / overflow-y=${m.overflowY}` : `記録=${made.length} / 一覧が無い`,
+      ok,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B117", item: "ゲーム詳細のプレイ履歴のスクロール", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    try {
+      for (const id of made) await page.evaluate((x) => fetch(`/api/admin/play-sessions/${x}`, { method: "DELETE" }), id);
     } catch {
       // 片付けに失敗しても結果の表は残す
     }
