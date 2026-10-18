@@ -2,6 +2,7 @@ import { db } from "./db";
 import { postDiscordMessage } from "./discord";
 import { getNotificationChannel } from "./notificationTargets";
 import { MERGE_GAP_MS } from "./playLog";
+import { formatPlayDuration } from "./playDuration";
 
 // プレイ記録の開始・終了をグループの通知チャンネル（種類 PLAY_LOG）へ送る。設計は docs/play-log.md。
 //
@@ -34,13 +35,8 @@ function membersOf(s: SessionForNotify) {
   return s.participants.map((p) => p.user.name ?? "メンバー").join("、");
 }
 
-export function formatPlayDuration(ms: number): string {
-  const totalMin = Math.floor(ms / 60000);
-  if (totalMin < 1) return "1分未満";
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return h === 0 ? `${m}分` : m === 0 ? `${h}時間` : `${h}時間${m}分`;
-}
+// 表記は lib/playDuration.ts に1つだけ置いている（ここから使っている呼び出し側のために名前を残す）
+export { formatPlayDuration };
 
 /** 行を作った直後に呼ぶ。送り先が無ければ何もしない */
 export async function notifyPlayStarted(sessionId: string): Promise<void> {

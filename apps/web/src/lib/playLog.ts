@@ -477,6 +477,76 @@ async function effectiveNow(now: Date): Promise<{ end: Date; stale: boolean }> {
   return { end: now, stale: false };
 }
 
+/**
+ * 1回ぶんの始まりと終わり。**ゲーム詳細とグループ画面で必ずこれを通す**（数字を食い違わせないため。docs/play-log.md §13）。
+ * 進行中の行は「いまの終わり」まで数える（Botが落ちていたら最後に生きていた時刻で切る）。
+ */
+function sessionSpan(s: { startedAt: Date; endedAt: Date | null }, live: { end: Date }): Interval {
+  const end = s.endedAt ?? (live.end > s.startedAt ? live.end : s.startedAt);
+  return { start: s.startedAt.getTime(), end: end.getTime() };
+}
+
+export type GroupPlayTotals = {
+  /** 各ゲームの時間の和（ゲーム一覧の合計と必ず一致する。別々のVCで同時に別のゲームを遊んだ時間は両方数える） */
+  totalMs: number;
+  /** 時間が1分でも付いているゲームの本数 */
+  gameCount: number;
+  /** GroupGame.id → そのゲームの時間（ゲーム詳細の合計と同じ数え方。同じゲームの重なりは1回だけ数える） */
+  byGame: Record<string, number>;
+  /** 時間が最も長いゲーム。同じ時間なら最後に遊んだ方 */
+  topGameId: string | null;
+  /** 一番新しく遊んだ時刻（進行中なら今） */
+  lastPlayedAt: string | null;
+};
+
+/**
+ * グループ画面の帯とゲーム一覧に出す時間（docs/play-log.md §13）。
+ *
+ * - **ゲームに結びついていない記録は数えない**（ユーザー判断）。結びつけた時点で入る
+ * - グループの記録はまとめて1回で引く（ゲームごとに引くと本番では本数ぶん往復する）
+ * - キャッシュには載せない（Botの記録・管理者の修正のたびに無効化が要るのを避ける）
+ */
+export async function getGroupPlayTotals(groupId: string, now = new Date()): Promise<GroupPlayTotals> {
+  const sessions = await db.groupPlaySession.findMany({
+    where: { groupId, groupGameId: { not: null } },
+    select: { groupGameId: true, startedAt: true, endedAt: true },
+  });
+  if (sessions.length === 0) return { totalMs: 0, gameCount: 0, byGame: {}, topGameId: null, lastPlayedAt: null };
+
+  const live = await effectiveNow(now);
+  const spans = new Map<string, Interval[]>();
+  const lastEnd = new Map<string, number>();
+  let latest = 0;
+  for (const s of sessions) {
+    const span = sessionSpan(s, live);
+    const id = s.groupGameId!;
+    spans.set(id, [...(spans.get(id) ?? []), span]);
+    // 進行中（Botが生きている）なら「いま」。表示の「最後に遊んだ日」を今日にする
+    const end = s.endedAt === null && !live.stale ? now.getTime() : span.end;
+    lastEnd.set(id, Math.max(lastEnd.get(id) ?? 0, end));
+    latest = Math.max(latest, end);
+  }
+
+  const byGame: Record<string, number> = {};
+  let totalMs = 0;
+  let topGameId: string | null = null;
+  for (const [id, list] of spans) {
+    const ms = unionMs(list);
+    if (ms < 60 * 1000) continue; // 1分未満は「遊んだ」に数えない（一覧に「1分未満」を並べない）
+    byGame[id] = ms;
+    totalMs += ms;
+    const top = topGameId ? byGame[topGameId] : -1;
+    if (ms > top || (ms === top && (lastEnd.get(id) ?? 0) > (lastEnd.get(topGameId!) ?? 0))) topGameId = id;
+  }
+  return {
+    totalMs,
+    gameCount: Object.keys(byGame).length,
+    byGame,
+    topGameId,
+    lastPlayedAt: totalMs > 0 ? new Date(latest).toISOString() : null,
+  };
+}
+
 export async function getGamePlaySummary(groupGameId: string, now = new Date(), limit = 10): Promise<GamePlaySummary> {
   const sessions = await db.groupPlaySession.findMany({
     where: { groupGameId },
@@ -493,12 +563,12 @@ export async function getGamePlaySummary(groupGameId: string, now = new Date(), 
   const live = await effectiveNow(now);
   const views: PlaySessionView[] = sessions.map((s) => {
     const inProgress = s.endedAt === null && !live.stale;
-    const end = s.endedAt ?? (live.end > s.startedAt ? live.end : s.startedAt);
+    const span = sessionSpan(s, live);
     return {
       id: s.id,
       startedAt: s.startedAt.toISOString(),
       endedAt: s.endedAt?.toISOString() ?? null,
-      durationMs: end.getTime() - s.startedAt.getTime(),
+      durationMs: span.end - span.start,
       estimated: s.estimated || (s.endedAt === null && live.stale),
       inProgress,
       participants: s.participants.map((p) => p.user.name ?? p.user.email ?? "メンバー"),
