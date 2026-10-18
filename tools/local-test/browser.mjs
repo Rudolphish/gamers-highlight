@@ -2608,6 +2608,63 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── 活動カレンダーのプレイ記録（docs/play-log.md §11 の段階1） ──
+// 中身は lib-checks の F299・flows の F300。ここは実際の描画：スマホ幅（このコンテキストは390px）で
+// 日のマスの「🎮2h44m」が切れずに読めること。1行に入らず「🎮2h44…」になっていた（2026-10-18）
+{
+  const page = await context.newPage();
+  let sessionId = null;
+  try {
+    const startJstDay = new Date(Date.now() + 9 * 3600000 - 4 * 86400000).toISOString().slice(0, 10);
+    const start = new Date(`${startJstDay}T21:00:00.000+09:00`);
+    await page.goto(`${BASE}/admin/activity?group=${ids.groupId}&month=${startJstDay.slice(0, 7)}`, { waitUntil: "networkidle" });
+    // 管理者のAPIで記録を足す（作ったのと同じ経路で消す。docs/lessons.md）
+    sessionId = await page.evaluate(async ([groupId, gameId, adminId, startIso, endIso]) => {
+      const res = await fetch("/api/admin/play-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupId, groupGameId: gameId, startedAt: startIso, endedAt: endIso, participantIds: [adminId] }),
+      });
+      return res.ok ? (await res.json()).id : null;
+    }, [ids.groupId, ids.gameId, ids.adminId, start.toISOString(), new Date(start.getTime() + 164 * 60000).toISOString()]);
+    await page.reload({ waitUntil: "networkidle" });
+    const fit = await page.evaluate((day) => {
+      const cell = [...document.querySelectorAll("a")].find((a) => (a.getAttribute("href") ?? "").endsWith(`date=${day}`));
+      const play = cell?.querySelector("[data-play-ms]");
+      if (!cell || !play) return null;
+      // **マスの外枠ではなく、余白と枠線を除いた内側と比べる。** 外枠と比べていたら、1行に詰めた「🎮2h44m」（38px）が
+      // 内側（34px）からはみ出して枠線に食い込んでいるのに通った（折り返しを止めたビルドで確かめた）
+      const c = cell.getBoundingClientRect();
+      const st = getComputedStyle(cell);
+      const left = c.left + parseFloat(st.borderLeftWidth) + parseFloat(st.paddingLeft);
+      const right = c.right - parseFloat(st.borderRightWidth) - parseFloat(st.paddingRight);
+      const parts = [...play.children].map((el) => {
+        const r = el.getBoundingClientRect();
+        return { text: el.textContent, inside: r.left >= left - 0.5 && r.right <= right + 0.5, clipped: el.scrollWidth > el.clientWidth + 0.5 };
+      });
+      return { text: play.textContent, cellWidth: Math.round(right - left), parts };
+    }, startJstDay);
+    const ok = !!sessionId && !!fit && fit.text.includes("2h44m") && fit.parts.length === 2 && fit.parts.every((p) => p.inside && !p.clipped);
+    rows.push({
+      id: "B114",
+      item: "活動カレンダーの日のマスに🎮と遊んだ時間が出て、スマホ幅でも時間が切れずにマスの中に収まる",
+      expected: "🎮2h44m がマスの中・切れない",
+      actual: fit ? `${fit.text} / マスの内側=${fit.cellWidth}px / ${fit.parts.map((p) => `${p.text}:${p.inside ? "中" : "はみ出し"}${p.clipped ? "・切れ" : ""}`).join(" ")}` : `記録=${!!sessionId} / マスが見つからない`,
+      ok,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B114", item: "活動カレンダーの日のマスのプレイ時間", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    try {
+      if (sessionId) await page.evaluate((id) => fetch(`/api/admin/play-sessions/${id}`, { method: "DELETE" }), sessionId);
+    } catch {
+      // 片付けに失敗しても結果の表は残す
+    }
+    await page.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）

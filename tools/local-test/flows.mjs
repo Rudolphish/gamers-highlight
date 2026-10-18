@@ -4035,6 +4035,53 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── 活動カレンダーのプレイ記録（docs/play-log.md §11 の段階1） ──
+// 数え方の中身は lib-checks の F299。ここは /admin/activity に出るか：日のマスの🎮・その日の合計・タイムラインの1行。
+// 管理者以外には出ない（ページごと404）
+{
+  const game = await db.groupGame.findFirst({ where: { groupId: group.id }, orderBy: { createdAt: "asc" } });
+  // 他のテストが記録を置かない日（23日前の21:00〜22:30 JST）
+  const day = new Date(Date.now() + 9 * 3600000 - 23 * 86400000).toISOString().slice(0, 10);
+  const start = new Date(`${day}T21:00:00.000+09:00`);
+  const month = day.slice(0, 7);
+  const page = (date, cookie = adminCookie) =>
+    api(`/admin/activity?group=${group.id}&month=${month}${date ? `&date=${date}` : ""}`, { cookie });
+  const dayTotal = (html) => Number(html.match(/data-testid="day-play-total"[^>]*data-play-ms="(\d+)"/)?.[1] ?? 0);
+  // マスは日付つきのリンク。その中の data-play-ms を読む（URLの & は HTML では &amp; になる）
+  const cellMs = (html) => {
+    const at = html.indexOf(`date=${day}"`);
+    if (at < 0) return null;
+    return Number(html.slice(at, html.indexOf("</a>", at)).match(/data-play-ms="(\d+)"/)?.[1] ?? 0);
+  };
+  let made = null;
+  try {
+    const before = await page(day);
+    made = await db.groupPlaySession.create({
+      data: {
+        groupId: group.id, groupGameId: game.id, gameKey: "name:calendar-flow", activityName: "calendar-flow", voiceChannelId: "vc-calendar",
+        startedAt: start, endedAt: new Date(start.getTime() + 90 * 60000),
+      },
+    });
+    const after = await page(day);
+    const monthView = await page(null);
+    const byMember = await page(day, memberCookie);
+    const gameHref = `/groups/${group.id}/games/${game.id}`;
+    const delta = dayTotal(after.text) - dayTotal(before.text);
+    check(
+      "F300 活動カレンダーにプレイ記録が載る（日のマスに🎮・その日の合計・タイムラインに1回1行でゲームへのリンク）。管理者以外には出ない",
+      after.status === 200 && delta === 90 * 60000 && (cellMs(monthView.text) ?? 0) >= 90 * 60000 &&
+        after.text.includes(" を 1時間30分") && after.text.includes(gameHref) && monthView.text.includes("🎮") &&
+        !byMember.text.includes("day-play-total") && !byMember.text.includes("この月の記録"),
+      `合計の増分=${delta / 60000}分 / マス=${cellMs(monthView.text)} / 行=${after.text.includes(" を 1時間30分")} / 管理者以外に出る=${byMember.text.includes("day-play-total")}`
+    );
+  } catch (e) {
+    check("F300x 活動カレンダーのプレイ記録の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    // プレイ記録はキャッシュに載せていないのでDBから直接消してよい
+    if (made) await db.groupPlaySession.delete({ where: { id: made.id } }).catch(() => {});
+  }
+}
+
 // ───────────────────────────────────────────────────────────
 // テストの棚卸し（2026-10-11）で見つかった抜け
 // ───────────────────────────────────────────────────────────

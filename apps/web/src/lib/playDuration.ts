@@ -11,3 +11,15 @@ export function formatPlayDuration(ms: number): string {
   const m = totalMin % 60;
   return h === 0 ? `${m}分` : m === 0 ? `${h}時間` : `${h}時間${m}分`;
 }
+
+/**
+ * 狭いところ向けの短い表記（「1h26m」「45m」「3h」）。活動カレンダーの日のマスに使う。
+ * スマホ幅では1マスが45px前後しかなく、「1時間26分」は途中で切れて読めない。
+ */
+export function formatPlayDurationShort(ms: number): string {
+  const totalMin = Math.floor(ms / 60000);
+  if (totalMin < 1) return "<1m";
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h === 0 ? `${m}m` : m === 0 ? `${h}h` : `${h}h${m}m`;
+}

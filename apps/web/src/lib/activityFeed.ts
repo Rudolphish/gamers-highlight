@@ -2,6 +2,8 @@ import { db } from "./db";
 import { activityEmoji, type ActivityKind } from "./activityLog";
 import { RAW_LOG_RETENTION_DAYS } from "./activityRollup";
 import { DAY_MS, JST_OFFSET_MS, dateColumnToString, jstDateColumn, jstDateString } from "./jst";
+import { formatPlayDuration } from "./playDuration";
+import type { PlayCalendarEntry } from "./playLog";
 
 /**
  * カレンダーとタイムラインの読み取り。設計は docs/activity-log.md §9。
@@ -336,4 +338,31 @@ export async function getTimeline(
       href: hrefOf(log.kind, log.targetId),
     };
   });
+}
+
+/**
+ * プレイ記録（`lib/playLog.ts` の `getPlayCalendar`）をタイムラインの行にする。1回1行、始まった時刻に置く。
+ * 「Timberborn を 1時間26分」＋遊んだ人。進行中は「遊んでいる」、終わりが推定ならそう添える。
+ */
+export function playTimelineEntries(groupId: string, entries: PlayCalendarEntry[]): TimelineEntry[] {
+  return entries.map((e) => ({
+    id: `play:${e.id}`,
+    kind: "play.session",
+    emoji: "🎮",
+    label: e.inProgress ? `${e.title} を遊んでいる` : `${e.title} を ${formatPlayDuration(e.durationMs)}`,
+    occurredAt: e.startedAt,
+    createdAt: e.startedAt,
+    actorName: e.participants.length > 0 ? e.participants.join("・") : null,
+    targetName: null,
+    note: e.inProgress ? `いま ${formatPlayDuration(e.durationMs)}` : e.estimated ? "終わりは推定" : null,
+    href: e.groupGameId ? `/groups/${groupId}/games/${e.groupGameId}` : null,
+  }));
+}
+
+/** 出来事とプレイ記録を新しい順に混ぜる。件数の上限は `getTimeline` と同じ */
+export function mergeTimeline(...lists: TimelineEntry[][]): TimelineEntry[] {
+  return lists
+    .flat()
+    .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
+    .slice(0, TIMELINE_LIMIT);
 }

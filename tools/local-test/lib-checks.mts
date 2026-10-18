@@ -15,7 +15,8 @@ import { authOptions } from "../../apps/web/src/lib/auth";
 import { isCronRequest } from "../../apps/web/src/lib/cronAuth";
 import { describeDbError } from "../../apps/web/src/lib/dbError";
 import { classifyAuthError } from "../../apps/web/src/lib/authErrorLog";
-import { getGamePlaySummary, getGroupPlayTotals } from "../../apps/web/src/lib/playLog";
+import { getGamePlaySummary, getGroupPlayTotals, getPlayCalendar } from "../../apps/web/src/lib/playLog";
+import { mergeTimeline, playTimelineEntries } from "../../apps/web/src/lib/activityFeed";
 
 type Row = { id: string; item: string; ok: boolean; detail: string };
 const rows: Row[] = [];
@@ -311,6 +312,66 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
     check("F298x", "帯の集計の確認が途中で例外になった（以降は未確認）", false, (e as Error)?.stack ?? e);
   } finally {
     await db.group.delete({ where: { id: group.id } }).catch(() => {});
+  }
+}
+
+// ── 活動カレンダーのプレイ記録（docs/play-log.md §11 の段階1） ──
+// 数え方を直接確かめる。画面に出るかは flows（F300）で見る
+{
+  const owner = await db.user.findFirst({ where: { email: "admin@example.com" }, select: { id: true, name: true } });
+  const nameless = await db.user.create({ data: { email: `cal-nameless-${randomUUID().slice(0, 6)}@example.com`, name: null } });
+  const group = await db.group.create({ data: { name: `カレンダーのプレイ-${randomUUID().slice(0, 6)}`, ownerId: owner!.id } });
+  try {
+    const game = await db.groupGame.create({ data: { groupId: group.id, title: "夜ふかしのゲーム", steamAppId: 9100011, status: "PLAYING", addedById: owner!.id } });
+    // 10日前のJSTの0時。日付はJSTで切る
+    const jstMidnight = new Date(`${new Date(Date.now() + 9 * 3600000 - 10 * 86400000).toISOString().slice(0, 10)}T00:00:00.000+09:00`);
+    const at = (min: number) => new Date(jstMidnight.getTime() + min * 60000);
+    const dayOf = (min: number) => new Date(at(min).getTime() + 9 * 3600000).toISOString().slice(0, 10);
+    const mk = (groupGameId: string | null, from: number, to: number, key: string, userIds: string[] = []) =>
+      db.groupPlaySession.create({
+        data: {
+          groupId: group.id, groupGameId, gameKey: key, activityName: key.replace("name:", ""), voiceChannelId: `vc-${key}`,
+          startedAt: at(from), endedAt: at(to),
+          participants: { create: userIds.map((userId) => ({ userId, joinedAt: at(from), leftAt: at(to) })) },
+        },
+      });
+    // 23:30〜翌1:00（日付をまたぐ。始まった日に90分）と、別のVCで23:45〜翌0:45（重なりは1回だけ数える）
+    await mk(game.id, 23 * 60 + 30, 25 * 60, "name:night-a", [owner!.id, nameless.id]);
+    await mk(game.id, 23 * 60 + 45, 24 * 60 + 45, "name:night-b");
+    // 翌日 20:00〜20:40 の結びついていない回（名前のまま載る）と、21:00〜21:03 の3分（出さない）
+    await mk(null, 44 * 60, 44 * 60 + 40, "name:名前だけのゲーム");
+    await mk(game.id, 45 * 60, 45 * 60 + 3, "name:short");
+    // 前日 23:00 に始まった回（期間の前に始まったので入らない）
+    await mk(game.id, -60, 120, "name:before");
+
+    const cal = await getPlayCalendar(group.id, { start: at(0), end: at(48 * 60) });
+    const d0 = dayOf(0);
+    const d1 = dayOf(24 * 60);
+    const night = cal.entries.find((e) => e.participants.length === 2);
+    const rows2 = playTimelineEntries(group.id, cal.entries);
+    const merged = mergeTimeline(
+      [{ id: "ev", kind: "photo.created", emoji: "📷", label: "写真を投稿", occurredAt: at(24 * 60 + 10), createdAt: at(0), actorName: null, targetName: null, note: null, href: null }],
+      rows2
+    );
+    const min = 60000;
+    check(
+      "F299",
+      "カレンダーのプレイ記録は始まった日（JST）にまとめ、同じゲームの重なりを1回だけ数え、5分未満と期間の前に始まった回は出さず、表示名の無い人をメールで出さない",
+      Object.keys(cal.days).sort().join(",") === [d0, d1].join(",") &&
+        cal.days[d0].totalMs === 90 * min && cal.days[d0].sessionCount === 2 &&
+        cal.days[d1].totalMs === 40 * min && cal.days[d1].sessionCount === 1 &&
+        cal.entries.length === 3 && cal.entries[0].title === "名前だけのゲーム" && cal.entries[0].groupGameId === null &&
+        night?.participants.includes("メンバー") === true && !night.participants.some((p) => p.includes("@")) &&
+        rows2.some((r) => r.label === "夜ふかしのゲーム を 1時間30分" && r.href === `/groups/${group.id}/games/${game.id}`) &&
+        rows2[0].href === null &&
+        merged.map((r) => r.id).join(",") === [rows2[0].id, "ev", rows2[1].id, rows2[2].id].join(","),
+      { days: cal.days, entries: cal.entries.map((e) => [e.title, e.durationMs / min, e.participants]), merged: merged.map((r) => r.label) }
+    );
+  } catch (e) {
+    check("F299x", "カレンダーのプレイ記録の確認が途中で例外になった（以降は未確認）", false, (e as Error)?.stack ?? e);
+  } finally {
+    await db.group.delete({ where: { id: group.id } }).catch(() => {});
+    await db.user.delete({ where: { id: nameless.id } }).catch(() => {});
   }
 }
 
