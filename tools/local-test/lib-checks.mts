@@ -394,6 +394,9 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
     await log("photo.created", owner!.id, at("11:49"), "G1");
     await log("photo.created", owner!.id, at("11:48"), "G1"); // ここまで同じ人の続けての投稿 → 「写真を3枚投稿」
     await log("photo.deleted", owner!.id, at("11:46")); // 取り消し系は出さない（まとめも切らない）
+    await log("album.deleted", owner!.id, at("11:46"), "消したアルバム"); // 削除系も出さない
+    await log("game.removed", owner!.id, at("11:46"), "消したゲーム");
+    await log("game.interest_removed", owner!.id, at("11:46"), "外したゲーム");
     await log("photo.created", owner!.id, at("11:45"), "G1"); // → 4枚目としてまとまる
     await log("photo.created", nameless.id, at("11:44"), "G2"); // 別の人 → 別の行。表示名が無いので「メンバー」
     await log("game.added", owner!.id, at("11:30"), "最近のゲーム"); // ➕
@@ -416,7 +419,7 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
     const fa = flat(all);
     check(
       "F301",
-      "最近の動きは記録した時刻の新しい順に5件で、同じ人の続けての写真を1行にまとめ（間に挟まる・日をまたぐと切る）、取り消し系と表示名の無い人のメールを出さず、ゲームの追加は➕・遊んだ記録は🎮",
+      "最近の動きは記録した時刻の新しい順に5件で、同じ人の続けての写真を1行にまとめ（間に挟まる・日をまたぐと切る）、取り消し・削除系と表示名の無い人のメールを出さず、ゲームの追加は➕・遊んだ記録は🎮",
       f5.length === 5 &&
         f5[0].label === "写真を4枚投稿" && f5[0].targetName === "G1" &&
         f5[1].label === "写真を投稿" && f5[1].actorName === "メンバー" &&
@@ -424,7 +427,8 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
         f5[3].kind === "play.session" && f5[3].emoji === "🎮" && f5[3].label === "最近のゲーム を 30分" && f5[3].actorName?.includes("メンバー") === true &&
         f5[4].label === "写真を投稿" &&
         five.length === 1 && five[0].label === "今日" &&
-        !fa.some((e) => e.kind === "photo.deleted") && !fa.some((e) => (e.actorName ?? "").includes("@")) &&
+        !fa.some((e) => ["photo.deleted", "album.deleted", "game.removed", "game.interest_removed"].includes(e.kind)) &&
+        !fa.some((e) => (e.actorName ?? "").includes("@")) &&
         fa.length === 8 && all.map((d) => d.label).join(",") === "今日,昨日" && all[1].entries.length === 1,
       { five: five.map((d) => [d.label, d.entries.map((e) => `${e.emoji}${e.label}/${e.actorName}`)]), all: all.map((d) => [d.label, d.entries.length]) }
     );

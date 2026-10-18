@@ -20,8 +20,9 @@ import { getPlayCalendar, getRecentPlays, type PlayCalendar, type PlayCalendarEn
 const WEEKDAYS = ["月", "火", "水", "木", "金", "土", "日"];
 
 /**
- * **グループのメンバーには出さない種類**（取り消し系。docs/play-log.md §11 の段階2、ユーザー判断）。
+ * **グループのメンバーには出さない種類**（取り消し・削除系。docs/play-log.md §11 の段階2、ユーザー判断）。
  * 管理画面だけに出す。グループ向けのカレンダーでは件数（マスの濃淡）からも外す。
+ * アルバム・ゲームの削除と「気になる」を外したのは、実装後の画面で「アルバムを削除」が流れているのを見て足した（2026-10-18）
  */
 export const GROUP_HIDDEN_KINDS: readonly ActivityKind[] = [
   "photo.deleted",
@@ -29,6 +30,9 @@ export const GROUP_HIDDEN_KINDS: readonly ActivityKind[] = [
   "photo.description_cleared",
   "proposal.vote_removed",
   "proposal.withdrawn",
+  "album.deleted",
+  "game.removed",
+  "game.interest_removed",
 ];
 
 export type MonthRange = {
