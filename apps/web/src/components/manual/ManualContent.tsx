@@ -165,7 +165,7 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
             ゲームカードの「気になる」ボタンは、ステータスとは別に「自分が狙っている」という印です。誰が狙っているかがカードに出るほか、ウィッシュリストの最安値がDiscordに通知されるときにも使われます。
           </p>
           <p>
-            <strong className="text-steam-text">ゲーム提案</strong>：「このゲームどう？」と提案すると、メンバーがリアクションできます。「いいね」がメンバーの過半数に達すると、自動でゲームリストに「気になる」として追加されます。
+            <strong className="text-steam-text">ウィッシュリスト</strong>（ゲームの提案）：グループ画面の「追加する」から「このゲームどう？」と提案すると、メンバーがリアクションできます。「いいね」がメンバーの過半数に達すると、自動でゲームリストに「気になる」として追加されます。
             <strong className="text-steam-text">提案するとDiscordにも通知が飛びます</strong>
             （「ゲームが提案されたとき」の通知先を設定している場合。下の「Discordへの通知」を参照）。
           </p>

@@ -1,6 +1,6 @@
 import { Skeleton, CardGridSkeleton } from "@/components/ui/Skeleton";
 
-// グループ詳細：戻るリンク→グループ名→アルバム→みんなのゲーム→ゲーム提案
+// グループ詳細：戻るリンク→グループ名→アルバム→みんなのゲーム→ウィッシュリスト
 export default function Loading() {
   return (
     <main className="p-4 sm:p-6">

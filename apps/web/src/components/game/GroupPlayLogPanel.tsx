@@ -50,7 +50,11 @@ export function GroupPlayLogPanel({ summary }: { summary: GamePlaySummary }) {
           )}
 
           {summary.recent.length > 0 && (
-            <ul className="mt-4 flex flex-col divide-y divide-steam-border" data-testid="group-play-sessions">
+            // 縦に伸びないよう枠の中でスクロールさせる（ユーザー判断）。高さはおよそ5回ぶん
+            <ul
+              className="mt-4 flex max-h-72 flex-col divide-y divide-steam-border overflow-y-auto overscroll-contain pr-1"
+              data-testid="group-play-sessions"
+            >
               {summary.recent.map((s) => {
                 const start = new Date(s.startedAt);
                 const end = new Date(start.getTime() + s.durationMs);
