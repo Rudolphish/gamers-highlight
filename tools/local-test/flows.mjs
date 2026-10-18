@@ -2257,6 +2257,14 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     byGroupMember.status
   );
 
+  // 改名の前にグループ画面を1回開いて、古い名前をキャッシュに載せておく（F155 のため）。
+  // 開かずに改名すると、キャッシュが空のまま最初の描画で新しい名前を読むので、無効化を消しても F155 が通ってしまう
+  // （2026-10-18 に無効化を外したビルドで確かめて分かった。「期待する結果と同じ初期状態から始めない」docs/lessons.md）
+  const warm = await (await fetch(`${BASE}/groups/${group.id}`, { headers: { cookie: adminCookie } })).text();
+  const warmAt = warm.indexOf(`href="/albums/${target}"`);
+  // この時点の名前は「改名後アルバム」（F149 で一度変えている）
+  const warmedWithOldName = warmAt >= 0 && warm.slice(warmAt, warm.indexOf("</a>", warmAt)).includes("改名後アルバム");
+
   // アルバム単位で編集者として招待されていれば変えられる（APIの条件はEDITOR以上）
   const member = await db.user.findUnique({ where: { email: "member@example.com" } });
   await db.albumMember.create({ data: { albumId: target, userId: member.id, role: "EDITOR" } });
@@ -2274,11 +2282,16 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
 
   // 名前はグループ詳細のアルバム一覧にも出る。無効化を忘れると古い名前が残る
   const groupPage = await fetch(`${BASE}/groups/${group.id}`, { headers: { cookie: adminCookie } });
+  // **アルバム一覧のカードだけを見る。** ページ全体で古い名前を探すと、「最近の動き」の「アルバムを作成」の行に当たる
+  // （出来事の記録には作った時点の名前が残る。ActivityLog.targetName は改名しても書き換えない）。しかも同じ文字列は
+  // サーバーが描いた木のデータとして <script> の中にも入るので、欄を切り取っても消えない（切り取る形では、キャッシュが正しくても古い名前が見つかって落ちた）
   const groupHtml = await groupPage.text();
+  const cardAt = groupHtml.indexOf(`href="/albums/${target}"`);
+  const card = cardAt < 0 ? "" : groupHtml.slice(cardAt, groupHtml.indexOf("</a>", cardAt));
   check(
     "F155 変えた名前がグループ画面に出る（キャッシュが残らない）",
-    groupHtml.includes("編集者が改名") && !groupHtml.includes("改名前アルバム"),
-    `新しい名前=${groupHtml.includes("編集者が改名")} 古い名前=${groupHtml.includes("改名前アルバム")}`
+    warmedWithOldName && card.includes("編集者が改名") && !card.includes("改名後アルバム"),
+    `改名前に古い名前が出ていた=${warmedWithOldName} / カード=${cardAt >= 0} 新しい名前=${card.includes("編集者が改名")} 古い名前=${card.includes("改名後アルバム")}`
   );
 
   // 後片付け。作ったときと同じ経路（API）で消す
@@ -4079,6 +4092,43 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   } finally {
     // プレイ記録はキャッシュに載せていないのでDBから直接消してよい
     if (made) await db.groupPlaySession.delete({ where: { id: made.id } }).catch(() => {});
+  }
+}
+
+// ── グループ画面の「最近の動き」とグループの活動カレンダー（docs/play-log.md §11 の段階2） ──
+// 中身の組み立ては lib-checks の F301。ここは画面：グループ画面に欄とカレンダーへのリンクが出る・
+// メンバーが専用ページを開ける・取り消し系（写真の削除）は管理画面には出てもグループ向けには出ない。
+// 他のグループの人・未ログインの人に中身が出ないことは sweep の P14b・P14c
+{
+  const admin = await db.user.findUnique({ where: { email: "admin@example.com" } });
+  const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+  const made = [];
+  try {
+    const mk = (kind, targetId) =>
+      db.activityLog.create({ data: { kind, targetId, groupId: group.id, actorId: admin.id, occurredAt: new Date() } }).then((r) => made.push(r.id));
+    await mk("photo.created", "recent-flow-new");
+    await mk("photo.deleted", "recent-flow-del");
+    const groupPage = await api(`/groups/${group.id}`, { cookie: memberCookie });
+    const at = groupPage.text.indexOf('data-testid="recent-activity"');
+    const section = at >= 0 ? groupPage.text.slice(at, groupPage.text.indexOf("</section>", at)) : "";
+    const q = `month=${today.slice(0, 7)}&date=${today}`;
+    const memberPage = await api(`/groups/${group.id}/activity?${q}`, { cookie: memberCookie });
+    const adminPage = await api(`/admin/activity?group=${group.id}&${q}`, { cookie: adminCookie });
+    check(
+      "F302 グループ画面に「最近の動き」とカレンダーへのリンクが出て、メンバーが活動カレンダーを開ける。写真の削除は管理画面には出てもグループ向けには出ない",
+      groupPage.status === 200 && section.includes("最近の動き") && section.includes(`/groups/${group.id}/activity"`) && section.includes("写真を") &&
+        !section.includes("写真を削除") &&
+        memberPage.status === 200 && memberPage.text.includes("この月の記録") && memberPage.text.includes("写真を投稿") &&
+        !memberPage.text.includes("写真を削除") && !memberPage.text.includes("🗑️") &&
+        adminPage.text.includes("写真を削除"),
+      `欄=${section.includes("最近の動き")} / リンク=${section.includes(`/groups/${group.id}/activity"`)} / 欄に削除=${section.includes("写真を削除")} / ` +
+        `専用ページ=${memberPage.status}・中身=${memberPage.text.includes("この月の記録")}・削除=${memberPage.text.includes("写真を削除")} / 管理画面に削除=${adminPage.text.includes("写真を削除")}`
+    );
+  } catch (e) {
+    check("F302x 最近の動きの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    // 出来事の記録はキャッシュに載せていない（グループ画面の「最近の動き」も毎回読む）のでDBから直接消してよい
+    await db.activityLog.deleteMany({ where: { id: { in: made } } });
   }
 }
 

@@ -51,6 +51,8 @@ const cases = [
   ["P12", "グループ内アルバム作成", `/groups/${ids.groupId}/albums/new`, { anon: LOGIN, admin: OK, member: OK }],
   ["P13", "ゲーム詳細", `/groups/${ids.groupId}/games/${ids.gameId}`, { anon: LOGIN, admin: OK, member: OK, outsider: NF }],
   ["P14", "提案詳細", `/groups/${ids.groupId}/proposals/${ids.proposalId}`, { anon: LOGIN, admin: OK, member: OK, outsider: NF }],
+  ["P14b", "グループの活動カレンダー（自分のグループ）", `/groups/${ids.groupId}/activity`, { anon: LOGIN, admin: OK, member: OK, outsider: NF }],
+  ["P14c", "グループの活動カレンダー（他人のグループ）", `/groups/${ids.otherGroupId}/activity`, { anon: LOGIN, admin: NF, member: NF, outsider: OK }],
   ["P15", "マニュアル", "/manual", { anon: LOGIN, admin: OK }],
   ["P16", "検索", "/search", { anon: LOGIN, admin: OK, member: OK }],
   ["P17", "アップロード", "/upload", { anon: LOGIN, admin: OK, member: OK }],

@@ -17,6 +17,8 @@ import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { getSteamCoverUrls } from "@/lib/albumCover";
 import { getGroupPlayTotals, getPlayLogMinParticipants, getUnknownPlays } from "@/lib/playLog";
 import { PlayTotalBanner } from "@/components/group/PlayTotalBanner";
+import { getRecentActivity } from "@/lib/activityFeed";
+import { RecentActivity } from "@/components/group/RecentActivity";
 import { isAdminEmail } from "@/lib/admin";
 import { PlayLogMinParticipantsSetting } from "@/components/group/PlayLogMinParticipantsSetting";
 import { UnknownPlays } from "@/components/group/UnknownPlays";
@@ -83,10 +85,17 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
 
   // グループで遊んだ時間（帯とゲーム一覧）。**キャッシュに載せず毎回読む**（docs/play-log.md §13）。
   // 取れなくてもページは出す（帯と時間が出ないだけ）
-  const playTotals = await getGroupPlayTotals(group.id).catch((e) => {
-    console.error("[group] プレイ時間の取得に失敗", e);
-    return null;
-  });
+  // 「最近の動き」（docs/play-log.md §11 の段階2）も同じく毎回読む。帯と並べて同時に引き、待ち時間を足さない
+  const [playTotals, recentDays] = await Promise.all([
+    getGroupPlayTotals(group.id).catch((e) => {
+      console.error("[group] プレイ時間の取得に失敗", e);
+      return null;
+    }),
+    getRecentActivity(group.id).catch((e) => {
+      console.error("[group] 最近の動きの取得に失敗", e);
+      return [];
+    }),
+  ]);
 
   const gameCards = group.games.map((g) => ({
     id: g.id,
@@ -227,6 +236,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
         />
       )}
 
+      {recentDays.length > 0 && <RecentActivity groupId={group.id} days={recentDays} />}
       <div className="mt-6">
         <CollapsibleSection
           title="アルバム"

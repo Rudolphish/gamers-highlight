@@ -619,36 +619,16 @@ export async function getPlayCalendar(groupId: string, period: { start: Date; en
   const sessions = await db.groupPlaySession.findMany({
     where: { groupId, startedAt: { gte: period.start, lt: period.end } },
     orderBy: { startedAt: "desc" },
-    include: {
-      groupGame: { select: { title: true } },
-      participants: { orderBy: { joinedAt: "asc" }, include: { user: { select: { name: true } } } },
-    },
+    include: PLAY_ENTRY_INCLUDE,
   });
   if (sessions.length === 0) return { days: {}, entries: [] };
 
-  // 生存報告を引くのは進行中の行があるときだけ（閉じた回だけの月に1往復を足さない）
-  const live = sessions.some((s) => s.endedAt === null) ? await effectiveNow(now) : { end: now, stale: false };
-  const entries: PlayCalendarEntry[] = [];
+  const built = await toPlayEntries(sessions, now);
   const spans = new Map<string, Map<string, Interval[]>>(); // 日 → ゲーム → 区間
-  for (const s of sessions) {
-    const span = sessionSpan(s, live);
-    const inProgress = s.endedAt === null && !live.stale;
-    const durationMs = span.end - span.start;
-    if (!inProgress && durationMs < MIN_DISPLAY_MS) continue;
-    entries.push({
-      id: s.id,
-      startedAt: s.startedAt,
-      durationMs,
-      title: s.groupGame?.title ?? s.activityName,
-      groupGameId: s.groupGameId,
-      // 表示名が無い人をメールで出さない（グループに公開する段階2でもそのまま使えるように）
-      participants: s.participants.map((p) => p.user.name ?? "メンバー"),
-      estimated: s.estimated || (s.endedAt === null && live.stale),
-      inProgress,
-    });
-    const day = jstDateString(s.startedAt);
+  for (const { entry, span, gameKey } of built) {
+    const day = jstDateString(entry.startedAt);
     const byGame = spans.get(day) ?? new Map<string, Interval[]>();
-    const key = s.groupGameId ?? `key:${s.gameKey}`;
+    const key = entry.groupGameId ?? `key:${gameKey}`;
     byGame.set(key, [...(byGame.get(key) ?? []), span]);
     spans.set(day, byGame);
   }
@@ -663,7 +643,68 @@ export async function getPlayCalendar(groupId: string, period: { start: Date; en
     }
     days[day] = { totalMs, sessionCount };
   }
-  return { days, entries };
+  return { days, entries: built.map((b) => b.entry) };
+}
+
+/**
+ * グループ画面の「最近の動き」に混ぜる、新しく始まった順のプレイ記録（docs/play-log.md §11 の段階2）。
+ * 出す・出さないの基準はカレンダーと同じ（5分未満は出さない。進行中は出す）。短い回で枠が埋まらないよう少し多めに引いてから絞る
+ */
+export async function getRecentPlays(groupId: string, limit: number, now = new Date()): Promise<PlayCalendarEntry[]> {
+  const sessions = await db.groupPlaySession.findMany({
+    where: { groupId },
+    orderBy: { startedAt: "desc" },
+    take: limit * 3,
+    include: PLAY_ENTRY_INCLUDE,
+  });
+  if (sessions.length === 0) return [];
+  return (await toPlayEntries(sessions, now)).map((b) => b.entry).slice(0, limit);
+}
+
+const PLAY_ENTRY_INCLUDE = {
+  groupGame: { select: { title: true } },
+  participants: { orderBy: { joinedAt: "asc" as const }, include: { user: { select: { name: true } } } },
+};
+
+type PlayEntrySource = {
+  id: string;
+  startedAt: Date;
+  endedAt: Date | null;
+  estimated: boolean;
+  activityName: string;
+  gameKey: string;
+  groupGameId: string | null;
+  groupGame: { title: string } | null;
+  participants: { user: { name: string | null } }[];
+};
+
+/** カレンダーと「最近の動き」の1行ぶん。5分未満の閉じた回はここで落とす */
+async function toPlayEntries(sessions: PlayEntrySource[], now: Date): Promise<{ entry: PlayCalendarEntry; span: Interval; gameKey: string }[]> {
+  // 生存報告を引くのは進行中の行があるときだけ（閉じた回だけなら1往復を足さない）
+  const live = sessions.some((s) => s.endedAt === null) ? await effectiveNow(now) : { end: now, stale: false };
+  const out: { entry: PlayCalendarEntry; span: Interval; gameKey: string }[] = [];
+  for (const s of sessions) {
+    const span = sessionSpan(s, live);
+    const inProgress = s.endedAt === null && !live.stale;
+    const durationMs = span.end - span.start;
+    if (!inProgress && durationMs < MIN_DISPLAY_MS) continue;
+    out.push({
+      span,
+      gameKey: s.gameKey,
+      entry: {
+        id: s.id,
+        startedAt: s.startedAt,
+        durationMs,
+        title: s.groupGame?.title ?? s.activityName,
+        groupGameId: s.groupGameId,
+        // 表示名が無い人をメールで出さない（グループのメンバーに見せるので）
+        participants: s.participants.map((p) => p.user.name ?? "メンバー"),
+        estimated: s.estimated || (s.endedAt === null && live.stale),
+        inProgress,
+      },
+    });
+  }
+  return out;
 }
 
 export type UnknownPlay = {

@@ -3,7 +3,7 @@ import { activityEmoji, type ActivityKind } from "./activityLog";
 import { RAW_LOG_RETENTION_DAYS } from "./activityRollup";
 import { DAY_MS, JST_OFFSET_MS, dateColumnToString, jstDateColumn, jstDateString } from "./jst";
 import { formatPlayDuration } from "./playDuration";
-import type { PlayCalendarEntry } from "./playLog";
+import { getPlayCalendar, getRecentPlays, type PlayCalendar, type PlayCalendarEntry } from "./playLog";
 
 /**
  * カレンダーとタイムラインの読み取り。設計は docs/activity-log.md §9。
@@ -18,6 +18,18 @@ import type { PlayCalendarEntry } from "./playLog";
  */
 
 const WEEKDAYS = ["月", "火", "水", "木", "金", "土", "日"];
+
+/**
+ * **グループのメンバーには出さない種類**（取り消し系。docs/play-log.md §11 の段階2、ユーザー判断）。
+ * 管理画面だけに出す。グループ向けのカレンダーでは件数（マスの濃淡）からも外す。
+ */
+export const GROUP_HIDDEN_KINDS: readonly ActivityKind[] = [
+  "photo.deleted",
+  "photo.reaction_removed",
+  "photo.description_cleared",
+  "proposal.vote_removed",
+  "proposal.withdrawn",
+];
 
 export type MonthRange = {
   /** `YYYY-MM` */
@@ -103,8 +115,10 @@ export type MonthCalendar = {
 export async function getMonthCalendar(
   groupId: string,
   month?: string | null,
-  now = new Date()
+  now = new Date(),
+  opts: { excludeKinds?: readonly string[] } = {}
 ): Promise<MonthCalendar> {
+  const kindFilter = opts.excludeKinds?.length ? { kind: { notIn: [...opts.excludeKinds] } } : {};
   const range = jstMonthRange(month, now);
 
   const group = await db.group.findUnique({
@@ -128,7 +142,7 @@ export async function getMonthCalendar(
   const rawFrom = new Date(Math.max(range.start.getTime(), cutoffAt.getTime()));
   if (rawFrom < range.end) {
     const logs = await db.activityLog.findMany({
-      where: { groupId, occurredAt: { gte: rawFrom, lt: range.end } },
+      where: { groupId, occurredAt: { gte: rawFrom, lt: range.end }, ...kindFilter },
       select: { occurredAt: true, kind: true },
     });
     for (const log of logs) bump(jstDateString(log.occurredAt), log.kind, 1);
@@ -140,6 +154,7 @@ export async function getMonthCalendar(
       where: {
         groupId,
         date: { gte: jstDateColumn(jstDateString(range.start)), lt: jstDateColumn(cutoffDate) },
+        ...kindFilter,
       },
       select: { date: true, kind: true, count: true },
     });
@@ -250,7 +265,7 @@ const TIMELINE_LIMIT = 60;
  */
 export async function getTimeline(
   groupId: string,
-  opts: { date?: string | null; month?: string | null; limit?: number; now?: Date } = {}
+  opts: { date?: string | null; month?: string | null; limit?: number; now?: Date; excludeKinds?: readonly string[] } = {}
 ): Promise<TimelineEntry[]> {
   const now = opts.now ?? new Date();
   const limit = Math.min(opts.limit ?? TIMELINE_LIMIT, TIMELINE_LIMIT);
@@ -265,7 +280,11 @@ export async function getTimeline(
   }
 
   const logs = await db.activityLog.findMany({
-    where: { groupId, occurredAt: period },
+    where: {
+      groupId,
+      occurredAt: period,
+      ...(opts.excludeKinds?.length ? { kind: { notIn: [...opts.excludeKinds] } } : {}),
+    },
     orderBy: { occurredAt: "desc" },
     take: limit,
     select: {
@@ -290,7 +309,7 @@ export async function getTimeline(
   const [actors, photos, albums, games, proposals] = await Promise.all([
     db.user.findMany({
       where: { id: { in: logs.map((l) => l.actorId).filter((id): id is string => id !== null) } },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true },
     }),
     db.photo.findMany({
       where: { id: { in: idsOf("photo.") } },
@@ -331,8 +350,9 @@ export async function getTimeline(
       label: TIMELINE_LABELS[log.kind as ActivityKind] ?? log.kind,
       occurredAt: log.occurredAt,
       createdAt: log.createdAt,
-      // 退会しても記録は残る。名前が引けないことと、そもそも人がいない経路（cron）は別物
-      actorName: log.actorId ? (actor?.name ?? actor?.email ?? "（退会）") : null,
+      // 退会しても記録は残る。名前が引けないことと、そもそも人がいない経路（cron）は別物。
+      // **表示名が無い人をメールで出さない**（グループのメンバーにも見せるので。通知と同じ扱い）
+      actorName: log.actorId ? (actor ? (actor.name ?? "メンバー") : "（退会）") : null,
       targetName: log.targetName,
       note: noteOf(log.kind, log.detail),
       href: hrefOf(log.kind, log.targetId),
@@ -365,4 +385,131 @@ export function mergeTimeline(...lists: TimelineEntry[][]): TimelineEntry[] {
     .flat()
     .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
     .slice(0, TIMELINE_LIMIT);
+}
+
+/**
+ * 活動カレンダー1か月ぶん（日のマス・プレイ記録・タイムライン）をまとめて読む。管理画面とグループの活動ページが使う。
+ * `selectedDate` があればタイムラインはその日ぶん、無ければその月ぶん。グループ向けは `excludeKinds: GROUP_HIDDEN_KINDS` を渡す
+ */
+export async function loadActivityMonth(
+  groupId: string,
+  month: string,
+  selectedDate: string | null,
+  opts: { excludeKinds?: readonly string[]; now?: Date } = {}
+): Promise<{ calendar: MonthCalendar; play: PlayCalendar; timeline: TimelineEntry[] }> {
+  const now = opts.now ?? new Date();
+  const calendar = await getMonthCalendar(groupId, month, now, { excludeKinds: opts.excludeKinds });
+  const [events, play] = await Promise.all([
+    getTimeline(groupId, { date: selectedDate, month, now, excludeKinds: opts.excludeKinds }),
+    getPlayCalendar(groupId, calendar.range, now),
+  ]);
+  const playEntries = selectedDate ? play.entries.filter((e) => jstDateString(e.startedAt) === selectedDate) : play.entries;
+  return { calendar, play, timeline: mergeTimeline(events, playTimelineEntries(groupId, playEntries)) };
+}
+
+export type RecentDay = {
+  /** JSTの `YYYY-MM-DD` */
+  date: string;
+  /** 「今日」「昨日」「10/16（金）」 */
+  label: string;
+  entries: TimelineEntry[];
+};
+
+/** 写真のまとめで食われる分を見込んで、出す件数より多めに引く */
+const RECENT_LOG_FETCH = 50;
+
+/**
+ * グループ画面の「最近の動き」（docs/play-log.md §11 の段階2）。出来事とプレイ記録を新しい順に `limit` 件。
+ *
+ * - **出来事は記録した時刻（`createdAt`）で並べる。** 写真の `occurredAt` は撮影日時なので、去年のスクショを今日上げると
+ *   去年の位置に沈んで出てこない（週次まとめと同じ理由）。カレンダーは今までどおり `occurredAt`
+ * - プレイ記録は始まった時刻で並べる
+ * - **同じ人が続けて写真を投稿したら1行にまとめる**（「写真を7枚投稿」。ユーザー判断）。間に別の行が挟まる・日をまたぐと切る
+ * - 取り消し系（`GROUP_HIDDEN_KINDS`）は出さない
+ * - キャッシュに載せない。出来事は Bot・各API・cron のどこからでも書かれるので、無効化を漏れなく入れるより毎回読む
+ * - リンクはプレイ記録のゲームだけ（対象が残っているかを確かめる往復をグループ画面に足さない。詳しくは専用ページで見る）
+ */
+export async function getRecentActivity(groupId: string, limit = 5, now = new Date()): Promise<RecentDay[]> {
+  const [logs, plays] = await Promise.all([
+    db.activityLog.findMany({
+      where: { groupId, kind: { notIn: [...GROUP_HIDDEN_KINDS] } },
+      orderBy: { createdAt: "desc" },
+      take: RECENT_LOG_FETCH,
+      select: { id: true, kind: true, actorId: true, targetName: true, createdAt: true },
+    }),
+    getRecentPlays(groupId, limit, now),
+  ]);
+  const actorIds = [...new Set(logs.map((l) => l.actorId).filter((id): id is string => id !== null))];
+  const actors = actorIds.length
+    ? await db.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } })
+    : [];
+
+  type Row = TimelineEntry & { actorId: string | null; photos: number; games: Set<string | null> };
+  const rows: Row[] = [
+    ...logs.map((l) => {
+      const actor = actors.find((u) => u.id === l.actorId);
+      return {
+        id: l.id,
+        kind: l.kind,
+        emoji: activityEmoji(l.kind),
+        label: TIMELINE_LABELS[l.kind as ActivityKind] ?? l.kind,
+        occurredAt: l.createdAt,
+        createdAt: l.createdAt,
+        actorName: l.actorId ? (actor ? (actor.name ?? "メンバー") : "（退会）") : null,
+        targetName: l.targetName,
+        note: null,
+        href: null,
+        actorId: l.actorId,
+        photos: 1,
+        games: new Set([l.targetName]),
+      };
+    }),
+    ...playTimelineEntries(groupId, plays).map((e) => ({ ...e, actorId: null, photos: 0, games: new Set<string | null>() })),
+  ].sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
+
+  // 新しい順に見て、直前の行が「同じ人の写真の投稿・同じ日」なら足し込む
+  const merged: Row[] = [];
+  for (const row of rows) {
+    const prev = merged[merged.length - 1];
+    if (
+      prev &&
+      row.kind === "photo.created" &&
+      prev.kind === "photo.created" &&
+      prev.actorId === row.actorId &&
+      jstDateString(prev.occurredAt) === jstDateString(row.occurredAt)
+    ) {
+      prev.photos += 1;
+      prev.games.add(row.targetName);
+      continue;
+    }
+    if (merged.length === limit) break;
+    merged.push(row);
+  }
+
+  const today = jstDateString(now);
+  const yesterday = jstDateString(new Date(now.getTime() - DAY_MS));
+  const days: RecentDay[] = [];
+  for (const row of merged) {
+    const { actorId: _actorId, photos, games, ...entry } = row;
+    if (photos > 1) {
+      entry.label = `写真を${photos}枚投稿`;
+      // まとめた写真のゲームが揃っているときだけゲーム名を添える
+      entry.targetName = games.size === 1 ? [...games][0] : null;
+    }
+    const date = jstDateString(entry.occurredAt);
+    let day = days[days.length - 1];
+    if (!day || day.date !== date) {
+      const jst = new Date(new Date(`${date}T00:00:00.000+09:00`).getTime() + JST_OFFSET_MS);
+      const label =
+        date === today
+          ? "今日"
+          : date === yesterday
+            ? "昨日"
+            : `${jst.getUTCMonth() + 1}/${jst.getUTCDate()}（${WEEKDAYS[(jst.getUTCDay() + 6) % 7]}）`;
+      day = { date, label, entries: [] };
+      days.push(day);
+    }
+    day.entries.push(entry);
+  }
+  return days;
 }

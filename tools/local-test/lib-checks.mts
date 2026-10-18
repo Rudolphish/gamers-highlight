@@ -16,7 +16,7 @@ import { isCronRequest } from "../../apps/web/src/lib/cronAuth";
 import { describeDbError } from "../../apps/web/src/lib/dbError";
 import { classifyAuthError } from "../../apps/web/src/lib/authErrorLog";
 import { getGamePlaySummary, getGroupPlayTotals, getPlayCalendar } from "../../apps/web/src/lib/playLog";
-import { mergeTimeline, playTimelineEntries } from "../../apps/web/src/lib/activityFeed";
+import { getRecentActivity, mergeTimeline, playTimelineEntries } from "../../apps/web/src/lib/activityFeed";
 
 type Row = { id: string; item: string; ok: boolean; detail: string };
 const rows: Row[] = [];
@@ -370,6 +370,68 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
   } catch (e) {
     check("F299x", "カレンダーのプレイ記録の確認が途中で例外になった（以降は未確認）", false, (e as Error)?.stack ?? e);
   } finally {
+    await db.group.delete({ where: { id: group.id } }).catch(() => {});
+    await db.user.delete({ where: { id: nameless.id } }).catch(() => {});
+  }
+}
+
+// ── グループ画面の「最近の動き」（docs/play-log.md §11 の段階2） ──
+// 画面に出るかは flows（F302）とブラウザ（B115）で見る
+{
+  const owner = await db.user.findFirst({ where: { email: "admin@example.com" }, select: { id: true, name: true } });
+  const nameless = await db.user.create({ data: { email: `recent-nameless-${randomUUID().slice(0, 6)}@example.com`, name: null } });
+  const group = await db.group.create({ data: { name: `最近の動き-${randomUUID().slice(0, 6)}`, ownerId: owner!.id } });
+  try {
+    const game = await db.groupGame.create({ data: { groupId: group.id, title: "最近のゲーム", steamAppId: 9100021, status: "PLAYING", addedById: owner!.id } });
+    // 「今日」のJSTの12:00を now にする（日付の見出しと日またぎを決め打ちで確かめるため）
+    const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+    const now = new Date(`${today}T12:00:00.000+09:00`);
+    const at = (hm: string, dayOffset = 0) => new Date(new Date(`${today}T${hm}:00.000+09:00`).getTime() + dayOffset * 86400000);
+    const log = (kind: string, actorId: string, createdAt: Date, targetName: string | null = null, occurredAt = createdAt) =>
+      db.activityLog.create({ data: { kind, targetId: randomUUID(), targetName, groupId: group.id, actorId, createdAt, occurredAt } });
+    // 新しい順に:
+    await log("photo.created", owner!.id, at("11:50"), "G1", new Date(now.getTime() - 365 * 86400000)); // 撮ったのは1年前、上げたのは今日
+    await log("photo.created", owner!.id, at("11:49"), "G1");
+    await log("photo.created", owner!.id, at("11:48"), "G1"); // ここまで同じ人の続けての投稿 → 「写真を3枚投稿」
+    await log("photo.deleted", owner!.id, at("11:46")); // 取り消し系は出さない（まとめも切らない）
+    await log("photo.created", owner!.id, at("11:45"), "G1"); // → 4枚目としてまとまる
+    await log("photo.created", nameless.id, at("11:44"), "G2"); // 別の人 → 別の行。表示名が無いので「メンバー」
+    await log("game.added", owner!.id, at("11:30"), "最近のゲーム"); // ➕
+    await db.groupPlaySession.create({
+      data: {
+        groupId: group.id, groupGameId: game.id, gameKey: "name:recent", activityName: "recent", voiceChannelId: "vc-recent",
+        startedAt: at("11:00"), endedAt: at("11:30"),
+        participants: { create: [owner!.id, nameless.id].map((userId) => ({ userId, joinedAt: at("11:00"), leftAt: at("11:30") })) },
+      },
+    });
+    await log("photo.created", owner!.id, at("10:50"), "G1"); // 間に別の行が挟まった → まとめない
+    await log("album.created", nameless.id, at("05:00"), "アルバム");
+    await log("photo.created", owner!.id, at("00:01"), "G1");
+    await log("photo.created", owner!.id, at("23:59", -1), "G1"); // 日をまたいだ → まとめない（「昨日」の見出しの下）
+
+    const five = await getRecentActivity(group.id, 5, now);
+    const all = await getRecentActivity(group.id, 20, now);
+    const flat = (days: Awaited<ReturnType<typeof getRecentActivity>>) => days.flatMap((d) => d.entries);
+    const f5 = flat(five);
+    const fa = flat(all);
+    check(
+      "F301",
+      "最近の動きは記録した時刻の新しい順に5件で、同じ人の続けての写真を1行にまとめ（間に挟まる・日をまたぐと切る）、取り消し系と表示名の無い人のメールを出さず、ゲームの追加は➕・遊んだ記録は🎮",
+      f5.length === 5 &&
+        f5[0].label === "写真を4枚投稿" && f5[0].targetName === "G1" &&
+        f5[1].label === "写真を投稿" && f5[1].actorName === "メンバー" &&
+        f5[2].kind === "game.added" && f5[2].emoji === "➕" &&
+        f5[3].kind === "play.session" && f5[3].emoji === "🎮" && f5[3].label === "最近のゲーム を 30分" && f5[3].actorName?.includes("メンバー") === true &&
+        f5[4].label === "写真を投稿" &&
+        five.length === 1 && five[0].label === "今日" &&
+        !fa.some((e) => e.kind === "photo.deleted") && !fa.some((e) => (e.actorName ?? "").includes("@")) &&
+        fa.length === 8 && all.map((d) => d.label).join(",") === "今日,昨日" && all[1].entries.length === 1,
+      { five: five.map((d) => [d.label, d.entries.map((e) => `${e.emoji}${e.label}/${e.actorName}`)]), all: all.map((d) => [d.label, d.entries.length]) }
+    );
+  } catch (e) {
+    check("F301x", "最近の動きの確認が途中で例外になった（以降は未確認）", false, (e as Error)?.stack ?? e);
+  } finally {
+    await db.activityLog.deleteMany({ where: { groupId: group.id } }).catch(() => {});
     await db.group.delete({ where: { id: group.id } }).catch(() => {});
     await db.user.delete({ where: { id: nameless.id } }).catch(() => {});
   }
