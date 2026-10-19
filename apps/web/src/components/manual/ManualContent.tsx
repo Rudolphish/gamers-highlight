@@ -7,7 +7,7 @@ import { ChevronDown, ExternalLink } from "lucide-react";
 
 type Section = { id: string; title: string; body: ReactNode };
 
-export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
+export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: string | null; isAdmin?: boolean }) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   // /manual#discord-bot-invite のようなリンクで、該当セクションを開いた状態で表示する
@@ -59,7 +59,9 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
             招待したサーバーで、画像に「#ゲーム名」のようなハッシュタグを付けて投稿してみる。しばらくして、作成したグループの配下に自動でアルバムができていれば成功。
           </p>
           <p className="text-steam-muted/70">
-            補足：「/tag」コマンド（後述）を使うには、Bot管理者がサーバーごとに個別のコマンド登録作業を行う必要があります。ハッシュタグによる自動取り込み自体は登録作業なしでどのサーバーでも動作します。
+            補足：「/tag」「/playlog」コマンド（後述）は、Botを招待したどのサーバーでも使えます。
+            入力欄に「/」を打っても出てこないときは、サーバー設定 → 連携サービス → Bot で、
+            コマンドを使えるチャンネルが絞られていないか確かめ、Discordを再読み込みしてください。
           </p>
         </div>
       ),
@@ -155,7 +157,8 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            グループ画面のゲームリストは、そのグループで話題になっているゲームを共有する場所です。各ゲームには「気になる」「プレイ中」「積みゲー」「クリア済み」のステータスを付けられます。
+            グループ画面の「みんなのゲーム」は、そのグループで話題になっているゲームを共有する場所です。各ゲームには「気になる」「プレイ中」「積みゲー」「クリア済み」のステータスを付けられます。
+            ゲームは見出しの横の<strong className="text-steam-text">「ゲームを追加」</strong>から名前で検索して追加します（編集者以上）。
           </p>
           <p>
             <strong className="text-steam-text">開いた直後は「プレイ中」と「気になる」だけが表示されます。</strong>
@@ -242,12 +245,32 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
         <div className="flex flex-col gap-3">
           <p>
             DiscordのVCに集まって、<strong className="text-steam-text">2人以上が同じゲームを遊んでいる間</strong>
-            を、Botが自動で記録します。何かを押す必要はありません。記録はゲーム詳細の
-            「グループで遊んだ時間」に、合計時間・直近の記録・一緒に遊んだメンバーとして出ます。
+            を、Botが自動で記録します。何かを押す必要はありません。
           </p>
           <p>
-            数えるのは、Discordに「〇〇をプレイ中」と出ているときだけです。VCにいても1人だけが遊んでいる
-            （他の人は雑談している）間は記録しません。アプリとDiscordを連携していない人は数に入りません。
+            <strong className="text-steam-text">記録が出る場所</strong>
+          </p>
+          <ul className="ml-4 list-disc space-y-1">
+            <li>
+              グループ画面の上の帯「グループで遊んだ時間」：全ゲームの合計・いちばん遊んだゲーム・最後に遊んだ日
+            </li>
+            <li>「みんなのゲーム」の各カード：そのゲームを遊んだ時間（🎮）</li>
+            <li>
+              ゲーム詳細の「グループで遊んだ時間」：合計時間と、1回ずつの記録（一緒に遊んだメンバーつき）。
+              記録が多いときは枠の中でスクロールします
+            </li>
+            <li>グループの「最近の動き」と活動カレンダー（下の「グループの活動」を参照）</li>
+          </ul>
+          <p>
+            数えるのは、Discordに「〇〇をプレイ中」と出ている人がいるときです。
+            <strong className="text-steam-text">「オンライン状態を隠す」にしている人も、同じVCで遊ばれているゲームが1つだけなら一緒に遊んだとして数えます</strong>
+            （隠している人は、Botからはプレイ中が見えないため）。そのため、VCで雑談しているだけの人が入ることもあります。
+            VCの中で別々のゲームが遊ばれているときは、隠している人はどちらにも入れません。
+            アプリとDiscordを連携していない人は数に入りません。
+          </p>
+          <p>
+            グループ画面の帯とゲーム一覧の時間には、ゲームリストに無い（名前だけの）記録と、1分未満しか遊んでいないゲームは入りません。
+            ゲームリストに追加して結びつけると入ります。
           </p>
           <p>
             <strong className="text-steam-text">記録されたくないとき</strong>は、Discordで
@@ -265,6 +288,30 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
           <p className="text-steam-muted/70">
             補足：途中で10分以内に戻ってきた場合は、続けて1回として数えます。5分未満の記録は一覧に出しません（合計には含みます）。
             「推定」の印は、Botが止まっていた間をまたいだ記録です（止まっていた間は確認できないため、時刻が推定になります）。
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: "group-activity",
+      title: "グループの活動（最近の動き・活動カレンダー）",
+      body: (
+        <div className="flex flex-col gap-3">
+          <p>
+            グループ画面の<strong className="text-steam-text">「最近の動き」</strong>に、写真の投稿・アルバムの作成・
+            ウィッシュリストへの追加・一緒に遊んだ記録（🎮）などが、新しい順に5件出ます。
+            同じ人が続けて写真を投稿したときは「写真を4枚投稿」のように1行にまとまります。
+          </p>
+          <p>
+            右上の<strong className="text-steam-text">「カレンダーで見る」</strong>で、そのグループの活動カレンダーが開きます。
+            日のマスには、その日の動きの件数（多いほど濃い色）と、一緒に遊んだ時間（🎮 と青い文字、例: 2h44m＝2時間44分）が出ます。
+            マスを押すと、その日の内訳と1件ずつの記録が見られます。
+          </p>
+          <p className="text-steam-muted/70">
+            補足：写真の削除・❤️の取り消し・投票の取り消し・説明を消した・提案の取り下げ・アルバムやゲームの削除・
+            「気になる」を外した、は出しません（件数にも数えません）。「最近の動き」は投稿した時刻の順で、
+            カレンダーは実際に起きた日（撮影日時が分かる写真はその日）に置きます。
+            「アルバムを作成」の行には、作った時点のアルバム名が出ます（後から名前を変えても書き換わりません）。
           </p>
         </div>
       ),
@@ -291,10 +338,15 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
               <strong className="text-steam-text">週に一度のまとめ</strong>
               ：先週の投稿・クリア・提案などをまとめて届きます（動きが無かった週は送りません）
             </li>
+            <li>
+              <strong className="text-steam-text">プレイ記録の開始と終了</strong>
+              ：VCで一緒に遊び始めたときと、遊び終わったときに、ゲーム名と参加者が届きます。
+              終わりの通知は、抜けてから10分戻らなかったときに送るので、実際に届くのは終わってから10〜25分後です
+            </li>
           </ul>
           <p>
             <strong className="text-steam-text">「送らない」を選べばその種類は届きません。</strong>
-            既定は3種類とも「送らない」なので、設定するまで通知は一切飛びません。
+            既定は4種類とも「送らない」なので、設定するまで通知は一切飛びません。
           </p>
           <p>
             価格の通知は、ゲームリストで「気になる」ステータスのゲームを毎日調べて、
@@ -370,7 +422,7 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
                 {[
                   ["写真を見る・投稿する", "閲覧者"],
                   ["❤️を付ける・説明を書く", "閲覧者"],
-                  ["ゲームを提案する・提案に投票する・「気になる」を付ける", "閲覧者"],
+                  ["ウィッシュリストに追加する・投票する・「気になる」を付ける", "閲覧者"],
                   ["ゲームリストへの追加・ステータス変更・削除", "編集者"],
                   ["アルバムを作る", "グループの編集者"],
                   ["アルバム名を変える", "アルバムのオーナー、またはアルバムの編集者"],
@@ -494,7 +546,7 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
           </p>
           <p>
             グループ画面では最初の4件だけ表示され、「さらに表示」で増やせます
-            （下のゲームリストや提案が押し出されないようにするためです）。
+            （下のゲームリストやウィッシュリストが押し出されないようにするためです）。
           </p>
           <p>
             <strong className="text-steam-text">アルバム名</strong>は、アルバム詳細で名前の右にある
@@ -530,7 +582,7 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
           </p>
           <p>
             ゲームタイトル欄に入力すると、写真だけでなく
-            <strong className="text-steam-text">グループのゲームリストと提案</strong>
+            <strong className="text-steam-text">グループのゲームリストとウィッシュリスト</strong>
             からも一致するものを探して、まとめて表示します。
           </p>
           <p className="text-steam-muted/70">
@@ -590,6 +642,39 @@ export function ManualContent({ inviteUrl }: { inviteUrl: string | null }) {
         </div>
       ),
     },
+    ...(isAdmin
+      ? [
+          {
+            id: "admin",
+            title: "管理者向けの機能（管理者にだけ表示）",
+            body: (
+              <div className="flex flex-col gap-3">
+                <p>
+                  メニューの「使用量・メディア」（盾のアイコン。<Link href="/admin" className="text-steam-blue hover:underline">/admin</Link>）から、
+                  管理者だけが使えるページに入れます。上のタブで切り替えます。
+                </p>
+                <ul className="ml-4 list-disc space-y-1">
+                  <li><strong className="text-steam-text">使用量</strong>：ストレージ・DB・YouTube検索の使用量と、参照されないファイル（孤児ファイル）の数</li>
+                  <li><strong className="text-steam-text">ユーザー</strong>：誰がどのグループにいて、どれだけ投稿しているか</li>
+                  <li><strong className="text-steam-text">週次まとめ</strong>：Discordへ送る週次まとめの文面を、送る前に期間を選んで確かめる</li>
+                  <li><strong className="text-steam-text">活動カレンダー</strong>：全グループの活動を切り替えて見る（取り消し・削除系の出来事も出る）</li>
+                  <li>
+                    <strong className="text-steam-text">プレイ記録</strong>：記録の時間・ゲーム・参加者の修正、削除、記録されなかった回の追加。
+                    遊んでいる最中の記録は、終わってから直せます
+                  </li>
+                  <li><strong className="text-steam-text">招待リンク</strong>：全グループの招待リンクを見て、取り消す</li>
+                  <li><strong className="text-steam-text">メディア一覧</strong>：全部の写真/動画を見る。他の人の未分類の投稿もここから振り分けられる</li>
+                  <li><strong className="text-steam-text">エラー</strong>：画面で起きたエラーとログインの失敗の記録、Discordへのエラー通知先の設定</li>
+                </ul>
+                <p>
+                  グループ画面には、管理者にだけ<strong className="text-steam-text">「プレイ記録の最少人数」</strong>が出ます。
+                  「1人（動作確認用）」にすると、1人で遊んでも記録されます（テスト用。友人のグループでは2人のままにしてください）。
+                </p>
+              </div>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
