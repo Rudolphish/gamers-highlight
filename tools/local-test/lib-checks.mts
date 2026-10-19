@@ -18,6 +18,8 @@ import { classifyAuthError } from "../../apps/web/src/lib/authErrorLog";
 import { getGamePlaySummary, getGroupPlayTotals, getPlayCalendar } from "../../apps/web/src/lib/playLog";
 import { getRecentActivity, mergeTimeline, playTimelineEntries } from "../../apps/web/src/lib/activityFeed";
 import { GET as checkWishlistPrices } from "../../apps/web/src/app/api/cron/check-wishlist-prices/route";
+import { toWishlistPrice } from "../../apps/web/src/lib/wishlistPrice";
+import { parseSteamStoreLow } from "../../apps/web/src/lib/itad";
 
 type Row = { id: string; item: string; ok: boolean; detail: string };
 const rows: Row[] = [];
@@ -552,6 +554,33 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
     await db.group.delete({ where: { id: group.id } }).catch(() => {});
     await db.user.delete({ where: { id: nameless.id } }).catch(() => {});
   }
+}
+
+// F307: ウィッシュリストのカードの価格。割引中・無料・価格なし・「今が最安値」の4通りと、ITAD の応答の取り出し
+{
+  const sale = toWishlistPrice({ isFree: false, discountPercent: 50, finalAmount: 4990 }, 4990);
+  const above = toWishlistPrice({ isFree: false, discountPercent: 0, finalAmount: 1000 }, 640);
+  const free = toWishlistPrice({ isFree: true, discountPercent: 0, finalAmount: 0 }, null);
+  const lowOnly = toWishlistPrice(null, 745);
+  const none = toWishlistPrice(null, null);
+  const ok = [{ id: "g1", deals: [{ shop: { id: 35, name: "GOG" }, storeLow: { amount: 100 } }, { shop: { id: 61, name: "Steam" }, storeLow: { amount: 990 } }] }];
+  const parsed = {
+    steam: parseSteamStoreLow(ok, "g1"),
+    otherId: parseSteamStoreLow(ok, "g2"),
+    noSteam: parseSteamStoreLow([{ id: "g1", deals: [{ shop: { id: 35 }, storeLow: { amount: 100 } }] }], "g1"),
+    notArray: parseSteamStoreLow({ error: "x" }, "g1"),
+  };
+  check(
+    "F307",
+    "ウィッシュリストの価格: 最安値と同じなら印が付き、高ければ付かない。無料は「無料」で印なし、最安値だけでも出し、どちらも無ければ出さない。ITAD の応答からはSteamの storeLow だけを取る",
+    sale?.atLow === true && sale.price === 4990 && sale.discountPercent === 50 &&
+      above?.atLow === false && above.steamLow === 640 &&
+      free?.isFree === true && free.price === 0 && free.atLow === false &&
+      lowOnly?.price === null && lowOnly.steamLow === 745 && lowOnly.atLow === false &&
+      none === null &&
+      parsed.steam === 990 && parsed.otherId === null && parsed.noSteam === null && parsed.notArray === null,
+    { sale, above, free, lowOnly, none, parsed }
+  );
 }
 
 await db.$disconnect();

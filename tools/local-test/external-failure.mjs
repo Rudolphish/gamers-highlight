@@ -24,6 +24,8 @@ const targets = [
   ["X06", "提案詳細（Steam・ITADを引く）", `/groups/${ids.groupId}/proposals/${ids.proposalId}`],
   ["X07", "アルバム詳細（Steamのカバーを引く）", `/albums/${ids.albumId}`],
   ["X08", "グループ一覧（Steamのカバーを引く）", "/groups"],
+  // ウィッシュリストの価格（Steam・ITADを引く）。1件落ちても他は返し、全部落ちても500にしない
+  ["X09", "ウィッシュリストの価格API（Steam・ITADを引く）", `/api/groups/${ids.groupId}/proposals/prices`],
 ];
 
 // fetch-stub.cjs がこのファイルを見て、書かれたホストへの外部呼び出しを500にする

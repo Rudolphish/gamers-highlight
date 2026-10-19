@@ -180,6 +180,14 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <strong className="text-steam-text">順位を変えられるのは提案した本人だけ</strong>
             で、他の人の並びには影響しません。
           </p>
+          <p>
+            <strong className="text-steam-text">ウィッシュリストのカードには価格が出ます。</strong>
+            「¥4,730 -45% · 最安 ¥4,730」のように、Steamでの今の値段（セール中なら割引率も）と、
+            <strong className="text-steam-text">Steamでの過去の最安値</strong>
+            が並びます。今の値段が最安値と同じかそれより安いときは「最安値」の印が付くので、買い時の目安にしてください。
+            価格はカードが出たあとに少し遅れて入ります。値段が取れないゲーム（未発売など）は価格の行が出ません。
+            ゲーム詳細の価格欄と最安値の通知は他のストアも含めた最安値なので、カードの数字と違うことがあります。
+          </p>
         </div>
       ),
     },
