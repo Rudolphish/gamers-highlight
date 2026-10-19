@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Plus, X, Search, Trash2 } from "lucide-react";
+import { X, Search, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { InterestButton, type InterestUser } from "@/components/group/InterestButton";
 import { formatPlayDuration } from "@/lib/playDuration";
@@ -69,11 +69,19 @@ export function GroupGameList({
   games,
   canEdit,
   currentUserId,
+  addOpen: open,
+  onAddOpenChange: setOpen,
 }: {
   groupId: string;
   games: GroupGameItem[];
   canEdit: boolean;
   currentUserId: string | null;
+  /**
+   * 「ゲームを追加」の検索モーダルを開いているか。ボタンは「みんなのゲーム」の見出しの横にある
+   * （components/group/GroupGamesSection.tsx。アルバムの「新規アルバム」・ウィッシュリストの「追加する」と揃えた）
+   */
+  addOpen: boolean;
+  onAddOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
   const [items, setItems] = useState(games);
@@ -90,7 +98,6 @@ export function GroupGameList({
   const [genreFilter, setGenreFilter] = useState<Set<string>>(new Set());
   // 保存済みの設定を読み終えたか。読む前に保存すると、既定値で上書きしてしまう
   const [restored, setRestored] = useState(false);
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SteamResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -289,15 +296,6 @@ export function GroupGameList({
             </button>
           ))}
         </div>
-
-        {canEdit && (
-          <button
-            onClick={() => setOpen(true)}
-            className="flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
-          >
-            <Plus size={14} /> ゲームを追加
-          </button>
-        )}
       </div>
 
       {allGenres.length > 0 && (

@@ -2822,6 +2822,44 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── 「ゲームを追加」を「みんなのゲーム」の見出しの横に置く（2026-10-18 ユーザー判断） ──
+// アルバムの「新規アルバム」と同じ並び（見出しと同じ行）にあり、区画を畳んでいても押せば開いて検索モーダルが出ること
+{
+  const page = await context.newPage();
+  try {
+    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+    const head = page.locator("main h2").filter({ hasText: /^みんなのゲーム$/ }).first();
+    const addButton = page.getByRole("button", { name: "ゲームを追加" });
+    const count = await addButton.count();
+    const headBox = await head.boundingBox();
+    const buttonBox = count === 1 ? await addButton.boundingBox() : null;
+    // 同じ行＝縦の中心が見出しの高さの中に入っている
+    const sameRow = !!headBox && !!buttonBox && Math.abs(headBox.y + headBox.height / 2 - (buttonBox.y + buttonBox.height / 2)) < headBox.height;
+    // 畳んでから押す
+    await head.getByRole("button").click();
+    const collapsed = (await page.getByPlaceholder("ゲーム名で検索").count()) === 0 && (await page.getByText("全ジャンル").count()) === 0;
+    if (count === 1) await addButton.click();
+    const modal = page.getByRole("heading", { name: "ゲームをリストに追加" });
+    await modal.waitFor({ timeout: 5000 }).catch(() => {});
+    const modalShown = (await modal.count()) > 0;
+    const reopened = (await page.getByText("全ジャンル").count()) > 0;
+    if (modalShown) await page.getByRole("button", { name: "閉じる" }).first().click();
+    const ok = count === 1 && sameRow && collapsed && modalShown && reopened;
+    rows.push({
+      id: "B118",
+      item: "「ゲームを追加」が「みんなのゲーム」の見出しと同じ行にあり、区画を畳んでいても押すと開いて検索モーダルが出る",
+      expected: "ボタン1つ・見出しと同じ行・畳んだ後に押すと区画が開きモーダルが出る",
+      actual: `ボタン=${count} / 同じ行=${sameRow} / 畳めた=${collapsed} / モーダル=${modalShown} / 区画が開いた=${reopened}`,
+      ok,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B118", item: "「ゲームを追加」の位置", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    await page.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）
