@@ -17,6 +17,7 @@ import { describeDbError } from "../../apps/web/src/lib/dbError";
 import { classifyAuthError } from "../../apps/web/src/lib/authErrorLog";
 import { getGamePlaySummary, getGroupPlayTotals, getPlayCalendar } from "../../apps/web/src/lib/playLog";
 import { getRecentActivity, mergeTimeline, playTimelineEntries } from "../../apps/web/src/lib/activityFeed";
+import { GET as checkWishlistPrices } from "../../apps/web/src/app/api/cron/check-wishlist-prices/route";
 
 type Row = { id: string; item: string; ok: boolean; detail: string };
 const rows: Row[] = [];
@@ -455,6 +456,101 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
   } finally {
     await db.activityLog.deleteMany({ where: { groupId: group.id } }).catch(() => {});
     await db.group.delete({ where: { id: group.id } }).catch(() => {});
+  }
+}
+
+// ── 最安値の通知がウィッシュリスト（提案）も見張る（2026-10-19 ユーザー判断） ──
+// cron のハンドラを直接呼び、外部（ITAD・Discord）は fetch を差し替えて決め打ちで返す。
+// HTTP 経由だと Discord の失敗を狙って起こせないため。ITAD はこのテストのゲームにだけ値を返す
+// （他のグループの記録を書き換えないように。それ以外は 404 で「取れなかった」扱い）
+{
+  const owner = await db.user.findFirst({ where: { email: "admin@example.com" }, select: { id: true, name: true } });
+  const nameless = await db.user.create({ data: { email: `price-nameless-${randomUUID().slice(0, 6)}@example.com`, name: null } });
+  const group = await db.group.create({ data: { name: `最安値の通知-${randomUUID().slice(0, 6)}`, ownerId: owner!.id } });
+  const APP_BOTH = 9100031; // ゲームリスト（気になる）とウィッシュリストの両方に入っている
+  const APP_NEW = 9100032; // ウィッシュリストだけ・前回の記録なし（基準値を記録するだけ）
+  const APP_ACCEPTED = 9100033; // 採用済みの提案（見張らない）
+  const myApps = new Set([APP_BOTH, APP_NEW, APP_ACCEPTED]);
+  const CHANNEL = "900000000000000099";
+  const saved = { itad: process.env.ITAD_API_KEY, bot: process.env.DISCORD_BOT_TOKEN, cron: process.env.CRON_SECRET };
+  const realFetch = globalThis.fetch;
+  let failDiscord = false;
+  const posts: string[] = [];
+  try {
+    process.env.ITAD_API_KEY = "test-itad";
+    process.env.DISCORD_BOT_TOKEN = "test-bot";
+    process.env.CRON_SECRET = "test-cron";
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes("isthereanydeal.com/games/lookup")) {
+        const appid = Number(new URL(url).searchParams.get("appid"));
+        if (!myApps.has(appid)) return new Response("{}", { status: 404 });
+        return Response.json({ found: true, game: { id: `itad-${appid}`, slug: `slug-${appid}` } });
+      }
+      if (url.includes("isthereanydeal.com/games/historylow")) {
+        return Response.json([{ low: { price: { amount: 3200 }, shop: { name: "Steam" }, cut: 60 } }]);
+      }
+      if (url.includes(`discord.com/api/v10/channels/${CHANNEL}/messages`) || (url.includes("discord.com") && url.includes(CHANNEL))) {
+        if (failDiscord) return new Response("{}", { status: 500 });
+        posts.push(JSON.parse(String(init?.body ?? "{}")).content ?? "");
+        return Response.json({ id: "m" });
+      }
+      return new Response("{}", { status: 404 });
+    }) as typeof fetch;
+    const run = async () => (await checkWishlistPrices(new Request("http://x/api/cron/check-wishlist-prices", { headers: { authorization: "Bearer test-cron" } }))).json();
+
+    await db.groupNotificationTarget.create({ data: { groupId: group.id, kind: "PRICE_DROP", channelId: CHANNEL } });
+    const game = await db.groupGame.create({
+      data: { groupId: group.id, title: "両方に入っているゲーム", steamAppId: APP_BOTH, status: "WISHLIST", addedById: owner!.id, lastKnownLowPrice: 6000 },
+    });
+    const mkProposal = (steamAppId: number, title: string, proposedById: string, lastKnownLowPrice: number | null, status: "PENDING" | "ACCEPTED" = "PENDING") =>
+      db.groupGameProposal.create({ data: { groupId: group.id, steamAppId, title, proposedById, lastKnownLowPrice, status } });
+    const both = await mkProposal(APP_BOTH, "提案側の名前", owner!.id, 5000);
+    const both2 = await mkProposal(APP_BOTH, "提案側の名前", nameless.id, 5500);
+    const fresh = await mkProposal(APP_NEW, "初めてのゲーム", owner!.id, null);
+    const accepted = await mkProposal(APP_ACCEPTED, "採用済みのゲーム", owner!.id, 9000, "ACCEPTED");
+    const lows = async () => {
+      const [g, p] = await Promise.all([
+        db.groupGame.findUnique({ where: { id: game.id }, select: { lastKnownLowPrice: true } }),
+        db.groupGameProposal.findMany({ where: { id: { in: [both.id, both2.id, fresh.id, accepted.id] } }, select: { id: true, lastKnownLowPrice: true } }),
+      ]);
+      const byId = new Map(p.map((x) => [x.id, x.lastKnownLowPrice]));
+      return { game: g?.lastKnownLowPrice, both: byId.get(both.id), both2: byId.get(both2.id), fresh: byId.get(fresh.id), accepted: byId.get(accepted.id) };
+    };
+
+    // 1回目：Discordが落ちている → 値下がりは送れず、記録も進めない（次の日に送り直す）。前回の記録が無いものは基準値だけ記録する
+    failDiscord = true;
+    const failedRun = await run();
+    const afterFail = await lows();
+    // 2回目：Discordが戻った → 同じゲームは1通だけ（ゲームリストの名前・誰のウィッシュリストか）
+    failDiscord = false;
+    const okRun = await run();
+    const afterOk = await lows();
+    const sent = [...posts];
+    // 3回目：もう下がっていないので送らない
+    const againRun = await run();
+    check(
+      "F305",
+      "最安値の通知はウィッシュリスト（採用前の提案）も見張り、同じゲームは1通にまとめて誰のウィッシュリストかを添える。送れなかったら記録を進めず次で送り直し、採用済みは見張らない",
+      failedRun.failed === 1 && failedRun.notified === 0 &&
+        afterFail.game === 6000 && afterFail.both === 5000 && afterFail.both2 === 5500 && afterFail.fresh === 3200 &&
+        okRun.notified === 1 && sent.length === 1 &&
+        sent[0].includes("**両方に入っているゲーム**") && sent[0].includes("¥3,200") &&
+        sent[0].includes(`📝 ${owner!.name ?? "メンバー"}、メンバーのウィッシュリスト`) && !sent[0].includes("@example.com") &&
+        afterOk.game === 3200 && afterOk.both === 3200 && afterOk.both2 === 3200 && afterOk.accepted === 9000 &&
+        againRun.notified === 0 && posts.length === 1,
+      { failedRun, afterFail, okRun, afterOk, sent, againRun }
+    );
+  } catch (e) {
+    check("F305x", "最安値の通知の確認が途中で例外になった（以降は未確認）", false, (e as Error)?.stack ?? e);
+  } finally {
+    globalThis.fetch = realFetch;
+    for (const [k, v] of [["ITAD_API_KEY", saved.itad], ["DISCORD_BOT_TOKEN", saved.bot], ["CRON_SECRET", saved.cron]] as const) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    await db.group.delete({ where: { id: group.id } }).catch(() => {});
+    await db.user.delete({ where: { id: nameless.id } }).catch(() => {});
   }
 }
 

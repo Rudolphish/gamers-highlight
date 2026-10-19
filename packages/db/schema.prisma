@@ -290,6 +290,12 @@ model GroupGameProposal {
   /// `tools/local-test/flows.mjs` のテストで担保している。
   rank Int?
 
+  /// 最安値更新通知（Discord）用。日次cronが前回記録との比較に使う（GroupGame の同名の列と同じ役割）。
+  /// 画面では「ウィッシュリスト」と呼んでいる区画のゲームも見張るために足した（2026-10-19 ユーザー判断）。PENDINGのみ対象
+  lastKnownLowPrice  Float?
+  lastKnownLowShop   String?
+  lastPriceCheckedAt DateTime?
+
   group      Group                       @relation(fields: [groupId], references: [id], onDelete: Cascade)
   proposedBy User                        @relation("ProposalProposedBy", fields: [proposedById], references: [id])
   reactions  GroupGameProposalReaction[]
