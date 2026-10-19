@@ -6,15 +6,26 @@ import { ChevronDown } from "lucide-react";
 export function CollapsibleSection({
   title,
   defaultOpen = true,
+  open: controlledOpen,
+  onOpenChange,
   headerAction,
   children,
 }: {
   title: string;
   defaultOpen?: boolean;
+  /** 外から開閉を決めたいとき（見出しの横のボタンで、閉じていても開いてから中身を使う等） */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   headerAction?: ReactNode;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [innerOpen, setInnerOpen] = useState(defaultOpen);
+  const open = controlledOpen ?? innerOpen;
+  const setOpen = (next: (v: boolean) => boolean) => {
+    const value = next(open);
+    if (onOpenChange) onOpenChange(value);
+    else setInnerOpen(value);
+  };
 
   return (
     <div>

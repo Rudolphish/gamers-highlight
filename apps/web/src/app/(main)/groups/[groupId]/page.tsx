@@ -9,7 +9,7 @@ import { ExpandableAlbumGrid } from "@/components/album/ExpandableAlbumGrid";
 import { GroupShareModal } from "@/components/group/GroupShareModal";
 import { GroupNameEditor } from "@/components/group/GroupNameEditor";
 import { DeleteGroupButton } from "@/components/group/DeleteGroupButton";
-import { GroupGameList } from "@/components/group/GroupGameList";
+import { GroupGamesSection } from "@/components/group/GroupGamesSection";
 import { PlayStatusSummary } from "@/components/group/PlayStatusSummary";
 import { GameProposals } from "@/components/group/GameProposals";
 import { NotificationSettings } from "@/components/group/NotificationSettings";
@@ -270,7 +270,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
 
       <div className="mt-8">
         {/* プレイ中・クリア済みも含むので「気になっている」ではなくグループ全体のゲーム置き場として扱う */}
-        <CollapsibleSection title="みんなのゲーム">
+        <GroupGamesSection groupId={group.id} games={gameCards} canEdit={canEditGames} currentUserId={currentUser.id}>
           {unknownPlays.length > 0 && (
             <UnknownPlays
               groupId={group.id}
@@ -279,13 +279,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
             />
           )}
           <PlayStatusSummary groupId={group.id} games={gameCards} />
-          <GroupGameList
-            groupId={group.id}
-            games={gameCards}
-            canEdit={canEditGames}
-            currentUserId={currentUser.id}
-          />
-        </CollapsibleSection>
+        </GroupGamesSection>
       </div>
 
       <div className="mt-8">
