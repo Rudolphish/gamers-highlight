@@ -30,6 +30,7 @@ const cases = [
   ["R08", "グループ取得（他人のグループ）", "GET", `/api/groups/${ids.groupId}`, null, { outsider: 403 }],
   ["R09", "グループのゲーム一覧（他人のグループ）", "GET", `/api/groups/${ids.groupId}/games`, null, { outsider: 403 }],
   ["R10", "提案一覧（他人のグループ）", "GET", `/api/groups/${ids.groupId}/proposals`, null, { outsider: 403 }],
+  ["R61", "ウィッシュリストの価格（他人のグループ）", "GET", `/api/groups/${ids.groupId}/proposals/prices`, null, { anon: 401, outsider: 403, member: 200 }],
   ["R11", "提案へのリアクション（他人のグループ）", "POST", `/api/groups/${ids.groupId}/proposals/${ids.proposalId}/reactions`, { type: "LIKE" }, { outsider: 403 }],
   ["R12", "ゲームに「気になる」（他人のグループ）", "POST", `/api/groups/${ids.groupId}/games/${ids.gameId}/interest`, {}, { outsider: 403 }],
   ["R13", "招待リンク発行はOWNERのみ", "POST", `/api/groups/${ids.groupId}/invites`, { role: "VIEWER", maxUses: 1, expiresInHours: 24 }, { member: 403, outsider: 403 }],

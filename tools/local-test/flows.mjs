@@ -4146,6 +4146,43 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 }
 
+// ── ウィッシュリストの価格（Steamの今の値段とSteamでの過去最安値） ──
+// 外部は fetch-stub。Steamの最安値は ITAD の stub が全ゲーム ¥4,730 を返す。
+// - ELDEN RING（1245620）: 今 ¥4,730（-45%）＝最安値と同じなので「最安値」の印が付く
+// - Dota 2（570）: 無料。印は付かない
+// - stub が知らないゲーム（9100099）: Steamの値段は取れず、最安値だけ返る
+// seed の提案は前の確認でリアクションを受けて決着しうるので使わず、自分でグループと提案を作る
+{
+  const made = await api("/api/groups", {
+    method: "POST",
+    cookie: adminCookie,
+    body: { name: `価格テスト用グループ-${randomUUID().slice(0, 8)}` },
+  });
+  const priceGroupId = made.json?.group?.id ?? null;
+  try {
+    for (const [steamAppId, title] of [[1245620, "ELDEN RING"], [570, "Dota 2"], [9100099, "値段の無いゲーム"]]) {
+      await api(`/api/groups/${priceGroupId}/proposals`, { method: "POST", cookie: adminCookie, body: { steamAppId, title } });
+    }
+    const res = await api(`/api/groups/${priceGroupId}/proposals/prices`, { cookie: adminCookie });
+    const prices = res.json?.prices ?? {};
+    const sale = prices["1245620"];
+    const free = prices["570"];
+    const lowOnly = prices["9100099"];
+    check(
+      "F306 ウィッシュリストの価格APIが、提案のゲームごとにSteamの今の値段・割引率・Steamでの最安値・「最安値」の印を返す（無料・値段なしも）",
+      !!priceGroupId && res.status === 200 &&
+        sale?.price === 4730 && sale?.discountPercent === 45 && sale?.steamLow === 4730 && sale?.atLow === true &&
+        free?.isFree === true && free?.price === 0 && free?.atLow === false &&
+        lowOnly?.price === null && lowOnly?.steamLow === 4730 && lowOnly?.atLow === false,
+      `group=${!!priceGroupId} status=${res.status} ${JSON.stringify(prices)}`
+    );
+  } catch (e) {
+    check("F306x ウィッシュリストの価格の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    if (priceGroupId) await api(`/api/groups/${priceGroupId}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
 // ───────────────────────────────────────────────────────────
 // テストの棚卸し（2026-10-11）で見つかった抜け
 // ───────────────────────────────────────────────────────────

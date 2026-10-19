@@ -70,6 +70,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
 
   const proposalCards = group.proposals.map((p) => ({
     id: p.id,
+    steamAppId: p.steamAppId,
     title: p.title,
     coverUrl: proposalHeaderImages.get(p.steamAppId) ?? p.coverUrl,
     proposedById: p.proposedById,

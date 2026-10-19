@@ -44,6 +44,8 @@ function appdetails(url) {
           appid === 570
             ? undefined
             : {
+                // 実物と同じく100倍の整数（ウィッシュリストの「最安値」の印は数値で比べる）
+                final: 473000,
                 final_formatted: "¥ 4,730",
                 initial_formatted: "¥ 8,600",
                 discount_percent: 45,
@@ -142,6 +144,25 @@ function itad(url) {
   }
   if (url.includes("/games/historylow/")) {
     return json([{ low: { price: { amount: 3200 }, shop: { name: "Steam" }, cut: 60 } }]);
+  }
+  // Steamだけの最安値（ウィッシュリストのカード）。shops=61 で絞った形。
+  // 今の値段（appdetails の ¥4,730）と同じにして、「最安値」の印が出る側を通す
+  if (url.includes("/games/prices/v3")) {
+    return json([
+      {
+        id: "itad-game-id",
+        historyLow: { all: { amount: 3200 }, y1: { amount: 3200 }, m3: { amount: 4730 } },
+        deals: [
+          {
+            shop: { id: 61, name: "Steam" },
+            price: { amount: 4730 },
+            regular: { amount: 8600 },
+            cut: 45,
+            storeLow: { amount: 4730 },
+          },
+        ],
+      },
+    ]);
   }
   return json({}, 404);
 }

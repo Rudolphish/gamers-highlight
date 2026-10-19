@@ -165,6 +165,11 @@ export type SteamPriceInfo = {
   finalFormatted: string;
   initialFormatted: string | null;
   discountPercent: number;
+  /**
+   * 今の値段を数値（円）で。最安値と比べるのに使う（ウィッシュリストの「最安値」の印）。
+   * appdetails の `final` は100倍の整数で来る（¥4,730 → 473000）。無料は0、取れなければnull
+   */
+  finalAmount: number | null;
 };
 
 /** 現在の価格・セール状況を取得する（無料ゲーム/非公開ゲームはnull寄りの扱い） */
@@ -179,7 +184,7 @@ export async function getSteamPriceInfo(appId: number): Promise<SteamPriceInfo |
 
   const appData = entry.data;
   if (appData?.is_free) {
-    return { isFree: true, finalFormatted: "無料", initialFormatted: null, discountPercent: 0 };
+    return { isFree: true, finalFormatted: "無料", initialFormatted: null, discountPercent: 0, finalAmount: 0 };
   }
 
   const price = appData?.price_overview;
@@ -190,6 +195,7 @@ export async function getSteamPriceInfo(appId: number): Promise<SteamPriceInfo |
     finalFormatted: price.final_formatted,
     initialFormatted: price.discount_percent > 0 ? price.initial_formatted : null,
     discountPercent: price.discount_percent ?? 0,
+    finalAmount: typeof price.final === "number" ? price.final / 100 : null,
   };
 }
 

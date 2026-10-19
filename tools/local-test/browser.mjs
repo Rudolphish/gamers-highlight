@@ -2860,6 +2860,60 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── ウィッシュリストのカードに価格を出す（2026-10-19 ユーザー判断: 見せ方は A「1行の文字」、最安値はSteamだけ） ──
+// 価格はカードが出てからあとで読み込む。スマホ幅でも4つの部分（今の値段・割引率・最安値・印）が切れずに1行に収まること。
+// seed の提案は前のスイートで決着しうるので、自分でグループと提案を作る（stub: ¥4,730・-45%・Steamの最安値 ¥4,730）
+{
+  const page = await context.newPage();
+  let priceGroupId = null;
+  try {
+    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+    priceGroupId = await page.evaluate(async (name) => {
+      const res = await fetch("/api/groups", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+      const group = res.ok ? (await res.json()).group : null;
+      if (!group) return null;
+      await fetch(`/api/groups/${group.id}/proposals`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ steamAppId: 1245620, title: "ELDEN RING" }),
+      });
+      return group.id;
+    }, `価格の表示テスト-${Date.now()}`);
+    await page.goto(`${BASE}/groups/${priceGroupId}`, { waitUntil: "networkidle" });
+    const line = page.getByTestId("wishlist-price").first();
+    await line.waitFor({ timeout: 8000 }).catch(() => {});
+    const m = (await line.count()) > 0
+      ? await line.evaluate((el) => ({
+          text: el.textContent,
+          parts: Array.from(el.children).map((c) => ({ t: c.textContent, cut: c.scrollWidth > c.clientWidth })),
+          lineCut: el.scrollWidth > el.clientWidth,
+          pageWide: document.documentElement.scrollWidth > window.innerWidth,
+        }))
+      : null;
+    const texts = m ? m.parts.map((x) => x.t) : [];
+    const ok = !!priceGroupId && !!m &&
+      texts.join("|") === "¥4,730|-45%|· 最安 ¥4,730|最安値" &&
+      m.parts.every((x) => !x.cut) && !m.lineCut && !m.pageWide;
+    rows.push({
+      id: "B119",
+      item: "ウィッシュリストのカードに「今の値段・割引率・Steamの最安値・最安値の印」が1行で出て、スマホ幅でも切れない",
+      expected: "¥4,730|-45%|· 最安 ¥4,730|最安値・どれも切れない・横にはみ出さない",
+      actual: m ? `${texts.join("|")} / 切れ=${m.parts.filter((x) => x.cut).map((x) => x.t).join(",") || "なし"} / 行が切れ=${m.lineCut} / 横はみ出し=${m.pageWide}` : `グループ=${!!priceGroupId} / 価格の行が出ない`,
+      ok,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B119", item: "ウィッシュリストのカードの価格", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    try {
+      if (priceGroupId) await page.evaluate((id) => fetch(`/api/groups/${id}`, { method: "DELETE" }), priceGroupId);
+    } catch {
+      // 片付けに失敗しても結果の表は残す
+    }
+    await page.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）

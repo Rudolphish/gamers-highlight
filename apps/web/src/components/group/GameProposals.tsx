@@ -8,11 +8,13 @@ import { Plus, X, Search, ThumbsUp, HelpCircle, ThumbsDown, Trash2 } from "lucid
 import { Spinner } from "@/components/ui/Spinner";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { PROPOSALS_PER_PROPOSER, groupProposalsByProposer } from "@/lib/proposalRanking";
+import { formatYen, type WishlistPrice } from "@/lib/wishlistPrice";
 
 type ReactionType = "LIKE" | "MAYBE" | "PASS";
 
 type Proposal = {
   id: string;
+  steamAppId: number;
   title: string;
   coverUrl: string | null;
   proposedById: string;
@@ -68,6 +70,30 @@ export function GameProposals({
   // 「他N件を表示」を押した区画。提案者IDで持つ
   const [expanded, setExpanded] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // 価格（Steamの今の値段と過去最安値）。null＝読み込み中。カードは先に出し、価格はあとから入れる
+  // （外部への問い合わせがゲームの数だけ要るので、グループ画面の描画には混ぜていない。API側のコメント参照）
+  const [prices, setPrices] = useState<Record<number, WishlistPrice> | null>(null);
+
+  // サーバーから届いた一覧のゲームが変わったときだけ読み直す（リアクションや順位の変更では読まない）
+  const priceKey = Array.from(new Set(proposals.map((p) => p.steamAppId)))
+    .sort((a, b) => a - b)
+    .join(",");
+  useEffect(() => {
+    if (!priceKey) return;
+    let cancelled = false;
+    fetch(`/api/groups/${groupId}/proposals/prices`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled) setPrices(data?.prices ?? {});
+      })
+      .catch(() => {
+        // 取れなくてもカードはそのまま使える。価格の行を出さないだけ
+        if (!cancelled) setPrices({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId, priceKey]);
 
   // サーバーから最新データが届いたら（router.refresh()完了時など）楽観的な値を正に置き換える
   useEffect(() => setLocalProposals(proposals), [proposals]);
@@ -94,6 +120,7 @@ export function GameProposals({
     const previous = localProposals;
     const tempProposal: Proposal = {
       id: `temp-${result.appId}`,
+      steamAppId: result.appId,
       title: result.name,
       coverUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${result.appId}/header.jpg`,
       proposedById: currentUserId,
@@ -292,6 +319,7 @@ export function GameProposals({
                           <p className="truncate font-mono text-4xs text-steam-muted/70">
                             {`やりたい ${likeCount}/${likeThreshold}`}
                           </p>
+                          {!isTemp && <PriceLine price={prices === null ? "loading" : prices[p.steamAppId]} />}
                           <div className="mt-1 flex items-center gap-1">
                             {/* 順位は**提案者本人だけ**が変えられる（判定はサーバー側でも行う）。
                                 他人のカードには出さない */}
@@ -437,5 +465,31 @@ export function GameProposals({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * カードの価格の行（見せ方はユーザーが3案から A「1行の文字」を選んだ）。
+ * 例: 「¥4,990 -50% · 最安 ¥4,990 [最安値]」。最安値はSteamだけのもの（lib/itad.ts の getSteamStoreLow）。
+ * 価格が取れなかったゲームは行ごと出さない。
+ * 各部分は**1つの文字列として描く**（Reactは隣り合うテキストを区切り、テストから拾えなくなる。docs/lessons.md）
+ */
+function PriceLine({ price }: { price: WishlistPrice | "loading" | undefined }) {
+  if (price === "loading") {
+    return <p className="font-mono text-4xs text-steam-muted/50">…</p>;
+  }
+  if (!price) return null;
+  const now = price.isFree ? "無料" : price.price !== null ? formatYen(price.price) : null;
+  return (
+    <p data-testid="wishlist-price" className="flex items-center gap-1 overflow-hidden whitespace-nowrap font-mono text-4xs">
+      {now && <span className="text-steam-text">{now}</span>}
+      {price.discountPercent > 0 && <span className="font-bold text-[#a4d007]">{`-${price.discountPercent}%`}</span>}
+      {price.steamLow !== null && (
+        <span className="truncate text-steam-muted">{`${now ? "· " : ""}最安 ${formatYen(price.steamLow)}`}</span>
+      )}
+      {price.atLow && (
+        <span className="flex-shrink-0 rounded-sm bg-[#a4d007] px-1 font-bold text-[#0e1b12]">最安値</span>
+      )}
+    </p>
   );
 }

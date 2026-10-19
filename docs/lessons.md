@@ -211,6 +211,11 @@ lsof -ti :3000    # 何も出なければ空き
 `apps/bot` の組み直しを忘れて**関係ない回で落ち続けた**。dist を読むテストを足したら、
 その dist を作る手順も同じところに足すこと。
 
+**逆に、組み直しても残るものがある。** `fetch-stub.cjs` の appdetails に `final` を足したのに、
+価格が null のままテストが2件落ちた。`.next/cache/fetch-cache` は**ビルドをまたいで残る**ので、
+前の stub の応答（`final` 無し）が6時間キャッシュから返っていた。stub の応答の形を変えたら
+`find apps/web/.next/cache/fetch-cache -type f -delete` してサーバーを立て直す（CIは毎回空なので出ない）。
+
 ### リポジトリルートで `npm install` を実行しない
 
 pnpmワークスペースなので `node_modules` が 182 → 18 に刈り込まれて動かなくなる
