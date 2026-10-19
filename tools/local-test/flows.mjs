@@ -4132,6 +4132,20 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── 使い方の説明ページ（2026-10-19 に載っていなかった機能を足した） ──
+// 中身はタップで開くまで描かれないので、項目の見出しで見る。管理者向けの項目は管理者にだけ出る
+{
+  const byAdmin = await api("/manual", { cookie: adminCookie });
+  const byMember = await api("/manual", { cookie: memberCookie });
+  check(
+    "F304 説明ページに「グループの活動」の項目があり、「管理者向けの機能」は管理者にだけ出る",
+    byAdmin.status === 200 && byMember.status === 200 &&
+      byAdmin.text.includes("グループの活動（最近の動き・活動カレンダー）") && byMember.text.includes("グループの活動（最近の動き・活動カレンダー）") &&
+      byAdmin.text.includes("管理者向けの機能") && !byMember.text.includes("管理者向けの機能"),
+    `管理者: 活動=${byAdmin.text.includes("グループの活動")}・管理=${byAdmin.text.includes("管理者向けの機能")} / メンバー: 活動=${byMember.text.includes("グループの活動")}・管理=${byMember.text.includes("管理者向けの機能")}`
+  );
+}
+
 // ───────────────────────────────────────────────────────────
 // テストの棚卸し（2026-10-11）で見つかった抜け
 // ───────────────────────────────────────────────────────────

@@ -1,7 +1,13 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { isAdminEmail } from "@/lib/admin";
 import { ManualContent } from "@/components/manual/ManualContent";
 
 // マニュアル画面：使い方をトピックごとにアコーディオンで解説する
-export default function ManualPage() {
+export default async function ManualPage() {
+  // 管理者向けの項目を出すかどうかだけに使う（権限の判定ではない。管理ページ自体はそれぞれ isAdminEmail で守っている）
+  const session = await getServerSession(authOptions);
+  const isAdmin = isAdminEmail(session?.user?.email);
   const clientId = process.env.DISCORD_CLIENT_ID;
   // 権限: チャンネル閲覧(1024) + メッセージ送信(2048) + メッセージ履歴閲覧(65536) = 68608
   // scope: bot（サーバーに常駐） + applications.commands（/tagコマンドを使えるようにする）
@@ -17,7 +23,7 @@ export default function ManualPage() {
       </p>
 
       <div className="mt-6 max-w-2xl">
-        <ManualContent inviteUrl={inviteUrl} />
+        <ManualContent inviteUrl={inviteUrl} isAdmin={isAdmin} />
       </div>
     </main>
   );
