@@ -28,7 +28,7 @@ export const NOTIFICATION_KINDS: {
   {
     kind: "PRICE_DROP",
     label: "ウィッシュリストが最安値を更新したとき",
-    description: "毎日調べて、過去の最安値を更新したときだけ送ります",
+    description: "「気になる」とウィッシュリストのゲームを毎日調べて、過去の最安値を更新したときだけ送ります",
   },
   {
     kind: "WEEKLY_SUMMARY",
