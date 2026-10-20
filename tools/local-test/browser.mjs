@@ -37,13 +37,31 @@ const IGNORED = [
   /fonts\.gstatic\.com/,
   /_next\/image\?url=http%3A%2F%2F127\.0\.0\.1%3A9100/,
   /Failed to fetch RSC payload/,
-  //   - YouTubeの埋め込み（youtube-nocookie.com）と i.ytimg.com:
-  //     サンドボックスから外へ出られないので必ず失敗する。**アプリ側は
+  //   - YouTubeのサムネイル（i.ytimg.com）など: サンドボックスから外へ出られないので必ず失敗する
+  //     （埋め込み本体は youtube.com/embed。そこから出るエラーは下の THIRD_PARTY_FRAMES で除く）。**アプリ側は
   //     iframeのsrcを組み立てるだけ**なので、ここで確認できるのはURLが正しいことまで。
   //     実際に再生できるかは本番でしか見られない（README参照）。
   /youtube-nocookie\.com/,
   /i\.ytimg\.com/,
 ];
+
+// **埋め込んだ YouTube の中から出たコンソールのエラーは数えない。** 関連動画は `youtube.com/embed` の iframe で、
+// 手元は外へ出られないので読み込まれないが、**CIは外へ出られるので本物のプレーヤーが動く。**
+// そのプレーヤーが iframe で許されていない機能を呼ぶと、Chrome が
+// 「Permissions policy violation: compute-pressure is not allowed in this document.」のように出す
+// （2026-10-20 に CI の B08 がこれで落ちた。B08 の提案は採用済みで、動画のあるゲーム詳細へ転送される）。
+// アプリが直せるものではなく、YouTube 側の更新次第で出たり出なかったりする。判定は**出どころ（location）で**行う
+// （文言で消すと、同じ文言をアプリが出したときまで見逃す）
+const THIRD_PARTY_FRAMES = [/^https:\/\/(www\.)?youtube(-nocookie)?\.com\//, /^https:\/\/[^/]*\.(ytimg|googlevideo)\.com\//];
+
+/** 数えなくてよいコンソールのエラーか（アプリの不具合ではないと分かっているもの） */
+function isIgnoredConsole(m) {
+  const text = m.text();
+  const from = m.location()?.url ?? "";
+  if (IGNORED.some((re) => re.test(text))) return true;
+  if (text.includes("Failed to load resource") && IGNORED.some((re) => re.test(from))) return true;
+  return THIRD_PARTY_FRAMES.some((re) => re.test(from));
+}
 
 const targets = [
   ["B01", "ホーム", "/"],
@@ -100,8 +118,7 @@ for (const [id, label, path] of targets) {
   page.on("console", (m) => {
     if (m.type() !== "error") return;
     const text = m.text();
-    if (IGNORED.some((re) => re.test(text))) return;
-    if (text.includes("Failed to load resource") && IGNORED.some((re) => re.test(m.location()?.url ?? ""))) return;
+    if (isIgnoredConsole(m)) return;
     problems.push(text.slice(0, 140));
   });
 
@@ -1691,8 +1708,7 @@ for (const [id, label, path] of targets) {
   page.on("console", (m) => {
     if (m.type() !== "error") return;
     const text = m.text();
-    if (IGNORED.some((re) => re.test(text))) return;
-    if (text.includes("Failed to load resource") && IGNORED.some((re) => re.test(m.location()?.url ?? ""))) return;
+    if (isIgnoredConsole(m)) return;
     problems.push(text.slice(0, 140));
   });
 
@@ -2043,8 +2059,7 @@ for (const [id, label, path] of targets) {
   page.on("console", (m) => {
     if (m.type() !== "error") return;
     const text = m.text();
-    if (IGNORED.some((re) => re.test(text))) return;
-    if (text.includes("Failed to load resource") && IGNORED.some((re) => re.test(m.location()?.url ?? ""))) return;
+    if (isIgnoredConsole(m)) return;
     problems.push(text.slice(0, 140));
   });
 
