@@ -27,7 +27,7 @@ export function DeleteAlbumButton({ albumId, groupId }: { albumId: string; group
     <button
       onClick={handleDelete}
       disabled={pending}
-      className="flex min-h-[44px] items-center gap-1.5 rounded-sm border border-steam-border px-4 font-mono text-xs text-danger hover:border-danger disabled:opacity-50"
+      className="flex min-h-[44px] items-center gap-1.5 rounded-sm border border-steam-border px-4 text-xs text-danger hover:border-danger disabled:opacity-50"
     >
       {pending ? <Spinner size={13} /> : <Trash2 size={13} />}
       削除

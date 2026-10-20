@@ -29,13 +29,13 @@ export default function GlobalError({
             <h1 className="mt-2 font-display text-xl font-bold text-steam-text">
               エラーが発生しました
             </h1>
-            <p className="mt-1 font-mono text-xs text-steam-muted">
+            <p className="mt-1 text-xs text-steam-muted">
               アプリの読み込み中に問題が起きました。再試行してもうまくいかない場合は時間を置いて試してください。
             </p>
           </div>
           <button
             onClick={reset}
-            className="rounded-sm bg-accent px-4 py-2 font-mono text-xs font-bold text-accent-ink"
+            className="rounded-sm bg-accent px-4 py-2 text-xs font-bold text-accent-ink"
           >
             再試行
           </button>

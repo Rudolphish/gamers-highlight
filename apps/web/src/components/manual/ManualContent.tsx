@@ -35,7 +35,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
                 href={inviteUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink"
+                className="mt-2 inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink"
               >
                 <ExternalLink size={13} /> Botを招待する
               </a>
@@ -693,7 +693,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       {sections.map((s) => {
         const open = openId === s.id;
         return (
-          <div key={s.id} id={s.id} className="rounded-sm border border-steam-border bg-steam-surface">
+          <div key={s.id} id={s.id} className="rounded-xl bg-steam-surface">
             <button
               onClick={() => setOpenId(open ? null : s.id)}
               className="flex w-full items-center justify-between px-4 py-3 text-left"
@@ -705,7 +705,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
               />
             </button>
             {open && (
-              <div className="border-t border-steam-border px-4 py-3 font-mono text-xs leading-relaxed text-steam-muted">
+              <div className="border-t border-steam-border px-4 py-3 text-xs leading-relaxed text-steam-muted">
                 {s.body}
               </div>
             )}

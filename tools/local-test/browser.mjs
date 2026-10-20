@@ -2600,14 +2600,16 @@ for (const [id, label, path] of targets) {
     // 同じゲーム詳細へのリンクは帯にもあるので、一覧のカード（「〇〇が追加」がある方）に絞る
     const card = page.locator(`a[href="/groups/${ids.groupId}/games/${gameId}"]`).filter({ hasText: "が追加" }).first();
     const cardText = (await card.count()) > 0 ? ((await card.textContent()) ?? "") : "";
+    // カードの時間は遊んだアイコン（以前は🎮の絵文字。デザイン刷新の段階2でアイコンにした）＋時間
+    const cardPlay = (await card.count()) > 0 && (await card.locator('[data-play-ms] [data-kind="play.session"]').count()) > 0;
     const ok =
       !!created && bannerText.includes("グループで遊んだ時間") && bannerText.includes("時間") &&
-      !!bannerBox && !!albumHead && bannerBox.y < albumHead.y && topLink === 1 && cardText.includes("🎮");
+      !!bannerBox && !!albumHead && bannerBox.y < albumHead.y && topLink === 1 && cardPlay;
     rows.push({
       id: "B113",
       item: "グループ画面の頭に「グループで遊んだ時間」の帯がアルバムより上に出て、いちばん遊んだゲームへのリンクがあり、ゲーム一覧のカードに時間が出る",
-      expected: "帯あり・アルバムより上・リンク1つ・カードに🎮",
-      actual: `記録=${!!created} / 帯=${bannerText.slice(0, 40)} / 上=${bannerBox && albumHead ? bannerBox.y < albumHead.y : "?"} / リンク=${topLink} / カード=${cardText.includes("🎮")}`,
+      expected: "帯あり・アルバムより上・リンク1つ・カードに遊んだ時間",
+      actual: `記録=${!!created} / 帯=${bannerText.slice(0, 40)} / 上=${bannerBox && albumHead ? bannerBox.y < albumHead.y : "?"} / リンク=${topLink} / カード=${cardPlay}`,
       ok,
       // 落ちたときの手掛かり：見えていたカード（ゲームID末尾と文字）
       note: ok ? "" : `カード=${cardText.slice(0, 60)} / 見えていた=${visibleCards.map((c) => `${c.id.slice(-4)}:${c.text}`).join(", ").slice(0, 160)}`,
@@ -2658,16 +2660,17 @@ for (const [id, label, path] of targets) {
         const r = el.getBoundingClientRect();
         return { text: el.textContent, inside: r.left >= left - 0.5 && r.right <= right + 0.5, clipped: el.scrollWidth > el.clientWidth + 0.5 };
       });
-      return { text: play.textContent, cellWidth: Math.round(right - left), parts };
+      return { text: play.textContent, icon: !!play.querySelector('[data-kind="play.session"]'), cellWidth: Math.round(right - left), parts };
     }, startJstDay);
     // 部品は🎮・時間・分の3つ（文字を12pxに上げたとき「2h44m」だけで36pxになり、時間と分も折り返せるように分けた。
     // 数は決め打ちせず、つなげると「🎮2h44m」になること・1つも外に出ず切れていないことを見る）
-    const ok = !!sessionId && !!fit && fit.parts.map((p) => p.text).join("") === "🎮2h44m" && fit.parts.length >= 2 && fit.parts.every((p) => p.inside && !p.clipped);
+    // 🎮は絵文字ではなくアイコンになった（デザイン刷新の段階2）ので、文字は「2h44m」、アイコンは印（data-kind）で見る
+    const ok = !!sessionId && !!fit && fit.icon && fit.parts.map((p) => p.text).join("") === "2h44m" && fit.parts.length >= 2 && fit.parts.every((p) => p.inside && !p.clipped);
     rows.push({
       id: "B114",
-      item: "活動カレンダーの日のマスに🎮と遊んだ時間が出て、スマホ幅でも時間が切れずにマスの中に収まる",
-      expected: "🎮2h44m がマスの中・切れない",
-      actual: fit ? `${fit.text} / マスの内側=${fit.cellWidth}px / ${fit.parts.map((p) => `${p.text}:${p.inside ? "中" : "はみ出し"}${p.clipped ? "・切れ" : ""}`).join(" ")}` : `記録=${!!sessionId} / マスが見つからない`,
+      item: "活動カレンダーの日のマスに遊んだアイコンと時間が出て、スマホ幅でも時間が切れずにマスの中に収まる",
+      expected: "遊んだアイコンと 2h44m がマスの中・切れない",
+      actual: fit ? `アイコン=${fit.icon} ${fit.text} / マスの内側=${fit.cellWidth}px / ${fit.parts.map((p) => `${p.text}:${p.inside ? "中" : "はみ出し"}${p.clipped ? "・切れ" : ""}`).join(" ")}` : `記録=${!!sessionId} / マスが見つからない`,
       ok,
       note: "",
     });
@@ -3135,6 +3138,58 @@ for (const [id, label, path] of targets) {
     for (const id of ["B123", "B124"]) {
       rows.push({ id, item: "文字の大きさと濃さ", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
     }
+  } finally {
+    await page.close();
+  }
+}
+
+// ── 等幅フォントと絵文字（デザイン刷新の段階2） ──
+// 以前は font-mono を日本語の文にまで使っていて（572か所）、活動の記録は絵文字（📷📁💡🎮）をそのまま出していた。
+// 等幅は数字が並ぶ所（font-num）だけ、種類の印は線のアイコン（ActivityIcon）に揃えた。
+// 実際に描かれた文字で、「日本語の文が等幅で描かれている所」と「本文に出ている絵文字」を数える。
+// 使い方の説明ページは文章の中で絵文字に触れるので、絵文字の数からは外す（等幅は見る）
+{
+  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile"];
+  const page = await context.newPage();
+  const monoJa = [];
+  const emoji = [];
+  let checked = 0;
+  try {
+    for (const path of PAGES) {
+      await page.goto(BASE + path, { waitUntil: "networkidle" });
+      await page.waitForTimeout(300);
+      const r = await page.evaluate((skipEmoji) => {
+        const ja = /[\u3040-\u30ff\u4e00-\u9fff]/g;
+        const em = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
+        const out = { monoJa: [], emoji: [], checked: 0 };
+        for (const el of document.querySelectorAll("body *")) {
+          const own = Array.from(el.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent).join("").trim();
+          if (!own) continue;
+          if (el.closest("script, style, noscript, option")) continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.width < 3 || rect.height < 3) continue;
+          out.checked++;
+          const jaCount = (own.match(ja) ?? []).length;
+          const family = getComputedStyle(el).fontFamily;
+          if (jaCount >= 4 && jaCount / own.length > 0.5 && /^"?JetBrains Mono/.test(family)) out.monoJa.push(own.slice(0, 24));
+          if (!skipEmoji && em.test(own)) out.emoji.push(own.slice(0, 24));
+        }
+        return out;
+      }, path === "/manual");
+      checked += r.checked;
+      monoJa.push(...r.monoJa.map((x) => `${path} ${x}`));
+      emoji.push(...r.emoji.map((x) => `${path} ${x}`));
+    }
+    rows.push({
+      id: "B125",
+      item: "主な画面で、日本語の文が等幅フォントで描かれておらず、本文に絵文字が出ていない（使い方の説明ページの絵文字は除く）",
+      expected: "等幅の日本語 0件・絵文字 0件",
+      actual: `等幅の日本語 ${monoJa.length}件・絵文字 ${emoji.length}件 / 見た文字 ${checked}か所`,
+      ok: checked > 100 && monoJa.length === 0 && emoji.length === 0,
+      note: [...monoJa, ...emoji].slice(0, 4).join(" | ").slice(0, 200),
+    });
+  } catch (e) {
+    rows.push({ id: "B125", item: "等幅フォントと絵文字", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
   } finally {
     await page.close();
   }

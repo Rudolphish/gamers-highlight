@@ -102,13 +102,13 @@ export function PhotoGrid({
               />
             )}
             {item.mediaType === "VIDEO" && (
-              <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-accent px-1 py-0.5 font-mono text-4xs font-bold text-white">
+              <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-accent px-1 py-0.5 text-4xs font-bold text-white">
                 <Play size={8} fill="white" /> {`${item.durationSeconds ?? "?"}s`}
               </span>
             )}
             {item.mediaType === "YOUTUBE" && (
               // 長さは持っていない（外部APIを叩かないと分からない）ので、種類だけ示す
-              <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-[#ff0000] px-1 py-0.5 font-mono text-4xs font-bold text-white">
+              <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-[#ff0000] px-1 py-0.5 text-4xs font-bold text-white">
                 <Play size={8} fill="white" /> YouTube
               </span>
             )}

@@ -48,7 +48,7 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden rounded-full border border-steam-border bg-steam-surface px-3 py-2 text-xs font-mono text-steam-muted sm:flex">
+          <div className="hidden rounded-full border border-steam-border bg-steam-surface px-3 py-2 text-xs text-steam-muted sm:flex">
             {status === "loading" ? "読み込み中..." : "アカウントを管理"}
           </div>
 
@@ -68,7 +68,7 @@ export function Header() {
               </button>
 
               {isOpen && (
-                <div className="absolute right-0 mt-2 w-52 rounded-sm border border-steam-border bg-steam-panel p-2 shadow-xl shadow-black/20">
+                <div className="absolute right-0 mt-2 w-52 rounded-lg bg-steam-panel p-2 shadow-xl shadow-black/20">
                   <div className="mb-2 rounded-sm bg-steam-bg px-3 py-2 text-sm text-steam-muted">{session.user?.email}</div>
                   <Link
                     href="/settings/discord"

@@ -100,7 +100,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
           <Link
             key={f.label}
             href={href({ type: f.value ?? undefined, view, album: searchParams.album })}
-            className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
+            className={`rounded-sm border px-2 py-1 text-3xs transition ${
               type === f.value
                 ? "border-steam-blue text-steam-blue"
                 : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -114,7 +114,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
 
         <Link
           href={href({ type: type ?? undefined, view, album: unassignedOnly ? undefined : "none" })}
-          className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
+          className={`rounded-sm border px-2 py-1 text-3xs transition ${
             unassignedOnly
               ? "border-steam-blue text-steam-blue"
               : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -131,7 +131,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
             href={href({ type: type ?? undefined, view: v.value, album: searchParams.album })}
             aria-label={v.label}
             title={v.label}
-            className={`inline-flex items-center gap-1 rounded-sm border px-2 py-1 font-mono text-3xs transition ${
+            className={`inline-flex items-center gap-1 rounded-sm border px-2 py-1 text-3xs transition ${
               view === v.value
                 ? "border-steam-blue text-steam-blue"
                 : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -141,14 +141,14 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
           </Link>
         ))}
 
-        <span className="ml-2 font-mono text-3xs text-steam-muted">
+        <span className="ml-2 text-3xs text-steam-muted">
           {total.toLocaleString()}件（{page}/{lastPage}ページ）
         </span>
       </div>
 
       <AdminAssignProvider albums={targets.albums} groups={targets.groups}>
       {photos.length === 0 ? (
-        <p className="mt-6 font-mono text-sm text-steam-muted">該当するメディアがありません。</p>
+        <p className="mt-6 text-sm text-steam-muted">該当するメディアがありません。</p>
       ) : view === "grid" ? (
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6">
           {photos.map((p) => {
@@ -156,7 +156,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
             return (
               <div
                 key={p.id}
-                className="overflow-hidden rounded-sm border border-steam-border bg-steam-surface"
+                className="overflow-hidden rounded-xl bg-steam-surface"
               >
                 <div className="relative aspect-square w-full bg-steam-panel">
                   {thumb ? (
@@ -197,8 +197,8 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
                 </div>
 
                 <div className="p-1.5">
-                  <p className="truncate font-mono text-4xs text-steam-text">{displayName(p)}</p>
-                  <p className="truncate font-mono text-4xs text-steam-muted">
+                  <p className="truncate text-4xs text-steam-text">{displayName(p)}</p>
+                  <p className="truncate text-4xs text-steam-muted">
                     {p.uploader.name ?? p.uploader.email ?? "-"}
                     {p.sizeBytes ? `・${formatBytes(p.sizeBytes)}` : ""}
                   </p>
@@ -211,7 +211,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
         <div className="mt-4 overflow-x-auto rounded-sm border border-steam-border">
           <table className="w-full min-w-[820px] border-collapse">
             <thead>
-              <tr className="bg-steam-panel text-left font-mono text-4xs uppercase tracking-wide text-steam-muted">
+              <tr className="bg-steam-panel text-left text-4xs uppercase tracking-wide text-steam-muted">
                 <th className="px-3 py-2" aria-label="選択" />
                 <th className="px-3 py-2">種別</th>
                 <th className="px-3 py-2">ゲーム / ファイル</th>
@@ -243,16 +243,16 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
                       href={p.mediaUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="block truncate font-mono text-3xs text-steam-text hover:text-steam-blue"
+                      className="block truncate text-3xs text-steam-text hover:text-steam-blue"
                       title={p.mediaUrl}
                     >
                       {displayName(p)}
                     </a>
                   </td>
-                  <td className="max-w-[140px] truncate px-3 py-2 font-mono text-3xs text-steam-muted">
+                  <td className="max-w-[140px] truncate px-3 py-2 text-3xs text-steam-muted">
                     {p.uploader.name ?? p.uploader.email ?? "-"}
                   </td>
-                  <td className="max-w-[200px] px-3 py-2 font-mono text-3xs">
+                  <td className="max-w-[200px] px-3 py-2 text-3xs">
                     {p.album ? (
                       <Link
                         href={`/albums/${p.album.id}`}
@@ -267,13 +267,13 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
                       </span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-3xs text-steam-muted">
+                  <td className="whitespace-nowrap px-3 py-2 text-right text-3xs text-steam-muted">
                     {p.sizeBytes ? formatBytes(p.sizeBytes) : "-"}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 font-mono text-3xs text-steam-muted">
+                  <td className="whitespace-nowrap px-3 py-2 text-3xs text-steam-muted">
                     {p.createdAt.toLocaleDateString("ja-JP")}
                   </td>
-                  <td className="px-3 py-2 font-mono text-4xs text-steam-muted">
+                  <td className="px-3 py-2 text-4xs text-steam-muted">
                     {p.source === "DISCORD" ? "Discord" : "手動"}
                   </td>
                   <td className="px-3 py-2 text-right">
@@ -293,7 +293,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
           {page > 1 && (
             <Link
               href={href({ type: type ?? undefined, view, page: String(page - 1), album: searchParams.album })}
-              className="rounded-sm border border-steam-border px-3 py-1.5 font-mono text-3xs text-steam-text hover:border-steam-blue"
+              className="rounded-sm border border-steam-border px-3 py-1.5 text-3xs text-steam-text hover:border-steam-blue"
             >
               前へ
             </Link>
@@ -301,7 +301,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
           {page < lastPage && (
             <Link
               href={href({ type: type ?? undefined, view, page: String(page + 1), album: searchParams.album })}
-              className="rounded-sm border border-steam-border px-3 py-1.5 font-mono text-3xs text-steam-text hover:border-steam-blue"
+              className="rounded-sm border border-steam-border px-3 py-1.5 text-3xs text-steam-text hover:border-steam-blue"
             >
               次へ
             </Link>

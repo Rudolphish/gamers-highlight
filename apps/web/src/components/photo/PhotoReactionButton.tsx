@@ -83,7 +83,7 @@ export function PhotoReactionButton({
         onClick={toggle}
         aria-pressed={state.reacted}
         aria-label={state.reacted ? "リアクションを取り消す" : "リアクションする"}
-        className={`inline-flex items-center gap-1 rounded-sm border font-mono transition ${
+        className={`inline-flex items-center gap-1 rounded-sm border transition ${
           size === "lg" ? "min-h-[44px] px-3 text-xs" : "px-1.5 py-0.5 text-3xs"
         } ${
           state.reacted
@@ -96,7 +96,7 @@ export function PhotoReactionButton({
       </button>
 
       {showNames && state.names.length > 0 && (
-        <p className="font-mono text-3xs text-steam-muted">{state.names.join("、")}</p>
+        <p className="text-3xs text-steam-muted">{state.names.join("、")}</p>
       )}
     </div>
   );

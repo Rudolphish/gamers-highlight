@@ -25,8 +25,8 @@ export function UsageBar({
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-mono text-3xs text-steam-muted">{label}</span>
-        <span className="font-mono text-3xs text-steam-text">
+        <span className="text-3xs text-steam-muted">{label}</span>
+        <span className="text-3xs text-steam-text">
           <span className="font-bold">{usedLabel}</span>
           <span className="text-steam-muted"> / {limitLabel}</span>
           <span className="ml-1.5 text-steam-muted">({percent.toFixed(1)}%)</span>
@@ -35,7 +35,7 @@ export function UsageBar({
       <div className="mt-1 h-2 w-full overflow-hidden rounded-sm bg-steam-panel">
         <div className={`h-full rounded-sm bg-gradient-to-r ${color}`} style={{ width: `${percent}%` }} />
       </div>
-      {note && <p className="mt-1 font-mono text-4xs text-steam-muted">{note}</p>}
+      {note && <p className="mt-1 text-4xs text-steam-muted">{note}</p>}
     </div>
   );
 }

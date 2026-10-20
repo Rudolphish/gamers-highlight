@@ -362,7 +362,7 @@ export function Lightbox({
       {meta && showMeta && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="absolute bottom-4 right-4 z-10 w-64 space-y-2 rounded-sm border border-steam-border bg-steam-surface/95 p-3 font-mono text-xs text-steam-text"
+          className="absolute bottom-4 right-4 z-10 w-64 space-y-2 rounded-sm border border-steam-border bg-steam-surface/95 p-3 text-xs text-steam-text"
         >
           <p>
             <span className="text-steam-muted">撮影日: </span>

@@ -62,26 +62,26 @@ export default function ProfileSettingsPage() {
         プロフィール設定
       </h1>
       <SettingsNav />
-      <p className="mt-4 font-mono text-xs text-steam-muted">
+      <p className="mt-4 text-xs text-steam-muted">
         表示名の確認・変更を行えます
       </p>
 
       {loading ? (
-        <p className="mt-6 font-mono text-xs text-steam-muted">読み込み中…</p>
+        <p className="mt-6 text-xs text-steam-muted">読み込み中…</p>
       ) : (
-        <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4 rounded-sm border border-steam-border bg-steam-surface p-4">
+        <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4 rounded-xl bg-steam-surface p-4">
           <div>
-            <label className="font-mono text-2xs text-steam-muted">メールアドレス（変更不可）</label>
+            <label className="text-2xs text-steam-muted">メールアドレス（変更不可）</label>
             <input
               type="text"
               value={email}
               disabled
-              className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg/50 px-3 py-2 font-mono text-sm text-steam-muted outline-none cursor-not-allowed"
+              className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg/50 px-3 py-2 text-sm text-steam-muted outline-none cursor-not-allowed"
             />
           </div>
 
           <div>
-            <label className="font-mono text-2xs text-steam-muted">表示名</label>
+            <label className="text-2xs text-steam-muted">表示名</label>
             <div className="relative mt-1">
               <input
                 type="text"
@@ -89,7 +89,7 @@ export default function ProfileSettingsPage() {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="表示名を入力"
                 disabled={saving}
-                className="w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 pl-9 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+                className="w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 pl-9 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
               />
               <User size={16} className="absolute left-3 top-2.5 text-steam-muted" />
             </div>
@@ -97,7 +97,7 @@ export default function ProfileSettingsPage() {
 
           {message && (
             <div
-              className={`flex items-center gap-2 rounded-sm p-3 font-mono text-xs ${
+              className={`flex items-center gap-2 rounded-sm p-3 text-xs ${
                 message.type === "success"
                   ? "bg-positive/10 text-positive border border-positive/30"
                   : "bg-danger/10 text-danger border border-danger/30"
@@ -111,7 +111,7 @@ export default function ProfileSettingsPage() {
           <button
             type="submit"
             disabled={saving || !name.trim()}
-            className="mt-2 w-full rounded-sm bg-accent py-2.5 font-mono text-sm font-bold text-accent-ink disabled:opacity-40 hover:brightness-110 transition"
+            className="mt-2 w-full rounded-sm bg-accent py-2.5 text-sm font-bold text-accent-ink disabled:opacity-40 hover:brightness-110 transition"
           >
             {saving ? "保存中…" : "変更を保存"}
           </button>

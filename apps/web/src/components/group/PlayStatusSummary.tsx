@@ -42,8 +42,8 @@ function StatusRow({
   if (games.length === 0) return null;
 
   return (
-    <div className="rounded-sm border border-steam-border bg-steam-panel p-2">
-      <p className={`font-mono text-3xs font-bold ${accentClass}`}>
+    <div className="rounded-lg bg-steam-panel p-2">
+      <p className={`text-3xs font-bold ${accentClass}`}>
         {label}（{games.length}）
       </p>
       <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-1">
@@ -57,7 +57,7 @@ function StatusRow({
             {g.coverUrl ? (
               <Image src={g.coverUrl} alt={g.title} width={80} height={48} className="h-12 w-20 object-cover" />
             ) : (
-              <div className="flex h-12 w-20 items-center justify-center bg-steam-surface font-mono text-4xs text-steam-muted">
+              <div className="flex h-12 w-20 items-center justify-center bg-steam-surface text-4xs text-steam-muted">
                 {g.title.slice(0, 8)}
               </div>
             )}

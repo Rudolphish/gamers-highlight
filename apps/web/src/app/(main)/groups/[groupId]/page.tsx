@@ -192,7 +192,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
     <main className="p-4 sm:p-6">
       <Link
         href="/groups"
-        className="inline-flex items-center gap-1.5 font-mono text-xs text-steam-muted hover:text-steam-text"
+        className="inline-flex items-center gap-1.5 text-xs text-steam-muted hover:text-steam-text"
       >
         <ArrowLeft size={14} /> グループ一覧に戻る
       </Link>
@@ -247,21 +247,21 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
           headerAction={
             <Link
               href={`/groups/${group.id}/albums/new`}
-              className="flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink"
+              className="flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink"
             >
               <Plus size={14} /> 新規アルバム
             </Link>
           }
         >
           {albumCards.length === 0 ? (
-            <p className="font-mono text-sm text-steam-muted">
+            <p className="text-sm text-steam-muted">
               まだアルバムがありません。作成するか、Discordに投稿してみましょう。
             </p>
           ) : (
             <>
               <ExpandableAlbumGrid albums={albumCards} initialCount={ALBUM_INITIAL_VISIBLE} />
               {group._count.albums > albumCards.length && (
-                <p className="mt-3 font-mono text-3xs text-steam-muted">
+                <p className="mt-3 text-3xs text-steam-muted">
                   更新が新しい{albumCards.length}件まで表示できます（全{group._count.albums}件）。
                   並び替えもこの{albumCards.length}件の中で効きます。
                   古いアルバムは<Link href="/albums" className="text-steam-blue hover:underline">アルバム一覧</Link>から探せます。

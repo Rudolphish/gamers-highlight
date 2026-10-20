@@ -32,17 +32,17 @@ export default async function InvitePage({ params }: { params: { token: string }
         Share<span className="text-steam-blue">Staq</span>
       </p>
 
-      <div className="w-full max-w-md rounded-sm border border-steam-border bg-steam-surface p-6">
+      <div className="w-full max-w-md rounded-xl bg-steam-surface p-6">
         {!result.ok || !invite ? (
           <div className="flex flex-col items-center gap-3 text-center">
             <AlertTriangle size={32} className="text-danger" />
             <h1 className="font-display text-lg font-bold text-steam-text">
               このリンクは使えません
             </h1>
-            <p className="font-mono text-xs text-steam-muted">
+            <p className="text-xs text-steam-muted">
               {INVALID_REASON_TEXT[result.ok ? "not-found" : result.reason]}
             </p>
-            <p className="font-mono text-3xs text-steam-muted">
+            <p className="text-3xs text-steam-muted">
               招待した人に、新しいリンクを発行してもらってください。
             </p>
           </div>
@@ -53,7 +53,7 @@ export default async function InvitePage({ params }: { params: { token: string }
               <h1 className="font-display text-lg font-bold text-steam-text">
                 「{invite.group.name}」に招待されています
               </h1>
-              <p className="mt-1 font-mono text-xs text-steam-muted">
+              <p className="mt-1 text-xs text-steam-muted">
                 {invite.createdBy.name ?? invite.createdBy.email ?? "メンバー"}さんからの招待です
               </p>
             </div>
@@ -65,14 +65,14 @@ export default async function InvitePage({ params }: { params: { token: string }
               signedIn={Boolean(currentUser)}
             />
 
-            <p className="font-mono text-4xs text-steam-muted">
+            <p className="text-4xs text-steam-muted">
               有効期限: {invite.expiresAt.toLocaleString("ja-JP")}
             </p>
           </div>
         )}
       </div>
 
-      <Link href="/" className="font-mono text-3xs text-steam-muted hover:text-steam-text">
+      <Link href="/" className="text-3xs text-steam-muted hover:text-steam-text">
         トップへ
       </Link>
     </main>

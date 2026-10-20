@@ -88,14 +88,14 @@ export default async function ProposalDetailPage({
     <main className="p-4 sm:p-6">
       <Link
         href={`/groups/${params.groupId}`}
-        className="inline-flex items-center gap-1.5 font-mono text-xs text-steam-muted hover:text-steam-text"
+        className="inline-flex items-center gap-1.5 text-xs text-steam-muted hover:text-steam-text"
       >
         <ArrowLeft size={14} /> {proposal.group.name}に戻る
       </Link>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* 左：基本情報と投票 */}
-        <div className="overflow-hidden rounded-sm border border-steam-border bg-steam-surface">
+        <div className="overflow-hidden rounded-xl bg-steam-surface">
           <div className="relative h-48 w-full overflow-hidden bg-steam-panel sm:h-64">
             <Image
               src={coverUrl}
@@ -109,7 +109,7 @@ export default async function ProposalDetailPage({
 
           <div className="p-4 sm:p-6">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded-sm border border-warning/50 px-1.5 py-0.5 font-mono text-3xs text-warning">
+              <span className="rounded-sm border border-warning/50 px-1.5 py-0.5 text-3xs text-warning">
                 {proposal.status === "PENDING" ? "投票中" : "却下済み"}
               </span>
               <GameStoreBadges reviews={reviews} price={price} />
@@ -118,7 +118,7 @@ export default async function ProposalDetailPage({
             <h1 className="mt-2 font-display text-2xl font-bold text-steam-text sm:text-3xl">
               {proposal.title}
             </h1>
-            <p className="mt-1 font-mono text-xs text-steam-muted">
+            <p className="mt-1 text-xs text-steam-muted">
               {proposal.proposedBy.name ?? proposal.proposedBy.email ?? "メンバー"}が提案
             </p>
 
@@ -133,7 +133,7 @@ export default async function ProposalDetailPage({
                   canWithdraw={canWithdraw}
                 />
               ) : (
-                <p className="rounded-sm border border-steam-border bg-steam-panel p-3 font-mono text-3xs text-steam-muted">
+                <p className="rounded-lg bg-steam-panel p-3 text-3xs text-steam-muted">
                   この提案は決着済みのため投票できません。
                 </p>
               )}
@@ -144,7 +144,7 @@ export default async function ProposalDetailPage({
                 href={`https://store.steampowered.com/app/${proposal.steamAppId}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink"
+                className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink"
               >
                 <ExternalLink size={13} /> Steamストアで見る
               </a>

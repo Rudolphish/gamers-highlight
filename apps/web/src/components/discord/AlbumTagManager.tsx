@@ -70,9 +70,9 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
   }
 
   return (
-    <div className="rounded-sm border border-steam-border bg-steam-surface p-4">
+    <div className="rounded-xl bg-steam-surface p-4">
       <h2 className="font-display font-semibold text-steam-text">タグ（ハッシュタグ別名）</h2>
-      <p className="mt-1 font-mono text-2xs text-steam-muted">
+      <p className="mt-1 text-2xs text-steam-muted">
         Discordでこのアルバムに投稿する際のハッシュタグを複数登録できます。
         「#eldenring」と「#elden_ring」のような表記ゆれをまとめたい場合、
         両方をここに追加してください。
@@ -82,7 +82,7 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
         {tags.map((t) => (
           <li
             key={t.id}
-            className="flex items-center gap-1 rounded-sm border border-steam-border bg-steam-panel px-2 py-1 font-mono text-2xs text-steam-muted"
+            className="flex items-center gap-1 rounded-lg bg-steam-panel px-2 py-1 text-2xs text-steam-muted"
           >
             <Hash size={10} className="text-steam-blue" />
             {t.tag}
@@ -97,7 +97,7 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
           </li>
         ))}
         {tags.length === 0 && (
-          <span className="font-mono text-2xs text-steam-muted">
+          <span className="text-2xs text-steam-muted">
             タグ未設定（このアルバムは未分類扱いになります）
           </span>
         )}
@@ -109,19 +109,19 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addTag()}
           placeholder="er_clip"
-          className="flex-1 rounded-sm border border-steam-border bg-steam-bg px-3 py-1.5 font-mono text-xs text-steam-text outline-none focus:border-steam-blue"
+          className="flex-1 rounded-lg border border-steam-border bg-steam-bg px-3 py-1.5 text-xs text-steam-text outline-none focus:border-steam-blue"
           disabled={pending}
         />
         <button
           onClick={addTag}
           disabled={pending || !draft.trim()}
-          className="flex items-center gap-1 rounded-sm bg-accent px-3 py-1.5 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
+          className="flex items-center gap-1 rounded-sm bg-accent px-3 py-1.5 text-xs font-bold text-accent-ink disabled:opacity-40"
         >
           {adding ? <Spinner size={12} /> : <Plus size={12} />}
           {adding ? "追加中…" : "追加"}
         </button>
       </div>
-      {error && <p className="mt-2 font-mono text-xs text-danger">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
     </div>
   );
 }

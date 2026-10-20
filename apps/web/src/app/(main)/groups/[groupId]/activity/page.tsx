@@ -52,7 +52,7 @@ export default async function GroupActivityPage({
     <main className="p-4 sm:p-6">
       <Link
         href={`/groups/${group.id}`}
-        className="inline-flex items-center gap-1.5 font-mono text-xs text-steam-muted hover:text-steam-text"
+        className="inline-flex items-center gap-1.5 text-xs text-steam-muted hover:text-steam-text"
       >
         <ArrowLeft size={14} /> {group.name}に戻る
       </Link>
@@ -61,7 +61,7 @@ export default async function GroupActivityPage({
       {data ? (
         <ActivityCalendarView {...data} month={month} selectedDate={selectedDate} linkTo={linkTo} />
       ) : (
-        <p className="mt-6 font-mono text-xs text-steam-muted">活動の記録を読み込めませんでした。時間をおいて開き直してください。</p>
+        <p className="mt-6 text-xs text-steam-muted">活動の記録を読み込めませんでした。時間をおいて開き直してください。</p>
       )}
     </main>
   );

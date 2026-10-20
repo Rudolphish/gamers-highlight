@@ -70,7 +70,7 @@ export function InterestButton({
         title={mine ? "気になるを取り消す" : "気になる！"}
         aria-pressed={mine}
         aria-label={`気になってる（${localUsers.length}人）`}
-        className={`flex flex-shrink-0 items-center gap-1 rounded-sm border px-1.5 py-1 font-mono text-3xs transition disabled:opacity-50 ${
+        className={`flex flex-shrink-0 items-center gap-1 rounded-sm border px-1.5 py-1 text-3xs transition disabled:opacity-50 ${
           mine
             ? "border-steam-blue/60 text-steam-blue"
             : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -81,11 +81,11 @@ export function InterestButton({
       </button>
 
       {showNames && localUsers.length > 0 && (
-        <p className="mt-1.5 font-mono text-3xs text-steam-muted">
+        <p className="mt-1.5 text-3xs text-steam-muted">
           気になってる: {localUsers.map((u) => u.name).join("、")}
         </p>
       )}
-      {error && <p className="mt-1 font-mono text-4xs text-danger">{error}</p>}
+      {error && <p className="mt-1 text-4xs text-danger">{error}</p>}
     </div>
   );
 }

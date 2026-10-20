@@ -79,7 +79,7 @@ export default async function AdminWeeklyPage({
       {error ? (
         <SectionError message={error} />
       ) : groups.length === 0 ? (
-        <p className="mt-6 font-mono text-xs text-steam-muted">グループがまだありません。</p>
+        <p className="mt-6 text-xs text-steam-muted">グループがまだありません。</p>
       ) : (
         <>
           <div className="mt-6 flex flex-wrap items-center gap-4">
@@ -88,7 +88,7 @@ export default async function AdminWeeklyPage({
                 <Link
                   key={g.id}
                   href={linkTo({ group: g.id })}
-                  className={`rounded-sm border px-2.5 py-1.5 font-mono text-3xs ${
+                  className={`rounded-sm border px-2.5 py-1.5 text-3xs ${
                     g.id === summary?.groupId
                       ? "border-steam-blue text-steam-blue"
                       : "border-steam-border text-steam-muted hover:text-steam-text"
@@ -103,7 +103,7 @@ export default async function AdminWeeklyPage({
                 <Link
                   key={w.offset}
                   href={linkTo({ week: w.offset })}
-                  className={`rounded-sm border px-2.5 py-1.5 font-mono text-3xs ${
+                  className={`rounded-sm border px-2.5 py-1.5 text-3xs ${
                     w.offset === week
                       ? "border-steam-blue text-steam-blue"
                       : "border-steam-border text-steam-muted hover:text-steam-text"
@@ -124,15 +124,15 @@ export default async function AdminWeeklyPage({
 
           {summary && (
             <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <section className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
-                <h2 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
+              <section className="rounded-xl bg-steam-surface p-4 sm:p-6">
+                <h2 className="flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wide text-steam-muted">
                   <CalendarDays size={12} /> 内訳（{summary.range.label}）
                 </h2>
 
                 <dl className="mt-4 grid grid-cols-3 gap-3">
                   {summary.counts.map((c) => (
                     <div key={c.kind} className="rounded-sm border border-steam-border p-2.5">
-                      <dt className="font-mono text-4xs text-steam-muted">
+                      <dt className="text-4xs text-steam-muted">
                         {c.emoji} {c.label}
                       </dt>
                       <dd
@@ -147,18 +147,18 @@ export default async function AdminWeeklyPage({
                 </dl>
 
                 {summary.completedGames.length > 0 && (
-                  <p className="mt-4 font-mono text-xs text-steam-text">
+                  <p className="mt-4 text-xs text-steam-text">
                     🏆 クリア: {summary.completedGames.join("、")}
                   </p>
                 )}
                 {summary.topPosters.length > 0 && (
-                  <p className="mt-2 font-mono text-xs text-steam-muted">
+                  <p className="mt-2 text-xs text-steam-muted">
                     📷 よく上げた人:{" "}
                     {summary.topPosters.map((p) => `${p.name}（${p.count}）`).join("、")}
                   </p>
                 )}
                 {summary.topPhoto && (
-                  <p className="mt-2 font-mono text-xs text-steam-muted">
+                  <p className="mt-2 text-xs text-steam-muted">
                     ❤️ いちばん反応があった写真: {summary.topPhoto.title ?? "（ゲーム名なし）"}（
                     {summary.topPhoto.reactions}件）
                     {summary.topPhoto.albumId && (
@@ -173,23 +173,23 @@ export default async function AdminWeeklyPage({
                 )}
               </section>
 
-              <section className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
-                <h2 className="font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
+              <section className="rounded-xl bg-steam-surface p-4 sm:p-6">
+                <h2 className="text-3xs font-bold uppercase tracking-wide text-steam-muted">
                   Discordに送る文面
                 </h2>
-                <p className="mt-1 font-mono text-4xs text-steam-muted">
+                <p className="mt-1 text-4xs text-steam-muted">
                   実際に送るのはこの文字列そのもの。まだ送信はしていない
                 </p>
 
                 {/* 0件の週は「送らない」という判断をここで見えるようにする。
                     毎週鳴ると読み飛ばされ、本当に見てほしい週に効かなくなるため */}
                 {!summary.hasActivity && (
-                  <p className="mt-3 rounded-sm border border-steam-border bg-steam-panel p-2.5 font-mono text-3xs text-steam-muted">
+                  <p className="mt-3 rounded-lg bg-steam-panel p-2.5 text-3xs text-steam-muted">
                     この週は動きがないので、通知は送らない扱いになります。
                   </p>
                 )}
 
-                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-sm border border-steam-border bg-steam-panel p-3 font-mono text-xs text-steam-text">
+                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-steam-panel p-3 text-xs text-steam-text">
                   {formatWeeklySummaryText(summary)}
                 </pre>
               </section>

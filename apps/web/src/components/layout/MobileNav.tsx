@@ -79,7 +79,7 @@ export function MobileNav() {
         aria-label="メニューを開く"
         aria-expanded={open}
         aria-controls="mobile-nav"
-        className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-sm border border-steam-border bg-steam-panel text-steam-text transition hover:border-steam-blue sm:hidden"
+        className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-steam-panel text-steam-text transition hover:border-steam-blue sm:hidden"
       >
         <Menu size={20} />
       </button>
@@ -130,7 +130,7 @@ export function MobileNav() {
                             href={item.href}
                             onClick={() => setOpen(false)}
                             aria-current={active ? "page" : undefined}
-                            className={`flex min-h-[44px] items-center gap-3 rounded-sm px-3 font-mono text-sm ${
+                            className={`flex min-h-[44px] items-center gap-3 rounded-sm px-3 text-sm ${
                               active
                                 ? "bg-steam-surface text-steam-blue"
                                 : "text-steam-text"

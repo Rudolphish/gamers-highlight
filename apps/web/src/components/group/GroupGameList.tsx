@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { InterestButton, type InterestUser } from "@/components/group/InterestButton";
 import { formatPlayDuration } from "@/lib/playDuration";
 import { translateGenre } from "@/lib/steam";
+import { ActivityIcon } from "@/components/activity/ActivityIcon";
 
 type GameStatus = "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
 
@@ -273,7 +274,7 @@ export function GroupGameList({
           <button
             onClick={() => setStatusFilter(new Set())}
             aria-pressed={statusFilter.size === 0}
-            className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
+            className={`rounded-sm border px-2 py-1 text-3xs transition ${
               statusFilter.size === 0
                 ? "border-steam-blue text-steam-blue"
                 : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -286,7 +287,7 @@ export function GroupGameList({
               key={s}
               onClick={() => setStatusFilter((prev) => toggle(prev, s))}
               aria-pressed={statusFilter.has(s)}
-              className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
+              className={`rounded-sm border px-2 py-1 text-3xs transition ${
                 statusFilter.has(s)
                   ? STATUS_BADGE_CLASS[s]
                   : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -303,7 +304,7 @@ export function GroupGameList({
           <button
             onClick={() => setGenreFilter(new Set())}
             aria-pressed={genreFilter.size === 0}
-            className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
+            className={`rounded-sm border px-2 py-1 text-3xs transition ${
               genreFilter.size === 0
                 ? "border-steam-blue text-steam-blue"
                 : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -316,7 +317,7 @@ export function GroupGameList({
               key={g}
               onClick={() => setGenreFilter((prev) => toggle(prev, g))}
               aria-pressed={genreFilter.has(g)}
-              className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
+              className={`rounded-sm border px-2 py-1 text-3xs transition ${
                 genreFilter.has(g)
                   ? "border-steam-blue text-steam-blue"
                   : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -330,7 +331,7 @@ export function GroupGameList({
 
       {filterCount > 0 && (
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <p className="font-mono text-3xs text-steam-muted">
+          <p className="text-3xs text-steam-muted">
             {filterCount}件の条件で絞り込み中・{filteredGames.length}/{items.length}件
           </p>
           <button
@@ -338,17 +339,17 @@ export function GroupGameList({
               setStatusFilter(new Set());
               setGenreFilter(new Set());
             }}
-            className="inline-flex items-center gap-1 font-mono text-3xs text-steam-muted transition hover:text-steam-blue"
+            className="inline-flex items-center gap-1 text-3xs text-steam-muted transition hover:text-steam-blue"
           >
             <X size={10} /> 条件をクリア
           </button>
         </div>
       )}
 
-      {error && <p className="mt-2 font-mono text-xs text-danger">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
 
       {filteredGames.length === 0 ? (
-        <p className="mt-4 font-mono text-sm text-steam-muted">
+        <p className="mt-4 text-sm text-steam-muted">
           {items.length === 0
             ? "まだゲームが登録されていません。"
             : "条件に一致するゲームがありません。"}
@@ -358,7 +359,7 @@ export function GroupGameList({
           {filteredGames.map((game) => (
             <div
               key={game.id}
-              className="overflow-hidden rounded-sm border border-steam-border bg-steam-surface transition hover:border-steam-blue"
+              className="overflow-hidden rounded-xl bg-steam-surface transition hover:border-steam-blue"
             >
               <Link href={`/groups/${groupId}/games/${game.id}`}>
                 <div className="relative h-24 w-full overflow-hidden bg-steam-panel">
@@ -371,7 +372,7 @@ export function GroupGameList({
                       className="object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center font-mono text-3xs text-steam-muted">
+                    <div className="flex h-full w-full items-center justify-center text-3xs text-steam-muted">
                       No Image
                     </div>
                   )}
@@ -380,12 +381,13 @@ export function GroupGameList({
                   <p className="truncate font-display text-sm font-semibold text-steam-text">
                     {game.title}
                   </p>
-                  <p className="truncate font-mono text-4xs text-steam-muted">
+                  <p className="truncate text-4xs text-steam-muted">
                     {game.addedByName}が追加
                   </p>
                   {!!game.playMs && game.playMs > 0 && (
-                    <p className="mt-0.5 truncate font-mono text-3xs text-steam-blue" data-play-ms={game.playMs}>
-                      {`🎮 ${formatPlayDuration(game.playMs)}`}
+                    <p className="mt-0.5 flex items-center gap-1 truncate text-3xs text-steam-blue" data-play-ms={game.playMs}>
+                      <ActivityIcon kind="play.session" size={12} className="shrink-0" />
+                      <span className="font-num">{formatPlayDuration(game.playMs)}</span>
                     </p>
                   )}
                   {game.genres.length > 0 && (
@@ -393,7 +395,7 @@ export function GroupGameList({
                       {game.genres.slice(0, 2).map((g) => (
                         <span
                           key={g}
-                          className="rounded-sm bg-steam-panel px-1 py-0.5 font-mono text-4xs text-steam-muted"
+                          className="rounded-sm bg-steam-panel px-1 py-0.5 text-4xs text-steam-muted"
                         >
                           {translateGenre(g)}
                         </span>
@@ -409,7 +411,7 @@ export function GroupGameList({
                       value={game.status}
                       disabled={updatingId === game.id}
                       onChange={(e) => changeStatus(game.id, e.target.value as GameStatus)}
-                      className={`rounded-sm border bg-steam-panel px-1 py-0.5 font-mono text-3xs outline-none disabled:opacity-50 ${STATUS_BADGE_CLASS[game.status]}`}
+                      className={`rounded-sm border bg-steam-panel px-1 py-0.5 text-3xs outline-none disabled:opacity-50 ${STATUS_BADGE_CLASS[game.status]}`}
                     >
                       {STATUS_ORDER.map((s) => (
                         <option key={s} value={s}>
@@ -419,7 +421,7 @@ export function GroupGameList({
                     </select>
                   ) : (
                     <span
-                      className={`rounded-sm border px-1.5 py-0.5 font-mono text-3xs ${STATUS_BADGE_CLASS[game.status]}`}
+                      className={`rounded-sm border px-1.5 py-0.5 text-3xs ${STATUS_BADGE_CLASS[game.status]}`}
                     >
                       {STATUS_LABEL[game.status]}
                     </span>
@@ -454,7 +456,7 @@ export function GroupGameList({
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-sm border border-steam-border bg-steam-surface p-4">
+          <div className="w-full max-w-md rounded-xl bg-steam-surface p-4">
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold text-steam-text">
                 ゲームをリストに追加
@@ -475,12 +477,12 @@ export function GroupGameList({
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 placeholder="ゲーム名で検索"
                 disabled={searching}
-                className="flex-1 rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-xs text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+                className="flex-1 rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-xs text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
               />
               <button
                 onClick={handleSearch}
                 disabled={searching || !query.trim()}
-                className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
+                className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink disabled:opacity-40"
               >
                 {searching ? <Spinner size={12} /> : <Search size={12} />}
                 検索
@@ -492,7 +494,7 @@ export function GroupGameList({
                 <button
                   key={r.appId}
                   onClick={() => addGame(r)}
-                  className="flex items-center gap-3 rounded-sm border border-steam-border bg-steam-panel p-2 text-left transition hover:border-steam-blue"
+                  className="flex items-center gap-3 rounded-lg bg-steam-panel p-2 text-left transition hover:border-steam-blue"
                 >
                   <Image
                     src={r.thumbnail}
@@ -501,15 +503,15 @@ export function GroupGameList({
                     height={40}
                     className="h-10 w-16 flex-shrink-0 rounded-sm object-cover"
                   />
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-steam-text">{r.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-steam-text">{r.name}</span>
                 </button>
               ))}
               {searched && !searching && results.length === 0 && (
-                <p className="font-mono text-2xs text-steam-muted">見つかりませんでした</p>
+                <p className="text-2xs text-steam-muted">見つかりませんでした</p>
               )}
             </div>
 
-            {error && <p className="mt-3 font-mono text-xs text-danger">{error}</p>}
+            {error && <p className="mt-3 text-xs text-danger">{error}</p>}
           </div>
         </div>
       )}

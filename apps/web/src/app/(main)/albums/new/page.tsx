@@ -62,7 +62,7 @@ export default function NewAlbumPage() {
     <main className="p-4 sm:p-6">
       <button
         onClick={() => router.back()}
-        className="mb-4 flex items-center gap-1 font-mono text-xs text-steam-muted"
+        className="mb-4 flex items-center gap-1 text-xs text-steam-muted"
       >
         <ChevronLeft size={14} /> 戻る
       </button>
@@ -73,14 +73,14 @@ export default function NewAlbumPage() {
 
       <div className="mt-6 flex max-w-md flex-col gap-4">
         <div>
-          <label className="font-mono text-2xs text-steam-muted">
+          <label className="text-2xs text-steam-muted">
             グループ <span className="text-danger">*</span>
           </label>
           <select
             value={groupId}
             onChange={(e) => setGroupId(e.target.value)}
             disabled={pending}
-            className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+            className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
           >
             <option value="">グループを選択</option>
             {groups.map((g) => (
@@ -92,7 +92,7 @@ export default function NewAlbumPage() {
         </div>
 
         <div>
-          <label className="font-mono text-2xs text-steam-muted">
+          <label className="text-2xs text-steam-muted">
             タイトル <span className="text-danger">*</span>
           </label>
           <input
@@ -100,42 +100,42 @@ export default function NewAlbumPage() {
             onChange={(e) => setTitle(e.target.value)}
             placeholder="例：エルデンリング"
             disabled={pending}
-            className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+            className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
           />
         </div>
 
         <div>
-          <label className="font-mono text-2xs text-steam-muted">説明（任意）</label>
+          <label className="text-2xs text-steam-muted">説明（任意）</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
             placeholder="どんなアルバムか一言メモ"
             disabled={pending}
-            className="mt-1 w-full resize-none rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+            className="mt-1 w-full resize-none rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
           />
         </div>
 
         <div>
-          <label className="font-mono text-2xs text-steam-muted">ゲームタイトル（任意）</label>
+          <label className="text-2xs text-steam-muted">ゲームタイトル（任意）</label>
           <input
             value={gameTitle}
             onChange={(e) => setGameTitle(e.target.value)}
             placeholder="例：Elden Ring"
             disabled={pending}
-            className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+            className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
           />
-          <p className="mt-1 font-mono text-3xs text-steam-muted">
+          <p className="mt-1 text-3xs text-steam-muted">
             後からアルバム詳細画面でDiscordのハッシュタグと紐付けできます
           </p>
         </div>
 
-        {error && <p className="font-mono text-xs text-danger">{error}</p>}
+        {error && <p className="text-xs text-danger">{error}</p>}
 
         <button
           onClick={handleSubmit}
           disabled={pending || !title.trim() || !groupId}
-          className="rounded-sm bg-accent py-2.5 font-mono text-sm font-bold text-accent-ink disabled:opacity-40"
+          className="rounded-sm bg-accent py-2.5 text-sm font-bold text-accent-ink disabled:opacity-40"
         >
           {pending ? "作成中…" : "アルバムを作成"}
         </button>

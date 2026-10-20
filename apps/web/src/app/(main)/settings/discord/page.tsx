@@ -24,24 +24,24 @@ export default async function DiscordSettingsPage() {
       </h1>
       <SettingsNav />
 
-      <div className="mt-6 max-w-md rounded-sm border border-steam-border bg-steam-surface p-4">
+      <div className="mt-6 max-w-md rounded-xl bg-steam-surface p-4">
         {linked ? (
-          <div className="flex items-center gap-2 font-mono text-sm text-steam-text">
+          <div className="flex items-center gap-2 text-sm text-steam-text">
             <CheckCircle2 size={16} className="flex-shrink-0 text-positive" />
             Discordアカウントと連携済みです
           </div>
         ) : (
           <div>
-            <div className="flex items-center gap-2 font-mono text-sm text-danger">
+            <div className="flex items-center gap-2 text-sm text-danger">
               <AlertCircle size={16} className="flex-shrink-0" />
               Discordアカウントが未連携です
             </div>
-            <p className="mt-2 font-mono text-2xs text-steam-muted">
+            <p className="mt-2 text-2xs text-steam-muted">
               Discordの投稿を自動で取り込むには、Discordアカウントでのログインが必要です。
             </p>
             <Link
               href="/login"
-              className="mt-3 inline-block rounded-sm bg-[#5865F2] px-4 py-2 font-mono text-xs font-bold text-white"
+              className="mt-3 inline-block rounded-sm bg-[#5865F2] px-4 py-2 text-xs font-bold text-white"
             >
               Discordでログインし直す
             </Link>

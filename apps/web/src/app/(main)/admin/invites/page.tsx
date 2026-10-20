@@ -67,7 +67,7 @@ export default async function AdminInvitesPage() {
           </div>
 
           {data.summary.pendingAccess > 0 && (
-            <p className="mt-3 flex items-start gap-1.5 rounded-sm border border-danger/40 bg-steam-panel p-3 font-mono text-4xs text-steam-muted">
+            <p className="mt-3 flex items-start gap-1.5 rounded-sm border border-danger/40 bg-steam-panel p-3 text-4xs text-steam-muted">
               <ShieldAlert size={12} className="mt-0.5 shrink-0 text-danger" />
               リンクを踏んでログインしたが、まだグループに加入していない人が
               {data.summary.pendingAccess}人います。この人たちは許可リストに載っているため、
@@ -77,14 +77,14 @@ export default async function AdminInvitesPage() {
           )}
 
           {data.rows.length === 0 ? (
-            <p className="mt-6 font-mono text-sm text-steam-muted">
+            <p className="mt-6 text-sm text-steam-muted">
               発行された招待リンクはありません。
             </p>
           ) : (
             <div className="mt-4 overflow-x-auto rounded-sm border border-steam-border">
               <table className="w-full min-w-[900px] border-collapse">
                 <thead>
-                  <tr className="bg-steam-panel text-left font-mono text-4xs uppercase tracking-wide text-steam-muted">
+                  <tr className="bg-steam-panel text-left text-4xs uppercase tracking-wide text-steam-muted">
                     <th className="px-3 py-2">状態</th>
                     <th className="px-3 py-2">グループ</th>
                     <th className="px-3 py-2">発行者</th>
@@ -103,28 +103,28 @@ export default async function AdminInvitesPage() {
                       className="border-t border-steam-border bg-steam-surface align-top"
                     >
                       <td
-                        className={`whitespace-nowrap px-3 py-2 font-mono text-3xs ${STATUS_CLASS[i.status]}`}
+                        className={`whitespace-nowrap px-3 py-2 text-3xs ${STATUS_CLASS[i.status]}`}
                       >
                         {STATUS_LABEL[i.status]}
                       </td>
                       <td className="max-w-[160px] px-3 py-2">
                         <Link
                           href={`/groups/${i.groupId}`}
-                          className="block truncate font-mono text-3xs text-steam-text hover:text-steam-blue"
+                          className="block truncate text-3xs text-steam-text hover:text-steam-blue"
                         >
                           {i.groupName}
                         </Link>
                       </td>
-                      <td className="max-w-[140px] truncate px-3 py-2 font-mono text-3xs text-steam-muted">
+                      <td className="max-w-[140px] truncate px-3 py-2 text-3xs text-steam-muted">
                         {i.issuer}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-3xs text-steam-muted">
+                      <td className="whitespace-nowrap px-3 py-2 text-3xs text-steam-muted">
                         {ROLE_LABEL[i.role] ?? i.role}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-3xs text-steam-muted">
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-3xs text-steam-muted">
                         {i.usedCount}/{i.maxUses}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-3xs">
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-3xs">
                         {i.pendingAccess > 0 ? (
                           <span
                             className="text-danger"
@@ -136,7 +136,7 @@ export default async function AdminInvitesPage() {
                           <span className="text-steam-muted/50">-</span>
                         )}
                       </td>
-                      <td className="max-w-[220px] px-3 py-2 font-mono text-4xs text-steam-muted">
+                      <td className="max-w-[220px] px-3 py-2 text-4xs text-steam-muted">
                         {i.joined.length === 0
                           ? "-"
                           : i.joined
@@ -146,7 +146,7 @@ export default async function AdminInvitesPage() {
                               )
                               .join("、")}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-4xs text-steam-muted">
+                      <td className="whitespace-nowrap px-3 py-2 text-4xs text-steam-muted">
                         {i.expiresAt.toLocaleString("ja-JP")}
                       </td>
                       <td className="px-3 py-2 text-right">
@@ -177,7 +177,7 @@ function Stat({ label, value, alert }: { label: string; value: string; alert?: b
         alert ? "border-danger/40" : "border-steam-border"
       }`}
     >
-      <p className="font-mono text-4xs uppercase tracking-wide text-steam-muted">{label}</p>
+      <p className="text-4xs uppercase tracking-wide text-steam-muted">{label}</p>
       <p
         className={`mt-1 font-display text-xl font-bold ${
           alert ? "text-danger" : "text-steam-text"

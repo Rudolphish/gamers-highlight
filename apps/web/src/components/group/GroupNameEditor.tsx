@@ -65,7 +65,7 @@ export function GroupNameEditor({
           {displayName}
           <Pencil size={16} className="text-steam-muted opacity-0 transition group-hover:opacity-100" />
         </button>
-        {error && <p className="mt-1 font-mono text-3xs text-danger">{error}</p>}
+        {error && <p className="mt-1 text-3xs text-danger">{error}</p>}
       </div>
     );
   }
@@ -77,7 +77,7 @@ export function GroupNameEditor({
         onChange={(e) => setDraft(e.target.value)}
         autoFocus
         onKeyDown={(e) => e.key === "Enter" && save()}
-        className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-display text-2xl font-bold text-steam-text outline-none focus:border-steam-blue sm:text-3xl"
+        className="rounded-lg border border-steam-border bg-steam-bg px-2 py-1 font-display text-2xl font-bold text-steam-text outline-none focus:border-steam-blue sm:text-3xl"
       />
       <button onClick={save} aria-label="保存" className="p-2 text-steam-blue">
         <Check size={18} />

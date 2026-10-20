@@ -81,21 +81,21 @@ export default async function GroupGameDetailPage({
     <main className="p-4 sm:p-6">
       <Link
         href={`/groups/${params.groupId}`}
-        className="inline-flex items-center gap-1.5 font-mono text-xs text-steam-muted hover:text-steam-text"
+        className="inline-flex items-center gap-1.5 text-xs text-steam-muted hover:text-steam-text"
       >
         <ArrowLeft size={14} /> {game.group.name}に戻る
       </Link>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* 左：基本情報 */}
-        <div className="overflow-hidden rounded-sm border border-steam-border bg-steam-surface">
+        <div className="overflow-hidden rounded-xl bg-steam-surface">
           <div className="relative h-48 w-full overflow-hidden bg-steam-panel sm:h-64">
             <Image src={coverUrl} alt={game.title} fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" priority />
           </div>
 
           <div className="p-4 sm:p-6">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded-sm border border-steam-blue/50 px-1.5 py-0.5 font-mono text-3xs text-steam-blue">
+              <span className="rounded-sm border border-steam-blue/50 px-1.5 py-0.5 text-3xs text-steam-blue">
                 {STATUS_LABEL[game.status]}
               </span>
               <GameStoreBadges reviews={reviews} price={price} />
@@ -104,7 +104,7 @@ export default async function GroupGameDetailPage({
             <h1 className="mt-2 font-display text-2xl font-bold text-steam-text sm:text-3xl">
               {game.title}
             </h1>
-            <p className="mt-1 font-mono text-xs text-steam-muted">
+            <p className="mt-1 text-xs text-steam-muted">
               {game.addedBy.name ?? game.addedBy.email ?? "メンバー"}が追加
             </p>
 
@@ -136,7 +136,7 @@ export default async function GroupGameDetailPage({
                 href={`https://store.steampowered.com/app/${game.steamAppId}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink"
+                className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink"
               >
                 <ExternalLink size={13} /> Steamストアで見る
               </a>

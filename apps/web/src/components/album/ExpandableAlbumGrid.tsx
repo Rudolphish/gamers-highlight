@@ -101,13 +101,13 @@ export function ExpandableAlbumGrid({
     <>
       {albums.length > 1 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-3xs text-steam-muted">並び替え</span>
+          <span className="text-3xs text-steam-muted">並び替え</span>
           {SORT_ORDER.map((s) => (
             <button
               key={s}
               onClick={() => setSort(s)}
               aria-pressed={sort === s}
-              className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
+              className={`rounded-sm border px-2 py-1 text-3xs transition ${
                 sort === s
                   ? "border-steam-blue text-steam-blue"
                   : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -124,7 +124,7 @@ export function ExpandableAlbumGrid({
       {remaining > 0 && (
         <button
           onClick={() => setVisible((n) => n + step)}
-          className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-sm border border-steam-border bg-steam-surface py-2 font-mono text-3xs text-steam-muted transition hover:border-steam-blue hover:text-steam-blue"
+          className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-steam-surface py-2 text-3xs text-steam-muted transition hover:border-steam-blue hover:text-steam-blue"
         >
           <ChevronDown size={12} />
           さらに表示（残り{remaining}件）

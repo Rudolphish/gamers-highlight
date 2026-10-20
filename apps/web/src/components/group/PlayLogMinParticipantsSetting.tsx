@@ -29,7 +29,7 @@ export function PlayLogMinParticipantsSetting({ groupId, initial }: { groupId: s
   }
 
   return (
-    <div className="inline-flex flex-wrap items-center gap-2 font-mono text-xs text-steam-muted">
+    <div className="inline-flex flex-wrap items-center gap-2 text-xs text-steam-muted">
       <FlaskConical size={14} aria-hidden />
       <label htmlFor={`playlog-min-${groupId}`}>プレイ記録の最少人数（管理者のみ）</label>
       <select
@@ -37,7 +37,7 @@ export function PlayLogMinParticipantsSetting({ groupId, initial }: { groupId: s
         value={value}
         disabled={status === "saving"}
         onChange={(e) => change(Number(e.target.value) === 1 ? 1 : 2)}
-        className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-3xs text-steam-text outline-none focus:border-steam-blue"
+        className="rounded-lg border border-steam-border bg-steam-bg px-2 py-1 text-3xs text-steam-text outline-none focus:border-steam-blue"
       >
         <option value={2}>2人（通常）</option>
         <option value={1}>1人（動作確認用）</option>

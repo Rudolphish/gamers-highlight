@@ -40,7 +40,7 @@ export function PlayTotalBanner({
           "radial-gradient(120% 140% at 100% 0%, rgba(90,176,234,0.22), transparent 60%), linear-gradient(120deg, #10202f, #1d3348 55%, #22324a)",
       }}
     >
-      <p className="font-mono text-3xs tracking-[0.08em] text-steam-blue">PLAYED TOGETHER ・ グループで遊んだ時間</p>
+      <p className="text-3xs tracking-[0.08em] text-steam-blue">PLAYED TOGETHER ・ グループで遊んだ時間</p>
       {/* 数字と単位を分けて描く。読み上げ用には「12時間34分」を1つの文字列で持たせる */}
       <p className="mt-1 font-display text-5xl font-bold leading-none text-[#eaf3fa] sm:text-6xl" aria-label={formatPlayDuration(totalMs)}>
         {h > 0 && (
@@ -52,7 +52,7 @@ export function PlayTotalBanner({
         <span className="tabular-nums">{m}</span>
         <span className="ml-1 text-[0.45em] font-medium text-[#b9c9d6]">分</span>
       </p>
-      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 font-mono text-3xs text-steam-text">
+      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-3xs text-steam-text">
         {topGame && (
           <span>
             いちばん遊んだ{" "}

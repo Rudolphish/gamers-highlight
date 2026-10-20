@@ -85,22 +85,22 @@ export function WeeklyNotifySetting({
   return (
     <form
       onSubmit={save}
-      className="mt-4 flex flex-col gap-3 rounded-sm border border-steam-border bg-steam-surface p-4"
+      className="mt-4 flex flex-col gap-3 rounded-xl bg-steam-surface p-4"
     >
-      <h2 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
+      <h2 className="flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wide text-steam-muted">
         <Bell size={12} /> 通知先（Discord）
       </h2>
 
       <div>
-        <label className="font-mono text-2xs text-steam-muted">チャンネルID</label>
+        <label className="text-2xs text-steam-muted">チャンネルID</label>
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="123456789012345678"
           inputMode="numeric"
-          className="mt-1 w-full max-w-md rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-xs text-steam-text outline-none focus:border-steam-blue"
+          className="mt-1 w-full max-w-md rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-xs text-steam-text outline-none focus:border-steam-blue"
         />
-        <p className="mt-1 font-mono text-3xs text-steam-muted">
+        <p className="mt-1 text-3xs text-steam-muted">
           週が終わると、次に日次ジョブが動いたタイミングでここへ投稿します（曜日は問いません）。
           動きが無かった週は送りません。空にすると止まります。
           <br />
@@ -112,7 +112,7 @@ export function WeeklyNotifySetting({
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink disabled:opacity-40"
         >
           {saving ? <Spinner size={12} /> : <Check size={13} />} 保存
         </button>
@@ -125,14 +125,14 @@ export function WeeklyNotifySetting({
               ? "自動送信と同じものを送ります（動きがあったグループぶん、まとめて）"
               : "先に保存してください"
           }
-          className="inline-flex items-center gap-1.5 rounded-sm border border-steam-border px-3 py-2 font-mono text-xs text-steam-text transition hover:border-steam-blue disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 rounded-sm border border-steam-border px-3 py-2 text-xs text-steam-text transition hover:border-steam-blue disabled:opacity-40"
         >
           {sending ? <Spinner size={12} /> : <Send size={13} />} {weekLabel} を今すぐ送る
         </button>
       </div>
 
-      {message && <p className="font-mono text-3xs text-positive">{message}</p>}
-      {error && <p className="font-mono text-3xs text-danger">{error}</p>}
+      {message && <p className="text-3xs text-positive">{message}</p>}
+      {error && <p className="text-3xs text-danger">{error}</p>}
     </form>
   );
 }

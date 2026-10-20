@@ -26,12 +26,12 @@ export default async function UnclassifiedPage() {
       <h1 className="font-display text-2xl font-bold tracking-wide text-steam-text sm:text-3xl">
         未分類の投稿
       </h1>
-      <p className="mt-1 font-mono text-xs text-steam-muted">
+      <p className="mt-1 text-xs text-steam-muted">
         投稿を選んで、既存のアルバムに追加するか新しいアルバムを作って移動できます
       </p>
 
       {photos.length === 0 ? (
-        <p className="mt-6 font-mono text-sm text-steam-muted">
+        <p className="mt-6 text-sm text-steam-muted">
           未分類の投稿はありません。
         </p>
       ) : (

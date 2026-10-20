@@ -57,17 +57,17 @@ export function AdminAssignProvider({
 
       {selected.size > 0 && (
         <div className="sticky bottom-3 z-30 mt-4 flex items-center justify-between gap-3 rounded-sm border border-steam-blue bg-steam-surface px-3 py-2 shadow-lg">
-          <span className="font-mono text-xs text-steam-text">未分類 {selected.size}件を選択中</span>
+          <span className="text-xs text-steam-text">未分類 {selected.size}件を選択中</span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSelected(new Set())}
-              className="font-mono text-3xs text-steam-muted hover:text-steam-text"
+              className="text-3xs text-steam-muted hover:text-steam-text"
             >
               選択解除
             </button>
             <button
               onClick={() => setTarget(Array.from(selected))}
-              className="inline-flex items-center gap-1 rounded-sm bg-accent px-3 py-1.5 font-mono text-3xs font-bold text-accent-ink"
+              className="inline-flex items-center gap-1 rounded-sm bg-accent px-3 py-1.5 text-3xs font-bold text-accent-ink"
             >
               <FolderInput size={12} /> まとめて振り分け
             </button>
@@ -120,7 +120,7 @@ export function AssignButton({ photoId, compact = false }: { photoId: string; co
       className={
         compact
           ? "rounded-sm bg-black/60 p-1 text-steam-blue backdrop-blur-sm hover:text-steam-text"
-          : "inline-flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 font-mono text-4xs text-steam-blue hover:border-steam-blue"
+          : "inline-flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 text-4xs text-steam-blue hover:border-steam-blue"
       }
     >
       <FolderInput size={compact ? 11 : 12} />
@@ -196,7 +196,7 @@ function AssignModal({
         aria-modal="true"
         aria-label="アルバムに振り分け"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-sm border border-steam-border bg-steam-surface p-4"
+        className="w-full max-w-md rounded-xl bg-steam-surface p-4"
       >
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-semibold text-steam-text">
@@ -207,7 +207,7 @@ function AssignModal({
           </button>
         </div>
 
-        <label className="mt-3 block font-mono text-2xs text-steam-muted" htmlFor="admin-assign-group">
+        <label className="mt-3 block text-2xs text-steam-muted" htmlFor="admin-assign-group">
           グループ
         </label>
         <select
@@ -218,7 +218,7 @@ function AssignModal({
             setAlbumId("");
           }}
           disabled={pending}
-          className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+          className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
         >
           <option value="">グループを選択</option>
           {groups.map((g) => (
@@ -228,7 +228,7 @@ function AssignModal({
           ))}
         </select>
 
-        <label className="mt-3 block font-mono text-2xs text-steam-muted" htmlFor="admin-assign-album">
+        <label className="mt-3 block text-2xs text-steam-muted" htmlFor="admin-assign-album">
           アルバム
         </label>
         <select
@@ -236,7 +236,7 @@ function AssignModal({
           value={albumId}
           onChange={(e) => setAlbumId(e.target.value)}
           disabled={pending || !groupId}
-          className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+          className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
         >
           <option value="">{!groupId ? "先にグループを選択" : albumsInGroup.length === 0 ? "このグループにアルバムがありません" : "アルバムを選択"}</option>
           {albumsInGroup.map((a) => (
@@ -245,20 +245,20 @@ function AssignModal({
             </option>
           ))}
         </select>
-        <p className="mt-1 font-mono text-4xs text-steam-muted">
+        <p className="mt-1 text-4xs text-steam-muted">
           あなたが編集できるアルバムだけに振り分けられます
         </p>
 
-        {error && <p className="mt-3 font-mono text-xs text-red-400">{error}</p>}
+        {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
 
         <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose} disabled={pending} className="rounded-sm border border-steam-border px-3 py-1.5 font-mono text-xs text-steam-muted">
+          <button onClick={onClose} disabled={pending} className="rounded-sm border border-steam-border px-3 py-1.5 text-xs text-steam-muted">
             やめる
           </button>
           <button
             onClick={submit}
             disabled={pending || !albumId}
-            className="inline-flex items-center gap-1 rounded-sm bg-accent px-4 py-1.5 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded-sm bg-accent px-4 py-1.5 text-xs font-bold text-accent-ink disabled:opacity-40"
           >
             {pending && <Spinner size={12} />} 振り分ける
           </button>

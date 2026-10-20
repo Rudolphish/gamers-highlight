@@ -116,7 +116,7 @@ export function UnclassifiedPhotoManager({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-steam-muted">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-steam-muted">
         <span>{selected.size}件選択中</span>
         <button onClick={selectAll} className="text-steam-blue" disabled={pending}>
           全選択
@@ -153,12 +153,12 @@ export function UnclassifiedPhotoManager({
                 />
               )}
               {item.mediaType === "VIDEO" && (
-                <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-accent px-1 py-0.5 font-mono text-4xs font-bold text-white">
+                <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-accent px-1 py-0.5 text-4xs font-bold text-white">
                   <Play size={8} fill="white" /> {`${item.durationSeconds ?? "?"}s`}
                 </span>
               )}
               {item.mediaType === "YOUTUBE" && (
-                <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-[#ff0000] px-1 py-0.5 font-mono text-4xs font-bold text-white">
+                <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-[#ff0000] px-1 py-0.5 text-4xs font-bold text-white">
                   <Play size={8} fill="white" /> YouTube
                 </span>
               )}
@@ -180,8 +180,8 @@ export function UnclassifiedPhotoManager({
       {/* **先にグループを選ばせる。** 全グループのアルバムを名前だけで並べると、
           別グループの同名アルバムに入れてしまう（実際に報告があった）。
           この選択は下の「既存アルバムへ追加」と「新規作成」の両方に効く */}
-      <div className="mt-6 rounded-sm border border-steam-border bg-steam-surface p-4">
-        <label className="font-mono text-2xs text-steam-muted">グループ</label>
+      <div className="mt-6 rounded-xl bg-steam-surface p-4">
+        <label className="text-2xs text-steam-muted">グループ</label>
         <select
           value={groupId}
           onChange={(e) => {
@@ -189,7 +189,7 @@ export function UnclassifiedPhotoManager({
             setTargetAlbumId(""); // 別グループのアルバムが選ばれたまま残らないように戻す
           }}
           disabled={pending || groups.length === 0}
-          className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50 sm:max-w-xs"
+          className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50 sm:max-w-xs"
         >
           <option value="">グループを選択</option>
           {groups.map((g) => (
@@ -200,7 +200,7 @@ export function UnclassifiedPhotoManager({
         </select>
         {/* グループが無い／新しく作りたい人の逃げ道。ここで手が止まると、
             アルバムを選べない理由も次にどうすればよいかも分からない */}
-        <p className="mt-1 font-mono text-4xs text-steam-muted">
+        <p className="mt-1 text-4xs text-steam-muted">
           {groups.length === 0 ? "参加しているグループがありません。" : "入れたいグループが無いときは "}
           <Link href="/groups/new" className="text-steam-blue hover:underline">
             新しいグループを作る
@@ -209,15 +209,15 @@ export function UnclassifiedPhotoManager({
         </p>
       </div>
 
-      <div className="mt-3 flex flex-col gap-4 rounded-sm border border-steam-border bg-steam-surface p-4 sm:flex-row sm:items-end sm:gap-6">
+      <div className="mt-3 flex flex-col gap-4 rounded-xl bg-steam-surface p-4 sm:flex-row sm:items-end sm:gap-6">
         <div className="flex-1">
-          <label className="font-mono text-2xs text-steam-muted">既存アルバムに追加</label>
+          <label className="text-2xs text-steam-muted">既存アルバムに追加</label>
           <div className="mt-1 flex gap-2">
             <select
               value={targetAlbumId}
               onChange={(e) => setTargetAlbumId(e.target.value)}
               disabled={pending || !groupId}
-              className="flex-1 rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+              className="flex-1 rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
             >
               <option value="">
                 {!groupId
@@ -235,7 +235,7 @@ export function UnclassifiedPhotoManager({
             <button
               onClick={moveToExistingAlbum}
               disabled={pending || selected.size === 0 || !targetAlbumId}
-              className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-accent px-4 py-2 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
+              className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-accent px-4 py-2 text-xs font-bold text-accent-ink disabled:opacity-40"
             >
               {action === "move" && <Spinner size={12} />}
               {action === "move" ? "追加中…" : "追加"}
@@ -244,7 +244,7 @@ export function UnclassifiedPhotoManager({
         </div>
 
         <div className="flex-1">
-          <label className="font-mono text-2xs text-steam-muted">
+          <label className="text-2xs text-steam-muted">
             新規アルバムを作って移動{groupId ? "（上で選んだグループに作ります）" : ""}
           </label>
           <div className="mt-1 flex gap-2">
@@ -253,12 +253,12 @@ export function UnclassifiedPhotoManager({
               onChange={(e) => setNewAlbumTitle(e.target.value)}
               placeholder="新しいアルバム名"
               disabled={pending}
-              className="flex-1 rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+              className="flex-1 rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
             />
             <button
               onClick={createAlbumAndMove}
               disabled={pending || selected.size === 0 || !newAlbumTitle.trim() || !groupId}
-              className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-accent px-4 py-2 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
+              className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-accent px-4 py-2 text-xs font-bold text-accent-ink disabled:opacity-40"
             >
               {action === "create" ? <Spinner size={12} /> : <Plus size={12} />}
               {action === "create" ? "作成中…" : "作成"}
@@ -267,7 +267,7 @@ export function UnclassifiedPhotoManager({
         </div>
       </div>
 
-      {error && <p className="mt-3 font-mono text-xs text-danger">{error}</p>}
+      {error && <p className="mt-3 text-xs text-danger">{error}</p>}
     </div>
   );
 }

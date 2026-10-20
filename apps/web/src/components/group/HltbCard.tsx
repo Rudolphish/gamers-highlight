@@ -25,9 +25,9 @@ export function HltbCard({ gameId, main, mainExtra, completionist, allStyles }: 
   const max = Math.max(...Object.values(values).filter((v): v is number => v !== null), 1);
 
   return (
-    <div className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
+    <div className="rounded-xl bg-steam-surface p-4 sm:p-6">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
+        <h2 className="flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wide text-steam-muted">
           <Clock size={12} /> HowLongToBeat
         </h2>
         <a
@@ -49,8 +49,8 @@ export function HltbCard({ gameId, main, mainExtra, completionist, allStyles }: 
           return (
             <div key={key}>
               <div className="flex items-baseline justify-between">
-                <span className="font-mono text-4xs text-steam-muted">{label}</span>
-                <span className="font-mono text-3xs font-bold text-steam-text">{value}h</span>
+                <span className="text-4xs text-steam-muted">{label}</span>
+                <span className="text-3xs font-bold text-steam-text">{value}h</span>
               </div>
               <div className="mt-0.5 h-2 w-full overflow-hidden rounded-sm bg-steam-panel">
                 <div
@@ -63,7 +63,7 @@ export function HltbCard({ gameId, main, mainExtra, completionist, allStyles }: 
         })}
       </div>
 
-      <p className="mt-2 font-mono text-4xs text-steam-muted">非公式データのため目安値です</p>
+      <p className="mt-2 text-4xs text-steam-muted">非公式データのため目安値です</p>
     </div>
   );
 }

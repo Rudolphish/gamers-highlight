@@ -86,7 +86,7 @@ function LoginForm() {
           {described.hint && <p className="mt-1.5 text-xs text-red-600">{described.hint}</p>}
           {/* 管理者が原因を切り分けるためのコード。知らないコード（例外メッセージ）は出さない */}
           {described.showCode && error && KNOWN_CODES.has(error) && (
-            <p className="mt-1.5 font-mono text-3xs text-red-500/80">{`エラーコード: ${error}`}</p>
+            <p className="mt-1.5 text-3xs text-red-500/80">{`エラーコード: ${error}`}</p>
           )}
         </div>
       )}
@@ -102,7 +102,7 @@ function LoginForm() {
         </button>
       </div>
 
-      <p className="mt-4 font-mono text-3xs text-steam-muted">
+      <p className="mt-4 text-3xs text-steam-muted">
         © {new Date().getFullYear()} ShareStaq
       </p>
     </main>

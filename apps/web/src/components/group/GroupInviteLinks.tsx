@@ -123,20 +123,20 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
 
   return (
     <div className="mt-4 border-t border-steam-border pt-4">
-      <h3 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
+      <h3 className="flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wide text-steam-muted">
         <Link2 size={12} /> 招待リンク
       </h3>
-      <p className="mt-1 font-mono text-4xs text-steam-muted">
+      <p className="mt-1 text-4xs text-steam-muted">
         まだこのアプリを使っていない友人にも送れます。受け取った人はDiscordでログインするだけで参加できます。
       </p>
 
       <div className="mt-2 flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1">
-          <span className="font-mono text-4xs text-steam-muted">権限</span>
+          <span className="text-4xs text-steam-muted">権限</span>
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as "EDITOR" | "VIEWER")}
-            className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1.5 font-mono text-3xs text-steam-text outline-none focus:border-steam-blue"
+            className="rounded-lg border border-steam-border bg-steam-bg px-2 py-1.5 text-3xs text-steam-text outline-none focus:border-steam-blue"
           >
             <option value="VIEWER">閲覧者</option>
             <option value="EDITOR">編集者</option>
@@ -144,11 +144,11 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="font-mono text-4xs text-steam-muted">有効期限</span>
+          <span className="text-4xs text-steam-muted">有効期限</span>
           <select
             value={expiresInHours}
             onChange={(e) => setExpiresInHours(Number(e.target.value))}
-            className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1.5 font-mono text-3xs text-steam-text outline-none focus:border-steam-blue"
+            className="rounded-lg border border-steam-border bg-steam-bg px-2 py-1.5 text-3xs text-steam-text outline-none focus:border-steam-blue"
           >
             <option value={24}>24時間</option>
             <option value={72}>72時間</option>
@@ -157,11 +157,11 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="font-mono text-4xs text-steam-muted">使える回数</span>
+          <span className="text-4xs text-steam-muted">使える回数</span>
           <select
             value={maxUses}
             onChange={(e) => setMaxUses(Number(e.target.value))}
-            className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1.5 font-mono text-3xs text-steam-text outline-none focus:border-steam-blue"
+            className="rounded-lg border border-steam-border bg-steam-bg px-2 py-1.5 text-3xs text-steam-text outline-none focus:border-steam-blue"
           >
             <option value={1}>1回</option>
             <option value={3}>3回</option>
@@ -172,29 +172,29 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
         <button
           onClick={create}
           disabled={creating}
-          className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-3xs font-bold text-accent-ink disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-3xs font-bold text-accent-ink disabled:opacity-40"
         >
           {creating ? <Spinner size={11} /> : <Link2 size={12} />} リンクを発行
         </button>
       </div>
 
-      {error && <p className="mt-2 font-mono text-3xs text-danger">{error}</p>}
-      {notice && <p className="mt-2 font-mono text-3xs text-steam-muted">{notice}</p>}
+      {error && <p className="mt-2 text-3xs text-danger">{error}</p>}
+      {notice && <p className="mt-2 text-3xs text-steam-muted">{notice}</p>}
 
       <div className="mt-3 flex flex-col gap-2">
         {loading ? (
-          <p className="font-mono text-3xs text-steam-muted">読み込み中…</p>
+          <p className="text-3xs text-steam-muted">読み込み中…</p>
         ) : invites.length === 0 ? (
-          <p className="font-mono text-3xs text-steam-muted">発行済みのリンクはありません。</p>
+          <p className="text-3xs text-steam-muted">発行済みのリンクはありません。</p>
         ) : (
           invites.map((i) => {
             const status = statusOf(i);
             const active = status.label === "有効";
             return (
-              <div key={i.id} className="rounded-sm border border-steam-border bg-steam-panel p-2">
+              <div key={i.id} className="rounded-lg bg-steam-panel p-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`font-mono text-4xs ${status.className}`}>{status.label}</span>
-                  <span className="font-mono text-4xs text-steam-muted">
+                  <span className={`text-4xs ${status.className}`}>{status.label}</span>
+                  <span className="text-4xs text-steam-muted">
                     {ROLE_LABEL[i.role]}・{i.usedCount}/{i.maxUses}回・
                     {new Date(i.expiresAt).toLocaleString("ja-JP")}まで
                   </span>
@@ -229,7 +229,7 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
                 </div>
 
                 {i.uses.length > 0 && (
-                  <p className="mt-1 font-mono text-4xs text-steam-muted">
+                  <p className="mt-1 text-4xs text-steam-muted">
                     参加:{" "}
                     {i.uses
                       .map(

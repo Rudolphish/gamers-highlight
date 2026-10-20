@@ -34,12 +34,12 @@ export default async function AdminErrorsPage() {
       <ErrorNotifySetting channelId={channelId} />
 
       <div className="mt-6">
-        <h2 className="font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
+        <h2 className="text-3xs font-bold uppercase tracking-wide text-steam-muted">
           最近のエラー（最大{RECENT_LIMIT}件）
         </h2>
 
         {reports.length === 0 ? (
-          <p className="mt-3 font-mono text-sm text-steam-muted">
+          <p className="mt-3 text-sm text-steam-muted">
             記録されたエラーはありません。
           </p>
         ) : (
@@ -47,24 +47,24 @@ export default async function AdminErrorsPage() {
             {reports.map((r) => (
               <div
                 key={r.id}
-                className="rounded-sm border border-steam-border bg-steam-surface p-3"
+                className="rounded-xl bg-steam-surface p-3"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <AlertTriangle size={12} className="flex-shrink-0 text-danger" />
-                  <code className="font-mono text-3xs text-steam-text">{r.path}</code>
+                  <code className="text-3xs text-steam-text">{r.path}</code>
                   {r.count > 1 && (
-                    <span className="rounded-sm border border-warning/50 px-1.5 py-0.5 font-mono text-4xs text-warning">
+                    <span className="rounded-sm border border-warning/50 px-1.5 py-0.5 text-4xs text-warning">
                       {r.count}回
                     </span>
                   )}
-                  <span className="ml-auto font-mono text-4xs text-steam-muted">
+                  <span className="ml-auto text-4xs text-steam-muted">
                     {formatRelativeTime(r.lastSeenAt)}
                   </span>
                 </div>
-                <p className="mt-1.5 break-words font-mono text-3xs text-steam-muted">
+                <p className="mt-1.5 break-words text-3xs text-steam-muted">
                   {r.message}
                 </p>
-                <p className="mt-1 font-mono text-4xs text-steam-muted">
+                <p className="mt-1 text-4xs text-steam-muted">
                   初回: {r.firstSeenAt.toLocaleString("ja-JP")} ／{" "}
                   {r.notifiedAt
                     ? `通知済み: ${r.notifiedAt.toLocaleString("ja-JP")}`
@@ -75,7 +75,7 @@ export default async function AdminErrorsPage() {
           </div>
         )}
 
-        <p className="mt-4 font-mono text-4xs text-steam-muted">
+        <p className="mt-4 text-4xs text-steam-muted">
           本番のサーバー側エラーはNext.jsが内容を伏せるため、多くの場合メッセージは汎用的なものになり
           digest だけが手掛かりになります。それでも「いつ・どのページで・何回」は分かるので、
           Vercelのログをdigestで検索する入口として使えます。

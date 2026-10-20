@@ -94,7 +94,7 @@ export default async function AlbumsPage() {
         </h1>
         <Link
           href="/albums/new"
-          className="flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink"
+          className="flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink"
         >
           <Plus size={14} /> 新規アルバム
         </Link>
@@ -110,7 +110,7 @@ export default async function AlbumsPage() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-display text-sm font-semibold text-steam-text">未分類の投稿</p>
-            <p className="font-mono text-2xs text-steam-muted">
+            <p className="text-2xs text-steam-muted">
               まだどのアルバムにも入っていない投稿が{unclassifiedCount}件あります。タップして振り分ける
             </p>
           </div>
@@ -118,7 +118,7 @@ export default async function AlbumsPage() {
       )}
 
       {albumCards.length === 0 ? (
-        <p className="mt-6 font-mono text-sm text-steam-muted">
+        <p className="mt-6 text-sm text-steam-muted">
           まだアルバムがありません。作成するか、Discordに投稿してみましょう。
         </p>
       ) : (

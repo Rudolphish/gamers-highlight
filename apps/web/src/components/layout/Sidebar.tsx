@@ -47,12 +47,12 @@ export function Sidebar() {
                     key={item.href}
                     href={item.href}
                     aria-current={active ? "page" : undefined}
-                    className={`group relative flex items-center justify-center rounded-sm px-2.5 py-2 font-mono text-xs ${
+                    className={`group relative flex items-center justify-center rounded-sm px-2.5 py-2 text-xs ${
                       active ? "bg-steam-surface text-steam-blue" : "text-steam-muted"
                     }`}
                   >
                     <item.icon size={18} />
-                    <span className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2 whitespace-nowrap rounded-sm border border-steam-border bg-steam-surface px-2 py-1 text-2xs text-steam-text opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                    <span className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2 whitespace-nowrap rounded-xl bg-steam-surface px-2 py-1 text-2xs text-steam-text opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
                       {item.label}
                     </span>
                   </Link>

@@ -100,10 +100,10 @@ export function ProposalVotePanel({
   }
 
   return (
-    <div className="rounded-sm border border-steam-border bg-steam-panel p-3">
+    <div className="rounded-lg bg-steam-panel p-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">投票</h2>
-        <span className="font-mono text-3xs text-steam-muted">
+        <h2 className="text-3xs font-bold uppercase tracking-wide text-steam-muted">投票</h2>
+        <span className="text-3xs text-steam-muted">
           やりたい {likeCount}/{likeThreshold}
         </span>
       </div>
@@ -114,7 +114,7 @@ export function ProposalVotePanel({
           style={{ width: `${Math.min((likeCount / likeThreshold) * 100, 100)}%` }}
         />
       </div>
-      <p className="mt-1 font-mono text-4xs text-steam-muted">
+      <p className="mt-1 text-4xs text-steam-muted">
         「やりたい」が{likeThreshold}人に達すると、自動でゲームリストに追加されます
       </p>
 
@@ -128,7 +128,7 @@ export function ProposalVotePanel({
                 onClick={() => react(type)}
                 disabled={pending}
                 aria-pressed={active}
-                className={`flex flex-shrink-0 items-center gap-1.5 rounded-sm border px-2.5 py-1.5 font-mono text-3xs transition disabled:opacity-50 ${
+                className={`flex flex-shrink-0 items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-3xs transition disabled:opacity-50 ${
                   active
                     ? "border-steam-blue text-steam-blue"
                     : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -137,7 +137,7 @@ export function ProposalVotePanel({
                 <Icon size={12} /> {label} {votedBy.length}
               </button>
               {votedBy.length > 0 && (
-                <p className="min-w-0 flex-1 pt-1.5 font-mono text-4xs text-steam-muted">
+                <p className="min-w-0 flex-1 pt-1.5 text-4xs text-steam-muted">
                   {votedBy.map((v) => v.name).join("、")}
                 </p>
               )}
@@ -150,14 +150,14 @@ export function ProposalVotePanel({
         <button
           onClick={withdraw}
           disabled={withdrawing}
-          className="mt-3 inline-flex items-center gap-1.5 font-mono text-3xs text-steam-muted transition hover:text-danger disabled:opacity-50"
+          className="mt-3 inline-flex items-center gap-1.5 text-3xs text-steam-muted transition hover:text-danger disabled:opacity-50"
         >
           {withdrawing ? <Spinner size={11} /> : <Trash2 size={11} />}
           この提案を取り下げる
         </button>
       )}
 
-      {error && <p className="mt-2 font-mono text-3xs text-danger">{error}</p>}
+      {error && <p className="mt-2 text-3xs text-danger">{error}</p>}
     </div>
   );
 }

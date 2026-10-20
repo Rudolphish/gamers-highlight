@@ -85,7 +85,7 @@ export function NotificationSettings({
     <div>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="group flex items-center gap-1.5 font-mono text-3xs text-steam-muted transition hover:text-steam-text"
+        className="group flex items-center gap-1.5 text-3xs text-steam-muted transition hover:text-steam-text"
       >
         <Bell size={11} />
         {`通知の設定（${configured}/${NOTIFICATION_KINDS.length} 種類がオン）`}
@@ -95,22 +95,22 @@ export function NotificationSettings({
       {/* **引き継ぎ漏れを黙って通さない。** 種類ごとに分ける前の設定が残っているのに
           1件も設定が無い場合、通知は全部止まっている。画面で気づけるようにする */}
       {legacyChannelId && configured === 0 && (
-        <p className="mt-1 font-mono text-4xs text-warning">
+        <p className="mt-1 text-4xs text-warning">
           {`以前の通知先（${legacyChannelId}）が引き継がれていません。通知は止まっています。下で種類ごとに選び直してください。`}
         </p>
       )}
 
       {open && (
-        <div className="mt-2 flex flex-col gap-2 rounded-sm border border-steam-border bg-steam-surface p-3">
+        <div className="mt-2 flex flex-col gap-2 rounded-xl bg-steam-surface p-3">
           {channels === undefined ? (
-            <p className="font-mono text-3xs text-steam-muted">チャンネル一覧を取得中…</p>
+            <p className="text-3xs text-steam-muted">チャンネル一覧を取得中…</p>
           ) : (
             NOTIFICATION_KINDS.map(({ kind, label, description }) => {
               const value = values[kind] ?? "";
               const knownIds = new Set((channels ?? []).map((c) => c.id));
               return (
                 <div key={kind} className="flex flex-col gap-1">
-                  <label className="font-mono text-3xs text-steam-text" htmlFor={`notify-${kind}`}>
+                  <label className="text-3xs text-steam-text" htmlFor={`notify-${kind}`}>
                     {label}
                   </label>
                   {useDropdown ? (
@@ -118,7 +118,7 @@ export function NotificationSettings({
                       id={`notify-${kind}`}
                       value={value}
                       onChange={(e) => save(kind, e.target.value)}
-                      className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-3xs text-steam-text outline-none focus:border-steam-blue"
+                      className="rounded-lg border border-steam-border bg-steam-bg px-2 py-1 text-3xs text-steam-text outline-none focus:border-steam-blue"
                     >
                       <option value="">送らない</option>
                       {value && !knownIds.has(value) && (
@@ -138,15 +138,15 @@ export function NotificationSettings({
                         if (e.target.value.trim() !== value) save(kind, e.target.value.trim());
                       }}
                       placeholder="DiscordチャンネルID（空欄で送らない）"
-                      className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-3xs text-steam-text outline-none focus:border-steam-blue"
+                      className="rounded-lg border border-steam-border bg-steam-bg px-2 py-1 text-3xs text-steam-text outline-none focus:border-steam-blue"
                     />
                   )}
-                  <p className="font-mono text-4xs text-steam-muted">{description}</p>
+                  <p className="text-4xs text-steam-muted">{description}</p>
                 </div>
               );
             })
           )}
-          {error && <p className="font-mono text-4xs text-danger">{error}</p>}
+          {error && <p className="text-4xs text-danger">{error}</p>}
         </div>
       )}
     </div>

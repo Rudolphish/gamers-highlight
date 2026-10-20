@@ -89,7 +89,7 @@ export function AlbumTitleEditor({ albumId, title }: { albumId: string; title: s
             if (e.key === "Escape") cancel();
           }}
           aria-label="アルバム名"
-          className="w-full max-w-xs rounded-sm border border-steam-border bg-steam-bg px-2 py-1.5 font-display text-xl font-bold text-steam-text sm:text-2xl"
+          className="w-full max-w-xs rounded-lg border border-steam-border bg-steam-bg px-2 py-1.5 font-display text-xl font-bold text-steam-text sm:text-2xl"
         />
         <button
           onClick={save}
@@ -108,7 +108,7 @@ export function AlbumTitleEditor({ albumId, title }: { albumId: string; title: s
           <X size={13} />
         </button>
       </div>
-      {error && <p className="font-mono text-2xs text-danger">{error}</p>}
+      {error && <p className="text-2xs text-danger">{error}</p>}
     </div>
   );
 }

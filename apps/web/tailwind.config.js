@@ -50,7 +50,9 @@ module.exports = {
         sans: JP_SANS,
         display: JP_SANS,
         logo: ["Rajdhani", ...JP_SANS],
-        mono: ["JetBrains Mono", ...JP_SANS],
+        // 等幅は「数字が縦に揃ってほしい所」だけに使う（時刻・金額・時間・件数）。
+        // 以前は font-mono を日本語の文にまで使っていて（572か所）、プログラムの画面のような印象になっていた（デザイン刷新の段階2）
+        num: ["JetBrains Mono", ...JP_SANS],
       },
       keyframes: {
         "route-progress": {

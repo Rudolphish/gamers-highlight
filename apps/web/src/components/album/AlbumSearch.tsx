@@ -78,7 +78,7 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="アルバム名・ゲーム名で絞り込む"
-            className="w-full rounded-sm border border-steam-border bg-steam-bg py-2 pl-8 pr-8 font-mono text-xs text-steam-text outline-none focus:border-steam-blue"
+            className="w-full rounded-lg border border-steam-border bg-steam-bg py-2 pl-8 pr-8 text-xs text-steam-text outline-none focus:border-steam-blue"
           />
           {query && (
             <button
@@ -95,7 +95,7 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
           <select
             value={groupId}
             onChange={(e) => setGroupId(e.target.value)}
-            className="rounded-sm border border-steam-border bg-steam-bg px-2 py-2 font-mono text-3xs text-steam-text outline-none focus:border-steam-blue"
+            className="rounded-lg border border-steam-border bg-steam-bg px-2 py-2 text-3xs text-steam-text outline-none focus:border-steam-blue"
           >
             <option value="">すべてのグループ</option>
             {groups.map(([id, name]) => (
@@ -109,7 +109,7 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
         {emptyCount > 0 && (
           <button
             onClick={() => setOnlyWithPhotos((v) => !v)}
-            className={`rounded-sm border px-2 py-2 font-mono text-3xs transition ${
+            className={`rounded-sm border px-2 py-2 text-3xs transition ${
               onlyWithPhotos
                 ? "border-steam-blue text-steam-blue"
                 : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -130,7 +130,7 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
             onClick={() => setView(v.value)}
             aria-label={v.label}
             title={v.label}
-            className={`inline-flex items-center gap-1 rounded-sm border px-2 py-2 font-mono text-3xs transition ${
+            className={`inline-flex items-center gap-1 rounded-sm border px-2 py-2 text-3xs transition ${
               view === v.value
                 ? "border-steam-blue text-steam-blue"
                 : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -140,7 +140,7 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
           </button>
         ))}
 
-        <span className="font-mono text-3xs text-steam-muted">
+        <span className="text-3xs text-steam-muted">
           {filtered.length === albums.length
             ? `${albums.length}件`
             : `${filtered.length} / ${albums.length}件`}
@@ -148,7 +148,7 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
       </div>
 
       {filtered.length === 0 ? (
-        <p className="mt-6 font-mono text-sm text-steam-muted">該当するアルバムがありません。</p>
+        <p className="mt-6 text-sm text-steam-muted">該当するアルバムがありません。</p>
       ) : (
         <div className="mt-4">
           {view === "grid" ? <AlbumGrid albums={filtered} /> : <AlbumRows albums={filtered} />}

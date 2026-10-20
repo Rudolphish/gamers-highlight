@@ -56,7 +56,7 @@ export function RevokeInviteButton({
       >
         {pending ? <Spinner size={11} /> : <Trash2 size={11} />}
       </button>
-      {error && <span className="font-mono text-4xs text-danger">{error}</span>}
+      {error && <span className="text-4xs text-danger">{error}</span>}
     </span>
   );
 }

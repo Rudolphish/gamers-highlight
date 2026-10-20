@@ -78,10 +78,10 @@ export function PhotoDescription({
           rows={4}
           autoFocus
           placeholder="この場面の説明を書く（空にすると消えます）"
-          className="w-full resize-none rounded-sm border border-steam-border bg-steam-bg p-2 font-mono text-xs text-steam-text outline-none focus:border-steam-blue"
+          className="w-full resize-none rounded-lg border border-steam-border bg-steam-bg p-2 text-xs text-steam-text outline-none focus:border-steam-blue"
         />
         <div className="flex items-center justify-between gap-2">
-          <span className="font-mono text-3xs text-steam-muted">
+          <span className="text-3xs text-steam-muted">
             {draft.length}/{MAX_DESCRIPTION_LENGTH}
           </span>
           <div className="flex items-center gap-1.5">
@@ -92,7 +92,7 @@ export function PhotoDescription({
                 setError(null);
               }}
               aria-label="編集をやめる"
-              className="rounded-sm border border-steam-border px-2 py-1 font-mono text-3xs text-steam-muted hover:text-steam-text"
+              className="rounded-sm border border-steam-border px-2 py-1 text-3xs text-steam-muted hover:text-steam-text"
             >
               <X size={12} />
             </button>
@@ -100,13 +100,13 @@ export function PhotoDescription({
               onClick={save}
               disabled={saving}
               aria-label="説明を保存"
-              className="flex items-center gap-1 rounded-sm bg-accent px-2.5 py-1 font-mono text-3xs font-bold text-accent-ink disabled:opacity-60"
+              className="flex items-center gap-1 rounded-sm bg-accent px-2.5 py-1 text-3xs font-bold text-accent-ink disabled:opacity-60"
             >
               {saving ? <Spinner size={12} /> : <Check size={12} />} 保存
             </button>
           </div>
         </div>
-        {error && <p className="font-mono text-3xs text-danger">{error}</p>}
+        {error && <p className="text-3xs text-danger">{error}</p>}
       </div>
     );
   }
@@ -115,16 +115,16 @@ export function PhotoDescription({
     <div className="space-y-1">
       {state.text ? (
         // 改行を活かす。説明は箇条書きになりがちなため
-        <p className="whitespace-pre-wrap break-words font-mono text-xs text-steam-text">
+        <p className="whitespace-pre-wrap break-words text-xs text-steam-text">
           {state.text}
         </p>
       ) : (
-        <p className="font-mono text-3xs text-steam-muted">説明はまだありません</p>
+        <p className="text-3xs text-steam-muted">説明はまだありません</p>
       )}
 
       <div className="flex items-center justify-between gap-2">
         {state.text && state.editorName ? (
-          <span className="font-mono text-3xs text-steam-muted">
+          <span className="text-3xs text-steam-muted">
             {state.editorName}
             {state.updatedAt ? `・${new Date(state.updatedAt).toLocaleDateString("ja-JP")}` : ""}
           </span>
@@ -138,7 +138,7 @@ export function PhotoDescription({
               setEditing(true);
             }}
             aria-label={state.text ? "説明を編集" : "説明を書く"}
-            className="flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 font-mono text-3xs text-steam-muted transition hover:border-steam-blue hover:text-steam-blue"
+            className="flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 text-3xs text-steam-muted transition hover:border-steam-blue hover:text-steam-blue"
           >
             <Pencil size={11} /> {state.text ? "編集" : "説明を書く"}
           </button>

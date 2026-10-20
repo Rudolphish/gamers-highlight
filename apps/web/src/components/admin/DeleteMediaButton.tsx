@@ -46,7 +46,7 @@ export function DeleteMediaButton({
 
   if (error) {
     return (
-      <span className="font-mono text-4xs text-danger" title={error}>
+      <span className="text-4xs text-danger" title={error}>
         {error}
       </span>
     );

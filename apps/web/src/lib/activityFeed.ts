@@ -225,8 +225,9 @@ const TIMELINE_LABELS: Record<ActivityKind, string> = {
   "photo.deleted": "写真を削除",
   "photo.description_set": "説明を書いた",
   "photo.description_cleared": "説明を消した",
-  "photo.reaction_added": "❤️を付けた",
-  "photo.reaction_removed": "❤️を取り消した",
+  // 画面ではハートのアイコンが隣に出るので、文言には絵文字を入れない（デザイン刷新の段階2）
+  "photo.reaction_added": "ハートを付けた",
+  "photo.reaction_removed": "ハートを取り消した",
   "album.created": "アルバムを作成",
   "album.deleted": "アルバムを削除",
   "game.added": "ゲームを追加",
@@ -242,6 +243,11 @@ const TIMELINE_LABELS: Record<ActivityKind, string> = {
   "proposal.withdrawn": "提案を取り下げた",
   "member.joined": "グループに参加",
 };
+
+/** 種類の短い説明（「写真を投稿」など）。画面でアイコンだけを並べる所の読み上げ用にも使う */
+export function timelineLabel(kind: string): string {
+  return TIMELINE_LABELS[kind as ActivityKind] ?? kind;
+}
 
 /** detail から1行の補足を作る。**入っていない形は黙って捨てる**（表示のために例外を投げない） */
 function noteOf(kind: string, detail: unknown): string | null {

@@ -1727,8 +1727,8 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       `/admin/activity?group=${group.id}&month=${month}&date=${dateString}`,
       { cookie }
     );
-    // チップは「📷 3」の形。タイムラインの行は絵文字とラベルの間にタグが挟まるので当たらない
-    const m = res.text.match(/📷 (\d+)/);
+    // 選んだ日の内訳のチップ。件数は属性に持たせてある（絵文字をやめてアイコンにしたので、文字では拾えない。デザイン刷新の段階2）
+    const m = res.text.match(/data-day-kind="photo\.created" data-count="(\d+)"/);
     return { status: res.status, photos: m ? Number(m[1]) : 0, text: res.text };
   };
 
@@ -4081,9 +4081,9 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     const gameHref = `/groups/${group.id}/games/${game.id}`;
     const delta = dayTotal(after.text) - dayTotal(before.text);
     check(
-      "F300 活動カレンダーにプレイ記録が載る（日のマスに🎮・その日の合計・タイムラインに1回1行でゲームへのリンク）。管理者以外には出ない",
+      "F300 活動カレンダーにプレイ記録が載る（日のマスに遊んだアイコン・その日の合計・タイムラインに1回1行でゲームへのリンク）。管理者以外には出ない",
       after.status === 200 && delta === 90 * 60000 && (cellMs(monthView.text) ?? 0) >= 90 * 60000 &&
-        after.text.includes(" を 1時間30分") && after.text.includes(gameHref) && monthView.text.includes("🎮") &&
+        after.text.includes(" を 1時間30分") && after.text.includes(gameHref) && monthView.text.includes('data-kind="play.session"') &&
         !byMember.text.includes("day-play-total") && !byMember.text.includes("この月の記録"),
       `合計の増分=${delta / 60000}分 / マス=${cellMs(monthView.text)} / 行=${after.text.includes(" を 1時間30分")} / 管理者以外に出る=${byMember.text.includes("day-play-total")}`
     );

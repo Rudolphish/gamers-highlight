@@ -63,7 +63,7 @@ export default async function AdminPlayLogPage({ searchParams }: { searchParams:
             <div className="flex flex-wrap gap-1">
               <Link
                 href={linkTo({ group: null })}
-                className={`rounded-sm border px-2.5 py-1.5 font-mono text-3xs ${groupId === null ? "border-steam-blue text-steam-blue" : "border-steam-border text-steam-muted hover:text-steam-text"}`}
+                className={`rounded-sm border px-2.5 py-1.5 text-3xs ${groupId === null ? "border-steam-blue text-steam-blue" : "border-steam-border text-steam-muted hover:text-steam-text"}`}
               >
                 すべて
               </Link>
@@ -71,7 +71,7 @@ export default async function AdminPlayLogPage({ searchParams }: { searchParams:
                 <Link
                   key={g.id}
                   href={linkTo({ group: g.id })}
-                  className={`rounded-sm border px-2.5 py-1.5 font-mono text-3xs ${g.id === groupId ? "border-steam-blue text-steam-blue" : "border-steam-border text-steam-muted hover:text-steam-text"}`}
+                  className={`rounded-sm border px-2.5 py-1.5 text-3xs ${g.id === groupId ? "border-steam-blue text-steam-blue" : "border-steam-border text-steam-muted hover:text-steam-text"}`}
                 >
                   {g.name}
                 </Link>
@@ -80,31 +80,31 @@ export default async function AdminPlayLogPage({ searchParams }: { searchParams:
             <AdminAddPlaySessionButton groups={groups} defaultGroupId={groupId} />
           </div>
 
-          <p className="mt-3 font-mono text-3xs text-steam-muted">
+          <p className="mt-3 text-3xs text-steam-muted">
             {`${listed.total} 件 ・ 進行中の記録は、終わってから直せます ・ 時刻は日本時間`}
           </p>
 
           {listed.sessions.length === 0 ? (
-            <p className="mt-6 font-mono text-xs text-steam-muted">プレイ記録はまだありません。</p>
+            <p className="mt-6 text-xs text-steam-muted">プレイ記録はまだありません。</p>
           ) : (
             <ul className="mt-3 flex flex-col gap-2">
               {listed.sessions.map((s) => {
                 const durationMs = s.endedAt ? Date.parse(s.endedAt) - Date.parse(s.startedAt) : null;
                 return (
-                  <li key={s.id} data-play-session={s.id} className="rounded-sm border border-steam-border bg-steam-surface p-3">
+                  <li key={s.id} data-play-session={s.id} className="rounded-xl bg-steam-surface p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-display text-sm font-semibold text-steam-text">
                           {s.title}
-                          {!s.groupGameId && <span className="ml-2 font-mono text-4xs text-warning">ゲーム未結びつき</span>}
-                          {s.manual && <span className="ml-2 font-mono text-4xs text-steam-blue">手動で追加</span>}
-                          {s.estimated && <span className="ml-2 font-mono text-4xs text-steam-muted">終わりは推定</span>}
+                          {!s.groupGameId && <span className="ml-2 text-4xs text-warning">ゲーム未結びつき</span>}
+                          {s.manual && <span className="ml-2 text-4xs text-steam-blue">手動で追加</span>}
+                          {s.estimated && <span className="ml-2 text-4xs text-steam-muted">終わりは推定</span>}
                         </p>
-                        <p className="mt-0.5 font-mono text-3xs text-steam-muted">
+                        <p className="mt-0.5 text-3xs text-steam-muted">
                           {`${s.groupName} ・ ${jstLabel(s.startedAt)} 〜 ${s.endedAt ? jstLabel(s.endedAt) : "進行中"}`}
                           {durationMs !== null && ` ・ ${formatPlayDuration(durationMs)}`}
                         </p>
-                        <p className="mt-0.5 font-mono text-3xs text-steam-text">
+                        <p className="mt-0.5 text-3xs text-steam-text">
                           {`参加: ${s.participants.map((p) => p.name).join("、") || "（なし）"}`}
                         </p>
                       </div>
@@ -117,7 +117,7 @@ export default async function AdminPlayLogPage({ searchParams }: { searchParams:
           )}
 
           {listed.pageCount > 1 && (
-            <div className="mt-4 flex items-center gap-3 font-mono text-3xs">
+            <div className="mt-4 flex items-center gap-3 text-3xs">
               {listed.page > 1 && (
                 <Link href={linkTo({ page: listed.page - 1 })} className="text-steam-blue">
                   ← 新しい方へ

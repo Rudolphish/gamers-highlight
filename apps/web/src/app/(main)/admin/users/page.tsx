@@ -79,14 +79,14 @@ export default async function AdminUsersPage({
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-1.5">
-            <span className="font-mono text-4xs uppercase tracking-wide text-steam-muted">
+            <span className="text-4xs uppercase tracking-wide text-steam-muted">
               並べ替え
             </span>
             {SORTS.map((s) => (
               <Link
                 key={s.key}
                 href={s.key === "posts" ? "/admin/users" : `/admin/users?sort=${s.key}`}
-                className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
+                className={`rounded-sm border px-2 py-1 text-3xs transition ${
                   sort === s.key
                     ? "border-steam-blue text-steam-blue"
                     : "border-steam-border text-steam-muted hover:border-steam-blue"
@@ -98,12 +98,12 @@ export default async function AdminUsersPage({
           </div>
 
           {data.rows.length === 0 ? (
-            <p className="mt-6 font-mono text-sm text-steam-muted">ユーザーがいません。</p>
+            <p className="mt-6 text-sm text-steam-muted">ユーザーがいません。</p>
           ) : (
             <div className="mt-4 overflow-x-auto rounded-sm border border-steam-border">
               <table className="w-full min-w-[820px] border-collapse">
                 <thead>
-                  <tr className="bg-steam-panel text-left font-mono text-4xs uppercase tracking-wide text-steam-muted">
+                  <tr className="bg-steam-panel text-left text-4xs uppercase tracking-wide text-steam-muted">
                     <th className="px-3 py-2">ユーザー</th>
                     <th className="px-3 py-2">所属グループ</th>
                     <th className="px-3 py-2 text-right">画像</th>
@@ -122,17 +122,17 @@ export default async function AdminUsersPage({
                       className="border-t border-steam-border bg-steam-surface align-top"
                     >
                       <td className="max-w-[180px] px-3 py-2">
-                        <p className="truncate font-mono text-3xs text-steam-text">
+                        <p className="truncate text-3xs text-steam-text">
                           {u.name ?? "(名前なし)"}
                         </p>
-                        <p className="truncate font-mono text-4xs text-steam-muted">
+                        <p className="truncate text-4xs text-steam-muted">
                           {u.email ?? "-"}
                         </p>
                       </td>
 
                       <td className="max-w-[260px] px-3 py-2">
                         {u.groups.length === 0 ? (
-                          <span className="font-mono text-4xs text-steam-muted">
+                          <span className="text-4xs text-steam-muted">
                             所属なし
                           </span>
                         ) : (
@@ -142,7 +142,7 @@ export default async function AdminUsersPage({
                                 key={`${u.id}-${g.id}`}
                                 href={`/groups/${g.id}`}
                                 title={ROLE_LABEL[g.role] ?? g.role}
-                                className="rounded-sm border border-steam-border px-1.5 py-0.5 font-mono text-4xs text-steam-muted hover:border-steam-blue hover:text-steam-blue"
+                                className="rounded-sm border border-steam-border px-1.5 py-0.5 text-4xs text-steam-muted hover:border-steam-blue hover:text-steam-blue"
                               >
                                 {g.name}
                                 <span className="ml-1 text-steam-muted">
@@ -154,29 +154,29 @@ export default async function AdminUsersPage({
                         )}
                       </td>
 
-                      <td className="px-3 py-2 text-right font-mono text-3xs text-steam-muted">
+                      <td className="px-3 py-2 text-right text-3xs text-steam-muted">
                         <span className="inline-flex items-center gap-1">
                           <ImageIcon size={11} className="text-steam-blue/70" />
                           {u.images.toLocaleString()}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-right font-mono text-3xs text-steam-muted">
+                      <td className="px-3 py-2 text-right text-3xs text-steam-muted">
                         <span className="inline-flex items-center gap-1">
                           <Film size={11} className="text-steam-blue/70" />
                           {u.videos.toLocaleString()}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-right font-mono text-3xs text-steam-muted">
+                      <td className="px-3 py-2 text-right text-3xs text-steam-muted">
                         <span className="inline-flex items-center gap-1">
                           <Youtube size={11} className="text-[#ff4d4d]/70" />
                           {u.youtubeCount.toLocaleString()}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-right font-mono text-3xs font-bold text-steam-text">
+                      <td className="px-3 py-2 text-right text-3xs font-bold text-steam-text">
                         {u.total.toLocaleString()}
                       </td>
 
-                      <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-3xs text-steam-muted">
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-3xs text-steam-muted">
                         {u.knownBytes > 0 ? formatBytes(u.knownBytes) : "-"}
                         {/* Discord経由の投稿はサイズを持たないので、合計は下限でしかない */}
                         {u.unknownSizeCount > 0 && (
@@ -189,14 +189,14 @@ export default async function AdminUsersPage({
                         )}
                       </td>
 
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-3xs text-steam-muted">
+                      <td className="whitespace-nowrap px-3 py-2 text-3xs text-steam-muted">
                         {u.lastPostedAt ? (
                           u.lastPostedAt.toLocaleDateString("ja-JP")
                         ) : (
                           <span className="text-steam-muted/50">なし</span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-3xs text-steam-muted">
+                      <td className="whitespace-nowrap px-3 py-2 text-3xs text-steam-muted">
                         {u.createdAt.toLocaleDateString("ja-JP")}
                       </td>
                     </tr>
@@ -206,7 +206,7 @@ export default async function AdminUsersPage({
             </div>
           )}
 
-          <p className="mt-3 flex items-start gap-1.5 font-mono text-4xs text-steam-muted">
+          <p className="mt-3 flex items-start gap-1.5 text-4xs text-steam-muted">
             <Users size={11} className="mt-0.5 shrink-0" />
             容量はサイズが記録されている投稿の合計です。Discord経由で取り込んだ投稿は
             サイズを持たないことがあるため、実際の使用量はこれより大きくなります。
@@ -220,11 +220,11 @@ export default async function AdminUsersPage({
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-sm border border-steam-border bg-steam-surface p-3">
-      <p className="font-mono text-4xs uppercase tracking-wide text-steam-muted">{label}</p>
+    <div className="rounded-xl bg-steam-surface p-3">
+      <p className="text-4xs uppercase tracking-wide text-steam-muted">{label}</p>
       <p className="mt-1 font-display text-xl font-bold text-steam-text">
         {value}
-        {sub && <span className="ml-1.5 font-mono text-xs text-steam-blue">{sub}</span>}
+        {sub && <span className="ml-1.5 text-xs text-steam-blue">{sub}</span>}
       </p>
     </div>
   );

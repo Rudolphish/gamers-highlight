@@ -23,13 +23,13 @@ export default function RootError({
       <AlertTriangle size={40} className="text-danger" />
       <div>
         <h1 className="font-display text-xl font-bold text-steam-text">エラーが発生しました</h1>
-        <p className="mt-1 font-mono text-xs text-steam-muted">
+        <p className="mt-1 text-xs text-steam-muted">
           予期しない問題が起きました。再試行してもうまくいかない場合は時間を置いて試してください。
         </p>
       </div>
       <button
         onClick={reset}
-        className="flex items-center gap-1.5 rounded-sm bg-accent px-4 py-2 font-mono text-xs font-bold text-accent-ink"
+        className="flex items-center gap-1.5 rounded-sm bg-accent px-4 py-2 text-xs font-bold text-accent-ink"
       >
         <RotateCw size={13} /> 再試行
       </button>

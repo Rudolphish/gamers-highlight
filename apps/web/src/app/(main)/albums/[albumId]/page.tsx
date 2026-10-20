@@ -101,7 +101,7 @@ export default async function AlbumDetailPage({
     <main className="p-4 sm:p-6">
       <Link
         href={`/groups/${album.groupId}`}
-        className="inline-flex items-center gap-1.5 font-mono text-xs text-steam-muted hover:text-steam-text"
+        className="inline-flex items-center gap-1.5 text-xs text-steam-muted hover:text-steam-text"
       >
         <ArrowLeft size={14} /> {album.group.name}に戻る
       </Link>
@@ -115,11 +115,11 @@ export default async function AlbumDetailPage({
               {album.title}
             </h1>
           )}
-          <p className="mt-1 font-mono text-xs text-steam-muted">{memberNames.join(" / ")}</p>
+          <p className="mt-1 text-xs text-steam-muted">{memberNames.join(" / ")}</p>
           {album.groupGame && (
             <Link
               href={`/groups/${album.groupId}/games/${album.groupGame.id}`}
-              className="mt-1 inline-flex items-center gap-1 font-mono text-2xs text-steam-blue hover:underline"
+              className="mt-1 inline-flex items-center gap-1 text-2xs text-steam-blue hover:underline"
             >
               <Gamepad2 size={12} /> ゲーム詳細を見る
             </Link>
@@ -162,7 +162,7 @@ export default async function AlbumDetailPage({
 
       <div className="mt-6">
         {photos.length === 0 ? (
-          <p className="font-mono text-sm text-steam-muted">
+          <p className="text-sm text-steam-muted">
             まだ写真/動画がありません。上の「追加」から上げるか、Discordに投稿してみましょう。
           </p>
         ) : (

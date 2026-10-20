@@ -12,12 +12,12 @@ export function GameStoreBadges({
   return (
     <>
       {reviews && (
-        <span className="rounded-sm border border-positive/50 px-1.5 py-0.5 font-mono text-3xs text-positive">
+        <span className="rounded-sm border border-positive/50 px-1.5 py-0.5 text-3xs text-positive">
           {reviews.scoreDesc}（{reviews.totalReviews.toLocaleString()}件）
         </span>
       )}
       {price && (
-        <span className="rounded-sm border border-steam-border px-1.5 py-0.5 font-mono text-3xs text-steam-text">
+        <span className="rounded-sm border border-steam-border px-1.5 py-0.5 font-num text-3xs text-steam-text">
           {price.isFree
             ? "無料"
             : price.discountPercent > 0

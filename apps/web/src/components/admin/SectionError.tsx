@@ -7,8 +7,8 @@ export function SectionError({ message }: { message: string }) {
     <div className="mt-3 flex items-start gap-2 rounded-sm border border-danger/40 bg-steam-panel p-3">
       <AlertCircle size={14} className="mt-0.5 flex-shrink-0 text-danger" />
       <div className="min-w-0">
-        <p className="font-mono text-3xs text-steam-text">取得できませんでした</p>
-        <p className="mt-0.5 break-words font-mono text-4xs text-steam-muted">{message}</p>
+        <p className="text-3xs text-steam-text">取得できませんでした</p>
+        <p className="mt-0.5 break-words text-4xs text-steam-muted">{message}</p>
       </div>
     </div>
   );

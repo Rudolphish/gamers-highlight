@@ -32,14 +32,14 @@ export default async function GroupsPage() {
         </h1>
         <Link
           href="/groups/new"
-          className="flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink"
+          className="flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink"
         >
           <Plus size={14} /> 新規グループ
         </Link>
       </div>
 
       {groups.length === 0 ? (
-        <p className="mt-6 font-mono text-sm text-steam-muted">
+        <p className="mt-6 text-sm text-steam-muted">
           まだグループがありません。作成して仲間を招待しましょう。
         </p>
       ) : (
@@ -48,12 +48,12 @@ export default async function GroupsPage() {
             <Link
               key={group.id}
               href={`/groups/${group.id}`}
-              className="rounded-sm border border-steam-border bg-steam-surface p-3 transition hover:border-steam-blue"
+              className="rounded-xl bg-steam-surface p-3 transition hover:border-steam-blue"
             >
               <p className="truncate font-display text-base font-semibold text-steam-text">
                 {group.name}
               </p>
-              <div className="mt-2 flex items-center gap-3 font-mono text-3xs text-steam-muted">
+              <div className="mt-2 flex items-center gap-3 text-3xs text-steam-muted">
                 <span className="flex items-center gap-1">
                   <Film size={11} /> {group._count.albums}
                 </span>
