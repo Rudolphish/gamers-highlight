@@ -1,5 +1,4 @@
 import Image from "next/image";
-import { formatRelativeTime } from "@/lib/relative-time";
 
 type Member = { id: string; name?: string | null; avatarUrl?: string | null };
 
@@ -10,7 +9,13 @@ type AlbumCardProps = {
   photoCount: number;
   members: Member[]; // 表示用（最大4人程度に絞って渡す想定）
   memberCount: number; // 実際の総メンバー数（+N表示に使用）
-  updatedAt: Date | string;
+  /**
+   * 「3時間前」のような表示。**サーバーで作った文字列を受け取る**（ここで Date.now() から計算しない）。
+   * この部品はクライアント部品（AlbumSearch・ExpandableAlbumGrid）の中で描かれるので、
+   * 計算するとサーバーとブラウザで時刻がずれ、分や時間の境目をまたいだ回だけ表示が食い違って
+   * React #425/#422 が出ていた（B93 が時々落ちていた原因）
+   */
+  updatedLabel: string;
   groupName?: string | null; // 指定時、どのグループ所属か分かるバッジを表示（フラットなアルバム一覧向け）
 };
 
@@ -21,7 +26,7 @@ export function AlbumCard({
   photoCount,
   members,
   memberCount,
-  updatedAt,
+  updatedLabel,
   groupName,
 }: AlbumCardProps) {
   const extraMembers = Math.max(memberCount - members.length, 0);
@@ -91,7 +96,7 @@ export function AlbumCard({
           </div>
 
           <span className="font-mono text-3xs text-steam-muted/70">
-            {formatRelativeTime(updatedAt)}
+            {updatedLabel}
           </span>
         </div>
       </div>

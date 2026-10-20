@@ -15,6 +15,8 @@ type Album = {
   members: Member[];
   memberCount: number;
   updatedAt: Date | string;
+  /** 表示用の「3時間前」。サーバーで作る（AlbumCard のコメント参照） */
+  updatedLabel: string;
   createdAt: Date | string;
   groupName?: string | null;
 };

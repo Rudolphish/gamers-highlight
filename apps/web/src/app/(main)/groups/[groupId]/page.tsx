@@ -20,6 +20,7 @@ import { PlayTotalBanner } from "@/components/group/PlayTotalBanner";
 import { getRecentActivity } from "@/lib/activityFeed";
 import { RecentActivity } from "@/components/group/RecentActivity";
 import { isAdminEmail } from "@/lib/admin";
+import { formatRelativeTime } from "@/lib/relative-time";
 import { PlayLogMinParticipantsSetting } from "@/components/group/PlayLogMinParticipantsSetting";
 import { UnknownPlays } from "@/components/group/UnknownPlays";
 
@@ -177,6 +178,8 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       members: memberList,
       memberCount: album._count.members + 1,
       updatedAt: album.updatedAt,
+      // 表示はサーバーで作る（components/album/AlbumCard.tsx のコメント参照）
+      updatedLabel: formatRelativeTime(album.updatedAt),
       // 並び替えの「新着順」で使う。**アルバムが作られた時刻**なので、投稿が増えても動かない
       // （updatedAt の方は投稿で動く。以前ここには逆のことが書いてあった——実装では
       //  写真を作ってもアルバムの行を触らないので updatedAt は動いておらず、
