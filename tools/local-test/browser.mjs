@@ -2953,6 +2953,66 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── ゲーム詳細の「情報を更新」がハイドレーションで食い違わない（B08 を追っていて見つけた） ──
+// RefreshGameDataButton は (1) 日時をタイムゾーン指定なしで文字にしていたため、サーバー（Vercel は UTC）と
+// ブラウザ（日本）で必ず違う文字になり（#425）、(2)「まだ更新できない」をブラウザの時計で判定していたため、
+// 時計がずれていると「次に更新できるのは…」の行の有無が食い違っていた（#418）。どちらも #422 を伴う。
+// このテスト環境はサーバーもブラウザも UTC なので、**ブラウザだけを日本時間にする／時計だけをずらす**ことで起こす。
+// 直前に「情報を更新」を押して、最終更新の時刻がある・まだ更新できない状態を作ってから開く
+{
+  const gamePath = `/groups/${ids.groupId}/games/${ids.gameId}`;
+  const prep = await context.newPage();
+  let prepared = "未実行";
+  try {
+    await prep.goto(BASE + gamePath, { waitUntil: "networkidle" });
+    // 429（直近に更新済み）でも「まだ更新できない」状態になっているので、どちらでもよい
+    prepared = String(await prep.evaluate((u) => fetch(u, { method: "POST" }).then((r) => r.status), `/api/groups/${ids.groupId}/games/${ids.gameId}/refresh`));
+  } catch (e) {
+    prepared = `失敗: ${String(e.message ?? e).slice(0, 60)}`;
+  } finally {
+    await prep.close();
+  }
+
+  const cases = [
+    { id: "B121", item: "ブラウザが日本時間でも、ゲーム詳細の「最終更新」の日時で例外が出ない", options: { timezoneId: "Asia/Tokyo" }, shiftMs: 0 },
+    { id: "B122", item: "ブラウザの時計がずれていても、ゲーム詳細の「次に更新できるのは…」で例外が出ない", options: {}, shiftMs: 24 * 60 * 60 * 1000 + 60 * 1000 },
+  ];
+  for (const c of cases) {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, ...c.options });
+    await ctx.addCookies(await context.cookies());
+    if (c.shiftMs) {
+      await ctx.addInitScript((ms) => {
+        const real = Date.now;
+        Date.now = () => real() + ms;
+      }, c.shiftMs);
+    }
+    const page = await ctx.newPage();
+    const problems = [];
+    watchPageErrors(page, problems, c.id);
+    try {
+      await page.goto(BASE + gamePath, { waitUntil: "networkidle" });
+      await page.waitForTimeout(500);
+      // 何も描かれていないのに通る、を防ぐ。ボタンと最終更新の時刻が出ていること
+      const shown = await page.evaluate(() => ({
+        button: [...document.querySelectorAll("button")].some((b) => b.textContent?.includes("情報を更新")),
+        refreshed: document.body.innerText.includes("最終更新:"),
+      }));
+      rows.push({
+        id: c.id,
+        item: c.item,
+        expected: "例外なし・「情報を更新」と最終更新の時刻が出ている",
+        actual: `${problems.slice(0, 2).join(" / ") || "例外なし"} / ボタン=${shown.button} 最終更新=${shown.refreshed}（準備の更新=${prepared}）`,
+        ok: problems.length === 0 && shown.button && shown.refreshed,
+        note: "",
+      });
+    } catch (e) {
+      rows.push({ id: c.id, item: c.item, expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+    } finally {
+      await ctx.close();
+    }
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）

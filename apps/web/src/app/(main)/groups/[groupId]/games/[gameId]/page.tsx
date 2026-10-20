@@ -126,6 +126,7 @@ export default async function GroupGameDetailPage({
                 nextAvailableAt={
                   cache ? new Date(cache.updatedAt.getTime() + REFRESH_INTERVAL_MS).toISOString() : null
                 }
+                initiallyWaiting={!!cache && cache.updatedAt.getTime() + REFRESH_INTERVAL_MS > Date.now()}
                 canRefresh={canRefresh}
               />
             </div>
