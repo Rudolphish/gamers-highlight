@@ -37,13 +37,31 @@ const IGNORED = [
   /fonts\.gstatic\.com/,
   /_next\/image\?url=http%3A%2F%2F127\.0\.0\.1%3A9100/,
   /Failed to fetch RSC payload/,
-  //   - YouTubeの埋め込み（youtube-nocookie.com）と i.ytimg.com:
-  //     サンドボックスから外へ出られないので必ず失敗する。**アプリ側は
+  //   - YouTubeのサムネイル（i.ytimg.com）など: サンドボックスから外へ出られないので必ず失敗する
+  //     （埋め込み本体は youtube.com/embed。そこから出るエラーは下の THIRD_PARTY_FRAMES で除く）。**アプリ側は
   //     iframeのsrcを組み立てるだけ**なので、ここで確認できるのはURLが正しいことまで。
   //     実際に再生できるかは本番でしか見られない（README参照）。
   /youtube-nocookie\.com/,
   /i\.ytimg\.com/,
 ];
+
+// **埋め込んだ YouTube の中から出たコンソールのエラーは数えない。** 関連動画は `youtube.com/embed` の iframe で、
+// 手元は外へ出られないので読み込まれないが、**CIは外へ出られるので本物のプレーヤーが動く。**
+// そのプレーヤーが iframe で許されていない機能を呼ぶと、Chrome が
+// 「Permissions policy violation: compute-pressure is not allowed in this document.」のように出す
+// （2026-10-20 に CI の B08 がこれで落ちた。B08 の提案は採用済みで、動画のあるゲーム詳細へ転送される）。
+// アプリが直せるものではなく、YouTube 側の更新次第で出たり出なかったりする。判定は**出どころ（location）で**行う
+// （文言で消すと、同じ文言をアプリが出したときまで見逃す）
+const THIRD_PARTY_FRAMES = [/^https:\/\/(www\.)?youtube(-nocookie)?\.com\//, /^https:\/\/[^/]*\.(ytimg|googlevideo)\.com\//];
+
+/** 数えなくてよいコンソールのエラーか（アプリの不具合ではないと分かっているもの） */
+function isIgnoredConsole(m) {
+  const text = m.text();
+  const from = m.location()?.url ?? "";
+  if (IGNORED.some((re) => re.test(text))) return true;
+  if (text.includes("Failed to load resource") && IGNORED.some((re) => re.test(from))) return true;
+  return THIRD_PARTY_FRAMES.some((re) => re.test(from));
+}
 
 const targets = [
   ["B01", "ホーム", "/"],
@@ -100,8 +118,7 @@ for (const [id, label, path] of targets) {
   page.on("console", (m) => {
     if (m.type() !== "error") return;
     const text = m.text();
-    if (IGNORED.some((re) => re.test(text))) return;
-    if (text.includes("Failed to load resource") && IGNORED.some((re) => re.test(m.location()?.url ?? ""))) return;
+    if (isIgnoredConsole(m)) return;
     problems.push(text.slice(0, 140));
   });
 
@@ -1691,8 +1708,7 @@ for (const [id, label, path] of targets) {
   page.on("console", (m) => {
     if (m.type() !== "error") return;
     const text = m.text();
-    if (IGNORED.some((re) => re.test(text))) return;
-    if (text.includes("Failed to load resource") && IGNORED.some((re) => re.test(m.location()?.url ?? ""))) return;
+    if (isIgnoredConsole(m)) return;
     problems.push(text.slice(0, 140));
   });
 
@@ -2043,8 +2059,7 @@ for (const [id, label, path] of targets) {
   page.on("console", (m) => {
     if (m.type() !== "error") return;
     const text = m.text();
-    if (IGNORED.some((re) => re.test(text))) return;
-    if (text.includes("Failed to load resource") && IGNORED.some((re) => re.test(m.location()?.url ?? ""))) return;
+    if (isIgnoredConsole(m)) return;
     problems.push(text.slice(0, 140));
   });
 
@@ -2950,6 +2965,66 @@ for (const [id, label, path] of targets) {
     rows.push({ id: "B120", item: "アルバムのカードのハイドレーション", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
   } finally {
     await shifted.close();
+  }
+}
+
+// ── ゲーム詳細の「情報を更新」がハイドレーションで食い違わない（B08 を追っていて見つけた） ──
+// RefreshGameDataButton は (1) 日時をタイムゾーン指定なしで文字にしていたため、サーバー（Vercel は UTC）と
+// ブラウザ（日本）で必ず違う文字になり（#425）、(2)「まだ更新できない」をブラウザの時計で判定していたため、
+// 時計がずれていると「次に更新できるのは…」の行の有無が食い違っていた（#418）。どちらも #422 を伴う。
+// このテスト環境はサーバーもブラウザも UTC なので、**ブラウザだけを日本時間にする／時計だけをずらす**ことで起こす。
+// 直前に「情報を更新」を押して、最終更新の時刻がある・まだ更新できない状態を作ってから開く
+{
+  const gamePath = `/groups/${ids.groupId}/games/${ids.gameId}`;
+  const prep = await context.newPage();
+  let prepared = "未実行";
+  try {
+    await prep.goto(BASE + gamePath, { waitUntil: "networkidle" });
+    // 429（直近に更新済み）でも「まだ更新できない」状態になっているので、どちらでもよい
+    prepared = String(await prep.evaluate((u) => fetch(u, { method: "POST" }).then((r) => r.status), `/api/groups/${ids.groupId}/games/${ids.gameId}/refresh`));
+  } catch (e) {
+    prepared = `失敗: ${String(e.message ?? e).slice(0, 60)}`;
+  } finally {
+    await prep.close();
+  }
+
+  const cases = [
+    { id: "B121", item: "ブラウザが日本時間でも、ゲーム詳細の「最終更新」の日時で例外が出ない", options: { timezoneId: "Asia/Tokyo" }, shiftMs: 0 },
+    { id: "B122", item: "ブラウザの時計がずれていても、ゲーム詳細の「次に更新できるのは…」で例外が出ない", options: {}, shiftMs: 24 * 60 * 60 * 1000 + 60 * 1000 },
+  ];
+  for (const c of cases) {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, ...c.options });
+    await ctx.addCookies(await context.cookies());
+    if (c.shiftMs) {
+      await ctx.addInitScript((ms) => {
+        const real = Date.now;
+        Date.now = () => real() + ms;
+      }, c.shiftMs);
+    }
+    const page = await ctx.newPage();
+    const problems = [];
+    watchPageErrors(page, problems, c.id);
+    try {
+      await page.goto(BASE + gamePath, { waitUntil: "networkidle" });
+      await page.waitForTimeout(500);
+      // 何も描かれていないのに通る、を防ぐ。ボタンと最終更新の時刻が出ていること
+      const shown = await page.evaluate(() => ({
+        button: [...document.querySelectorAll("button")].some((b) => b.textContent?.includes("情報を更新")),
+        refreshed: document.body.innerText.includes("最終更新:"),
+      }));
+      rows.push({
+        id: c.id,
+        item: c.item,
+        expected: "例外なし・「情報を更新」と最終更新の時刻が出ている",
+        actual: `${problems.slice(0, 2).join(" / ") || "例外なし"} / ボタン=${shown.button} 最終更新=${shown.refreshed}（準備の更新=${prepared}）`,
+        ok: problems.length === 0 && shown.button && shown.refreshed,
+        note: "",
+      });
+    } catch (e) {
+      rows.push({ id: c.id, item: c.item, expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+    } finally {
+      await ctx.close();
+    }
   }
 }
 

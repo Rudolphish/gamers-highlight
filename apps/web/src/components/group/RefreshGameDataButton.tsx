@@ -5,8 +5,12 @@ import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 
+// **タイムゾーンを決め打ちする。** 指定しないと実行環境のタイムゾーンで書くので、サーバー（Vercel は UTC）と
+// ブラウザ（日本）で違う時刻の文字になり、ゲーム詳細を開くたびにハイドレーションが食い違っていた
+// （React #425/#422。画面はブラウザ側で描き直して正しく見えるので気づけなかった。CLAUDE.md）
 function formatWhen(iso: string): string {
   return new Date(iso).toLocaleString("ja-JP", {
+    timeZone: "Asia/Tokyo",
     month: "numeric",
     day: "numeric",
     hour: "2-digit",
@@ -26,12 +30,15 @@ export function RefreshGameDataButton({
   gameId,
   refreshedAt,
   nextAvailableAt,
+  initiallyWaiting,
   canRefresh,
 }: {
   groupId: string;
   gameId: string;
   refreshedAt: string | null;
   nextAvailableAt: string | null;
+  /** サーバーで判定した「まだ更新できない」。最初の描画はこれを使う（下のコメント参照） */
+  initiallyWaiting: boolean;
   canRefresh: boolean;
 }) {
   const router = useRouter();
@@ -43,7 +50,13 @@ export function RefreshGameDataButton({
   useEffect(() => setLastRefreshed(refreshedAt), [refreshedAt]);
   useEffect(() => setAvailableAt(nextAvailableAt), [nextAvailableAt]);
 
-  const waiting = availableAt !== null && new Date(availableAt).getTime() > Date.now();
+  // **最初の描画ではブラウザの時計で判定しない。** ここで Date.now() を見ると、サーバーとブラウザの時計が
+  // ずれている・判定の境目をまたいだときに「次に更新できるのは…」の行の有無が食い違う（React #418）。
+  // 最初はサーバーの判定を使い、表示されてからブラウザの時計で見直す
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => setNow(Date.now()), [availableAt]);
+  const waiting =
+    availableAt !== null && (now === null ? initiallyWaiting : new Date(availableAt).getTime() > now);
 
   async function refresh() {
     if (pending) return;
