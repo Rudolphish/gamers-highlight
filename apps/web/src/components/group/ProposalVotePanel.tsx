@@ -114,7 +114,7 @@ export function ProposalVotePanel({
           style={{ width: `${Math.min((likeCount / likeThreshold) * 100, 100)}%` }}
         />
       </div>
-      <p className="mt-1 font-mono text-4xs text-steam-muted/70">
+      <p className="mt-1 font-mono text-4xs text-steam-muted">
         「やりたい」が{likeThreshold}人に達すると、自動でゲームリストに追加されます
       </p>
 
@@ -137,7 +137,7 @@ export function ProposalVotePanel({
                 <Icon size={12} /> {label} {votedBy.length}
               </button>
               {votedBy.length > 0 && (
-                <p className="min-w-0 flex-1 pt-1.5 font-mono text-4xs text-steam-muted/70">
+                <p className="min-w-0 flex-1 pt-1.5 font-mono text-4xs text-steam-muted">
                   {votedBy.map((v) => v.name).join("、")}
                 </p>
               )}
@@ -150,14 +150,14 @@ export function ProposalVotePanel({
         <button
           onClick={withdraw}
           disabled={withdrawing}
-          className="mt-3 inline-flex items-center gap-1.5 font-mono text-3xs text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
+          className="mt-3 inline-flex items-center gap-1.5 font-mono text-3xs text-steam-muted transition hover:text-danger disabled:opacity-50"
         >
           {withdrawing ? <Spinner size={11} /> : <Trash2 size={11} />}
           この提案を取り下げる
         </button>
       )}
 
-      {error && <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-2 font-mono text-3xs text-danger">{error}</p>}
     </div>
   );
 }

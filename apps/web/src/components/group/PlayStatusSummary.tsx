@@ -22,8 +22,8 @@ export function PlayStatusSummary({ groupId, games }: { groupId: string; games: 
 
   return (
     <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <StatusRow groupId={groupId} label="プレイ中" games={playing} accentClass="text-[#a4d007]" />
-      <StatusRow groupId={groupId} label="積みゲー" games={backlog} accentClass="text-[#e0a323]" />
+      <StatusRow groupId={groupId} label="プレイ中" games={playing} accentClass="text-positive" />
+      <StatusRow groupId={groupId} label="積みゲー" games={backlog} accentClass="text-warning" />
     </div>
   );
 }

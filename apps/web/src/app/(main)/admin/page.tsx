@@ -102,7 +102,7 @@ export default async function AdminUsagePage() {
               </dl>
 
               {storageResult.value.orphanCount > 0 && (
-                <p className="mt-2 flex items-start gap-1.5 font-mono text-4xs text-[#e0a323]">
+                <p className="mt-2 flex items-start gap-1.5 font-mono text-4xs text-warning">
                   <AlertCircle size={11} className="mt-0.5 flex-shrink-0" />
                   DBのどのレコードからも参照されていないファイルです。動画のサムネイルは
                   Photoレコードを持たない設計なので、その分はここに含まれます。
@@ -161,7 +161,7 @@ export default async function AdminUsagePage() {
                 ))}
               </dl>
               {mediaResult.value.missingSize > 0 && (
-                <p className="mt-2 font-mono text-4xs text-steam-muted/70">
+                <p className="mt-2 font-mono text-4xs text-steam-muted">
                   うち{mediaResult.value.missingSize}
                   件はサイズ未記録（Discord経由の投稿など）。容量はストレージ側の実測を参照。
                 </p>
@@ -196,7 +196,7 @@ export default async function AdminUsagePage() {
               <div className="mt-2 flex flex-col gap-1">
                 {youtubeResult.value.history.map((h) => (
                   <div key={h.date} className="flex items-center gap-2">
-                    <span className="w-20 flex-shrink-0 font-mono text-4xs text-steam-muted/70">
+                    <span className="w-20 flex-shrink-0 font-mono text-4xs text-steam-muted">
                       {h.date}
                     </span>
                     <div className="h-1.5 flex-1 overflow-hidden rounded-sm bg-steam-panel">

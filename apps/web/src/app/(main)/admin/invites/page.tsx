@@ -23,10 +23,10 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 const STATUS_CLASS: Record<InviteStatus, string> = {
-  active: "text-[#a4d007]",
+  active: "text-positive",
   "used-up": "text-steam-muted",
-  expired: "text-steam-muted/60",
-  revoked: "text-steam-muted/60",
+  expired: "text-steam-muted",
+  revoked: "text-steam-muted",
 };
 
 export default async function AdminInvitesPage() {
@@ -67,8 +67,8 @@ export default async function AdminInvitesPage() {
           </div>
 
           {data.summary.pendingAccess > 0 && (
-            <p className="mt-3 flex items-start gap-1.5 rounded-sm border border-[#eb4b4b]/40 bg-steam-panel p-3 font-mono text-4xs text-steam-muted">
-              <ShieldAlert size={12} className="mt-0.5 shrink-0 text-[#eb4b4b]" />
+            <p className="mt-3 flex items-start gap-1.5 rounded-sm border border-danger/40 bg-steam-panel p-3 font-mono text-4xs text-steam-muted">
+              <ShieldAlert size={12} className="mt-0.5 shrink-0 text-danger" />
               リンクを踏んでログインしたが、まだグループに加入していない人が
               {data.summary.pendingAccess}人います。この人たちは許可リストに載っているため、
               グループには入っていなくてもアプリにはログインできます。心当たりが無ければ、
@@ -127,7 +127,7 @@ export default async function AdminInvitesPage() {
                       <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-3xs">
                         {i.pendingAccess > 0 ? (
                           <span
-                            className="text-[#eb4b4b]"
+                            className="text-danger"
                             title="リンクからログインしたが、まだグループに加入していない人数"
                           >
                             {i.pendingAccess}人
@@ -136,7 +136,7 @@ export default async function AdminInvitesPage() {
                           <span className="text-steam-muted/50">-</span>
                         )}
                       </td>
-                      <td className="max-w-[220px] px-3 py-2 font-mono text-4xs text-steam-muted/70">
+                      <td className="max-w-[220px] px-3 py-2 font-mono text-4xs text-steam-muted">
                         {i.joined.length === 0
                           ? "-"
                           : i.joined
@@ -146,7 +146,7 @@ export default async function AdminInvitesPage() {
                               )
                               .join("、")}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-4xs text-steam-muted/70">
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-4xs text-steam-muted">
                         {i.expiresAt.toLocaleString("ja-JP")}
                       </td>
                       <td className="px-3 py-2 text-right">
@@ -174,13 +174,13 @@ function Stat({ label, value, alert }: { label: string; value: string; alert?: b
   return (
     <div
       className={`rounded-sm border bg-steam-surface p-3 ${
-        alert ? "border-[#eb4b4b]/40" : "border-steam-border"
+        alert ? "border-danger/40" : "border-steam-border"
       }`}
     >
       <p className="font-mono text-4xs uppercase tracking-wide text-steam-muted">{label}</p>
       <p
         className={`mt-1 font-display text-xl font-bold ${
-          alert ? "text-[#eb4b4b]" : "text-steam-text"
+          alert ? "text-danger" : "text-steam-text"
         }`}
       >
         {value}

@@ -21,11 +21,11 @@ type Invite = {
 const ROLE_LABEL = { OWNER: "オーナー", EDITOR: "編集者", VIEWER: "閲覧者" } as const;
 
 function statusOf(i: Invite): { label: string; className: string } {
-  if (i.revokedAt) return { label: "取り消し済み", className: "text-steam-muted/60" };
+  if (i.revokedAt) return { label: "取り消し済み", className: "text-steam-muted" };
   if (new Date(i.expiresAt).getTime() <= Date.now())
-    return { label: "期限切れ", className: "text-steam-muted/60" };
+    return { label: "期限切れ", className: "text-steam-muted" };
   if (i.usedCount >= i.maxUses) return { label: "使用済み", className: "text-steam-muted" };
-  return { label: "有効", className: "text-[#a4d007]" };
+  return { label: "有効", className: "text-positive" };
 }
 
 /**
@@ -126,7 +126,7 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
       <h3 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
         <Link2 size={12} /> 招待リンク
       </h3>
-      <p className="mt-1 font-mono text-4xs text-steam-muted/70">
+      <p className="mt-1 font-mono text-4xs text-steam-muted">
         まだこのアプリを使っていない友人にも送れます。受け取った人はDiscordでログインするだけで参加できます。
       </p>
 
@@ -172,20 +172,20 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
         <button
           onClick={create}
           disabled={creating}
-          className="inline-flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-3xs font-bold text-[#0e1b12] disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-3xs font-bold text-accent-ink disabled:opacity-40"
         >
           {creating ? <Spinner size={11} /> : <Link2 size={12} />} リンクを発行
         </button>
       </div>
 
-      {error && <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-2 font-mono text-3xs text-danger">{error}</p>}
       {notice && <p className="mt-2 font-mono text-3xs text-steam-muted">{notice}</p>}
 
       <div className="mt-3 flex flex-col gap-2">
         {loading ? (
           <p className="font-mono text-3xs text-steam-muted">読み込み中…</p>
         ) : invites.length === 0 ? (
-          <p className="font-mono text-3xs text-steam-muted/70">発行済みのリンクはありません。</p>
+          <p className="font-mono text-3xs text-steam-muted">発行済みのリンクはありません。</p>
         ) : (
           invites.map((i) => {
             const status = statusOf(i);
@@ -194,7 +194,7 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
               <div key={i.id} className="rounded-sm border border-steam-border bg-steam-panel p-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`font-mono text-4xs ${status.className}`}>{status.label}</span>
-                  <span className="font-mono text-4xs text-steam-muted/70">
+                  <span className="font-mono text-4xs text-steam-muted">
                     {ROLE_LABEL[i.role]}・{i.usedCount}/{i.maxUses}回・
                     {new Date(i.expiresAt).toLocaleString("ja-JP")}まで
                   </span>
@@ -208,7 +208,7 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
                         className="p-1.5 text-steam-muted transition hover:text-steam-blue"
                       >
                         {copiedId === i.id ? (
-                          <Check size={12} className="text-[#a4d007]" />
+                          <Check size={12} className="text-positive" />
                         ) : (
                           <Copy size={12} />
                         )}
@@ -220,7 +220,7 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
                         disabled={revokingId === i.id}
                         title="このリンクを取り消す"
                         aria-label="このリンクを取り消す"
-                        className="p-1.5 text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
+                        className="p-1.5 text-steam-muted transition hover:text-danger disabled:opacity-50"
                       >
                         {revokingId === i.id ? <Spinner size={11} /> : <Trash2 size={11} />}
                       </button>
@@ -229,7 +229,7 @@ export function GroupInviteLinks({ groupId }: { groupId: string }) {
                 </div>
 
                 {i.uses.length > 0 && (
-                  <p className="mt-1 font-mono text-4xs text-steam-muted/70">
+                  <p className="mt-1 font-mono text-4xs text-steam-muted">
                     参加:{" "}
                     {i.uses
                       .map(

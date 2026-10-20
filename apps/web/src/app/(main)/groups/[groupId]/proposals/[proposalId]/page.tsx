@@ -109,7 +109,7 @@ export default async function ProposalDetailPage({
 
           <div className="p-4 sm:p-6">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded-sm border border-[#e0a323]/50 px-1.5 py-0.5 font-mono text-3xs text-[#e0a323]">
+              <span className="rounded-sm border border-warning/50 px-1.5 py-0.5 font-mono text-3xs text-warning">
                 {proposal.status === "PENDING" ? "投票中" : "却下済み"}
               </span>
               <GameStoreBadges reviews={reviews} price={price} />
@@ -144,7 +144,7 @@ export default async function ProposalDetailPage({
                 href={`https://store.steampowered.com/app/${proposal.steamAppId}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
+                className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink"
               >
                 <ExternalLink size={13} /> Steamストアで見る
               </a>

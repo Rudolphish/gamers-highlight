@@ -258,7 +258,7 @@ export default function UploadPage() {
         <p className="mt-2 font-mono text-xs text-steam-muted">
           {items.length > 0 ? "選び直す（クリック）" : "クリックしてファイルを選択（複数選択可）"}
         </p>
-        <p className="mt-1 font-mono text-3xs text-steam-muted/60">
+        <p className="mt-1 font-mono text-3xs text-steam-muted">
           {`画像: 最大${MEDIA_LIMIT_LABELS.imageSize}／動画: 最大${MEDIA_LIMIT_LABELS.videoSize}・${MEDIA_LIMIT_LABELS.videoDuration}まで`}
         </p>
       </button>
@@ -280,7 +280,7 @@ export default function UploadPage() {
                   {item.file.name}
                 </span>
                 {item.appId !== null && (identifying || identified.get(item.appId)?.title) && (
-                  <span className="block truncate font-mono text-3xs text-[#a4d007]">
+                  <span className="block truncate font-mono text-3xs text-steam-blue">
                     {identified.get(item.appId)?.title ?? "判別中…"}
                   </span>
                 )}
@@ -295,17 +295,17 @@ export default function UploadPage() {
                 </span>
               )}
               {item.status === "done" && (
-                <Check size={14} className="flex-shrink-0 text-[#a4d007]" />
+                <Check size={14} className="flex-shrink-0 text-positive" />
               )}
               {item.status === "error" && (
-                <span className="flex flex-shrink-0 items-center gap-1 font-mono text-3xs text-[#eb4b4b]">
+                <span className="flex flex-shrink-0 items-center gap-1 font-mono text-3xs text-danger">
                   <AlertCircle size={12} /> 失敗
                 </span>
               )}
               {item.status === "idle" && !running && (
                 <button
                   onClick={() => removeItem(i)}
-                  className="flex-shrink-0 p-1.5 text-steam-muted hover:text-[#eb4b4b]"
+                  className="flex-shrink-0 p-1.5 text-steam-muted hover:text-danger"
                   aria-label="削除"
                 >
                   <X size={14} />
@@ -317,9 +317,9 @@ export default function UploadPage() {
       )}
 
       {detectedGames.length > 0 && (
-        <div className="mt-4 rounded-sm border border-[#a4d007]/40 bg-steam-panel p-3">
+        <div className="mt-4 rounded-sm border border-positive/40 bg-steam-panel p-3">
           <p className="flex items-center gap-1.5 font-mono text-2xs text-steam-text">
-            <Wand2 size={12} className="text-[#a4d007]" />
+            <Wand2 size={12} className="text-positive" />
             ファイル名からゲームを判別しました
           </p>
           <ul className="mt-2 flex flex-col gap-1">
@@ -328,20 +328,20 @@ export default function UploadPage() {
                 <span className="text-steam-text">{g.title ?? `Steam app ${g.appId}`}</span>
                 {" … "}
                 {g.album ? (
-                  <span className="text-[#a4d007]">
+                  <span className="text-positive">
                     {/* **グループ名も出す。** 判別は自分が見える範囲から探すので、
                         別グループの同名アルバムが選ばれることがある */}
                     {`${g.album.groupName} のアルバム「${g.album.title}」に追加します`}
                   </span>
                 ) : (
-                  <span className="text-steam-muted/70">
+                  <span className="text-steam-muted">
                     このゲームのアルバムはまだありません（未分類で保存されます）
                   </span>
                 )}
               </li>
             ))}
           </ul>
-          <p className="mt-2 font-mono text-4xs text-steam-muted/70">
+          <p className="mt-2 font-mono text-4xs text-steam-muted">
             下でアルバムやタグを指定した場合は、そちらが優先されます。
           </p>
         </div>
@@ -370,7 +370,7 @@ export default function UploadPage() {
         {/* **グループが無い／新しく作りたい人の逃げ道。** ここで手が止まると、
             アルバムを選べない理由も次にどうすればよいかも分からない。
             **別タブで開く**——同じタブだと、選んだファイルが消えてやり直しになる */}
-        <p className="mt-1 font-mono text-4xs text-steam-muted/70">
+        <p className="mt-1 font-mono text-4xs text-steam-muted">
           {groups.length === 0
             ? "参加しているグループがありません。"
             : "入れたいグループが無いときは "}
@@ -411,7 +411,7 @@ export default function UploadPage() {
           ))}
         </select>
         {groupId && albumsInGroup.length === 0 && (
-          <p className="mt-1 font-mono text-4xs text-steam-muted/70">
+          <p className="mt-1 font-mono text-4xs text-steam-muted">
             このグループにはまだアルバムがありません。未分類で保存して、後から振り分けられます。
           </p>
         )}
@@ -421,7 +421,7 @@ export default function UploadPage() {
         <label className="font-mono text-2xs text-steam-muted">
           ゲームタグ（任意・全ファイル共通）
           {detectedGames.length > 0 && (
-            <span className="ml-1 text-steam-muted/70">— 空なら判別したゲーム名が入ります</span>
+            <span className="ml-1 text-steam-muted">— 空なら判別したゲーム名が入ります</span>
           )}
         </label>
         <input
@@ -436,7 +436,7 @@ export default function UploadPage() {
       <button
         onClick={handleUploadAll}
         disabled={items.length === 0 || running || allDone}
-        className="mt-5 w-full rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] py-2.5 font-mono text-sm font-bold text-[#0e1b12] disabled:opacity-40"
+        className="mt-5 w-full rounded-sm bg-accent py-2.5 font-mono text-sm font-bold text-accent-ink disabled:opacity-40"
       >
         {running
           ? `アップロード中… (${items.filter((i) => i.status === "done").length}/${items.length})`
@@ -479,7 +479,7 @@ export default function UploadPage() {
         />
 
         {youtubeUrl.trim().length > 0 && !youtubeLink && (
-          <p className="mt-1 font-mono text-3xs text-[#eb4b4b]">
+          <p className="mt-1 font-mono text-3xs text-danger">
             YouTubeのURLとして読み取れません（watch / youtu.be / shorts のURLに対応しています）
           </p>
         )}
@@ -510,12 +510,12 @@ export default function UploadPage() {
         </button>
 
         {youtubeState === "done" && (
-          <p className="mt-2 font-mono text-3xs text-[#a4d007]">
+          <p className="mt-2 font-mono text-3xs text-positive">
             追加しました。続けて別のURLも貼れます。
           </p>
         )}
         {youtubeError && (
-          <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{youtubeError}</p>
+          <p className="mt-2 font-mono text-3xs text-danger">{youtubeError}</p>
         )}
       </div>
     </main>

@@ -225,7 +225,7 @@ export function Lightbox({
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white/80 transition hover:bg-[#eb4b4b] hover:text-white disabled:opacity-50"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white/80 transition hover:bg-danger hover:text-white disabled:opacity-50"
             aria-label="削除"
           >
             {deleting ? <Spinner size={20} /> : <Trash2 size={20} />}

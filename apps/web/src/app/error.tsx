@@ -20,7 +20,7 @@ export default function RootError({
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-steam-bg p-6 text-center">
-      <AlertTriangle size={40} className="text-[#eb4b4b]" />
+      <AlertTriangle size={40} className="text-danger" />
       <div>
         <h1 className="font-display text-xl font-bold text-steam-text">エラーが発生しました</h1>
         <p className="mt-1 font-mono text-xs text-steam-muted">
@@ -29,7 +29,7 @@ export default function RootError({
       </div>
       <button
         onClick={reset}
-        className="flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 py-2 font-mono text-xs font-bold text-[#0e1b12]"
+        className="flex items-center gap-1.5 rounded-sm bg-accent px-4 py-2 font-mono text-xs font-bold text-accent-ink"
       >
         <RotateCw size={13} /> 再試行
       </button>

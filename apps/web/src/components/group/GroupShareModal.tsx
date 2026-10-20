@@ -158,7 +158,7 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
                       <button
                         onClick={() => handleRemove(m.userId)}
                         disabled={pending}
-                        className="flex items-center gap-1 font-mono text-3xs text-[#eb4b4b] disabled:opacity-50"
+                        className="flex items-center gap-1 font-mono text-3xs text-danger disabled:opacity-50"
                       >
                         {removingUserId === m.userId && <Spinner size={10} />}
                         削除
@@ -200,14 +200,14 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
                   <button
                     onClick={handleInvite}
                     disabled={pending || !inviteeId}
-                    className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+                    className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
                   >
                     {inviting ? <Spinner size={12} /> : <UserPlus size={12} />}
                     {inviting ? "招待中…" : "招待"}
                   </button>
                 </div>
                 {candidates.length === 0 && (
-                  <p className="mt-2 font-mono text-3xs text-steam-muted/70">
+                  <p className="mt-2 font-mono text-3xs text-steam-muted">
                     招待可能な未参加ユーザーがいません（まだ登録していない相手は下の招待リンクを使ってください）
                   </p>
                 )}
@@ -216,7 +216,7 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
               </div>
             )}
 
-            {error && <p className="mt-3 font-mono text-xs text-[#eb4b4b]">{error}</p>}
+            {error && <p className="mt-3 font-mono text-xs text-danger">{error}</p>}
           </div>
         </div>
       )}

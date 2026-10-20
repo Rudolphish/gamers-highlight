@@ -14,11 +14,11 @@ export function GameReviewsPanel({ reviews }: { reviews: SteamReviewItem[] }) {
       <div className="mt-2 flex flex-col gap-3">
         {reviews.map((r) => (
           <div key={r.id} className="border-t border-steam-border pt-2 first:border-t-0 first:pt-0">
-            <div className="flex items-center gap-1.5 font-mono text-4xs text-steam-muted/70">
+            <div className="flex items-center gap-1.5 font-mono text-4xs text-steam-muted">
               {r.votedUp ? (
-                <ThumbsUp size={11} className="text-[#a4d007]" />
+                <ThumbsUp size={11} className="text-positive" />
               ) : (
-                <ThumbsDown size={11} className="text-[#eb4b4b]" />
+                <ThumbsDown size={11} className="text-danger" />
               )}
               <span>プレイ時間 {r.playtimeHours}h</span>
               <span>・{new Date(r.createdAt * 1000).toLocaleDateString("ja-JP")}</span>

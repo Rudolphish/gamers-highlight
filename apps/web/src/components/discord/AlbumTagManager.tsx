@@ -89,7 +89,7 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
             <button
               onClick={() => removeTag(t.id)}
               disabled={pending}
-              className="ml-1 p-1 text-steam-muted hover:text-[#eb4b4b] disabled:opacity-50"
+              className="ml-1 p-1 text-steam-muted hover:text-danger disabled:opacity-50"
               aria-label={`${t.tag}を削除`}
             >
               {removingTagId === t.id ? <Spinner size={10} /> : <X size={10} />}
@@ -97,7 +97,7 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
           </li>
         ))}
         {tags.length === 0 && (
-          <span className="font-mono text-2xs text-steam-muted/60">
+          <span className="font-mono text-2xs text-steam-muted">
             タグ未設定（このアルバムは未分類扱いになります）
           </span>
         )}
@@ -115,13 +115,13 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
         <button
           onClick={addTag}
           disabled={pending || !draft.trim()}
-          className="flex items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-1.5 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+          className="flex items-center gap-1 rounded-sm bg-accent px-3 py-1.5 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
         >
           {adding ? <Spinner size={12} /> : <Plus size={12} />}
           {adding ? "追加中…" : "追加"}
         </button>
       </div>
-      {error && <p className="mt-2 font-mono text-xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-2 font-mono text-xs text-danger">{error}</p>}
     </div>
   );
 }

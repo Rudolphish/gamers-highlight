@@ -23,7 +23,7 @@ export function GameNewsPanel({ news }: { news: SteamNewsItem[] }) {
       >
         {latest.title}
       </a>
-      <p className="mt-0.5 font-mono text-4xs text-steam-muted/70">
+      <p className="mt-0.5 font-mono text-4xs text-steam-muted">
         {new Date(latest.date * 1000).toLocaleDateString("ja-JP")}
       </p>
       <div className="mt-2 max-h-48 overflow-y-auto font-mono text-xs leading-relaxed text-steam-muted">

@@ -26,10 +26,10 @@ export function GamePricePanel({
         </div>
         <div className="rounded-sm border border-steam-border bg-steam-panel p-3 text-center">
           <p className="font-mono text-4xs text-steam-muted">過去最安値（全ストア）</p>
-          <p className="mt-1 font-display text-lg font-bold text-[#a4d007]">
+          <p className="mt-1 font-display text-lg font-bold text-positive">
             ¥{itad.lowPrice.toLocaleString("ja-JP")}
           </p>
-          <p className="font-mono text-4xs text-steam-muted/70">
+          <p className="font-mono text-4xs text-steam-muted">
             {itad.lowShopName}
             {itad.lowCut > 0 ? `（-${itad.lowCut}%）` : ""}
           </p>

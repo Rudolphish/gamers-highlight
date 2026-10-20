@@ -155,7 +155,7 @@ export default function SearchPage() {
         <button
           type="submit"
           disabled={loading}
-          className="mt-2 flex items-center justify-center gap-2 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] py-2.5 font-mono text-sm font-bold text-[#0e1b12] disabled:opacity-50 hover:brightness-110 transition"
+          className="mt-2 flex items-center justify-center gap-2 rounded-sm bg-accent py-2.5 font-mono text-sm font-bold text-accent-ink disabled:opacity-50 hover:brightness-110 transition"
         >
           <SearchIcon size={16} />
           {loading ? "検索中…" : "検索"}
@@ -211,14 +211,14 @@ export default function SearchPage() {
                       className="object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center font-mono text-3xs text-steam-muted/60">
+                    <div className="flex h-full w-full items-center justify-center font-mono text-3xs text-steam-muted">
                       No Image
                     </div>
                   )}
                 </div>
                 <div className="p-2">
                   <p className="truncate font-display text-sm font-semibold text-steam-text">{g.title}</p>
-                  <p className="truncate font-mono text-4xs text-steam-muted/70">{g.groupName}</p>
+                  <p className="truncate font-mono text-4xs text-steam-muted">{g.groupName}</p>
                   {g.status && (
                     <span className="mt-1 inline-block rounded-sm border border-steam-border px-1.5 py-0.5 font-mono text-4xs text-steam-muted">
                       {STATUS_LABEL[g.status]}
@@ -243,14 +243,14 @@ export default function SearchPage() {
                       className="object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center font-mono text-3xs text-steam-muted/60">
+                    <div className="flex h-full w-full items-center justify-center font-mono text-3xs text-steam-muted">
                       No Image
                     </div>
                   )}
                 </div>
                 <div className="p-2">
                   <p className="truncate font-display text-sm font-semibold text-steam-text">{p.title}</p>
-                  <p className="truncate font-mono text-4xs text-steam-muted/70">{p.groupName}</p>
+                  <p className="truncate font-mono text-4xs text-steam-muted">{p.groupName}</p>
                   <span className="mt-1 inline-flex items-center gap-1 rounded-sm border border-steam-blue/50 px-1.5 py-0.5 font-mono text-4xs text-steam-blue">
                     <Gamepad2 size={9} /> 提案中
                   </span>

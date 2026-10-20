@@ -39,7 +39,7 @@ export function RouteProgress() {
 
   return (
     <div className="fixed left-0 top-0 z-[100] h-0.5 w-full overflow-hidden bg-steam-border/30">
-      <div className="h-full w-1/3 animate-route-progress bg-gradient-to-r from-[#4c6b22] to-[#a4d007]" />
+      <div className="h-full w-1/3 animate-route-progress bg-accent" />
     </div>
   );
 }

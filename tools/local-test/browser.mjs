@@ -2660,7 +2660,9 @@ for (const [id, label, path] of targets) {
       });
       return { text: play.textContent, cellWidth: Math.round(right - left), parts };
     }, startJstDay);
-    const ok = !!sessionId && !!fit && fit.text.includes("2h44m") && fit.parts.length === 2 && fit.parts.every((p) => p.inside && !p.clipped);
+    // 部品は🎮・時間・分の3つ（文字を12pxに上げたとき「2h44m」だけで36pxになり、時間と分も折り返せるように分けた。
+    // 数は決め打ちせず、つなげると「🎮2h44m」になること・1つも外に出ず切れていないことを見る）
+    const ok = !!sessionId && !!fit && fit.parts.map((p) => p.text).join("") === "🎮2h44m" && fit.parts.length >= 2 && fit.parts.every((p) => p.inside && !p.clipped);
     rows.push({
       id: "B114",
       item: "活動カレンダーの日のマスに🎮と遊んだ時間が出て、スマホ幅でも時間が切れずにマスの中に収まる",
@@ -3025,6 +3027,116 @@ for (const [id, label, path] of targets) {
     } finally {
       await ctx.close();
     }
+  }
+}
+
+// ── 文字の大きさと濃さ（デザイン刷新の段階1） ──
+// 以前は9〜11pxの文字が372か所あり、補助の文字は背景との明るさの差が 3.2:1 しかなかった。
+// 決まり（tailwind.config.js）の値を変えただけなので、**決まりを通らない直書きが残っていると、その所だけ古いまま**になる。
+// 主な画面で実際に描かれた文字を全部見て、12px未満と、背景との差が 4.5:1 未満のものを数える。
+// 除くもの: 写真・グラデーションの上の文字（背景の色を測れない）、押せない状態（半透明）の部品、見えない文字。
+// 管理画面（/admin）は刷新の対象外なので見ない
+{
+  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile"];
+  const page = await context.newPage();
+  const small = [];
+  const low = [];
+  let checked = 0;
+  try {
+    for (const path of PAGES) {
+      await page.goto(BASE + path, { waitUntil: "networkidle" });
+      await page.waitForTimeout(300);
+      const r = await page.evaluate(() => {
+        const parse = (c) => {
+          const m = c && c.match(/rgba?\(([^)]+)\)/);
+          if (!m) return null;
+          const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+          return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+        };
+        const blend = (top, bottom) => ({
+          r: top.r * top.a + bottom.r * (1 - top.a),
+          g: top.g * top.a + bottom.g * (1 - top.a),
+          b: top.b * top.a + bottom.b * (1 - top.a),
+          a: 1,
+        });
+        const lum = ({ r, g, b }) => {
+          const f = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+          return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+        };
+        const ratio = (x, y) => {
+          const [a, b] = [lum(x), lum(y)].sort((p, q) => q - p);
+          return (a + 0.05) / (b + 0.05);
+        };
+        const out = { small: [], low: [], checked: 0 };
+        for (const el of document.querySelectorAll("body *")) {
+          if (!Array.from(el.childNodes).some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
+          if (el.closest("[aria-hidden='true'], option, script, style, noscript")) continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.width < 3 || rect.height < 3) continue;
+          const cs = getComputedStyle(el);
+          if (cs.visibility !== "visible" || cs.display === "none") continue;
+          let opacity = 1;
+          let overImage = false;
+          const layers = [];
+          let done = false;
+          for (let n = el; n; n = n.parentElement) {
+            const ns = getComputedStyle(n);
+            opacity *= Number(ns.opacity);
+            if (done) continue;
+            if (ns.backgroundImage !== "none") overImage = true;
+            const c = parse(ns.backgroundColor);
+            if (c && c.a > 0) {
+              layers.push(c);
+              if (c.a >= 1) done = true;
+            }
+          }
+          if (opacity < 1 || el.closest("button:disabled, [aria-disabled='true']")) continue;
+          // 写真の上の文字（アルバムのカードなど）は、背景が img なので色を測れない
+          const parentBox = el.closest("a, div, li, section");
+          if (parentBox && parentBox.querySelector("img, video") && getComputedStyle(el).position !== "static") overImage = true;
+          const text = el.textContent.trim().slice(0, 30);
+          const size = parseFloat(cs.fontSize);
+          out.checked++;
+          if (size < 11.5) out.small.push(`${text}（${size}px）`);
+          if (overImage) continue;
+          let bg = { r: 255, g: 255, b: 255, a: 1 };
+          for (let i = layers.length - 1; i >= 0; i--) bg = blend(layers[i], bg);
+          let fg = parse(cs.color);
+          if (!fg) continue;
+          if (fg.a < 1) fg = blend(fg, bg);
+          const bold = Number(cs.fontWeight) >= 700;
+          const large = size >= 24 || (bold && size >= 18.66);
+          const cr = ratio(fg, bg);
+          if (cr < (large ? 3 : 4.5)) out.low.push(`${text}（${cr.toFixed(2)}:1）`);
+        }
+        return out;
+      });
+      checked += r.checked;
+      small.push(...r.small.map((x) => `${path} ${x}`));
+      low.push(...r.low.map((x) => `${path} ${x}`));
+    }
+    rows.push({
+      id: "B123",
+      item: "主な画面に12px未満の文字が無い（管理画面は除く）",
+      expected: "0件",
+      actual: `${small.length}件 / 見た文字 ${checked}か所`,
+      ok: checked > 100 && small.length === 0,
+      note: small.slice(0, 4).join(" | ").slice(0, 200),
+    });
+    rows.push({
+      id: "B124",
+      item: "主な画面の文字が背景との明るさの差 4.5:1 以上ある（大きい文字は3:1。写真の上と押せない部品は除く）",
+      expected: "0件",
+      actual: `${low.length}件 / 見た文字 ${checked}か所`,
+      ok: checked > 100 && low.length === 0,
+      note: low.slice(0, 4).join(" | ").slice(0, 200),
+    });
+  } catch (e) {
+    for (const id of ["B123", "B124"]) {
+      rows.push({ id, item: "文字の大きさと濃さ", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+    }
+  } finally {
+    await page.close();
   }
 }
 

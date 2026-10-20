@@ -67,7 +67,7 @@ export function AdminPlaySessionActions({ session, groups }: { session: AdminPla
         onClick={remove}
         disabled={deleting}
         aria-label={`${session.title} の記録を削除`}
-        className="inline-flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 font-mono text-4xs text-[#eb4b4b] hover:border-[#eb4b4b] disabled:opacity-50"
+        className="inline-flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 font-mono text-4xs text-danger hover:border-danger disabled:opacity-50"
       >
         {deleting ? <Spinner size={10} /> : <Trash2 size={11} />} 削除
       </button>
@@ -113,7 +113,7 @@ export function AdminAddPlaySessionButton({ groups, defaultGroupId }: { groups: 
       <button
         onClick={() => setOpen(true)}
         disabled={groups.length === 0}
-        className="inline-flex items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-1.5 font-mono text-3xs font-bold text-[#0e1b12] disabled:opacity-40"
+        className="inline-flex items-center gap-1 rounded-sm bg-accent px-3 py-1.5 font-mono text-3xs font-bold text-accent-ink disabled:opacity-40"
       >
         <Plus size={12} /> 記録を追加
       </button>
@@ -281,7 +281,7 @@ function PlaySessionModal({
                   checked={draft.participantIds.includes(m.userId)}
                   disabled={pending}
                   onChange={() => toggle(m.userId)}
-                  className="h-3.5 w-3.5 accent-[#a4d007]"
+                  className="h-3.5 w-3.5 accent-steam-blue"
                 />
                 {m.name}
               </label>
@@ -298,7 +298,7 @@ function PlaySessionModal({
           <button
             onClick={submit}
             disabled={pending || !canSubmit}
-            className="inline-flex items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 py-1.5 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded-sm bg-accent px-4 py-1.5 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
           >
             {pending && <Spinner size={12} />} {submitLabel}
           </button>

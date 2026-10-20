@@ -36,8 +36,8 @@ const STATUS_LABEL: Record<GameStatus, string> = {
 
 const STATUS_BADGE_CLASS: Record<GameStatus, string> = {
   WISHLIST: "border-steam-blue/50 text-steam-blue",
-  PLAYING: "border-[#a4d007]/50 text-[#a4d007]",
-  BACKLOG: "border-[#e0a323]/50 text-[#e0a323]",
+  PLAYING: "border-positive/50 text-positive",
+  BACKLOG: "border-warning/50 text-warning",
   COMPLETED: "border-steam-muted/50 text-steam-muted",
 };
 
@@ -345,7 +345,7 @@ export function GroupGameList({
         </div>
       )}
 
-      {error && <p className="mt-2 font-mono text-xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-2 font-mono text-xs text-danger">{error}</p>}
 
       {filteredGames.length === 0 ? (
         <p className="mt-4 font-mono text-sm text-steam-muted">
@@ -371,7 +371,7 @@ export function GroupGameList({
                       className="object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center font-mono text-3xs text-steam-muted/60">
+                    <div className="flex h-full w-full items-center justify-center font-mono text-3xs text-steam-muted">
                       No Image
                     </div>
                   )}
@@ -380,11 +380,11 @@ export function GroupGameList({
                   <p className="truncate font-display text-sm font-semibold text-steam-text">
                     {game.title}
                   </p>
-                  <p className="truncate font-mono text-4xs text-steam-muted/70">
+                  <p className="truncate font-mono text-4xs text-steam-muted">
                     {game.addedByName}が追加
                   </p>
                   {!!game.playMs && game.playMs > 0 && (
-                    <p className="mt-0.5 truncate font-mono text-3xs text-[#a4d007]" data-play-ms={game.playMs}>
+                    <p className="mt-0.5 truncate font-mono text-3xs text-steam-blue" data-play-ms={game.playMs}>
                       {`🎮 ${formatPlayDuration(game.playMs)}`}
                     </p>
                   )}
@@ -438,7 +438,7 @@ export function GroupGameList({
                       <button
                         onClick={() => removeGame(game.id)}
                         disabled={updatingId === game.id}
-                        className="flex-shrink-0 p-1.5 text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
+                        className="flex-shrink-0 p-1.5 text-steam-muted transition hover:text-danger disabled:opacity-50"
                         aria-label="削除"
                       >
                         {updatingId === game.id ? <Spinner size={12} /> : <Trash2 size={12} />}
@@ -480,7 +480,7 @@ export function GroupGameList({
               <button
                 onClick={handleSearch}
                 disabled={searching || !query.trim()}
-                className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+                className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
               >
                 {searching ? <Spinner size={12} /> : <Search size={12} />}
                 検索
@@ -505,11 +505,11 @@ export function GroupGameList({
                 </button>
               ))}
               {searched && !searching && results.length === 0 && (
-                <p className="font-mono text-2xs text-steam-muted/70">見つかりませんでした</p>
+                <p className="font-mono text-2xs text-steam-muted">見つかりませんでした</p>
               )}
             </div>
 
-            {error && <p className="mt-3 font-mono text-xs text-[#eb4b4b]">{error}</p>}
+            {error && <p className="mt-3 font-mono text-xs text-danger">{error}</p>}
           </div>
         </div>
       )}

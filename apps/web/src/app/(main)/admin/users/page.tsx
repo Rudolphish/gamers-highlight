@@ -125,14 +125,14 @@ export default async function AdminUsersPage({
                         <p className="truncate font-mono text-3xs text-steam-text">
                           {u.name ?? "(名前なし)"}
                         </p>
-                        <p className="truncate font-mono text-4xs text-steam-muted/70">
+                        <p className="truncate font-mono text-4xs text-steam-muted">
                           {u.email ?? "-"}
                         </p>
                       </td>
 
                       <td className="max-w-[260px] px-3 py-2">
                         {u.groups.length === 0 ? (
-                          <span className="font-mono text-4xs text-steam-muted/60">
+                          <span className="font-mono text-4xs text-steam-muted">
                             所属なし
                           </span>
                         ) : (
@@ -145,7 +145,7 @@ export default async function AdminUsersPage({
                                 className="rounded-sm border border-steam-border px-1.5 py-0.5 font-mono text-4xs text-steam-muted hover:border-steam-blue hover:text-steam-blue"
                               >
                                 {g.name}
-                                <span className="ml-1 text-steam-muted/60">
+                                <span className="ml-1 text-steam-muted">
                                   {ROLE_LABEL[g.role] ?? g.role}
                                 </span>
                               </Link>
@@ -181,7 +181,7 @@ export default async function AdminUsersPage({
                         {/* Discord経由の投稿はサイズを持たないので、合計は下限でしかない */}
                         {u.unknownSizeCount > 0 && (
                           <span
-                            className="ml-1 text-steam-muted/60"
+                            className="ml-1 text-steam-muted"
                             title={`${u.unknownSizeCount}件はサイズが記録されていません（Discord経由の投稿など）`}
                           >
                             +{u.unknownSizeCount}件不明
@@ -189,14 +189,14 @@ export default async function AdminUsersPage({
                         )}
                       </td>
 
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-3xs text-steam-muted/70">
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-3xs text-steam-muted">
                         {u.lastPostedAt ? (
                           u.lastPostedAt.toLocaleDateString("ja-JP")
                         ) : (
                           <span className="text-steam-muted/50">なし</span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-3xs text-steam-muted/70">
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-3xs text-steam-muted">
                         {u.createdAt.toLocaleDateString("ja-JP")}
                       </td>
                     </tr>
@@ -206,7 +206,7 @@ export default async function AdminUsersPage({
             </div>
           )}
 
-          <p className="mt-3 flex items-start gap-1.5 font-mono text-4xs text-steam-muted/70">
+          <p className="mt-3 flex items-start gap-1.5 font-mono text-4xs text-steam-muted">
             <Users size={11} className="mt-0.5 shrink-0" />
             容量はサイズが記録されている投稿の合計です。Discord経由で取り込んだ投稿は
             サイズを持たないことがあるため、実際の使用量はこれより大きくなります。

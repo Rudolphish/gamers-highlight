@@ -87,8 +87,8 @@ export function PhotoReactionButton({
           size === "lg" ? "min-h-[44px] px-3 text-xs" : "px-1.5 py-0.5 text-3xs"
         } ${
           state.reacted
-            ? "border-[#e05a5a]/60 bg-steam-bg/80 text-[#e05a5a]"
-            : "border-steam-border bg-steam-bg/80 text-steam-muted hover:border-[#e05a5a]/60 hover:text-[#e05a5a]"
+            ? "border-danger/60 bg-steam-bg/80 text-danger"
+            : "border-steam-border bg-steam-bg/80 text-steam-muted hover:border-danger/60 hover:text-danger"
         }`}
       >
         <Heart size={iconSize} fill={state.reacted ? "currentColor" : "none"} />

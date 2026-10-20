@@ -208,14 +208,14 @@ export function SteamCoverPicker({
                   <p className="font-mono text-2xs text-steam-text">
                     {`現在のゲーム: ${linkedGameTitle ?? "（名称不明）"}`}
                   </p>
-                  <p className="mt-1 font-mono text-4xs text-steam-muted/70">
+                  <p className="mt-1 font-mono text-4xs text-steam-muted">
                     アルバムの「ゲーム詳細を見る」はこのゲームを指しています。違っていたら、
                     下で検索して「このゲームに連携」を押すと付け替えられます。
                   </p>
                   <button
                     onClick={unlinkGame}
                     disabled={busy}
-                    className="mt-2 flex items-center gap-1 font-mono text-3xs text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
+                    className="mt-2 flex items-center gap-1 font-mono text-3xs text-steam-muted transition hover:text-danger disabled:opacity-50"
                   >
                     {unlinking ? <Spinner size={11} /> : <Link2Off size={11} />}
                     ゲームとの連携を解除する（ゲームはリストに残ります）
@@ -230,9 +230,9 @@ export function SteamCoverPicker({
 
             {/* 付け替えの確認。チェックを入れると元のゲームをリストからも消す */}
             {pendingRelink && (
-              <div className="mt-3 rounded-sm border border-[#eb4b4b]/50 bg-steam-panel p-2.5">
+              <div className="mt-3 rounded-sm border border-danger/50 bg-steam-panel p-2.5">
                 <p className="flex items-start gap-1.5 font-mono text-2xs text-steam-text">
-                  <AlertTriangle size={13} className="mt-0.5 flex-shrink-0 text-[#eb4b4b]" />
+                  <AlertTriangle size={13} className="mt-0.5 flex-shrink-0 text-danger" />
                   {`「${linkedGameTitle ?? "現在のゲーム"}」から「${pendingRelink.name}」に付け替えます。`}
                 </p>
                 <label className="mt-2 flex items-start gap-1.5 font-mono text-3xs text-steam-muted">
@@ -248,7 +248,7 @@ export function SteamCoverPicker({
                   <button
                     onClick={() => linkGame(pendingRelink, alsoRemovePrevious)}
                     disabled={busy}
-                    className="flex items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-1.5 font-mono text-3xs font-bold text-[#0e1b12] disabled:opacity-40"
+                    className="flex items-center gap-1 rounded-sm bg-accent px-3 py-1.5 font-mono text-3xs font-bold text-accent-ink disabled:opacity-40"
                   >
                     {linkingId === pendingRelink.appId ? <Spinner size={11} /> : null}
                     付け替える
@@ -277,7 +277,7 @@ export function SteamCoverPicker({
               <button
                 onClick={handleSearch}
                 disabled={searching || !query.trim()}
-                className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+                className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
               >
                 {searching ? <Spinner size={12} /> : <Search size={12} />}
                 検索
@@ -306,7 +306,7 @@ export function SteamCoverPicker({
                       {/* 印は**連携中のゲームだけ**に出す。以前は連携済みだと全行に
                           チェックが付き、どれと連携しているのか分からなかった */}
                       {isLinked && (
-                        <span className="flex-shrink-0 rounded-sm border border-[#a4d007]/60 px-1.5 py-0.5 font-mono text-4xs text-[#a4d007]">
+                        <span className="flex-shrink-0 rounded-sm border border-positive/60 px-1.5 py-0.5 font-mono text-4xs text-positive">
                           これと連携中
                         </span>
                       )}
@@ -335,7 +335,7 @@ export function SteamCoverPicker({
                 );
               })}
               {searched && !searching && results.length === 0 && (
-                <p className="font-mono text-2xs text-steam-muted/70">見つかりませんでした</p>
+                <p className="font-mono text-2xs text-steam-muted">見つかりませんでした</p>
               )}
             </div>
 
@@ -343,14 +343,14 @@ export function SteamCoverPicker({
               <button
                 onClick={clearCover}
                 disabled={busy}
-                className="mt-3 flex items-center gap-1 font-mono text-2xs text-[#eb4b4b] disabled:opacity-50"
+                className="mt-3 flex items-center gap-1 font-mono text-2xs text-danger disabled:opacity-50"
               >
                 {clearing && <Spinner size={11} />}
                 Steam画像を解除して投稿写真に戻す
               </button>
             )}
 
-            {error && <p className="mt-3 font-mono text-xs text-[#eb4b4b]">{error}</p>}
+            {error && <p className="mt-3 font-mono text-xs text-danger">{error}</p>}
           </div>
         </div>
       )}

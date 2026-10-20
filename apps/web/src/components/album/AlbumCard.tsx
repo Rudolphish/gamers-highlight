@@ -32,7 +32,7 @@ export function AlbumCard({
   const extraMembers = Math.max(memberCount - members.length, 0);
 
   return (
-    <div className="group overflow-hidden rounded-sm border border-steam-border bg-steam-surface transition hover:border-steam-blue hover:shadow-[0_0_16px_-2px_rgba(102,192,244,0.5)]">
+    <div className="group overflow-hidden rounded-sm border border-steam-border bg-steam-surface transition hover:border-steam-blue hover:shadow-[0_0_16px_-2px_rgba(90,176,234,0.5)]">
       <div className="relative h-32 w-full overflow-hidden bg-steam-panel">
         {coverImageUrl ? (
           coverIsVideo ? (
@@ -52,7 +52,7 @@ export function AlbumCard({
             />
           )
         ) : (
-          <div className="flex h-full w-full items-center justify-center font-mono text-2xs text-steam-muted/60">
+          <div className="flex h-full w-full items-center justify-center font-mono text-2xs text-steam-muted">
             まだ投稿なし
           </div>
         )}
@@ -95,7 +95,7 @@ export function AlbumCard({
             )}
           </div>
 
-          <span className="font-mono text-3xs text-steam-muted/70">
+          <span className="font-mono text-3xs text-steam-muted">
             {updatedLabel}
           </span>
         </div>

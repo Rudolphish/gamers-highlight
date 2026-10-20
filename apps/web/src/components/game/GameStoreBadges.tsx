@@ -12,7 +12,7 @@ export function GameStoreBadges({
   return (
     <>
       {reviews && (
-        <span className="rounded-sm border border-[#a4d007]/50 px-1.5 py-0.5 font-mono text-3xs text-[#a4d007]">
+        <span className="rounded-sm border border-positive/50 px-1.5 py-0.5 font-mono text-3xs text-positive">
           {reviews.scoreDesc}（{reviews.totalReviews.toLocaleString()}件）
         </span>
       )}

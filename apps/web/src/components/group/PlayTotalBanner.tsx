@@ -37,7 +37,7 @@ export function PlayTotalBanner({
       className="relative mt-5 overflow-hidden rounded border border-steam-border px-5 py-5 sm:px-6"
       style={{
         background:
-          "radial-gradient(120% 140% at 100% 0%, rgba(102,192,244,0.22), transparent 60%), linear-gradient(120deg, #10202f, #1d3348 55%, #22324a)",
+          "radial-gradient(120% 140% at 100% 0%, rgba(90,176,234,0.22), transparent 60%), linear-gradient(120deg, #10202f, #1d3348 55%, #22324a)",
       }}
     >
       <p className="font-mono text-3xs tracking-[0.08em] text-steam-blue">PLAYED TOGETHER ・ グループで遊んだ時間</p>
@@ -56,7 +56,7 @@ export function PlayTotalBanner({
         {topGame && (
           <span>
             いちばん遊んだ{" "}
-            <Link href={`/groups/${groupId}/games/${topGame.id}`} className="font-semibold text-[#a4d007] hover:underline">
+            <Link href={`/groups/${groupId}/games/${topGame.id}`} className="font-semibold text-steam-blue hover:underline">
               {topGame.title}
             </Link>
           </span>

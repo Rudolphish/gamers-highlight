@@ -78,7 +78,7 @@ export function ErrorNotifySetting({ channelId }: { channelId: string | null }) 
           inputMode="numeric"
           className="mt-1 w-full max-w-md rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-xs text-steam-text outline-none focus:border-steam-blue"
         />
-        <p className="mt-1 font-mono text-3xs text-steam-muted/70">
+        <p className="mt-1 font-mono text-3xs text-steam-muted">
           Discordの「開発者モード」をONにして、通知したいチャンネルを右クリック →
           「チャンネルIDをコピー」で取得できます。空にすると通知を止めます（記録は続きます）。
           <br />
@@ -90,7 +90,7 @@ export function ErrorNotifySetting({ channelId }: { channelId: string | null }) 
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
         >
           {saving ? <Spinner size={12} /> : <Check size={13} />} 保存
         </button>
@@ -105,8 +105,8 @@ export function ErrorNotifySetting({ channelId }: { channelId: string | null }) 
         </button>
       </div>
 
-      {message && <p className="font-mono text-3xs text-[#a4d007]">{message}</p>}
-      {error && <p className="font-mono text-3xs text-[#eb4b4b]">{error}</p>}
+      {message && <p className="font-mono text-3xs text-positive">{message}</p>}
+      {error && <p className="font-mono text-3xs text-danger">{error}</p>}
     </form>
   );
 }

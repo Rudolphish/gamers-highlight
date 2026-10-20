@@ -72,7 +72,7 @@ export function InterestButton({
         aria-label={`気になってる（${localUsers.length}人）`}
         className={`flex flex-shrink-0 items-center gap-1 rounded-sm border px-1.5 py-1 font-mono text-3xs transition disabled:opacity-50 ${
           mine
-            ? "border-[#a4d007]/60 text-[#a4d007]"
+            ? "border-steam-blue/60 text-steam-blue"
             : "border-steam-border text-steam-muted hover:border-steam-blue"
         }`}
       >
@@ -85,7 +85,7 @@ export function InterestButton({
           気になってる: {localUsers.map((u) => u.name).join("、")}
         </p>
       )}
-      {error && <p className="mt-1 font-mono text-4xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-1 font-mono text-4xs text-danger">{error}</p>}
     </div>
   );
 }

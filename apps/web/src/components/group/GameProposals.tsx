@@ -243,14 +243,14 @@ export function GameProposals({
         headerAction={
           <button
             onClick={() => setOpen(true)}
-            className="flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
+            className="flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink"
           >
             <Plus size={14} /> 追加する
           </button>
         }
       >
       {localProposals.length === 0 ? (
-        <p className="mt-2 font-mono text-3xs text-steam-muted/70">まだウィッシュリストは空です。</p>
+        <p className="mt-2 font-mono text-3xs text-steam-muted">まだウィッシュリストは空です。</p>
       ) : (
         <div className="mt-2 flex flex-col gap-5">
           {sections.map((section) => {
@@ -316,7 +316,7 @@ export function GameProposals({
                             </Link>
                           )}
                           {/* 提案者は区画の見出しに出ているので、カードからは外した */}
-                          <p className="truncate font-mono text-4xs text-steam-muted/70">
+                          <p className="truncate font-mono text-4xs text-steam-muted">
                             {`やりたい ${likeCount}/${likeThreshold}`}
                           </p>
                           {!isTemp && <PriceLine price={prices === null ? "loading" : prices[p.steamAppId]} />}
@@ -368,7 +368,7 @@ export function GameProposals({
                                 disabled={withdrawingId === p.id}
                                 title="取り下げる"
                                 aria-label="取り下げる"
-                                className="ml-auto flex-shrink-0 p-1.5 text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
+                                className="ml-auto flex-shrink-0 p-1.5 text-steam-muted transition hover:text-danger disabled:opacity-50"
                               >
                                 {withdrawingId === p.id ? <Spinner size={11} /> : <Trash2 size={11} />}
                               </button>
@@ -404,7 +404,7 @@ export function GameProposals({
         </div>
       )}
 
-      {error && <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-2 font-mono text-3xs text-danger">{error}</p>}
       </CollapsibleSection>
 
       {open && (
@@ -433,7 +433,7 @@ export function GameProposals({
               <button
                 onClick={handleSearch}
                 disabled={searching || !query.trim()}
-                className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+                className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
               >
                 {searching ? <Spinner size={12} /> : <Search size={12} />}
                 検索
@@ -458,7 +458,7 @@ export function GameProposals({
                 </button>
               ))}
               {searched && !searching && results.length === 0 && (
-                <p className="font-mono text-2xs text-steam-muted/70">見つかりませんでした</p>
+                <p className="font-mono text-2xs text-steam-muted">見つかりませんでした</p>
               )}
             </div>
           </div>
@@ -483,12 +483,12 @@ function PriceLine({ price }: { price: WishlistPrice | "loading" | undefined }) 
   return (
     <p data-testid="wishlist-price" className="flex items-center gap-1 overflow-hidden whitespace-nowrap font-mono text-4xs">
       {now && <span className="text-steam-text">{now}</span>}
-      {price.discountPercent > 0 && <span className="font-bold text-[#a4d007]">{`-${price.discountPercent}%`}</span>}
+      {price.discountPercent > 0 && <span className="font-bold text-positive">{`-${price.discountPercent}%`}</span>}
       {price.steamLow !== null && (
         <span className="truncate text-steam-muted">{`${now ? "· " : ""}最安 ${formatYen(price.steamLow)}`}</span>
       )}
       {price.atLow && (
-        <span className="flex-shrink-0 rounded-sm bg-[#a4d007] px-1 font-bold text-[#0e1b12]">最安値</span>
+        <span className="flex-shrink-0 rounded-full bg-positive/15 px-1.5 font-bold text-positive">最安値</span>
       )}
     </p>
   );

@@ -95,7 +95,7 @@ export function NotificationSettings({
       {/* **引き継ぎ漏れを黙って通さない。** 種類ごとに分ける前の設定が残っているのに
           1件も設定が無い場合、通知は全部止まっている。画面で気づけるようにする */}
       {legacyChannelId && configured === 0 && (
-        <p className="mt-1 font-mono text-4xs text-[#d9a441]">
+        <p className="mt-1 font-mono text-4xs text-warning">
           {`以前の通知先（${legacyChannelId}）が引き継がれていません。通知は止まっています。下で種類ごとに選び直してください。`}
         </p>
       )}
@@ -141,12 +141,12 @@ export function NotificationSettings({
                       className="rounded-sm border border-steam-border bg-steam-bg px-2 py-1 font-mono text-3xs text-steam-text outline-none focus:border-steam-blue"
                     />
                   )}
-                  <p className="font-mono text-4xs text-steam-muted/70">{description}</p>
+                  <p className="font-mono text-4xs text-steam-muted">{description}</p>
                 </div>
               );
             })
           )}
-          {error && <p className="font-mono text-4xs text-[#eb4b4b]">{error}</p>}
+          {error && <p className="font-mono text-4xs text-danger">{error}</p>}
         </div>
       )}
     </div>

@@ -101,7 +101,7 @@ export function ExpandableAlbumGrid({
     <>
       {albums.length > 1 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-3xs text-steam-muted/70">並び替え</span>
+          <span className="font-mono text-3xs text-steam-muted">並び替え</span>
           {SORT_ORDER.map((s) => (
             <button
               key={s}

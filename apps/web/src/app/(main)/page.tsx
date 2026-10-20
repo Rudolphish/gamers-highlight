@@ -99,7 +99,7 @@ export default async function HomePage() {
                   <span className="flex items-center gap-1">
                     <Users size={11} /> {group._count.members + 1}
                   </span>
-                  <span className="ml-auto text-steam-muted/70">
+                  <span className="ml-auto text-steam-muted">
                     {formatRelativeTime(group.updatedAt)}
                   </span>
                 </div>

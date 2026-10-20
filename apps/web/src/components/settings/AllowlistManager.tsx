@@ -119,20 +119,20 @@ export function AllowlistManager() {
             className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-xs text-steam-text outline-none focus:border-steam-blue"
           />
         </div>
-        <p className="font-mono text-3xs text-steam-muted/70">
+        <p className="font-mono text-3xs text-steam-muted">
           DiscordユーザーIDは、Discordの「開発者モード」をONにしてユーザーを右クリック →
           「ユーザーIDをコピー」で取得できます。どちらか一方でも登録できます。
         </p>
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex w-fit items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+          className="inline-flex w-fit items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
         >
           {saving ? <Spinner size={12} /> : <Plus size={13} />} 許可リストに追加
         </button>
       </form>
 
-      {error && <p className="mt-3 font-mono text-xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-3 font-mono text-xs text-danger">{error}</p>}
 
       <div className="mt-4">
         {loading ? (
@@ -150,7 +150,7 @@ export function AllowlistManager() {
                   <p className="truncate font-mono text-xs text-steam-text">
                     {entry.note || entry.email || entry.discordUserId}
                   </p>
-                  <p className="truncate font-mono text-4xs text-steam-muted/70">
+                  <p className="truncate font-mono text-4xs text-steam-muted">
                     {[entry.discordUserId && `Discord: ${entry.discordUserId}`, entry.email]
                       .filter(Boolean)
                       .join(" / ")}
@@ -158,7 +158,7 @@ export function AllowlistManager() {
                 </div>
 
                 {entry.signedIn ? (
-                  <span className="flex flex-shrink-0 items-center gap-1 font-mono text-4xs text-[#a4d007]">
+                  <span className="flex flex-shrink-0 items-center gap-1 font-mono text-4xs text-positive">
                     <CheckCircle2 size={11} /> ログイン済み
                   </span>
                 ) : (
@@ -174,7 +174,7 @@ export function AllowlistManager() {
                   onClick={() => remove(entry.id)}
                   disabled={deletingId === entry.id}
                   aria-label="許可リストから外す"
-                  className="flex-shrink-0 p-1.5 text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
+                  className="flex-shrink-0 p-1.5 text-steam-muted transition hover:text-danger disabled:opacity-50"
                 >
                   {deletingId === entry.id ? <Spinner size={12} /> : <Trash2 size={12} />}
                 </button>
@@ -184,7 +184,7 @@ export function AllowlistManager() {
         )}
       </div>
 
-      <p className="mt-4 font-mono text-3xs text-steam-muted/70">
+      <p className="mt-4 font-mono text-3xs text-steam-muted">
         新しいメンバーの導線：① ここに追加 → ② 本人がDiscordでログイン → ③
         グループの「メンバー」から招待。②を挟まないと招待候補に出てきません。
       </p>

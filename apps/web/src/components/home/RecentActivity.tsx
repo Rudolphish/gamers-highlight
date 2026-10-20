@@ -42,7 +42,7 @@ export function RecentActivity({ photos }: { photos: RecentPhoto[] }) {
                 />
               )}
               {p.mediaType === "VIDEO" && (
-                <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-1 py-0.5 font-mono text-4xs font-bold text-white">
+                <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-accent px-1 py-0.5 font-mono text-4xs font-bold text-white">
                   <Play size={8} fill="white" /> {`${p.durationSeconds ?? "?"}s`}
                 </span>
               )}
@@ -55,7 +55,7 @@ export function RecentActivity({ photos }: { photos: RecentPhoto[] }) {
             <p className="mt-1 truncate font-mono text-3xs text-steam-muted">
               {p.albumTitle ?? "未分類"}
             </p>
-            <p className="truncate font-mono text-4xs text-steam-muted/60">
+            <p className="truncate font-mono text-4xs text-steam-muted">
               {p.uploaderName ?? "?"} ・ {formatRelativeTime(p.createdAt)}
             </p>
           </div>

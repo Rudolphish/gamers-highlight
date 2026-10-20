@@ -96,7 +96,7 @@ export default async function AdminPlayLogPage({ searchParams }: { searchParams:
                       <div className="min-w-0">
                         <p className="font-display text-sm font-semibold text-steam-text">
                           {s.title}
-                          {!s.groupGameId && <span className="ml-2 font-mono text-4xs text-[#d9a441]">ゲーム未結びつき</span>}
+                          {!s.groupGameId && <span className="ml-2 font-mono text-4xs text-warning">ゲーム未結びつき</span>}
                           {s.manual && <span className="ml-2 font-mono text-4xs text-steam-blue">手動で追加</span>}
                           {s.estimated && <span className="ml-2 font-mono text-4xs text-steam-muted">終わりは推定</span>}
                         </p>

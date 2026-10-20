@@ -31,7 +31,7 @@ export function Sidebar() {
           aria-label="ShareStaq ホーム"
           className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-steam-border/50 bg-gradient-to-br from-steam-blue/20 to-steam-panel shadow-lg shadow-steam-blue/10 hover:border-steam-blue transition"
         >
-          <span className="font-display text-sm font-black tracking-tight text-steam-blue">SS</span>
+          <span className="font-logo text-sm font-bold tracking-tight text-steam-blue">SS</span>
         </Link>
       </div>
 

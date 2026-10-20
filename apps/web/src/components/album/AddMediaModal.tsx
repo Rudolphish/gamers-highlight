@@ -117,7 +117,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
       <button
         onClick={() => setOpen(true)}
         aria-label="写真・動画を追加"
-        className="flex min-h-[44px] items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 font-mono text-xs font-bold text-[#0e1b12]"
+        className="flex min-h-[44px] items-center gap-1.5 rounded-sm bg-accent px-4 font-mono text-xs font-bold text-accent-ink"
       >
         <Plus size={14} /> 追加
       </button>
@@ -182,7 +182,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                   <p className="mt-1.5 font-mono text-xs text-steam-muted">
                     {items.length > 0 ? "選び直す（クリック）" : "クリックしてファイルを選択（複数選択可）"}
                   </p>
-                  <p className="mt-1 font-mono text-4xs text-steam-muted/60">
+                  <p className="mt-1 font-mono text-4xs text-steam-muted">
                     {`画像: 最大${MEDIA_LIMIT_LABELS.imageSize}／動画: 最大${MEDIA_LIMIT_LABELS.videoSize}・${MEDIA_LIMIT_LABELS.videoDuration}まで`}
                   </p>
                 </button>
@@ -211,12 +211,12 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                           </span>
                         )}
                         {item.status === "done" && (
-                          <Check size={13} className="flex-shrink-0 text-[#a4d007]" />
+                          <Check size={13} className="flex-shrink-0 text-positive" />
                         )}
                         {item.status === "error" && (
                           <span
                             title={item.error}
-                            className="flex flex-shrink-0 items-center gap-1 font-mono text-4xs text-[#eb4b4b]"
+                            className="flex flex-shrink-0 items-center gap-1 font-mono text-4xs text-danger"
                           >
                             <AlertCircle size={11} /> 失敗
                           </span>
@@ -229,7 +229,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                 {/* 失敗の理由は一覧に収まらないので、最初の1件だけ本文で出す
                     （「失敗」だけだと容量超過なのか長すぎるのか分からない） */}
                 {anyError && (
-                  <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">
+                  <p className="mt-2 font-mono text-3xs text-danger">
                     {items.find((it) => it.status === "error")?.error}
                   </p>
                 )}
@@ -237,7 +237,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                 <button
                   onClick={handleUploadAll}
                   disabled={items.length === 0 || running || allDone}
-                  className="mt-4 w-full rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] py-2.5 font-mono text-sm font-bold text-[#0e1b12] disabled:opacity-40"
+                  className="mt-4 w-full rounded-sm bg-accent py-2.5 font-mono text-sm font-bold text-accent-ink disabled:opacity-40"
                 >
                   {running
                     ? `アップロード中… (${items.filter((i) => i.status === "done").length}/${items.length})`
@@ -277,7 +277,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                 />
 
                 {youtubeUrl.trim().length > 0 && !youtubeLink && (
-                  <p className="mt-1 font-mono text-3xs text-[#eb4b4b]">
+                  <p className="mt-1 font-mono text-3xs text-danger">
                     YouTubeのURLとして読み取れません（watch / youtu.be / shorts のURLに対応しています）
                   </p>
                 )}
@@ -295,18 +295,18 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                 <button
                   onClick={handleAddYoutube}
                   disabled={!youtubeLink || youtubeState === "saving"}
-                  className="mt-4 w-full rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] py-2.5 font-mono text-sm font-bold text-[#0e1b12] disabled:opacity-40"
+                  className="mt-4 w-full rounded-sm bg-accent py-2.5 font-mono text-sm font-bold text-accent-ink disabled:opacity-40"
                 >
                   {youtubeState === "saving" ? "追加中…" : "この動画を追加"}
                 </button>
 
                 {youtubeState === "done" && (
-                  <p className="mt-2 font-mono text-3xs text-[#a4d007]">
+                  <p className="mt-2 font-mono text-3xs text-positive">
                     追加しました。続けて別のURLも貼れます。
                   </p>
                 )}
                 {youtubeError && (
-                  <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{youtubeError}</p>
+                  <p className="mt-2 font-mono text-3xs text-danger">{youtubeError}</p>
                 )}
               </>
             )}

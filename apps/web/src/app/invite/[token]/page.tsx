@@ -35,14 +35,14 @@ export default async function InvitePage({ params }: { params: { token: string }
       <div className="w-full max-w-md rounded-sm border border-steam-border bg-steam-surface p-6">
         {!result.ok || !invite ? (
           <div className="flex flex-col items-center gap-3 text-center">
-            <AlertTriangle size={32} className="text-[#eb4b4b]" />
+            <AlertTriangle size={32} className="text-danger" />
             <h1 className="font-display text-lg font-bold text-steam-text">
               このリンクは使えません
             </h1>
             <p className="font-mono text-xs text-steam-muted">
               {INVALID_REASON_TEXT[result.ok ? "not-found" : result.reason]}
             </p>
-            <p className="font-mono text-3xs text-steam-muted/70">
+            <p className="font-mono text-3xs text-steam-muted">
               招待した人に、新しいリンクを発行してもらってください。
             </p>
           </div>
@@ -65,7 +65,7 @@ export default async function InvitePage({ params }: { params: { token: string }
               signedIn={Boolean(currentUser)}
             />
 
-            <p className="font-mono text-4xs text-steam-muted/60">
+            <p className="font-mono text-4xs text-steam-muted">
               有効期限: {invite.expiresAt.toLocaleString("ja-JP")}
             </p>
           </div>

@@ -103,7 +103,7 @@ export function MobileNav() {
                 className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col border-r border-steam-border bg-steam-panel shadow-2xl shadow-black/50 outline-none"
               >
                 <div className="flex items-center justify-between border-b border-steam-border px-3 py-2">
-                  <span className="px-1 font-display text-lg font-black tracking-tight text-steam-text">
+                  <span className="px-1 font-logo text-lg font-bold tracking-tight text-steam-text">
                     Share<span className="text-steam-blue">Staq</span>
                   </span>
                   <button

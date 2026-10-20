@@ -108,7 +108,7 @@ export function AlbumTitleEditor({ albumId, title }: { albumId: string; title: s
           <X size={13} />
         </button>
       </div>
-      {error && <p className="font-mono text-2xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="font-mono text-2xs text-danger">{error}</p>}
     </div>
   );
 }

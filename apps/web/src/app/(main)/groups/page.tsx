@@ -32,7 +32,7 @@ export default async function GroupsPage() {
         </h1>
         <Link
           href="/groups/new"
-          className="flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
+          className="flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink"
         >
           <Plus size={14} /> 新規グループ
         </Link>
@@ -60,7 +60,7 @@ export default async function GroupsPage() {
                 <span className="flex items-center gap-1">
                   <Users size={11} /> {group._count.members + 1}
                 </span>
-                <span className="ml-auto text-steam-muted/70">
+                <span className="ml-auto text-steam-muted">
                   {formatRelativeTime(group.updatedAt)}
                 </span>
               </div>

@@ -14,11 +14,12 @@ const WEEKDAY_HEADS = ["月", "火", "水", "木", "金", "土", "日"];
 
 /** 濃淡。件数そのものではなく「その月で一番多い日」を基準にする（グループの規模で薄くならないように） */
 function cellTone(total: number, max: number): string {
-  if (total === 0) return "border-steam-border bg-steam-panel text-steam-muted/50";
+  if (total === 0) return "border-steam-border bg-steam-panel text-steam-muted";
   const ratio = total / Math.max(max, 1);
-  if (ratio > 0.66) return "border-[#a4d007]/60 bg-[#a4d007]/25 text-steam-text";
-  if (ratio > 0.33) return "border-[#a4d007]/40 bg-[#a4d007]/15 text-steam-text";
-  return "border-[#a4d007]/25 bg-[#a4d007]/8 text-steam-text";
+  // 濃淡は目立たせる色（青）で付ける。緑は「お得・うまくいった」の意味に取ってある（デザイン刷新の段階1）
+  if (ratio > 0.66) return "border-steam-blue/60 bg-steam-blue/25 text-steam-text";
+  if (ratio > 0.33) return "border-steam-blue/40 bg-steam-blue/15 text-steam-text";
+  return "border-steam-blue/25 bg-steam-blue/10 text-steam-text";
 }
 
 /** JSTの時刻。サーバーのタイムゾーンに依存させない（lib/jst.ts と同じ考え方） */
@@ -124,15 +125,20 @@ export function ActivityCalendarView({
                     )}
                     {/* 件数とは別に出す。出来事が0件でプレイだけの日もある（濃淡は件数だけで付けるので、色で目立たせる） */}
                     {play.days[d.date] && (
-                      // 🎮と時間は折り返せるように分けている。スマホ幅（1マス34px前後）では「🎮2h44m」が1行に入らず、
-                      // 切ると時間が読めなくなる。入る幅では1行、入らなければ🎮の下に時間が来る
+                      // 🎮・時間・分は折り返せるように分けている。スマホ幅（1マスの中身は34px前後）では「🎮2h44m」が1行に入らず、
+                      // 切ると時間が読めなくなる。入る幅では1行、入らなければ🎮の下に時間、さらに入らなければ「2h」の下に「44m」が来る
+                      // （文字を12pxに上げたとき「2h44m」だけで36pxになり、時間と分も分ける必要が出た）
                       <span
                         className="flex flex-wrap items-baseline font-mono text-4xs leading-tight text-steam-blue"
                         data-play-ms={play.days[d.date].totalMs}
                         title={formatPlayDuration(play.days[d.date].totalMs)}
                       >
                         <span>🎮</span>
-                        <span>{formatPlayDurationShort(play.days[d.date].totalMs)}</span>
+                        {formatPlayDurationShort(play.days[d.date].totalMs)
+                          .split(/(?<=h)/)
+                          .map((part) => (
+                            <span key={part}>{part}</span>
+                          ))}
                       </span>
                     )}
                   </span>
@@ -141,7 +147,7 @@ export function ActivityCalendarView({
             ))}
           </div>
 
-          <p className="mt-3 font-mono text-4xs text-steam-muted/70">
+          <p className="mt-3 font-mono text-4xs text-steam-muted">
             数えているのは「実際に起きた日」（撮影日時が分かる写真はその日）。
             {calendar.detailCutoff} より前は生ログを消してあるので、件数だけが残ります。
           </p>
@@ -205,7 +211,7 @@ export function ActivityCalendarView({
                       {e.targetName}
                     </p>
                   )}
-                  <p className="mt-0.5 font-mono text-4xs text-steam-muted/70">
+                  <p className="mt-0.5 font-mono text-4xs text-steam-muted">
                     {/* 日を選んでいないときは日付も出す。**UTCの日付を出さないこと**（9時間ずれる） */}
                     {!selectedDay && `${jstDateString(e.occurredAt)} `}
                     {jstTime(e.occurredAt)}

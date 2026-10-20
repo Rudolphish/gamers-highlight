@@ -74,7 +74,7 @@ export function InviteAccept({
         <button
           onClick={join}
           disabled={pending}
-          className="inline-flex items-center gap-2 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 py-2.5 font-mono text-sm font-bold text-[#0e1b12] disabled:opacity-40"
+          className="inline-flex items-center gap-2 rounded-sm bg-accent px-4 py-2.5 font-mono text-sm font-bold text-accent-ink disabled:opacity-40"
         >
           {pending ? <Spinner size={14} /> : <UserPlus size={15} />}
           {groupName}に参加する
@@ -90,8 +90,8 @@ export function InviteAccept({
         </button>
       )}
 
-      {done && <p className="font-mono text-3xs text-[#a4d007]">{done}</p>}
-      {error && <p className="font-mono text-3xs text-[#eb4b4b]">{error}</p>}
+      {done && <p className="font-mono text-3xs text-positive">{done}</p>}
+      {error && <p className="font-mono text-3xs text-danger">{error}</p>}
     </div>
   );
 }

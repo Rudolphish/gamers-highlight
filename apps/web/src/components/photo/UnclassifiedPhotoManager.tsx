@@ -153,7 +153,7 @@ export function UnclassifiedPhotoManager({
                 />
               )}
               {item.mediaType === "VIDEO" && (
-                <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-1 py-0.5 font-mono text-4xs font-bold text-white">
+                <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-accent px-1 py-0.5 font-mono text-4xs font-bold text-white">
                   <Play size={8} fill="white" /> {`${item.durationSeconds ?? "?"}s`}
                 </span>
               )}
@@ -168,7 +168,7 @@ export function UnclassifiedPhotoManager({
                 }`}
               />
               {isSelected && (
-                <div className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-steam-blue text-[#0e1b12]">
+                <div className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-steam-blue text-accent-ink">
                   <Check size={12} />
                 </div>
               )}
@@ -200,7 +200,7 @@ export function UnclassifiedPhotoManager({
         </select>
         {/* グループが無い／新しく作りたい人の逃げ道。ここで手が止まると、
             アルバムを選べない理由も次にどうすればよいかも分からない */}
-        <p className="mt-1 font-mono text-4xs text-steam-muted/70">
+        <p className="mt-1 font-mono text-4xs text-steam-muted">
           {groups.length === 0 ? "参加しているグループがありません。" : "入れたいグループが無いときは "}
           <Link href="/groups/new" className="text-steam-blue hover:underline">
             新しいグループを作る
@@ -235,7 +235,7 @@ export function UnclassifiedPhotoManager({
             <button
               onClick={moveToExistingAlbum}
               disabled={pending || selected.size === 0 || !targetAlbumId}
-              className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+              className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-accent px-4 py-2 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
             >
               {action === "move" && <Spinner size={12} />}
               {action === "move" ? "追加中…" : "追加"}
@@ -258,7 +258,7 @@ export function UnclassifiedPhotoManager({
             <button
               onClick={createAlbumAndMove}
               disabled={pending || selected.size === 0 || !newAlbumTitle.trim() || !groupId}
-              className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+              className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-accent px-4 py-2 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
             >
               {action === "create" ? <Spinner size={12} /> : <Plus size={12} />}
               {action === "create" ? "作成中…" : "作成"}
@@ -267,7 +267,7 @@ export function UnclassifiedPhotoManager({
         </div>
       </div>
 
-      {error && <p className="mt-3 font-mono text-xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-3 font-mono text-xs text-danger">{error}</p>}
     </div>
   );
 }

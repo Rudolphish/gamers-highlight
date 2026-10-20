@@ -27,12 +27,12 @@ export default async function DiscordSettingsPage() {
       <div className="mt-6 max-w-md rounded-sm border border-steam-border bg-steam-surface p-4">
         {linked ? (
           <div className="flex items-center gap-2 font-mono text-sm text-steam-text">
-            <CheckCircle2 size={16} className="flex-shrink-0 text-[#a4d007]" />
+            <CheckCircle2 size={16} className="flex-shrink-0 text-positive" />
             Discordアカウントと連携済みです
           </div>
         ) : (
           <div>
-            <div className="flex items-center gap-2 font-mono text-sm text-[#eb4b4b]">
+            <div className="flex items-center gap-2 font-mono text-sm text-danger">
               <AlertCircle size={16} className="flex-shrink-0" />
               Discordアカウントが未連携です
             </div>

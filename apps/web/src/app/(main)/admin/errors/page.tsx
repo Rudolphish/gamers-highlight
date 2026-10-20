@@ -50,21 +50,21 @@ export default async function AdminErrorsPage() {
                 className="rounded-sm border border-steam-border bg-steam-surface p-3"
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <AlertTriangle size={12} className="flex-shrink-0 text-[#eb4b4b]" />
+                  <AlertTriangle size={12} className="flex-shrink-0 text-danger" />
                   <code className="font-mono text-3xs text-steam-text">{r.path}</code>
                   {r.count > 1 && (
-                    <span className="rounded-sm border border-[#e0a323]/50 px-1.5 py-0.5 font-mono text-4xs text-[#e0a323]">
+                    <span className="rounded-sm border border-warning/50 px-1.5 py-0.5 font-mono text-4xs text-warning">
                       {r.count}回
                     </span>
                   )}
-                  <span className="ml-auto font-mono text-4xs text-steam-muted/70">
+                  <span className="ml-auto font-mono text-4xs text-steam-muted">
                     {formatRelativeTime(r.lastSeenAt)}
                   </span>
                 </div>
                 <p className="mt-1.5 break-words font-mono text-3xs text-steam-muted">
                   {r.message}
                 </p>
-                <p className="mt-1 font-mono text-4xs text-steam-muted/60">
+                <p className="mt-1 font-mono text-4xs text-steam-muted">
                   初回: {r.firstSeenAt.toLocaleString("ja-JP")} ／{" "}
                   {r.notifiedAt
                     ? `通知済み: ${r.notifiedAt.toLocaleString("ja-JP")}`
@@ -75,7 +75,7 @@ export default async function AdminErrorsPage() {
           </div>
         )}
 
-        <p className="mt-4 font-mono text-4xs text-steam-muted/70">
+        <p className="mt-4 font-mono text-4xs text-steam-muted">
           本番のサーバー側エラーはNext.jsが内容を伏せるため、多くの場合メッセージは汎用的なものになり
           digest だけが手掛かりになります。それでも「いつ・どのページで・何回」は分かるので、
           Vercelのログをdigestで検索する入口として使えます。

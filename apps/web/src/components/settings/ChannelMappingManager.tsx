@@ -119,7 +119,7 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
                 <button
                   onClick={() => removeMapping(m.id)}
                   disabled={removingId !== null}
-                  className="flex-shrink-0 p-1.5 text-steam-muted hover:text-[#eb4b4b] disabled:opacity-50"
+                  className="flex-shrink-0 p-1.5 text-steam-muted hover:text-danger disabled:opacity-50"
                   aria-label="削除"
                 >
                   {removingId === m.id ? <Spinner size={13} /> : <Trash2 size={13} />}
@@ -127,7 +127,7 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
               </li>
             ))}
             {visibleMappings.length === 0 && (
-              <li className="font-mono text-2xs text-steam-muted/60">まだ設定がありません</li>
+              <li className="font-mono text-2xs text-steam-muted">まだ設定がありません</li>
             )}
           </ul>
         )}
@@ -150,17 +150,17 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
           <button
             onClick={addMapping}
             disabled={adding || !channelId.trim() || !gameTitle.trim()}
-            className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+            className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
           >
             {adding ? <Spinner size={12} /> : <Plus size={12} />}
             追加
           </button>
         </div>
-        <p className="mt-2 font-mono text-3xs text-steam-muted/70">
+        <p className="mt-2 font-mono text-3xs text-steam-muted">
           チャンネルIDはDiscordの開発者モードを有効にし、チャンネルを右クリック→「IDをコピー」で取得できます。
         </p>
 
-        {error && <p className="mt-2 font-mono text-xs text-[#eb4b4b]">{error}</p>}
+        {error && <p className="mt-2 font-mono text-xs text-danger">{error}</p>}
       </div>
     </div>
   );

@@ -67,7 +67,7 @@ export function AdminAssignProvider({
             </button>
             <button
               onClick={() => setTarget(Array.from(selected))}
-              className="inline-flex items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-1.5 font-mono text-3xs font-bold text-[#0e1b12]"
+              className="inline-flex items-center gap-1 rounded-sm bg-accent px-3 py-1.5 font-mono text-3xs font-bold text-accent-ink"
             >
               <FolderInput size={12} /> まとめて振り分け
             </button>
@@ -104,7 +104,7 @@ export function AssignCheckbox({ photoId, label }: { photoId: string; label: str
       checked={selected.has(photoId)}
       onChange={() => toggle(photoId)}
       aria-label={`${label} を振り分けの対象にする`}
-      className="h-4 w-4 accent-[#a4d007]"
+      className="h-4 w-4 accent-steam-blue"
     />
   );
 }
@@ -245,7 +245,7 @@ function AssignModal({
             </option>
           ))}
         </select>
-        <p className="mt-1 font-mono text-4xs text-steam-muted/70">
+        <p className="mt-1 font-mono text-4xs text-steam-muted">
           あなたが編集できるアルバムだけに振り分けられます
         </p>
 
@@ -258,7 +258,7 @@ function AssignModal({
           <button
             onClick={submit}
             disabled={pending || !albumId}
-            className="inline-flex items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 py-1.5 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded-sm bg-accent px-4 py-1.5 font-mono text-xs font-bold text-accent-ink disabled:opacity-40"
           >
             {pending && <Spinner size={12} />} 振り分ける
           </button>

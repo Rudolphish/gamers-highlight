@@ -198,7 +198,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
 
                 <div className="p-1.5">
                   <p className="truncate font-mono text-4xs text-steam-text">{displayName(p)}</p>
-                  <p className="truncate font-mono text-4xs text-steam-muted/70">
+                  <p className="truncate font-mono text-4xs text-steam-muted">
                     {p.uploader.name ?? p.uploader.email ?? "-"}
                     {p.sizeBytes ? `・${formatBytes(p.sizeBytes)}` : ""}
                   </p>
@@ -262,7 +262,7 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
                       </Link>
                     ) : (
                       <span className="inline-flex items-center gap-2">
-                        <span className="text-steam-muted/60">未分類</span>
+                        <span className="text-steam-muted">未分類</span>
                         <AssignButton photoId={p.id} />
                       </span>
                     )}
@@ -270,10 +270,10 @@ export default async function AdminMediaPage({ searchParams }: { searchParams: S
                   <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-3xs text-steam-muted">
                     {p.sizeBytes ? formatBytes(p.sizeBytes) : "-"}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 font-mono text-3xs text-steam-muted/70">
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-3xs text-steam-muted">
                     {p.createdAt.toLocaleDateString("ja-JP")}
                   </td>
-                  <td className="px-3 py-2 font-mono text-4xs text-steam-muted/70">
+                  <td className="px-3 py-2 font-mono text-4xs text-steam-muted">
                     {p.source === "DISCORD" ? "Discord" : "手動"}
                   </td>
                   <td className="px-3 py-2 text-right">

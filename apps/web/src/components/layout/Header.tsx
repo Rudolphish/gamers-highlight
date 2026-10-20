@@ -41,7 +41,7 @@ export function Header() {
         <div className="flex min-w-0 items-center gap-2">
           <MobileNav />
           <Link href="/" className="flex items-center gap-3">
-            <span className="font-display text-xl font-black tracking-tight text-steam-text sm:text-2xl">
+            <span className="font-logo text-xl font-bold tracking-tight text-steam-text sm:text-2xl">
               Share<span className="text-steam-blue">Staq</span>
             </span>
           </Link>

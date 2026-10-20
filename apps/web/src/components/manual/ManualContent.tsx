@@ -35,12 +35,12 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
                 href={inviteUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
+                className="mt-2 inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 font-mono text-xs font-bold text-accent-ink"
               >
                 <ExternalLink size={13} /> Botを招待する
               </a>
             ) : (
-              <span className="text-[#eb4b4b]">招待リンクを生成できませんでした</span>
+              <span className="text-danger">招待リンクを生成できませんでした</span>
             )}
             <br />
             招待したいサーバーを選んで「認可」をクリックする。
@@ -58,7 +58,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <br />
             招待したサーバーで、画像に「#ゲーム名」のようなハッシュタグを付けて投稿してみる。しばらくして、作成したグループの配下に自動でアルバムができていれば成功。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：「/tag」「/playlog」コマンド（後述）は、Botを招待したどのサーバーでも使えます。
             入力欄に「/」を打っても出てこないときは、サーバー設定 → 連携サービス → Bot で、
             コマンドを使えるチャンネルが絞られていないか確かめ、Discordを再読み込みしてください。
@@ -82,10 +82,10 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p>
             アルバム詳細ページの「タグ（ハッシュタグ別名）」機能で、「#elden_ring」のような表記ゆれを同じアルバムに統合することもできます。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             注意：タグとして認識されるのは英数字と「_」のみです。スペースは区切り文字として扱われるので、「#Elden Ring」のように書くと「Elden」までしかタグとして拾われません。「#eldenring」や「#elden_ring」のように、スペース無しで書いてください。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             ゲームごとにチャンネルを分けているサーバーなら、
             <Link href="/settings/channel-mapping" className="text-steam-blue hover:underline">
               設定 → チャンネル対応
@@ -119,7 +119,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p>
             候補に無いゲームは「その他（入力する）」を選べば、名前で検索してその場で登録できます（アルバムも一緒に作られます）。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：クリップボードから貼り付けた画像にはファイル名の手掛かりが残らないため、この質問が出るのが普通の状態です。Steamのスクショフォルダから直接アップロードした場合は、ファイル名にゲームのIDが入っているので自動で判別されます。
           </p>
         </div>
@@ -144,7 +144,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p>
             入れたいグループがまだ無いときは、選択欄の下にある「新しいグループを作る」から作成できます。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：Botが落ちていた間の投稿も、Botが起動したときにまとめて取り込まれます。
             そのぶんはゲームを聞かれないので、ここから振り分けてください。
           </p>
@@ -218,7 +218,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             そのとき<strong className="text-steam-text">間違って追加したゲームをゲームリストからも消すか</strong>
             をチェックで選べます（消すと、そのゲームに付いた他のメンバーの「気になる」も消えます）。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：「ゲームとの連携を解除する」を押すと、ゲームリストにはそのまま残したうえで
             アルバムとの紐付けだけを外せます。サムネイルは変わりません（戻したいときは
             「Steam画像を解除して投稿写真に戻す」を使ってください）。
@@ -240,7 +240,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <strong className="text-steam-text">情報が出ていない項目があるとき</strong>
             ：クリア時間や関連動画は外部サービスから取っているため、追加したタイミングによっては取得できていないことがあります。ゲーム詳細ページの更新ボタンを押すと取り直せます。取れなかったサービス名はそのまま表示されるので、どこが落ちているか分かります。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：更新は連打できません（同じゲームにつき、全部揃っていれば24時間、まだ取れていない項目が残っていれば6時間の間隔が空きます）。外部サービスの呼び出し回数に上限があるためです。
           </p>
         </div>
@@ -293,7 +293,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             どのゲームか選んでください。過去の記録にも反映され、次からは自動で当たります。リストに無いゲームなら、
             先にゲームを追加すると自動で結びつきます。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：途中で10分以内に戻ってきた場合は、続けて1回として数えます。5分未満の記録は一覧に出しません（合計には含みます）。
             「推定」の印は、Botが止まっていた間をまたいだ記録です（止まっていた間は確認できないため、時刻が推定になります）。
           </p>
@@ -315,7 +315,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             日のマスには、その日の動きの件数（多いほど濃い色）と、一緒に遊んだ時間（🎮 と青い文字、例: 2h44m＝2時間44分）が出ます。
             マスを押すと、その日の内訳と1件ずつの記録が見られます。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：写真の削除・❤️の取り消し・投票の取り消し・説明を消した・提案の取り下げ・アルバムやゲームの削除・
             「気になる」を外した、は出しません（件数にも数えません）。「最近の動き」は投稿した時刻の順で、
             カレンダーは実際に起きた日（撮影日時が分かる写真はその日）に置きます。
@@ -384,7 +384,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p>
             発行時に権限（閲覧者／編集者）、有効期限（24時間／72時間／7日）、使用できる回数を選べます。発行済みのリンクは一覧から取り消せます。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             注意：このリンクは<strong className="text-steam-text">アプリへのログイン権限そのもの</strong>を渡すものです。回数は「リンクを踏んでログインした時点」で消費されます（グループ加入まで進まなくても消費されます）。渡す相手と回数には注意してください。
           </p>
           <p>
@@ -449,7 +449,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
               </tbody>
             </table>
           </div>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：グループの権限は配下の全アルバムに効きます。特定のアルバムだけ強い権限を渡したいときは、
             アルバム詳細の「共有」から個別に招待してください。
           </p>
@@ -509,14 +509,14 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             容量・長さの制限はありません（動画はYouTube側にあるので、こちらのストレージを使いません）。
             追加先のグループ／アルバム／ゲームタグは、上で選んだものがそのまま使われます。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：貼れるのは「watch」「youtu.be」「shorts」のURLです。再生位置（?t=）や
             プレイリスト（&list=）が付いていても構いません（保存時に外します）。
             <strong className="text-steam-text">非公開の動画は埋め込めません</strong>ので、
             共有したいものは「限定公開」以上にしてください。投稿した人が後から動画を消したり
             非公開にすると、こちらの画面ではYouTube側のエラー表示になります。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             {`注意：上限を超えたファイルはその場でエラーになります（動画の長さはアップロードを始める前に確認します）。Discordに投稿した動画が${MEDIA_LIMIT_LABELS.videoSize}を超えていた場合は取り込まれず、Discord側にも何も出ません——大きい動画が反映されないときはサイズを疑ってください。Discord経由では長さは見ていません。`}
           </p>
         </div>
@@ -537,7 +537,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <strong className="text-steam-text">そのアルバムを見られる人なら誰でも書き換えられる</strong>
             メモです（最後に書いた人の名前と日時が出ます）。検索の対象にも入ります。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             注意：<strong className="text-steam-text">未分類の投稿には❤️も説明も付けられません。</strong>
             どのアルバムにも入っていないと「誰が触ってよいか」を決められないためです。
             先にアルバムへ振り分けてください。
@@ -572,7 +572,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             （<strong className="text-steam-text">YouTubeの動画はサムネイルに使いません</strong>。
             アルバムの見た目がYouTube側の画像に置き換わってしまうためです）。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：1つのグループにアルバムが100件を超えると、更新の古いものは一覧に読み込まれません
             （その場合は画面にその旨が出ます）。
           </p>
@@ -596,7 +596,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <strong className="text-steam-text">グループのゲームリストとウィッシュリスト</strong>
             からも一致するものを探して、まとめて表示します。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             注意：投稿者の欄は<strong className="text-steam-text">ユーザーIDで指定します</strong>
             （表示名では引けません）。
           </p>

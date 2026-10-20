@@ -95,7 +95,7 @@ export function RefreshGameDataButton({
 
   if (!canRefresh) {
     return lastRefreshed ? (
-      <p className="font-mono text-3xs text-steam-muted/70">
+      <p className="font-mono text-3xs text-steam-muted">
         情報の最終更新: {formatWhen(lastRefreshed)}
       </p>
     ) : null;
@@ -119,14 +119,14 @@ export function RefreshGameDataButton({
         </button>
 
         {lastRefreshed && (
-          <span className="font-mono text-3xs text-steam-muted/70">
+          <span className="font-mono text-3xs text-steam-muted">
             最終更新: {formatWhen(lastRefreshed)}
           </span>
         )}
       </div>
 
       {waiting && availableAt && !message && (
-        <p className="mt-1 font-mono text-4xs text-steam-muted/60">
+        <p className="mt-1 font-mono text-4xs text-steam-muted">
           次に更新できるのは {formatWhen(availableAt)} 以降です（1日1回まで）
         </p>
       )}

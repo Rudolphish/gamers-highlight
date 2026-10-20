@@ -24,7 +24,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <div className="flex min-h-[100dvh] flex-1 flex-col overflow-y-auto">
         <Header />
         <div className="flex-1">{children}</div>
-        <footer className="border-t border-steam-border px-4 py-3 text-center font-mono text-3xs text-steam-muted/60 sm:px-6">
+        <footer className="border-t border-steam-border px-4 py-3 text-center font-mono text-3xs text-steam-muted sm:px-6">
           © {new Date().getFullYear()} ShareStaq
         </footer>
       </div>

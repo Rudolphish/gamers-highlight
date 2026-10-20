@@ -100,13 +100,13 @@ export function PhotoDescription({
               onClick={save}
               disabled={saving}
               aria-label="説明を保存"
-              className="flex items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-2.5 py-1 font-mono text-3xs font-bold text-[#0e1b12] disabled:opacity-60"
+              className="flex items-center gap-1 rounded-sm bg-accent px-2.5 py-1 font-mono text-3xs font-bold text-accent-ink disabled:opacity-60"
             >
               {saving ? <Spinner size={12} /> : <Check size={12} />} 保存
             </button>
           </div>
         </div>
-        {error && <p className="font-mono text-3xs text-[#e05a5a]">{error}</p>}
+        {error && <p className="font-mono text-3xs text-danger">{error}</p>}
       </div>
     );
   }
@@ -124,7 +124,7 @@ export function PhotoDescription({
 
       <div className="flex items-center justify-between gap-2">
         {state.text && state.editorName ? (
-          <span className="font-mono text-3xs text-steam-muted/70">
+          <span className="font-mono text-3xs text-steam-muted">
             {state.editorName}
             {state.updatedAt ? `・${new Date(state.updatedAt).toLocaleDateString("ja-JP")}` : ""}
           </span>

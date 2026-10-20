@@ -99,8 +99,8 @@ export default function ProfileSettingsPage() {
             <div
               className={`flex items-center gap-2 rounded-sm p-3 font-mono text-xs ${
                 message.type === "success"
-                  ? "bg-[#a4d007]/10 text-[#a4d007] border border-[#a4d007]/30"
-                  : "bg-[#eb4b4b]/10 text-[#eb4b4b] border border-[#eb4b4b]/30"
+                  ? "bg-positive/10 text-positive border border-positive/30"
+                  : "bg-danger/10 text-danger border border-danger/30"
               }`}
             >
               {message.type === "success" ? <Check size={14} /> : <AlertCircle size={14} />}
@@ -111,7 +111,7 @@ export default function ProfileSettingsPage() {
           <button
             type="submit"
             disabled={saving || !name.trim()}
-            className="mt-2 w-full rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] py-2.5 font-mono text-sm font-bold text-[#0e1b12] disabled:opacity-40 hover:brightness-110 transition"
+            className="mt-2 w-full rounded-sm bg-accent py-2.5 font-mono text-sm font-bold text-accent-ink disabled:opacity-40 hover:brightness-110 transition"
           >
             {saving ? "保存中…" : "変更を保存"}
           </button>

@@ -24,7 +24,7 @@ export default async function AllowlistSettingsPage() {
         <AllowlistManager />
       ) : (
         <div className="mt-6 flex max-w-2xl items-start gap-2 rounded-sm border border-steam-border bg-steam-surface p-4 font-mono text-xs text-steam-muted">
-          <AlertCircle size={16} className="mt-0.5 flex-shrink-0 text-[#e0a323]" />
+          <AlertCircle size={16} className="mt-0.5 flex-shrink-0 text-warning" />
           {isAdminConfigured() ? (
             <span>この画面を操作できるのは管理者のみです。</span>
           ) : (

@@ -98,7 +98,7 @@ export function UnknownPlays({
           </li>
         ))}
       </ul>
-      {error && <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-2 font-mono text-3xs text-danger">{error}</p>}
     </div>
   );
 }
