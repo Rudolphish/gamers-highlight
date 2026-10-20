@@ -1,7 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Images } from "lucide-react";
-import { formatRelativeTime } from "@/lib/relative-time";
 
 type Member = { id: string; name?: string | null; avatarUrl?: string | null };
 
@@ -13,7 +12,8 @@ type Album = {
   photoCount: number;
   members: Member[];
   memberCount: number;
-  updatedAt: Date | string;
+  /** 表示用の「3時間前」。サーバーで作る（AlbumCard のコメント参照） */
+  updatedLabel: string;
   groupName?: string | null;
 };
 
@@ -61,7 +61,7 @@ export function AlbumRows({ albums }: { albums: Album[] }) {
             {album.photoCount}枚
           </span>
           <span className="hidden flex-shrink-0 font-mono text-4xs text-steam-muted/70 sm:inline">
-            {formatRelativeTime(album.updatedAt)}
+            {album.updatedLabel}
           </span>
         </Link>
       ))}

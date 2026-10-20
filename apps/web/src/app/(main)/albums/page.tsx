@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { AlbumSearch } from "@/components/album/AlbumSearch";
 import { getSteamCoverUrls } from "@/lib/albumCover";
 import { coverPhotoQuery } from "@/lib/albumCoverPolicy";
+import { formatRelativeTime } from "@/lib/relative-time";
 
 // アルバム一覧画面：自分のアルバム一覧＋未分類の投稿への導線
 export default async function AlbumsPage() {
@@ -77,6 +78,8 @@ export default async function AlbumsPage() {
       members: memberList,
       memberCount: album._count.members + 1,
       updatedAt: album.updatedAt,
+      // 表示はサーバーで作る（components/album/AlbumCard.tsx のコメント参照）
+      updatedLabel: formatRelativeTime(album.updatedAt),
       groupName: album.group.name,
       groupId: album.group.id,
       gameTitle: album.gameTitle,

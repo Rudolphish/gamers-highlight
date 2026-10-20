@@ -2914,6 +2914,45 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── 「3時間前」の表示でハイドレーションが食い違わない（B93 が時々落ちていた原因） ──
+// アルバムのカードはクライアント部品（AlbumSearch・ExpandableAlbumGrid）の中で描かれる。
+// そこで Date.now() から「N分前」を計算していたため、サーバーとブラウザの間で分や時間の境目を
+// またいだ回だけ文字が食い違い、React #425/#422 が出ていた（B93 の「ナビの開閉で例外が出ない」で /albums を開いたとき）。
+// 境目は偶然にしかまたがないので、**ブラウザの時計だけを40日進めて**必ずまたがせる。直す前のビルドでは毎回落ちる
+{
+  const shifted = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await shifted.addCookies(await context.cookies());
+  await shifted.addInitScript(() => {
+    const real = Date.now;
+    Date.now = () => real() + 40 * 24 * 60 * 60 * 1000;
+  });
+  const page = await shifted.newPage();
+  const problems = [];
+  watchPageErrors(page, problems, "B120");
+  try {
+    const seen = [];
+    for (const path of ["/albums", `/groups/${ids.groupId}`]) {
+      await page.goto(BASE + path, { waitUntil: "networkidle" });
+      // カードが出ていないと何も確かめていないことになるので、「〜前」が描かれていることも見る
+      const labels = await page.evaluate(() => (document.querySelector("main")?.innerText.match(/(たった今|\d+(分|時間|日|ヶ月|年)前)/g) ?? []).length);
+      seen.push(`${path.startsWith("/groups") ? "グループ" : "/albums"}=${labels}件`);
+    }
+    const allShown = seen.every((x) => !x.endsWith("=0件"));
+    rows.push({
+      id: "B120",
+      item: "ブラウザの時計がずれていても、アルバムのカードの「〜前」の表示で例外が出ない（/albums・グループ画面）",
+      expected: "例外なし・どちらのページもカードの「〜前」が出ている",
+      actual: `${problems.slice(0, 2).join(" / ") || "例外なし"} / ${seen.join(" ")}`,
+      ok: problems.length === 0 && allShown,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B120", item: "アルバムのカードのハイドレーション", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    await shifted.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）
