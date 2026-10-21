@@ -1,4 +1,5 @@
 // B: 実ブラウザで主要ページを開き、ページ例外・ハイドレーションエラーを拾う。
+import { randomUUID } from "node:crypto";
 import { encode } from "next-auth/jwt";
 import { writeResults } from "./_results.mjs";
 import { watchPageErrors, writePageErrors } from "./_pageerrors.mjs";
@@ -4158,6 +4159,71 @@ for (const [id, label, path] of targets) {
   } catch (e) {
     rows.push({ id: "B146", item: "ホームの「みんなの動き」の置き場所", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
   } finally {
+    await page.close();
+  }
+}
+
+// ── グループの見出しの顔：Discord のアイコンを出し、読めないときは頭文字に戻す（2026-10-21 ユーザー判断） ──
+// アイコンのURLはDBにしか入れる口が無い（ログインの時に保存する）ので、ここだけ Prisma で用意して同じ経路で消す。
+// 画像は next/image の最適化（/_next/image）を通るので、そこを横取りして「読める」「404」を決め打ちにする
+// （手元は外へ出られず、CIは出られる。どちらでも同じ結果になるように）
+{
+  const { PrismaClient } = await import("@prisma/client");
+  const prisma = new PrismaClient();
+  const page = await context.newPage();
+  const tag = randomUUID().slice(0, 6);
+  const okMail = `face-ok-${tag}@example.com`;
+  const brokenMail = `face-broken-${tag}@example.com`;
+  let groupId = null;
+  try {
+    await prisma.user.createMany({
+      data: [
+        { email: okMail, name: "アイコンあり", avatarUrl: `https://cdn.discordapp.com/avatars/9/${tag}-ok.png` },
+        { email: brokenMail, name: "アイコン切れ", avatarUrl: `https://cdn.discordapp.com/avatars/9/${tag}-broken.png` },
+      ],
+    });
+    // 1x1 の PNG
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+    await page.route("**/_next/image?**", (route) => {
+      const url = decodeURIComponent(route.request().url());
+      if (url.includes(`${tag}-ok.png`)) return route.fulfill({ status: 200, contentType: "image/png", body: png });
+      if (url.includes(`${tag}-broken.png`)) return route.fulfill({ status: 404, body: "" });
+      return route.continue();
+    });
+    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "domcontentloaded" });
+    groupId = await page.evaluate(async ([name, emails]) => {
+      const res = await fetch("/api/groups", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+      const group = res.ok ? (await res.json()).group : null;
+      if (!group) return null;
+      for (const email of emails) {
+        await fetch(`/api/groups/${group.id}/members`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, role: "VIEWER" }) });
+      }
+      return group.id;
+    }, [`顔の表示-${tag}`, [okMail, brokenMail]]);
+    await page.goto(`${BASE}/groups/${groupId}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(800);
+    const faces = await page.evaluate(() =>
+      [...document.querySelectorAll("[data-face]")].map((el) => {
+        const img = el.querySelector("img");
+        return { who: el.getAttribute("title"), face: el.getAttribute("data-face"), loaded: !!img && img.complete && img.naturalWidth > 0, text: el.textContent?.trim() ?? "" };
+      })
+    );
+    const ok = faces.find((f) => f.who === "アイコンあり");
+    const broken = faces.find((f) => f.who === "アイコン切れ");
+    rows.push({
+      id: "B147",
+      item: "グループの見出しで、Discord のアイコンが読める人は画像、読めない人は壊れた画像ではなく頭文字の丸で出る",
+      expected: "アイコンあり=画像が読み込まれている / アイコン切れ=頭文字（ア）に戻る",
+      actual: faces.map((f) => `${f.who}=${f.face}${f.face === "avatar" ? (f.loaded ? "(読めた)" : "(読めていない)") : `(${f.text})`}`).join(" / "),
+      ok: !!ok && ok.face === "avatar" && ok.loaded && !!broken && broken.face === "initial" && broken.text === "ア",
+      note: groupId ? "" : "グループを作れなかった",
+    });
+  } catch (e) {
+    rows.push({ id: "B147", item: "グループの見出しの顔", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    if (groupId) await page.evaluate((id) => fetch(`/api/groups/${id}`, { method: "DELETE" }), groupId).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: { in: [okMail, brokenMail] } } }).catch(() => {});
+    await prisma.$disconnect();
     await page.close();
   }
 }

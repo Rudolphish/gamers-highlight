@@ -278,7 +278,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       {/* 見出し: 名前・顔ぶれ・よく使う操作。めったに触らない設定（通知・削除など）は歯車の先へ移した */}
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
         <GroupNameEditor groupId={group.id} name={group.name} canEdit={isOwner} />
-        <MemberFaces members={shareMembers.map((m) => ({ id: m.userId, name: m.name }))} />
+        <MemberFaces members={shareMembers.map((m) => ({ id: m.userId, name: m.name, avatarUrl: m.avatarUrl ?? null }))} />
         <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
           <Link href={`/upload?group=${group.id}`} className={`${primaryButton} flex-1 sm:flex-none`}>
             <Upload size={16} aria-hidden="true" /> 写真を投稿
