@@ -54,31 +54,31 @@ export function HltbCard({ gameId, main, mainExtra, completionist, allStyles }: 
           HowLongToBeat のデータなし
         </p>
       ) : (
-      <>
-      <div className="mt-3 flex flex-col gap-2">
-        {ROWS.map(({ label, key }) => {
-          const value = values[key];
-          if (value === null) return null;
-          const widthPercent = Math.max((value / max) * 100, 4);
-          return (
-            <div key={key}>
-              <div className="flex items-baseline justify-between">
-                <span className="text-4xs text-steam-muted">{label}</span>
-                <span className="text-3xs font-bold text-steam-text">{value}h</span>
-              </div>
-              <div className="mt-0.5 h-2 w-full overflow-hidden rounded-sm bg-steam-panel">
-                <div
-                  className="h-full rounded-sm bg-gradient-to-r from-steam-blue/60 to-steam-blue"
-                  style={{ width: `${widthPercent}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+        <>
+          <div className="mt-3 flex flex-col gap-2">
+            {ROWS.map(({ label, key }) => {
+              const value = values[key];
+              if (value === null) return null;
+              const widthPercent = Math.max((value / max) * 100, 4);
+              return (
+                <div key={key}>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-4xs text-steam-muted">{label}</span>
+                    <span className="text-3xs font-bold text-steam-text">{value}h</span>
+                  </div>
+                  <div className="mt-0.5 h-2 w-full overflow-hidden rounded-sm bg-steam-panel">
+                    <div
+                      className="h-full rounded-sm bg-gradient-to-r from-steam-blue/60 to-steam-blue"
+                      style={{ width: `${widthPercent}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
-      <p className="mt-2 text-4xs text-steam-muted">非公式データのため目安値です</p>
-      </>
+          <p className="mt-2 text-4xs text-steam-muted">非公式データのため目安値です</p>
+        </>
       )}
     </div>
   );
