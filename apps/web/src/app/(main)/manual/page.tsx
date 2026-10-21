@@ -19,7 +19,7 @@ export default async function ManualPage() {
     <main className="p-4 sm:p-6">
       <h1 className="font-display text-2xl font-bold text-steam-text sm:text-3xl">マニュアル</h1>
       <p className="mt-1 text-xs text-steam-muted">
-        使い方をトピックごとにまとめています。タップで開閉できます
+        使い方を分類ごとにまとめています。トピックはタップで開閉できます
       </p>
 
       <div className="mt-6 max-w-2xl">

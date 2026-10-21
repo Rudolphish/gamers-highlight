@@ -4225,6 +4225,68 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 }
 
+// ── グループの見出しの顔：Discord のアイコンがある人は画像、無い人は頭文字（2026-10-21 ユーザー判断） ──
+// 新しく作ったグループで見る（グループの中身はキャッシュに載るので、既存のグループで見ると前の描画が返りうる）。
+// 管理者のアイコンは確認の間だけ入れて、すぐ元に戻す（ほかのページのキャッシュに残さないため、描画は1回だけ）
+{
+  const adminUser = await db.user.findUnique({ where: { email: "admin@example.com" }, select: { id: true, avatarUrl: true } });
+  const memberUser = await db.user.findUnique({ where: { email: "member@example.com" }, select: { id: true, avatarUrl: true } });
+  let faceGroupId = null;
+  try {
+    await db.user.update({ where: { id: adminUser.id }, data: { avatarUrl: "https://cdn.discordapp.com/avatars/1/face-check.png" } });
+    await db.user.update({ where: { id: memberUser.id }, data: { avatarUrl: null } });
+    const made = await api("/api/groups", { method: "POST", cookie: adminCookie, body: { name: `顔の確認-${Date.now()}` } });
+    faceGroupId = made.json?.group?.id ?? null;
+    await api(`/api/groups/${faceGroupId}/members`, { method: "POST", cookie: adminCookie, body: { email: "member@example.com", role: "VIEWER" } });
+    const page = await api(`/groups/${faceGroupId}`, { cookie: adminCookie });
+    const faces = [...page.text.matchAll(/data-face="(avatar|initial)"/g)].map((m) => m[1]);
+    const avatarImg = /data-face="avatar"[^>]*>\s*<img[^>]+src="[^"]*cdn\.discordapp\.com[^"]*face-check\.png/.test(page.text);
+    check(
+      "F313 グループの見出しに、Discord のアイコンがある人は画像、無い人は頭文字の丸で並ぶ",
+      page.status === 200 && faces.length === 2 && faces.includes("avatar") && faces.includes("initial") && avatarImg,
+      `顔=${faces.join(",")} / アイコンの画像=${avatarImg}`
+    );
+  } catch (e) {
+    check("F313x グループの見出しの顔の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    await db.user.update({ where: { id: adminUser.id }, data: { avatarUrl: adminUser.avatarUrl } });
+    await db.user.update({ where: { id: memberUser.id }, data: { avatarUrl: memberUser.avatarUrl } });
+    if (faceGroupId) await api(`/api/groups/${faceGroupId}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
+// ── マニュアルを分類ごとに並べる（2026-10-21 ユーザー判断。トピックが22まで増えた） ──
+// 目次（分類と件数）・分類の見出しが並ぶ順・どのトピックがどの分類か（代表を見る）・管理者向けは管理者にだけ
+{
+  const byAdmin = await api("/manual", { cookie: adminCookie });
+  const byMember = await api("/manual", { cookie: memberCookie });
+  const headings = (html) => [...html.matchAll(/data-testid="manual-category"[^>]*><h2[^>]*>([^<]+)<\/h2>/g)].map((m) => m[1]);
+  const sectionOf = (html, label) => {
+    const at = html.indexOf(`>${label}</h2>`);
+    const next = html.indexOf('data-testid="manual-category"', at);
+    return at >= 0 ? html.slice(at, next >= 0 ? next : undefined) : "";
+  };
+  const a = headings(byAdmin.text);
+  const m = headings(byMember.text);
+  const placed =
+    sectionOf(byAdmin.text, "はじめに").includes("友達をグループに招待する") &&
+    sectionOf(byAdmin.text, "写真・アルバム").includes("手動アップロード") &&
+    sectionOf(byAdmin.text, "Discord").includes("ハッシュタグで自動取り込みする") &&
+    sectionOf(byAdmin.text, "ゲーム・遊んだ記録").includes("グループで遊んだ時間（プレイ記録）") &&
+    sectionOf(byAdmin.text, "管理者向け").includes("管理者向けの機能");
+  // 分類の中は読む順（書いた順ではない）。「はじめに」はメニューの使い方から、「写真・アルバム」は手動アップロードから
+  const firstOf = (label) => sectionOf(byAdmin.text, label).match(/font-semibold text-steam-text">([^<]+)</)?.[1] ?? "";
+  const ordered = firstOf("はじめに") === "メニューの使い方（スマホとパソコン）" && firstOf("写真・アルバム") === "手動アップロード";
+  check(
+    "F314 マニュアルが分類（はじめに・写真・アルバム・Discord・ゲーム・遊んだ記録・管理者向け）ごとに並び、分類の中は読む順で、目次に件数が出て、管理者向けは管理者にだけ出る",
+    byAdmin.status === 200 && byMember.status === 200 &&
+      a.join("|") === "はじめに|写真・アルバム|Discord|ゲーム・遊んだ記録|管理者向け" &&
+      m.join("|") === "はじめに|写真・アルバム|Discord|ゲーム・遊んだ記録" &&
+      byAdmin.text.includes('href="#category-photos"') && byAdmin.text.includes("写真・アルバム（6）") && placed && ordered,
+    `管理者=${a.join("|")} / メンバー=${m.join("|")} / 目次=${byAdmin.text.includes("写真・アルバム（6）")} / 置き場所=${placed} / 先頭=${firstOf("はじめに")}・${firstOf("写真・アルバム")}`
+  );
+}
+
 // ── ウィッシュリストの価格（Steamの今の値段とSteamでの過去最安値） ──
 // 外部は fetch-stub。Steamの最安値は ITAD の stub が全ゲーム ¥4,730 を返す。
 // - ELDEN RING（1245620）: 今 ¥4,730（-45%）＝最安値と同じなので「最安値」の印が付く
