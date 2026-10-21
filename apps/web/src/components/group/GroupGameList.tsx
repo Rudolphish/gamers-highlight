@@ -359,6 +359,7 @@ export function GroupGameList({
           {filteredGames.map((game) => (
             <div
               key={game.id}
+              data-testid="game-card"
               className="overflow-hidden rounded-xl bg-steam-surface transition hover:border-steam-blue"
             >
               <Link href={`/groups/${groupId}/games/${game.id}`}>
@@ -405,7 +406,9 @@ export function GroupGameList({
                 </div>
               </Link>
               <div className="p-2">
-                <div className="flex items-center justify-between gap-1">
+                {/* 折り返せるようにしておく。スマホの2列だとカードは170px前後しかなく、「ねらってる」に文字を足したら
+                    右端が切れて削除ボタンが見えなくなった（カードが overflow-hidden なので横スクロールにも出ない。B127） */}
+                <div className="flex flex-wrap items-center justify-between gap-1">
                   {canEdit ? (
                     <select
                       value={game.status}

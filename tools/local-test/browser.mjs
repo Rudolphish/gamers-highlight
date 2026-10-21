@@ -3253,6 +3253,44 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── ゲームカードの部品がカードからはみ出さない（デザイン刷新の段階3） ──
+// 「ねらってる」のボタンに文字を足したら、スマホの2列のカードで右端が切れ、削除ボタンが見えなくなった。
+// カードは overflow-hidden なのでページの横スクロール（B91）には出ない。カードの箱と中の部品の箱を比べる
+{
+  const page = await context.newPage();
+  try {
+    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => {
+      const out = { cards: 0, parts: 0, over: [] };
+      for (const card of document.querySelectorAll('[data-testid="game-card"]')) {
+        out.cards++;
+        const c = card.getBoundingClientRect();
+        for (const el of card.querySelectorAll("button, select")) {
+          out.parts++;
+          const b = el.getBoundingClientRect();
+          if (b.right > c.right + 0.5 || b.left < c.left - 0.5) {
+            out.over.push(`${el.getAttribute("aria-label") ?? el.textContent?.trim().slice(0, 12)}（${Math.round(b.right - c.right)}px）`);
+          }
+        }
+      }
+      return out;
+    });
+    rows.push({
+      id: "B127",
+      item: "スマホ幅のグループ画面で、ゲームカードのボタンと選択欄がカードの外にはみ出していない",
+      expected: "はみ出し 0件",
+      actual: `はみ出し ${r.over.length}件 / カード ${r.cards}枚・部品 ${r.parts}個`,
+      ok: r.cards > 0 && r.parts > r.cards && r.over.length === 0,
+      note: r.over.slice(0, 4).join(" | ").slice(0, 200),
+    });
+  } catch (e) {
+    rows.push({ id: "B127", item: "ゲームカードのはみ出し", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    await page.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）
