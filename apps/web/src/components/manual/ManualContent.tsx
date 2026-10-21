@@ -4,8 +4,21 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { MEDIA_LIMIT_LABELS } from "@/lib/media-limits";
 import { ChevronDown, ExternalLink } from "lucide-react";
+import { chipButton } from "@/components/ui/buttonStyles";
 
-type Section = { id: string; title: string; body: ReactNode };
+// トピックの分類（2026-10-21 ユーザー判断。トピックが22まで増えて、どこに何があるか分からなくなった）。
+// **分類はこの配列の順**に並べる。分類の中は `order` の順（読む順。書いた順のままだと「はじめに」が招待から始まった）で、
+// `order` に無いトピックは後ろに書いた順で続く。トピックを足すときは category を必ず付ける（型で漏れを止めている）
+const CATEGORIES = [
+  { key: "start", label: "はじめに", order: ["mobile", "group-vs-album", "invite-friend", "permissions", "account"] },
+  { key: "photos", label: "写真・アルバム", order: ["manual-upload", "reactions-description", "album-view", "search", "unclassified", "delete"] },
+  { key: "discord", label: "Discord", order: [] },
+  { key: "games", label: "ゲーム・遊んだ記録", order: [] },
+  { key: "admin", label: "管理者向け", order: [] },
+] as const;
+type CategoryKey = (typeof CATEGORIES)[number]["key"];
+
+type Section = { id: string; category: CategoryKey; title: string; body: ReactNode };
 
 export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: string | null; isAdmin?: boolean }) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -19,6 +32,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
   const sections: Section[] = [
     {
       id: "discord-bot-invite",
+      category: "discord",
       title: "新しいDiscordサーバーにBotを導入する",
       body: (
         <div className="flex flex-col gap-3">
@@ -68,6 +82,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "hashtag-auto-import",
+      category: "discord",
       title: "ハッシュタグで自動取り込みする",
       body: (
         <div className="flex flex-col gap-3">
@@ -97,6 +112,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "tag-command",
+      category: "discord",
       title: "後からタグを付け直す（/tagコマンド）",
       body: (
         <p>
@@ -106,6 +122,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "bot-asks-game",
+      category: "discord",
       title: "ゲームが分からない投稿にBotが聞いてくる",
       body: (
         <div className="flex flex-col gap-3">
@@ -127,6 +144,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "unclassified",
+      category: "photos",
       title: "未分類の投稿を振り分ける",
       body: (
         <div className="flex flex-col gap-3">
@@ -153,6 +171,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "group-games",
+      category: "games",
       title: "グループでゲームを共有する",
       body: (
         <div className="flex flex-col gap-3">
@@ -193,6 +212,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "album-steam-link",
+      category: "games",
       title: "アルバムとゲームを連携する（間違えたときの直し方）",
       body: (
         <div className="flex flex-col gap-3">
@@ -230,6 +250,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "game-detail",
+      category: "games",
       title: "ゲーム詳細で分かること",
       body: (
         <div className="flex flex-col gap-3">
@@ -248,6 +269,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "play-log",
+      category: "games",
       title: "グループで遊んだ時間（プレイ記録）",
       body: (
         <div className="flex flex-col gap-3">
@@ -302,13 +324,19 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "group-activity",
+      category: "games",
       title: "グループの活動（最近の動き・活動カレンダー）",
       body: (
         <div className="flex flex-col gap-3">
           <p>
             グループ画面の<strong className="text-steam-text">「最近の動き」</strong>（スマホでは「ようす」のタブ）に、写真の投稿・アルバムの作成・
-            ウィッシュリストへの追加・一緒に遊んだ記録（🎮）などが、新しい順に5件出ます。
+            ウィッシュリストへの追加・一緒に遊んだ記録（🎮）・最安値の更新などが、新しい順に5件出ます。
             同じ人が続けて写真を投稿したときは「写真を4枚投稿」のように1行にまとまります。
+            ゲームのステータスの変更（プレイ中 → クリア済み など）は「最近の動き」には出さず、カレンダーにだけ出ます。
+          </p>
+          <p>
+            <strong className="text-steam-text">ホーム</strong>の「みんなの動き」には、自分が入っているグループすべての動きが、
+            グループ名つきで新しい順に出ます。
           </p>
           <p>
             右上の<strong className="text-steam-text">「カレンダーで見る」</strong>で、そのグループの活動カレンダーが開きます。
@@ -317,7 +345,8 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           </p>
           <p className="text-steam-muted">
             補足：写真の削除・❤️の取り消し・投票の取り消し・説明を消した・提案の取り下げ・アルバムやゲームの削除・
-            「ねらってる」を外した、は出しません（件数にも数えません）。「最近の動き」は投稿した時刻の順で、
+            「ねらってる」を外した、は出しません（件数にも数えません）。「最安値の更新」は、Discord の「最安値の更新」の通知先を
+            設定しているグループで、通知が送られたときにだけ出ます。「最近の動き」は投稿した時刻の順で、
             カレンダーは実際に起きた日（撮影日時が分かる写真はその日）に置きます。
             「アルバムを作成」の行には、作った時点のアルバム名が出ます（後から名前を変えても書き換わりません）。
           </p>
@@ -326,6 +355,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "price-notify",
+      category: "discord",
       title: "Discordへの通知",
       body: (
         <div className="flex flex-col gap-3">
@@ -373,6 +403,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "invite-friend",
+      category: "start",
       title: "友達をグループに招待する",
       body: (
         <div className="flex flex-col gap-3">
@@ -397,6 +428,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "group-vs-album",
+      category: "start",
       title: "グループとアルバムの関係",
       body: (
         <div className="flex flex-col gap-3">
@@ -414,6 +446,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "permissions",
+      category: "start",
       title: "権限（オーナー／編集者／閲覧者）でできること",
       body: (
         <div className="flex flex-col gap-3">
@@ -458,6 +491,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "delete",
+      category: "photos",
       title: "写真・アルバム・グループの削除",
       body: (
         <div className="flex flex-col gap-3">
@@ -475,6 +509,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "manual-upload",
+      category: "photos",
       title: "手動アップロード",
       body: (
         <div className="flex flex-col gap-3">
@@ -524,6 +559,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "reactions-description",
+      category: "photos",
       title: "❤️と説明（コメント）を付ける",
       body: (
         <div className="flex flex-col gap-3">
@@ -547,6 +583,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "album-view",
+      category: "photos",
       title: "アルバムの並び順とサムネイル",
       body: (
         <div className="flex flex-col gap-3">
@@ -581,6 +618,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "search",
+      category: "photos",
       title: "スクショを探す",
       body: (
         <div className="flex flex-col gap-3">
@@ -605,6 +643,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "mobile",
+      category: "start",
       title: "メニューの使い方（スマホとパソコン）",
       body: (
         <div className="flex flex-col gap-3">
@@ -636,6 +675,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "account",
+      category: "start",
       title: "アカウントの設定（Discord連携・表示名）",
       body: (
         <div className="flex flex-col gap-3">
@@ -657,6 +697,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       ? [
           {
             id: "admin",
+            category: "admin" as const,
             title: "管理者向けの機能（管理者にだけ表示）",
             body: (
               <div className="flex flex-col gap-3">
@@ -688,30 +729,52 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       : []),
   ];
 
+  const rank = (order: readonly string[], id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
+  const groups = CATEGORIES.map((c) => ({
+    ...c,
+    // sort は同じ順位どうしの元の並びを保つので、order に無いトピックは書いた順のまま
+    items: sections.filter((s) => s.category === c.key).sort((a, b) => rank(c.order, a.id) - rank(c.order, b.id)),
+  })).filter((g) => g.items.length > 0);
+
   return (
-    <div className="flex flex-col gap-2">
-      {sections.map((s) => {
-        const open = openId === s.id;
-        return (
-          <div key={s.id} id={s.id} className="rounded-xl bg-steam-surface">
-            <button
-              onClick={() => setOpenId(open ? null : s.id)}
-              className="flex w-full items-center justify-between px-4 py-3 text-left"
-            >
-              <span className="font-display font-semibold text-steam-text">{s.title}</span>
-              <ChevronDown
-                size={16}
-                className={`flex-shrink-0 text-steam-muted transition-transform ${open ? "rotate-180" : ""}`}
-              />
-            </button>
-            {open && (
-              <div className="border-t border-steam-border px-4 py-3 text-xs leading-relaxed text-steam-muted">
-                {s.body}
-              </div>
-            )}
+    <div>
+      {/* 分類の目次。押すとその分類の見出しへ飛ぶ */}
+      <nav aria-label="マニュアルの分類" className="flex flex-wrap gap-2">
+        {groups.map((g) => (
+          <a key={g.key} href={`#category-${g.key}`} className={chipButton(false)}>
+            {`${g.label}（${g.items.length}）`}
+          </a>
+        ))}
+      </nav>
+      {groups.map((g) => (
+        <section key={g.key} id={`category-${g.key}`} data-testid="manual-category" className="mt-6 scroll-mt-4">
+          <h2 className="font-display text-lg font-bold text-steam-text">{g.label}</h2>
+          <div className="mt-2 flex flex-col gap-2">
+            {g.items.map((s) => {
+              const open = openId === s.id;
+              return (
+                <div key={s.id} id={s.id} className="rounded-xl bg-steam-surface">
+                  <button
+                    onClick={() => setOpenId(open ? null : s.id)}
+                    className="flex w-full items-center justify-between px-4 py-3 text-left"
+                  >
+                    <span className="font-display font-semibold text-steam-text">{s.title}</span>
+                    <ChevronDown
+                      size={16}
+                      className={`flex-shrink-0 text-steam-muted transition-transform ${open ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {open && (
+                    <div className="border-t border-steam-border px-4 py-3 text-xs leading-relaxed text-steam-muted">
+                      {s.body}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
+        </section>
+      ))}
     </div>
   );
 }

@@ -22,7 +22,7 @@ import { formatRelativeTime } from "@/lib/relative-time";
 import { UnknownPlays } from "@/components/group/UnknownPlays";
 import { GroupSections } from "@/components/group/GroupSections";
 import { MemberFaces } from "@/components/group/MemberFaces";
-import { iconButton, primaryButton, secondaryButton } from "@/components/ui/buttonStyles";
+import { addButton, iconButton, primaryButton } from "@/components/ui/buttonStyles";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 // サーバーから取る上限。**ここを超えた分はグループ画面から辿れなくなる**ので、
@@ -207,7 +207,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
         />
       )}
       {recentDays.length > 0 ? (
-        <RecentActivity groupId={group.id} days={recentDays} />
+        <RecentActivity days={recentDays} calendarHref={`/groups/${group.id}/activity`} />
       ) : (
         !(playTotals && playTotals.totalMs > 0) && (
           <EmptyState icon={Activity} title="まだ動きはありません" description="写真を投稿したり、みんなでゲームを遊んだりすると、ここに出ます。" />
@@ -220,7 +220,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
     <CollapsibleSection
       title="アルバム"
       headerAction={
-        <Link href={`/groups/${group.id}/albums/new`} className={secondaryButton}>
+        <Link href={`/groups/${group.id}/albums/new`} className={addButton}>
           <Plus size={16} aria-hidden="true" /> 新規アルバム
         </Link>
       }
@@ -278,7 +278,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       {/* 見出し: 名前・顔ぶれ・よく使う操作。めったに触らない設定（通知・削除など）は歯車の先へ移した */}
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
         <GroupNameEditor groupId={group.id} name={group.name} canEdit={isOwner} />
-        <MemberFaces members={shareMembers.map((m) => ({ id: m.userId, name: m.name }))} />
+        <MemberFaces members={shareMembers.map((m) => ({ id: m.userId, name: m.name, avatarUrl: m.avatarUrl ?? null }))} />
         <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
           <Link href={`/upload?group=${group.id}`} className={`${primaryButton} flex-1 sm:flex-none`}>
             <Upload size={16} aria-hidden="true" /> 写真を投稿

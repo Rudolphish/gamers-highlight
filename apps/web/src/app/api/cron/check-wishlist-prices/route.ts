@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getItadSummary } from "@/lib/itad";
 import { postDiscordMessage } from "@/lib/discord";
 import { listNotificationTargets } from "@/lib/notificationTargets";
+import { logActivity } from "@/lib/activityLog";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -22,6 +23,10 @@ export const maxDuration = 60;
 //
 // **送れなかったら最安値の記録を進めない。** 先に記録してから送ると、Discordが落ちていた・Botが外されていた日の
 // 値下がりは「もう知っている値」になって二度と通知されない（CLAUDE.md「取りこぼさないための記録は、失敗したら進めてはいけない」）。
+//
+// **通知を送れたら活動の記録にも残す**（`game.price_dropped`。グループ画面の「最近の動き」とホームに出る。2026-10-21 ユーザー判断）。
+// 送れなかった日は記録しない——次の日にもう一度送るので、そこで1回だけ残る（同じ値下がりが2行にならない）。
+// 通知先を設定していないグループはそもそも調べないので、そこには出ない（ユーザーが2案から選んだ）
 export async function GET(req: Request) {
   if (!isCronRequest(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -62,6 +67,7 @@ export async function GET(req: Request) {
 
   // グループ × ゲーム（steamAppId）ごとにまとめる
   type Watch = {
+    groupId: string;
     channelId: string;
     steamAppId: number;
     title: string;
@@ -78,6 +84,7 @@ export async function GET(req: Request) {
       let w = byApp.get(steamAppId);
       if (!w) {
         w = {
+          groupId: group.id,
           channelId: channelByGroupId.get(group.id)!,
           steamAppId,
           title,
@@ -150,6 +157,16 @@ export async function GET(req: Request) {
         w.gameIds.length > 0 ? db.groupGame.updateMany({ where: { id: { in: w.gameIds } }, data }) : null,
         w.proposalIds.length > 0 ? db.groupGameProposal.updateMany({ where: { id: { in: w.proposalIds } }, data }) : null,
       ]);
+      if (dropped) {
+        // 対象はゲームリストのゲームを優先する（グループ画面の名前と揃える。上の title と同じ考え方）
+        await logActivity({
+          kind: "game.price_dropped",
+          targetId: w.gameIds[0] ?? w.proposalIds[0],
+          targetName: w.title,
+          groupId: w.groupId,
+          detail: { price: summary.lowPrice, shop: summary.lowShopName },
+        });
+      }
       return dropped ? "notified" : "checked";
     })
   );

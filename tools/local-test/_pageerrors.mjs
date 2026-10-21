@@ -42,6 +42,21 @@ export function watchPageErrors(page, problems, label = "") {
       stack: (error.stack ?? "").split("\n").slice(0, 25).join("\n"),
     });
   });
+  // **React のエラーは pageerror ではなくコンソールに出る。** エラーバウンダリ（app/global-error.tsx など）が受け止めると
+  // 「捕まえられなかった例外」にはならず、console.error の引数として Error が渡るだけになる。
+  // B08 の #310 がまさにこれで、表には出ているのにこのファイルは0件のままだった（2026-10-21）。
+  // 引数の Error からスタックを取り出して同じ形で残す（表の行は呼び出し側の console の監視が積む）
+  page.on("console", async (m) => {
+    if (m.type() !== "error" || !/Minified React error|GlobalError/.test(m.text())) return;
+    const entry = { label: label || "console", url: page.url(), at: new Date().toISOString(), name: "console.error", message: m.text().slice(0, 500), stack: "" };
+    captured.push(entry);
+    try {
+      const stacks = await Promise.all(m.args().map((a) => a.evaluate((v) => (v instanceof Error ? v.stack ?? "" : "")).catch(() => "")));
+      entry.stack = stacks.filter(Boolean).join("\n---\n").split("\n").slice(0, 40).join("\n");
+    } catch {
+      // ページが閉じた後などは取れない。本文と URL だけでも残す
+    }
+  });
 }
 
 /**

@@ -16,7 +16,7 @@ import { isCronRequest } from "../../apps/web/src/lib/cronAuth";
 import { describeDbError } from "../../apps/web/src/lib/dbError";
 import { classifyAuthError } from "../../apps/web/src/lib/authErrorLog";
 import { getGamePlaySummary, getGroupPlayTotals, getPlayCalendar } from "../../apps/web/src/lib/playLog";
-import { getRecentActivity, mergeTimeline, playTimelineEntries } from "../../apps/web/src/lib/activityFeed";
+import { getRecentActivity, getRecentActivityForGroups, mergeTimeline, playTimelineEntries } from "../../apps/web/src/lib/activityFeed";
 import { GET as checkWishlistPrices } from "../../apps/web/src/app/api/cron/check-wishlist-prices/route";
 import { toWishlistPrice } from "../../apps/web/src/lib/wishlistPrice";
 import { parseSteamStoreLow } from "../../apps/web/src/lib/itad";
@@ -212,6 +212,38 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
   }
 }
 
+// ── Discord のアイコンはログインのたびに追従する（2026-10-21。グループの見出しに顔として出すようにしたため） ──
+// 以前は作るときにしか書いておらず、Discord でアイコンを変えた人は古いURL（404）のままだった。
+// 表示名は追従しない（プロフィールで変えた名前を上書きしない）。画像が来なかった回は今のアイコンを消さない
+{
+  const D = "198000000000000021"; // 2回目以降のログイン
+  const E = "198000000000000022"; // 許可リストのメールで先に作られた行に結びつく人
+  const eMail = `avatar-${randomUUID().slice(0, 8)}@example.com`;
+  const URL1 = "https://cdn.discordapp.com/avatars/21/old.png";
+  const URL2 = "https://cdn.discordapp.com/avatars/21/new.png";
+  try {
+    const d = await db.user.create({ data: { email: null, name: "変えた名前", avatarUrl: URL1, provider: "discord", discordUserId: D } });
+    await linkDiscordUser({ discordUserId: D, email: null, emailVerified: false, name: "Discordの名前", image: URL2 });
+    const afterChange = await db.user.findUnique({ where: { id: d.id }, select: { avatarUrl: true, name: true } });
+    await linkDiscordUser({ discordUserId: D, email: null, emailVerified: false, name: "Discordの名前", image: null });
+    const afterNull = await db.user.findUnique({ where: { id: d.id }, select: { avatarUrl: true } });
+    const e = await db.user.create({ data: { email: eMail, name: null } });
+    await linkDiscordUser({ discordUserId: E, email: eMail, emailVerified: true, name: "E", image: URL1 });
+    const eAfter = await db.user.findUnique({ where: { id: e.id }, select: { avatarUrl: true, discordUserId: true } });
+    check(
+      "F312",
+      "Discord のアイコンはログインのたびに新しいURLへ追従し（表示名は上書きしない）、画像が来なかった回は消さず、メールで先に作られた行には結ぶときに入る",
+      afterChange?.avatarUrl === URL2 && afterChange?.name === "変えた名前" && afterNull?.avatarUrl === URL2 &&
+        eAfter?.discordUserId === E && eAfter?.avatarUrl === URL1,
+      { afterChange, afterNull, eAfter }
+    );
+  } catch (e) {
+    check("F312x", "アイコンの追従の確認が途中で例外になった（以降は未確認）", false, (e as Error)?.stack ?? e);
+  } finally {
+    await db.user.deleteMany({ where: { OR: [{ discordUserId: { in: [D, E] } }, { email: eMail }] } });
+  }
+}
+
 // ── cron の合言葉は「未設定なら誰も通さない」（フェイルクローズ） ──
 // 総合テストのサーバーは CRON_SECRET を設定して起動するので、未設定の側はここでしか見られない
 {
@@ -400,6 +432,7 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
     await log("album.deleted", owner!.id, at("11:46"), "消したアルバム"); // 削除系も出さない
     await log("game.removed", owner!.id, at("11:46"), "消したゲーム");
     await log("game.interest_removed", owner!.id, at("11:46"), "外したゲーム");
+    await log("game.status_changed", owner!.id, at("11:46"), "最近のゲーム"); // ステータスの変更も出さない（2026-10-21 ユーザー判断）
     await log("photo.created", owner!.id, at("11:45"), "G1"); // → 4枚目としてまとまる
     await log("photo.created", nameless.id, at("11:44"), "G2"); // 別の人 → 別の行。表示名が無いので「メンバー」
     await log("game.added", owner!.id, at("11:30"), "最近のゲーム"); // ➕
@@ -422,7 +455,7 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
     const fa = flat(all);
     check(
       "F301",
-      "最近の動きは記録した時刻の新しい順に5件で、同じ人の続けての写真を1行にまとめ（間に挟まる・日をまたぐと切る）、取り消し・削除系と表示名の無い人のメールを出さず、ゲームの追加は➕・遊んだ記録は🎮",
+      "最近の動きは記録した時刻の新しい順に5件で、同じ人の続けての写真を1行にまとめ（間に挟まる・日をまたぐと切る）、取り消し・削除系とステータスの変更と表示名の無い人のメールを出さず、ゲームの追加は➕・遊んだ記録は🎮",
       f5.length === 5 &&
         f5[0].label === "写真を4枚投稿" && f5[0].targetName === "G1" &&
         f5[1].label === "写真を投稿" && f5[1].actorName === "メンバー" &&
@@ -430,7 +463,7 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
         f5[3].kind === "play.session" && f5[3].emoji === "🎮" && f5[3].label === "最近のゲーム を 30分" && f5[3].actorName?.includes("メンバー") === true &&
         f5[4].label === "写真を投稿" &&
         five.length === 1 && five[0].label === "今日" &&
-        !fa.some((e) => ["photo.deleted", "album.deleted", "game.removed", "game.interest_removed"].includes(e.kind)) &&
+        !fa.some((e) => ["photo.deleted", "album.deleted", "game.removed", "game.interest_removed", "game.status_changed"].includes(e.kind)) &&
         !fa.some((e) => (e.actorName ?? "").includes("@")) &&
         fa.length === 8 && all.map((d) => d.label).join(",") === "今日,昨日" && all[1].entries.length === 1,
       { five: five.map((d) => [d.label, d.entries.map((e) => `${e.emoji}${e.label}/${e.actorName}`)]), all: all.map((d) => [d.label, d.entries.length]) }
@@ -441,6 +474,46 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
     await db.activityLog.deleteMany({ where: { groupId: group.id } }).catch(() => {});
     await db.group.delete({ where: { id: group.id } }).catch(() => {});
     await db.user.delete({ where: { id: nameless.id } }).catch(() => {});
+  }
+}
+
+// ── ホームの「みんなの動き」（所属グループすべて。2026-10-21 ユーザー判断） ──
+// 渡したグループの動きだけを混ぜて新しい順に並べ、各行にグループ名を添える。同じ人の写真のまとめは**グループをまたがない**
+// （別のグループへの投稿を「写真を2枚投稿」とまとめると、どちらのグループか分からなくなる）
+{
+  const owner = await db.user.findFirst({ where: { email: "admin@example.com" }, select: { id: true } });
+  const groupA = await db.group.create({ data: { name: `みんなの動きA-${randomUUID().slice(0, 6)}`, ownerId: owner!.id } });
+  const groupB = await db.group.create({ data: { name: `みんなの動きB-${randomUUID().slice(0, 6)}`, ownerId: owner!.id } });
+  const groupC = await db.group.create({ data: { name: `みんなの動きC-${randomUUID().slice(0, 6)}`, ownerId: owner!.id } });
+  try {
+    const base = Date.now();
+    const log = (groupId: string, kind: string, minutesAgo: number, targetName: string) =>
+      db.activityLog.create({
+        data: { kind, targetId: randomUUID(), targetName, groupId, actorId: owner!.id, createdAt: new Date(base - minutesAgo * 60000), occurredAt: new Date(base - minutesAgo * 60000) },
+      });
+    await log(groupA.id, "photo.created", 1, "A1");
+    await log(groupB.id, "photo.created", 2, "B1"); // 同じ人・同じ日でもグループが違うのでまとめない
+    await log(groupA.id, "album.created", 3, "Aのアルバム");
+    await log(groupC.id, "album.created", 0, "渡していないグループ"); // 渡していないグループは出さない
+    const days = await getRecentActivityForGroups([{ id: groupA.id, name: groupA.name }, { id: groupB.id, name: groupB.name }], 8);
+    const rows = days.flatMap((d) => d.entries);
+    check(
+      "F309",
+      "ホームの「みんなの動き」は渡したグループの動きだけを新しい順に混ぜ、各行にグループ名を添え、写真のまとめはグループをまたがない",
+      rows.length === 3 &&
+        rows[0].label === "写真を投稿" && rows[0].groupName === groupA.name &&
+        rows[1].label === "写真を投稿" && rows[1].groupName === groupB.name &&
+        rows[2].kind === "album.created" && rows[2].groupName === groupA.name &&
+        !rows.some((r) => r.targetName === "渡していないグループ"),
+      rows.map((r) => `${r.label}/${r.groupName}/${r.targetName}`)
+    );
+  } catch (e) {
+    check("F309x", "みんなの動きの確認が途中で例外になった（以降は未確認）", false, (e as Error)?.stack ?? e);
+  } finally {
+    for (const g of [groupA, groupB, groupC]) {
+      await db.activityLog.deleteMany({ where: { groupId: g.id } }).catch(() => {});
+      await db.group.delete({ where: { id: g.id } }).catch(() => {});
+    }
   }
 }
 
@@ -543,6 +616,17 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
         againRun.notified === 0 && posts.length === 1,
       { failedRun, afterFail, okRun, afterOk, sent, againRun }
     );
+
+    // 送れた回だけ「最安値を更新」が活動の記録に1行残り、最近の動きに値段つきで出る（2026-10-21 ユーザー判断）
+    const priceLogs = await db.activityLog.findMany({ where: { groupId: group.id, kind: "game.price_dropped" } });
+    const recentPrice = (await getRecentActivity(group.id, 10)).flatMap((d) => d.entries).filter((e) => e.kind === "game.price_dropped");
+    check(
+      "F310",
+      "最安値の通知を送れたときだけ「最安値を更新」が活動の記録に1行残り（送れなかった回・もう下がっていない回は残らない）、最近の動きに値段とお店つきで出る",
+      priceLogs.length === 1 && priceLogs[0].targetId === game.id && priceLogs[0].targetName === "両方に入っているゲーム" && priceLogs[0].actorId === null &&
+        recentPrice.length === 1 && recentPrice[0].label === "最安値を更新" && recentPrice[0].note === "¥3,200（Steam）",
+      { priceLogs: priceLogs.map((l) => ({ targetId: l.targetId === game.id, targetName: l.targetName, detail: l.detail })), recentPrice: recentPrice.map((e) => [e.label, e.note]) }
+    );
   } catch (e) {
     check("F305x", "最安値の通知の確認が途中で例外になった（以降は未確認）", false, (e as Error)?.stack ?? e);
   } finally {
@@ -551,6 +635,7 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
       if (v === undefined) delete process.env[k];
       else process.env[k] = v;
     }
+    await db.activityLog.deleteMany({ where: { groupId: group.id } }).catch(() => {});
     await db.group.delete({ where: { id: group.id } }).catch(() => {});
     await db.user.delete({ where: { id: nameless.id } }).catch(() => {});
   }
@@ -558,11 +643,13 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
 
 // F307: ウィッシュリストのカードの価格。割引中・無料・価格なし・「今が最安値」の4通りと、ITAD の応答の取り出し
 {
-  const sale = toWishlistPrice({ isFree: false, discountPercent: 50, finalAmount: 4990 }, 4990);
+  const sale = toWishlistPrice({ isFree: false, discountPercent: 50, finalAmount: 4990, initialAmount: 9980 }, 4990);
   const above = toWishlistPrice({ isFree: false, discountPercent: 0, finalAmount: 1000 }, 640);
   const free = toWishlistPrice({ isFree: true, discountPercent: 0, finalAmount: 0 }, null);
   const lowOnly = toWishlistPrice(null, 745);
   const none = toWishlistPrice(null, null);
+  // 割引前の値段が今と同じ・安い（壊れた応答）なら取り消し線は出さない
+  const oddInitial = toWishlistPrice({ isFree: false, discountPercent: 10, finalAmount: 1000, initialAmount: 1000 }, null);
   const ok = [{ id: "g1", deals: [{ shop: { id: 35, name: "GOG" }, storeLow: { amount: 100 } }, { shop: { id: 61, name: "Steam" }, storeLow: { amount: 990 } }] }];
   const parsed = {
     steam: parseSteamStoreLow(ok, "g1"),
@@ -572,14 +659,15 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
   };
   check(
     "F307",
-    "ウィッシュリストの価格: 最安値と同じなら印が付き、高ければ付かない。無料は「無料」で印なし、最安値だけでも出し、どちらも無ければ出さない。ITAD の応答からはSteamの storeLow だけを取る",
-    sale?.atLow === true && sale.price === 4990 && sale.discountPercent === 50 &&
-      above?.atLow === false && above.steamLow === 640 &&
+    "ウィッシュリストの価格: 最安値と同じなら印が付き、高ければ付かない。割引中は割引前の値段も持つ（今より高いときだけ）。無料は「無料」で印なし、最安値だけでも出し、どちらも無ければ出さない。ITAD の応答からはSteamの storeLow だけを取る",
+    sale?.atLow === true && sale.price === 4990 && sale.discountPercent === 50 && sale.originalPrice === 9980 &&
+      above?.atLow === false && above.steamLow === 640 && above.originalPrice === null &&
+      oddInitial?.originalPrice === null &&
       free?.isFree === true && free.price === 0 && free.atLow === false &&
       lowOnly?.price === null && lowOnly.steamLow === 745 && lowOnly.atLow === false &&
       none === null &&
       parsed.steam === 990 && parsed.otherId === null && parsed.noSteam === null && parsed.notArray === null,
-    { sale, above, free, lowOnly, none, parsed }
+    { sale, above, free, lowOnly, none, oddInitial, parsed }
   );
 }
 

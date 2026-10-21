@@ -4143,6 +4143,53 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── ホームの「みんなの動き」と、最近の動きからステータスの変更を外す（2026-10-21 ユーザー判断） ──
+// - ホームには自分の所属するグループの動きだけが出て、グループ名が添えられる（他人のグループの出来事は出ない）
+// - 「みんなの動き」は「最近の投稿」より上
+// - ステータスの変更は、グループ画面の「最近の動き」とホームには出ず、活動カレンダーには今までどおり出る
+{
+  const otherGroup = await db.group.findFirst({ where: { name: "部外者のグループ" } });
+  const made = [];
+  try {
+    const now = new Date();
+    const mk = async (groupId, kind, targetName) =>
+      made.push((await db.activityLog.create({ data: { kind, targetId: randomUUID(), targetName, groupId, actorId: null, occurredAt: now, createdAt: now } })).id);
+    await mk(group.id, "album.created", "みんなの動きの確認アルバム");
+    await mk(group.id, "game.status_changed", "ステータスだけ変えたゲーム");
+    await mk(otherGroup.id, "album.created", "部外者だけの出来事");
+    const [adminHome, outsiderHome, groupPage] = await Promise.all([
+      api("/", { cookie: adminCookie }),
+      api("/", { cookie: outsiderCookie }),
+      api(`/groups/${group.id}`, { cookie: adminCookie }),
+    ]);
+    const today = new Date(now.getTime() + 9 * 3600000).toISOString().slice(0, 10);
+    const calendar = await api(`/groups/${group.id}/activity?month=${today.slice(0, 7)}&date=${today}`, { cookie: adminCookie });
+    const homeSection = (html) => {
+      const at = html.indexOf('data-testid="home-activity"');
+      return at >= 0 ? html.slice(at, html.indexOf("</section>", at)) : "";
+    };
+    const a = homeSection(adminHome.text);
+    const o = homeSection(outsiderHome.text);
+    // 見出しのタグで比べる。素の「最近の投稿」は、HTMLの前半にある Next.js の埋め込みデータ（RSC）に先に出てくる
+    const activityBeforePhotos = adminHome.text.indexOf('data-testid="home-activity"') < adminHome.text.indexOf(">最近の投稿</h2>");
+    check(
+      "F311 ホームに所属グループの「みんなの動き」がグループ名つきで「最近の投稿」より上に出て、他人のグループの出来事は出ない。ステータスの変更は最近の動きとホームに出ず、活動カレンダーには出る",
+      adminHome.status === 200 && a.includes("みんなの動き") && a.includes("みんなの動きの確認アルバム") && a.includes(group.name) &&
+        !a.includes("部外者だけの出来事") && activityBeforePhotos &&
+        o.includes("部外者だけの出来事") && !o.includes("みんなの動きの確認アルバム") &&
+        !a.includes("ステータスだけ変えたゲーム") && !groupPage.text.includes("ステータスだけ変えたゲーム") &&
+        calendar.text.includes("ステータスだけ変えたゲーム"),
+      `ホーム(管理者)=${!!a}・自分のグループ=${a.includes("みんなの動きの確認アルバム")}・グループ名=${a.includes(group.name)}・他人=${a.includes("部外者だけの出来事")}・投稿より上=${activityBeforePhotos} / ` +
+        `ホーム(部外者)=${o.includes("部外者だけの出来事")}・他人=${o.includes("みんなの動きの確認アルバム")} / ステータス変更: ホーム=${a.includes("ステータスだけ変えたゲーム")}・グループ画面=${groupPage.text.includes("ステータスだけ変えたゲーム")}・カレンダー=${calendar.text.includes("ステータスだけ変えたゲーム")}`
+    );
+  } catch (e) {
+    check("F311x みんなの動きの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    // 出来事の記録はキャッシュに載せていない（ホームとグループ画面も毎回読む）のでDBから直接消してよい
+    await db.activityLog.deleteMany({ where: { id: { in: made } } });
+  }
+}
+
 // ── 使い方の説明ページ（2026-10-19 に載っていなかった機能を足した） ──
 // 中身はタップで開くまで描かれないので、項目の見出しで見る。管理者向けの項目は管理者にだけ出る
 {
@@ -4154,6 +4201,89 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       byAdmin.text.includes("グループの活動（最近の動き・活動カレンダー）") && byMember.text.includes("グループの活動（最近の動き・活動カレンダー）") &&
       byAdmin.text.includes("管理者向けの機能") && !byMember.text.includes("管理者向けの機能"),
     `管理者: 活動=${byAdmin.text.includes("グループの活動")}・管理=${byAdmin.text.includes("管理者向けの機能")} / メンバー: 活動=${byMember.text.includes("グループの活動")}・管理=${byMember.text.includes("管理者向けの機能")}`
+  );
+}
+
+// ── favicon（2026-10-21 に M1 へ差し替え。経緯は docs/design/favicon.md） ──
+// ページの head にタブ用（SVG）とホーム画面用（apple-touch-icon）のリンクが出て、どちらも画像として返る。
+// SVG を読まないブラウザ用の /favicon.ico も返る。以前の紫の icon.png のリンクは出ない
+{
+  const page = await api("/login");
+  const svgHref = page.text.match(/<link rel="icon" href="([^"]+)" type="image\/svg\+xml"/)?.[1] ?? null;
+  const appleHref = page.text.match(/<link rel="apple-touch-icon" href="([^"]+)"/)?.[1] ?? null;
+  const fetchType = async (href) => {
+    if (!href) return null;
+    const res = await fetch(BASE + href);
+    return `${res.status} ${res.headers.get("content-type")}`;
+  };
+  const [svgType, appleType, icoType] = await Promise.all([fetchType(svgHref), fetchType(appleHref), fetchType("/favicon.ico")]);
+  check(
+    "F315 favicon：タブ用の SVG とホーム画面用の画像のリンクが出て、どちらも画像が返り、/favicon.ico もある（以前の icon.png は出ない）",
+    !!svgHref && svgType?.startsWith("200 image/svg+xml") && appleType?.startsWith("200 image/png") &&
+      icoType?.startsWith("200 image/") && !page.text.includes('href="/icon.png'),
+    `SVG=${svgHref}（${svgType}） / ホーム画面=${appleHref}（${appleType}） / ico=${icoType} / 古いicon.png=${page.text.includes('href="/icon.png')}`
+  );
+}
+
+// ── グループの見出しの顔：Discord のアイコンがある人は画像、無い人は頭文字（2026-10-21 ユーザー判断） ──
+// 新しく作ったグループで見る（グループの中身はキャッシュに載るので、既存のグループで見ると前の描画が返りうる）。
+// 管理者のアイコンは確認の間だけ入れて、すぐ元に戻す（ほかのページのキャッシュに残さないため、描画は1回だけ）
+{
+  const adminUser = await db.user.findUnique({ where: { email: "admin@example.com" }, select: { id: true, avatarUrl: true } });
+  const memberUser = await db.user.findUnique({ where: { email: "member@example.com" }, select: { id: true, avatarUrl: true } });
+  let faceGroupId = null;
+  try {
+    await db.user.update({ where: { id: adminUser.id }, data: { avatarUrl: "https://cdn.discordapp.com/avatars/1/face-check.png" } });
+    await db.user.update({ where: { id: memberUser.id }, data: { avatarUrl: null } });
+    const made = await api("/api/groups", { method: "POST", cookie: adminCookie, body: { name: `顔の確認-${Date.now()}` } });
+    faceGroupId = made.json?.group?.id ?? null;
+    await api(`/api/groups/${faceGroupId}/members`, { method: "POST", cookie: adminCookie, body: { email: "member@example.com", role: "VIEWER" } });
+    const page = await api(`/groups/${faceGroupId}`, { cookie: adminCookie });
+    const faces = [...page.text.matchAll(/data-face="(avatar|initial)"/g)].map((m) => m[1]);
+    const avatarImg = /data-face="avatar"[^>]*>\s*<img[^>]+src="[^"]*cdn\.discordapp\.com[^"]*face-check\.png/.test(page.text);
+    check(
+      "F313 グループの見出しに、Discord のアイコンがある人は画像、無い人は頭文字の丸で並ぶ",
+      page.status === 200 && faces.length === 2 && faces.includes("avatar") && faces.includes("initial") && avatarImg,
+      `顔=${faces.join(",")} / アイコンの画像=${avatarImg}`
+    );
+  } catch (e) {
+    check("F313x グループの見出しの顔の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    await db.user.update({ where: { id: adminUser.id }, data: { avatarUrl: adminUser.avatarUrl } });
+    await db.user.update({ where: { id: memberUser.id }, data: { avatarUrl: memberUser.avatarUrl } });
+    if (faceGroupId) await api(`/api/groups/${faceGroupId}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
+// ── マニュアルを分類ごとに並べる（2026-10-21 ユーザー判断。トピックが22まで増えた） ──
+// 目次（分類と件数）・分類の見出しが並ぶ順・どのトピックがどの分類か（代表を見る）・管理者向けは管理者にだけ
+{
+  const byAdmin = await api("/manual", { cookie: adminCookie });
+  const byMember = await api("/manual", { cookie: memberCookie });
+  const headings = (html) => [...html.matchAll(/data-testid="manual-category"[^>]*><h2[^>]*>([^<]+)<\/h2>/g)].map((m) => m[1]);
+  const sectionOf = (html, label) => {
+    const at = html.indexOf(`>${label}</h2>`);
+    const next = html.indexOf('data-testid="manual-category"', at);
+    return at >= 0 ? html.slice(at, next >= 0 ? next : undefined) : "";
+  };
+  const a = headings(byAdmin.text);
+  const m = headings(byMember.text);
+  const placed =
+    sectionOf(byAdmin.text, "はじめに").includes("友達をグループに招待する") &&
+    sectionOf(byAdmin.text, "写真・アルバム").includes("手動アップロード") &&
+    sectionOf(byAdmin.text, "Discord").includes("ハッシュタグで自動取り込みする") &&
+    sectionOf(byAdmin.text, "ゲーム・遊んだ記録").includes("グループで遊んだ時間（プレイ記録）") &&
+    sectionOf(byAdmin.text, "管理者向け").includes("管理者向けの機能");
+  // 分類の中は読む順（書いた順ではない）。「はじめに」はメニューの使い方から、「写真・アルバム」は手動アップロードから
+  const firstOf = (label) => sectionOf(byAdmin.text, label).match(/font-semibold text-steam-text">([^<]+)</)?.[1] ?? "";
+  const ordered = firstOf("はじめに") === "メニューの使い方（スマホとパソコン）" && firstOf("写真・アルバム") === "手動アップロード";
+  check(
+    "F314 マニュアルが分類（はじめに・写真・アルバム・Discord・ゲーム・遊んだ記録・管理者向け）ごとに並び、分類の中は読む順で、目次に件数が出て、管理者向けは管理者にだけ出る",
+    byAdmin.status === 200 && byMember.status === 200 &&
+      a.join("|") === "はじめに|写真・アルバム|Discord|ゲーム・遊んだ記録|管理者向け" &&
+      m.join("|") === "はじめに|写真・アルバム|Discord|ゲーム・遊んだ記録" &&
+      byAdmin.text.includes('href="#category-photos"') && byAdmin.text.includes("写真・アルバム（6）") && placed && ordered,
+    `管理者=${a.join("|")} / メンバー=${m.join("|")} / 目次=${byAdmin.text.includes("写真・アルバム（6）")} / 置き場所=${placed} / 先頭=${firstOf("はじめに")}・${firstOf("写真・アルバム")}`
   );
 }
 
@@ -4677,6 +4807,24 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
     await db.discordAppSteamMapping.deleteMany({ where: { discordApplicationId: APP } });
   }
+}
+
+// ── ゲーム詳細の HowLongToBeat：取れなかったゲームでも枠を出し「データなし」と書く（2026-10-21 ユーザー判断） ──
+// 以前は取れなかったゲームではカードごと出さず、「無い」のか「出し忘れ」なのか画面から分からなかった。
+// 取れているゲームでは今までどおり時間の行が出て、「データなし」は出ない
+{
+  const games = await db.groupGame.findMany({ where: { groupId: group.id }, select: { id: true, title: true, hltbGameId: true, hltbMainHours: true } });
+  const missing = games.find((g) => g.hltbGameId === null);
+  const present = games.find((g) => g.hltbGameId !== null && g.hltbMainHours !== null);
+  const pageOf = async (g) => (g ? (await api(`/groups/${group.id}/games/${g.id}`, { cookie: adminCookie })).text : "");
+  const [missingHtml, presentHtml] = await Promise.all([pageOf(missing), pageOf(present)]);
+  check(
+    "F308 ゲーム詳細：HowLongToBeat が取れなかったゲームでも枠と「データなし」が出る。取れたゲームでは時間が出て「データなし」は出ない",
+    !!missing && !!present &&
+      missingHtml.includes('data-testid="hltb-empty"') && missingHtml.includes("HowLongToBeat のデータなし") &&
+      presentHtml.includes("クリアのみ") && !presentHtml.includes('data-testid="hltb-empty"'),
+    `取れなかった=${missing?.title ?? "該当なし"}（枠=${missingHtml.includes('data-testid="hltb-empty"')}） / 取れた=${present?.title ?? "該当なし"}（時間=${presentHtml.includes("クリアのみ")}・データなし=${presentHtml.includes('data-testid="hltb-empty"')}）`
+  );
 }
 
 const summary = writeResults("flows", "F: 主要導線", results);
