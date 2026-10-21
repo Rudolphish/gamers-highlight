@@ -3701,9 +3701,18 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const albumOf = async (id) => (await db.photo.findUnique({ where: { id }, select: { albumId: true } }))?.albumId ?? null;
 
   const made = [];
+  // **振り分け先も、最初から入っている先も、ここで作ったアルバムを使う。** 以前は seed のアルバムを
+  // `orderBy` なしの findFirst で選んでいて、「あつまれ どうぶつの森」に当たった回だけ投稿で更新時刻が進み、
+  // ブラウザスイートの B27（seed の3件の更新順）が落ちていた（2026-10-21、デザイン刷新の段階4の通しで1回だけ出た）
+  const madeAlbums = [];
   try {
-    const target = await db.album.findFirst({ where: { groupId: group.id }, orderBy: { createdAt: "asc" } });
-    const other = await db.album.findFirst({ where: { groupId: group.id, id: { not: target.id } } });
+    for (const title of ["振り分け確認の振り分け先", "振り分け確認の別アルバム"]) {
+      const res = await api("/api/albums", { method: "POST", cookie: adminCookie, body: { title, groupId: group.id } });
+      madeAlbums.push(res.json?.album?.id ?? null);
+    }
+    if (madeAlbums.some((id) => !id)) throw new Error(`アルバムを作れなかった: ${JSON.stringify(madeAlbums)}`);
+    const target = { id: madeAlbums[0] };
+    const other = { id: madeAlbums[1] };
     const loose1 = await uploadAs(memberCookie, "A");
     const loose2 = await uploadAs(memberCookie, "B");
     const placed = other ? await uploadAs(memberCookie, "C", other.id) : null;
@@ -3729,7 +3738,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
         listedC: listed.text.includes("振り分け確認C"),
         byOutsider: [byOutsider.status, byOutsider.json?.movedCount],
         byAdmin: byAdmin.json,
-        placedStays: placed ? (await albumOf(placed)) === other?.id : "アルバムが1つしか無く未確認",
+        placedStays: placed ? (await albumOf(placed)) === other.id : "投稿できず未確認",
       })
     );
 
@@ -3746,6 +3755,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     check("F277x 未分類の振り分けの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
   } finally {
     for (const id of made.filter(Boolean)) await api(`/api/photos/${id}`, { method: "DELETE", cookie: adminCookie });
+    for (const id of madeAlbums.filter(Boolean)) await api(`/api/albums/${id}`, { method: "DELETE", cookie: adminCookie });
   }
 }
 
