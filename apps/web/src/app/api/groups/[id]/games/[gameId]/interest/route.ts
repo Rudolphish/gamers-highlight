@@ -5,7 +5,7 @@ import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activityLog";
 
-// POST /api/groups/:id/games/:gameId/interest … 「気になってる」マークをトグルする。
+// POST /api/groups/:id/games/:gameId/interest … 「ねらってる」マークをトグルする。
 // ゲームのステータス変更（EDITOR以上）と違い、これは各メンバーが自分の興味を表明するだけの
 // 軽いマークなので、閲覧できるメンバー（VIEWER以上）なら誰でも付け外しできる。
 export async function POST(

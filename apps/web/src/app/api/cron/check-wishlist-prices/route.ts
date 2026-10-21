@@ -14,9 +14,9 @@ export const maxDuration = 60;
 // 初回チェック（前回記録が無い）は基準値を記録するだけで通知はしない（誤検知防止）。
 //
 // **見張るのは2か所**（2026-10-19 ユーザー判断）:
-// - 「みんなのゲーム」でステータスが「気になる」（WISHLIST）のゲーム（GroupGame）
+// - 「みんなのゲーム」でステータスが「プレイ予定」（WISHLIST）のゲーム（GroupGame）
 // - 画面で「ウィッシュリスト」と呼んでいる区画の、まだ採用されていない候補（GroupGameProposal の PENDING）。
-//   採用されたものは「気になる」としてゲームリストに入るので、そちらで見張られる
+//   採用されたものは「プレイ予定」としてゲームリストに入るので、そちらで見張られる
 // 同じグループで同じゲームが両方にあっても、ITADへの問い合わせと通知は1回にまとめる。
 // 問い合わせはグループをまたいでも1ゲーム1回（同じゲームを複数のグループが見ていても無駄に叩かない）。
 //
@@ -138,7 +138,7 @@ export async function GET(req: Request) {
           `📉 **${w.title}** が最安値を更新しました！`,
           `¥${summary.lowPrice.toLocaleString("ja-JP")}（${summary.lowShopName}）`,
           ...(w.proposerNames.size > 0 ? [`📝 ${[...w.proposerNames].join("、")}のウィッシュリスト`] : []),
-          ...(w.interestedNames.size > 0 ? [`👀 気になってる: ${[...w.interestedNames].join("、")}`] : []),
+          ...(w.interestedNames.size > 0 ? [`👀 ねらってる: ${[...w.interestedNames].join("、")}`] : []),
           summary.pageUrl,
         ].join("\n");
         // **送れなかったら記録を進めない**（上のコメント）。次の日にもう一度送る

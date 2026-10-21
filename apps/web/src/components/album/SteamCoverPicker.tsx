@@ -49,7 +49,7 @@ export function SteamCoverPicker({
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   // 付け替えの確認待ち。**黙って上書きしない**——連携済みのゲームが
-  // 他のメンバーの「気になる」を持っていることがあるため
+  // 他のメンバーの「ねらってる」を持っていることがあるため
   const [pendingRelink, setPendingRelink] = useState<SteamResult | null>(null);
   const [alsoRemovePrevious, setAlsoRemovePrevious] = useState(false);
 
@@ -242,7 +242,7 @@ export function SteamCoverPicker({
                     onChange={(e) => setAlsoRemovePrevious(e.target.checked)}
                     className="mt-0.5"
                   />
-                  {`「${linkedGameTitle ?? "現在のゲーム"}」をグループのゲームリストからも削除する（他のメンバーの「気になる」も消えます）`}
+                  {`「${linkedGameTitle ?? "現在のゲーム"}」をグループのゲームリストからも削除する（他のメンバーの「ねらってる」も消えます）`}
                 </label>
                 <div className="mt-2 flex gap-2">
                   <button

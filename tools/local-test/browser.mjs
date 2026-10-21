@@ -159,10 +159,10 @@ for (const [id, label, path] of targets) {
 
   rows.push({
     id: "B20",
-    item: "ゲーム一覧の初期フィルタが「プレイ中」「気になる」だけ",
-    expected: "プレイ中・気になるが選択済み",
+    item: "ゲーム一覧の初期フィルタが「プレイ中」「プレイ予定」だけ",
+    expected: "プレイ中・プレイ予定が選択済み",
     actual: pressed.join(",") || "なし",
-    ok: pressed.includes("プレイ中") && pressed.includes("気になる") && !pressed.includes("積みゲー"),
+    ok: pressed.includes("プレイ中") && pressed.includes("プレイ予定") && !pressed.includes("積みゲー"),
     note: "",
   });
 
@@ -244,7 +244,7 @@ for (const [id, label, path] of targets) {
   );
   rows.push({
     id: "B25",
-    item: "保存を消すと既定（プレイ中・気になる）に戻る",
+    item: "保存を消すと既定（プレイ中・プレイ予定）に戻る",
     expected: "積みゲーは出ない",
     actual: afterClear.includes("積みゲー") ? "出ている" : "出ていない",
     ok: !afterClear.includes("積みゲー") && afterClear.includes("ウィッチャー3"),
@@ -3191,6 +3191,64 @@ for (const [id, label, path] of targets) {
   } catch (e) {
     rows.push({ id: "B125", item: "等幅フォントと絵文字", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
   } finally {
+    await page.close();
+  }
+}
+
+// ── 言葉の整理（デザイン刷新の段階3） ──
+// 「気になる」が3つの別のものに使われていた: ゲームの状態（WISHLIST）、自分が狙っている印、提案へのリアクション。
+// それぞれ「プレイ予定」「ねらってる」「様子見」に分けた（提案の「興味なし」も「パス」に）。
+// 画面の文字だけでなく title と aria-label も見る（グループ画面の提案カードはリアクションの名前を title にだけ持っている）。
+// **提案は自分で作る。** seed の提案は前のスイートで採用済みになっていて、リアクションの欄が出ない（通しで1回落ちた）
+{
+  const OLD = /気になる|気になって|興味なし/;
+  const NEW = ["プレイ予定", "ねらってる", "様子見", "パス"];
+  const page = await context.newPage();
+  const old = [];
+  let all = "";
+  let proposalId = null;
+  try {
+    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "domcontentloaded" });
+    proposalId = await page.evaluate(async (gid) => {
+      const res = await fetch(`/api/groups/${gid}/proposals`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ steamAppId: 7700126, title: "言葉の整理テスト" }),
+      });
+      return (await res.json().catch(() => null))?.proposal?.id ?? null;
+    }, ids.groupId);
+    if (!proposalId) throw new Error("提案を作れなかった");
+    const PAGES = [`/groups/${ids.groupId}`, `/groups/${ids.groupId}/games/${ids.gameId}`, `/groups/${ids.groupId}/proposals/${proposalId}`, `/groups/${ids.groupId}/activity`];
+    for (const path of PAGES) {
+      await page.goto(BASE + path, { waitUntil: "networkidle" });
+      await page.waitForTimeout(300);
+      const text = await page.evaluate(() =>
+        [
+          document.body.innerText,
+          ...[...document.querySelectorAll("[title], [aria-label]")].map((el) => `${el.getAttribute("title") ?? ""} ${el.getAttribute("aria-label") ?? ""}`),
+        ].join("\n")
+      );
+      for (const line of text.split("\n")) if (OLD.test(line)) old.push(`${path} ${line.trim().slice(0, 30)}`);
+      all += text;
+    }
+    const missing = NEW.filter((w) => !all.includes(w));
+    rows.push({
+      id: "B126",
+      item: "グループ・ゲーム詳細・提案・活動の画面に古い呼び方（気になる・興味なし）が無く、新しい呼び方（プレイ予定・ねらってる・様子見・パス）が出ている",
+      expected: "古い呼び方 0件・新しい呼び方 4つとも出ている",
+      actual: `古い呼び方 ${old.length}件・出ていない新しい呼び方 ${missing.join("、") || "なし"}`,
+      ok: old.length === 0 && missing.length === 0,
+      note: old.slice(0, 4).join(" | ").slice(0, 200),
+    });
+  } catch (e) {
+    rows.push({ id: "B126", item: "言葉の整理", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    // 作った提案は同じ経路（API）で取り下げる。DB直で消すとキャッシュに残る
+    if (proposalId) {
+      await page
+        .evaluate(([gid, pid]) => fetch(`/api/groups/${gid}/proposals/${pid}`, { method: "DELETE" }), [ids.groupId, proposalId])
+        .catch(() => {});
+    }
     await page.close();
   }
 }

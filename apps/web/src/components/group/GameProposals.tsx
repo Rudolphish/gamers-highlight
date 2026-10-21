@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, X, Search, ThumbsUp, HelpCircle, ThumbsDown, Trash2 } from "lucide-react";
+import { Plus, X, Search, ThumbsUp, Meh, Minus, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { PROPOSALS_PER_PROPOSER, groupProposalsByProposer } from "@/lib/proposalRanking";
@@ -30,8 +30,8 @@ type SteamResult = { appId: number; name: string; thumbnail: string };
 
 const REACTIONS: { type: ReactionType; icon: typeof ThumbsUp; label: string }[] = [
   { type: "LIKE", icon: ThumbsUp, label: "やりたい" },
-  { type: "MAYBE", icon: HelpCircle, label: "気になる" },
-  { type: "PASS", icon: ThumbsDown, label: "興味なし" },
+  { type: "MAYBE", icon: Meh, label: "様子見" },
+  { type: "PASS", icon: Minus, label: "パス" },
 ];
 
 // ゲーム提案機能：メンバーが提案→他メンバーがリアクション→LIKEが過半数に達すると

@@ -22,7 +22,7 @@ const WEEKDAYS = ["月", "火", "水", "木", "金", "土", "日"];
 /**
  * **グループのメンバーには出さない種類**（取り消し・削除系。docs/play-log.md §11 の段階2、ユーザー判断）。
  * 管理画面だけに出す。グループ向けのカレンダーでは件数（マスの濃淡）からも外す。
- * アルバム・ゲームの削除と「気になる」を外したのは、実装後の画面で「アルバムを削除」が流れているのを見て足した（2026-10-18）
+ * アルバム・ゲームの削除と「ねらってる」（当時は「気になる」）を外したのは、実装後の画面で「アルバムを削除」が流れているのを見て足した（2026-10-18）
  */
 export const GROUP_HIDDEN_KINDS: readonly ActivityKind[] = [
   "photo.deleted",
@@ -233,8 +233,8 @@ const TIMELINE_LABELS: Record<ActivityKind, string> = {
   "game.added": "ゲームを追加",
   "game.status_changed": "ステータスを変更",
   "game.removed": "ゲームを削除",
-  "game.interest_added": "気になるを付けた",
-  "game.interest_removed": "気になるを外した",
+  "game.interest_added": "ねらってるを付けた",
+  "game.interest_removed": "ねらってるを外した",
   // グループ画面では「ゲーム提案」を「ウィッシュリスト」と呼ぶ（2026-10-18 ユーザー判断）。投票・採用は仕組みの言い方なので「提案」のまま
   "proposal.created": "ウィッシュリストに追加",
   "proposal.voted": "提案に投票",

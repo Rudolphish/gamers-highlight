@@ -16,7 +16,7 @@ import { HltbCard } from "@/components/group/HltbCard";
 import { ProposalVotePanel, type ProposalVoter } from "@/components/group/ProposalVotePanel";
 
 // 提案の詳細ページ：ゲーム詳細ページと同じSteam情報（レビュー・価格・ニュース・最安値）を出し、
-// 投票（やりたい/気になる/興味なし）もこのページから行えるようにする。
+// 投票（やりたい/様子見/パス）もこのページから行えるようにする。
 // 提案の段階では「このゲームを入れるべきか」を判断するための情報が要るのに、
 // グループ詳細のカードにはタイトルとカバーしか出ていなかった。
 //

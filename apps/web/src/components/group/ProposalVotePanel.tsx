@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { HelpCircle, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
+import { Meh, Minus, ThumbsUp, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 
 export type ReactionType = "LIKE" | "MAYBE" | "PASS";
@@ -11,8 +11,8 @@ export type ProposalVoter = { userId: string; name: string; type: ReactionType }
 
 const REACTIONS: { type: ReactionType; icon: typeof ThumbsUp; label: string }[] = [
   { type: "LIKE", icon: ThumbsUp, label: "やりたい" },
-  { type: "MAYBE", icon: HelpCircle, label: "気になる" },
-  { type: "PASS", icon: ThumbsDown, label: "興味なし" },
+  { type: "MAYBE", icon: Meh, label: "様子見" },
+  { type: "PASS", icon: Minus, label: "パス" },
 ];
 
 /**

@@ -28,7 +28,7 @@ type GroupGameResult = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  WISHLIST: "気になる",
+  WISHLIST: "プレイ予定",
   PLAYING: "プレイ中",
   BACKLOG: "積みゲー",
   COMPLETED: "クリア済み",

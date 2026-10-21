@@ -469,7 +469,7 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
   const owner = await db.user.findFirst({ where: { email: "admin@example.com" }, select: { id: true, name: true } });
   const nameless = await db.user.create({ data: { email: `price-nameless-${randomUUID().slice(0, 6)}@example.com`, name: null } });
   const group = await db.group.create({ data: { name: `最安値の通知-${randomUUID().slice(0, 6)}`, ownerId: owner!.id } });
-  const APP_BOTH = 9100031; // ゲームリスト（気になる）とウィッシュリストの両方に入っている
+  const APP_BOTH = 9100031; // ゲームリスト（プレイ予定）とウィッシュリストの両方に入っている
   const APP_NEW = 9100032; // ウィッシュリストだけ・前回の記録なし（基準値を記録するだけ）
   const APP_ACCEPTED = 9100033; // 採用済みの提案（見張らない）
   const myApps = new Set([APP_BOTH, APP_NEW, APP_ACCEPTED]);

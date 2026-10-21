@@ -273,7 +273,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       </div>
 
       <div className="mt-8">
-        {/* プレイ中・クリア済みも含むので「気になっている」ではなくグループ全体のゲーム置き場として扱う */}
+        {/* プレイ中・クリア済みも含むので「プレイ予定」だけではなくグループ全体のゲーム置き場として扱う */}
         <GroupGamesSection groupId={group.id} games={gameCards} canEdit={canEditGames} currentUserId={currentUser.id}>
           {unknownPlays.length > 0 && (
             <UnknownPlays

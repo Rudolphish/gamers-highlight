@@ -157,18 +157,18 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            グループ画面の「みんなのゲーム」は、そのグループで話題になっているゲームを共有する場所です。各ゲームには「気になる」「プレイ中」「積みゲー」「クリア済み」のステータスを付けられます。
+            グループ画面の「みんなのゲーム」は、そのグループで話題になっているゲームを共有する場所です。各ゲームには「プレイ予定」「プレイ中」「積みゲー」「クリア済み」のステータスを付けられます。
             ゲームは見出しの横の<strong className="text-steam-text">「ゲームを追加」</strong>から名前で検索して追加します（編集者以上）。
           </p>
           <p>
-            <strong className="text-steam-text">開いた直後は「プレイ中」と「気になる」だけが表示されます。</strong>
+            <strong className="text-steam-text">開いた直後は「プレイ中」と「プレイ予定」だけが表示されます。</strong>
             積みゲーやクリア済みも見たいときは、ステータスの並びの先頭にある「すべて」を押してください。
           </p>
           <p>
-            ゲームカードの「気になる」ボタンは、ステータスとは別に「自分が狙っている」という印です。誰が狙っているかがカードに出るほか、ウィッシュリストの最安値がDiscordに通知されるときにも使われます。
+            ゲームカードの「ねらってる」ボタン（しおりの印）は、ステータスとは別に「自分が狙っている」という印です。人数がカードに、名前がゲームの詳細に出るほか、ウィッシュリストの最安値がDiscordに通知されるときにも使われます。
           </p>
           <p>
-            <strong className="text-steam-text">ウィッシュリスト</strong>（ゲームの提案）：グループ画面の「追加する」から「このゲームどう？」と提案すると、メンバーがリアクションできます。「いいね」がメンバーの過半数に達すると、自動でゲームリストに「気になる」として追加されます。
+            <strong className="text-steam-text">ウィッシュリスト</strong>（ゲームの提案）：グループ画面の「追加する」から「このゲームどう？」と提案すると、メンバーが「やりたい」「様子見」「パス」でリアクションできます。「やりたい」がメンバーの過半数に達すると、自動でゲームリストに「プレイ予定」として追加されます。
             <strong className="text-steam-text">提案するとDiscordにも通知が飛びます</strong>
             （「ゲームが提案されたとき」の通知先を設定している場合。下の「Discordへの通知」を参照）。
           </p>
@@ -216,7 +216,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             モーダルの上部に「現在のゲーム: ◯◯」と出るので、違っていたら別のゲームを検索して
             「このゲームに付け替え」を押してください。確認が出たあとに切り替わります。
             そのとき<strong className="text-steam-text">間違って追加したゲームをゲームリストからも消すか</strong>
-            をチェックで選べます（消すと、そのゲームに付いた他のメンバーの「気になる」も消えます）。
+            をチェックで選べます（消すと、そのゲームに付いた他のメンバーの「ねらってる」も消えます）。
           </p>
           <p className="text-steam-muted">
             補足：「ゲームとの連携を解除する」を押すと、ゲームリストにはそのまま残したうえで
@@ -317,7 +317,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           </p>
           <p className="text-steam-muted">
             補足：写真の削除・❤️の取り消し・投票の取り消し・説明を消した・提案の取り下げ・アルバムやゲームの削除・
-            「気になる」を外した、は出しません（件数にも数えません）。「最近の動き」は投稿した時刻の順で、
+            「ねらってる」を外した、は出しません（件数にも数えません）。「最近の動き」は投稿した時刻の順で、
             カレンダーは実際に起きた日（撮影日時が分かる写真はその日）に置きます。
             「アルバムを作成」の行には、作った時点のアルバム名が出ます（後から名前を変えても書き換わりません）。
           </p>
@@ -337,7 +337,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <ul className="ml-4 list-disc space-y-1">
             <li>
               <strong className="text-steam-text">ゲームが提案されたとき</strong>
-              ：ゲーム名・提案した人・採用に必要な「いいね」の数が届きます
+              ：ゲーム名・提案した人・採用に必要な「やりたい」の数が届きます
             </li>
             <li>
               <strong className="text-steam-text">ウィッシュリストが最安値を更新したとき</strong>
@@ -357,7 +357,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             既定は4種類とも「送らない」なので、設定するまで通知は一切飛びません。
           </p>
           <p>
-            価格の通知は、「みんなのゲーム」で「気になる」ステータスのゲームと、
+            価格の通知は、「みんなのゲーム」で「プレイ予定」ステータスのゲームと、
             <strong className="text-steam-text">ウィッシュリストのゲーム</strong>
             を毎日調べて、
             <strong className="text-steam-text">過去の最安値を更新したときだけ</strong>
@@ -366,7 +366,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
 
           <p>
             通知には、そのゲームをウィッシュリストに入れた人（「📝 Aさんのウィッシュリスト」）と、
-            「気になる」を付けているメンバーの名前も添えられます。
+            「ねらってる」を付けているメンバーの名前も添えられます。
           </p>
         </div>
       ),
@@ -433,7 +433,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
                 {[
                   ["写真を見る・投稿する", "閲覧者"],
                   ["❤️を付ける・説明を書く", "閲覧者"],
-                  ["ウィッシュリストに追加する・投票する・「気になる」を付ける", "閲覧者"],
+                  ["ウィッシュリストに追加する・投票する・「ねらってる」を付ける", "閲覧者"],
                   ["ゲームリストへの追加・ステータス変更・削除", "編集者"],
                   ["アルバムを作る", "グループの編集者"],
                   ["アルバム名を変える", "アルバムのオーナー、またはアルバムの編集者"],

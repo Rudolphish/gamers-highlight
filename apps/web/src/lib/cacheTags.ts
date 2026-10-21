@@ -51,7 +51,7 @@ export function invalidateAlbumPhotos(albumId: string, groupId?: string | null):
 
 /**
  * グループの中身が変わったとき
- * （名前・メンバー・ゲームの追加/更新/削除・「気になる」・提案とリアクション・アルバムの新規作成）。
+ * （名前・メンバー・ゲームの追加/更新/削除・「ねらってる」・提案とリアクション・アルバムの新規作成）。
  */
 export function invalidateGroup(groupId: string): void {
   revalidateTag(groupTag(groupId));

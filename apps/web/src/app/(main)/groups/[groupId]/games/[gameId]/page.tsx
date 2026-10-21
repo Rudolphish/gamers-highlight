@@ -20,7 +20,7 @@ import { getGamePlaySummary } from "@/lib/playLog";
 import { GroupPlayLogPanel } from "@/components/game/GroupPlayLogPanel";
 
 const STATUS_LABEL = {
-  WISHLIST: "気になる",
+  WISHLIST: "プレイ予定",
   PLAYING: "プレイ中",
   BACKLOG: "積みゲー",
   COMPLETED: "クリア済み",

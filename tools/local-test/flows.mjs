@@ -366,12 +366,12 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   });
   check("F35 同じゲームの二重追加は弾かれる", dup.status >= 400, dup.status);
 
-  // 「気になる」
+  // 「ねらってる」
   const interest = await api(`/api/groups/${group.id}/games/${game.id}/interest`, {
     method: "POST",
     cookie: memberCookie,
   });
-  check("F36 「気になる」を付けられる", interest.status === 200 || interest.status === 201, interest.text);
+  check("F36 「ねらってる」を付けられる", interest.status === 200 || interest.status === 201, interest.text);
 }
 
 // ───────────────────────────────────────────────────────────
@@ -847,7 +847,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     JSON.stringify(titles)
   );
   check(
-    "F72 プレイ中以外（気になる・積みゲー・クリア済み）は出ない",
+    "F72 プレイ中以外（プレイ予定・積みゲー・クリア済み）は出ない",
     !titles.some((t) => ["ELDEN RING", "DOOM（積みゲー）", "Half-Life 2（クリア済み）"].includes(t)),
     JSON.stringify(titles)
   );
@@ -2526,14 +2526,14 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     sent[0] ?? "投稿なし"
   );
 
-  // **必要な「いいね」の数は投票APIと同じ式で出す。**
+  // **必要な「やりたい」の数は投票APIと同じ式で出す。**
   // オーナー1人＋メンバー1人＝母数2なので、必要数は floor(2/2)+1 = 2。
   // オーナー分の+1を落とすと 1 になるので、式が違えばここで割れる。
   // （seedのグループはオーナーもGroupMemberの行を持っていて本番と形が違うため、
   //   実運用と同じ「オーナーはmembersに入らない」グループを自分で作って確かめている）
   check(
-    "F170 通知に必要な「いいね」の数が入っている（投票APIと同じ式）",
-    sent[0]?.includes("👍 が 2 人集まると"),
+    "F170 通知に必要な「やりたい」の数が入っている（投票APIと同じ式）",
+    sent[0]?.includes("「やりたい」が 2 人集まると"),
     sent[0] ?? "投稿なし"
   );
 
@@ -4001,7 +4001,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
 // 数え方の中身は lib-checks の F298。ここは画面に正しく出るか：帯の合計が増えた分だけ増える・ゲーム一覧の時間が
 // ゲーム詳細の合計と一致する・ゲームに結びついていない記録は入らない・記録の無いグループには帯が出ない
 {
-  // 一覧は既定で「プレイ中」「気になる」だけを出すので、そのどちらかのゲームを使う
+  // 一覧は既定で「プレイ中」「プレイ予定」だけを出すので、そのどちらかのゲームを使う
   const game = await db.groupGame.findFirst({ where: { groupId: group.id, status: { in: ["PLAYING", "WISHLIST"] } }, orderBy: { createdAt: "asc" } });
   const bannerMs = (html) => Number(html.match(/data-testid="play-total-banner"[^>]*data-play-ms="(\d+)"/)?.[1] ?? 0);
   // 同じゲーム詳細へのリンクは帯（いちばん遊んだゲーム）や「プレイ中」の集計にもある。

@@ -29,7 +29,7 @@ type GroupGameItem = {
 type SteamResult = { appId: number; name: string; thumbnail: string };
 
 const STATUS_LABEL: Record<GameStatus, string> = {
-  WISHLIST: "気になる",
+  WISHLIST: "プレイ予定",
   PLAYING: "プレイ中",
   BACKLOG: "積みゲー",
   COMPLETED: "クリア済み",
@@ -87,10 +87,10 @@ export function GroupGameList({
   const router = useRouter();
   const [items, setItems] = useState(games);
   // ステータス・ジャンルとも複数選択できる。空＝絞り込みなし（＝すべて）。
-  // 同じ枠の中はOR（「気になる」＋「プレイ中」でどちらかに当てはまるもの）、
+  // 同じ枠の中はOR（「プレイ予定」＋「プレイ中」でどちらかに当てはまるもの）、
   // ステータス枠とジャンル枠の間はANDで効く。
   //
-  // 初期状態は「プレイ中」と「気になる」だけを表示する。いま話題になるのはこの2つで、
+  // 初期状態は「プレイ中」と「プレイ予定」だけを表示する。いま話題になるのはこの2つで、
   // 積みゲーとクリア済みは溜まる一方なので、既定で全部出すと本数が増えるほど埋もれる。
   // 絞り込み中は件数と「条件をクリア」が出るので、すべて見たいときは1回押せば戻せる。
   const [statusFilter, setStatusFilter] = useState<Set<GameStatus>>(
