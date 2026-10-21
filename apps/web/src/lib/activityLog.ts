@@ -31,6 +31,8 @@ export const ACTIVITY_KINDS = [
   "game.removed",
   "game.interest_added",
   "game.interest_removed",
+  // 最安値の更新。人ではなく cron（check-wishlist-prices）が、Discord へ通知を送れたときに書く
+  "game.price_dropped",
   "proposal.created",
   "proposal.voted",
   "proposal.vote_removed",
@@ -127,6 +129,7 @@ export const ACTIVITY_EMOJI: Record<ActivityKind, string> = {
   "game.removed": "🚫",
   "game.interest_added": "👀",
   "game.interest_removed": "🙈",
+  "game.price_dropped": "📉",
   "proposal.created": "💡",
   "proposal.voted": "🗳️",
   "proposal.vote_removed": "↩️",

@@ -125,6 +125,7 @@ IDしか無いと対象が消えた瞬間に何のことか分からなくなる
 | `game.status_changed` | 変更時刻 | `{from, to}` ← **今週クリアしたゲーム** |
 | `game.removed` | 削除時刻 | — |
 | `game.interest_added` / `game.interest_removed` | その時刻 | — |
+| `game.price_dropped` | 最安値の通知を送った時刻（cron） | `{price, shop}`。人の操作ではないので `actorId` は無い。通知先（最安値の更新）を設定したグループだけ |
 | `proposal.created` | 作成時刻 | — |
 | `proposal.voted` | 投票時刻 | `{type: LIKE/MAYBE/PASS}` |
 | `proposal.vote_removed` | 取り消した時刻 | `{type}` |

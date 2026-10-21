@@ -647,18 +647,26 @@ export async function getPlayCalendar(groupId: string, period: { start: Date; en
 }
 
 /**
- * グループ画面の「最近の動き」に混ぜる、新しく始まった順のプレイ記録（docs/play-log.md §11 の段階2）。
- * 出す・出さないの基準はカレンダーと同じ（5分未満は出さない。進行中は出す）。短い回で枠が埋まらないよう少し多めに引いてから絞る
+ * 「最近の動き」に混ぜる、新しく始まった順のプレイ記録（docs/play-log.md §11 の段階2）。グループ画面（1グループ）と
+ * ホームの「みんなの動き」（所属グループすべて）の両方で使う。
+ * 出す・出さないの基準はカレンダーと同じ（5分未満は出さない。進行中は出す）。短い回で枠が埋まらないよう少し多めに引いてから絞る。
+ * **グループの数によらず1回で読む。** グループごとに読むと、所属グループが増えるたびにホームの往復が増える（query-budget の Q01）
  */
-export async function getRecentPlays(groupId: string, limit: number, now = new Date()): Promise<PlayCalendarEntry[]> {
+export async function getRecentPlaysForGroups(
+  groupIds: string[],
+  limit: number,
+  now = new Date()
+): Promise<{ groupId: string; entry: PlayCalendarEntry }[]> {
+  if (groupIds.length === 0) return [];
   const sessions = await db.groupPlaySession.findMany({
-    where: { groupId },
+    where: { groupId: { in: groupIds } },
     orderBy: { startedAt: "desc" },
     take: limit * 3,
     include: PLAY_ENTRY_INCLUDE,
   });
   if (sessions.length === 0) return [];
-  return (await toPlayEntries(sessions, now)).map((b) => b.entry).slice(0, limit);
+  const groupOf = new Map(sessions.map((s) => [s.id, s.groupId]));
+  return (await toPlayEntries(sessions, now)).slice(0, limit).map((b) => ({ groupId: groupOf.get(b.entry.id)!, entry: b.entry }));
 }
 
 const PLAY_ENTRY_INCLUDE = {
