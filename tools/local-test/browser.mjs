@@ -1900,6 +1900,9 @@ for (const [id, label, path] of targets) {
     B98: "PC幅ではアカウントが左下に1つ出ていて、押すと自分のページが開く",
     B128: "PCの左メニューにある行き先は、スマホでもタブか「自分」ページから全部行ける",
     B129: "プロフィールで表示名を変えると、ログインし直さなくても左下の名前が変わる（ブラウザから送った名前は使われない）",
+    B130: "「たたむ」でアイコンだけの細い列になり、アイコンに乗せると名前が実際に読める",
+    B131: "畳んだ状態は再読み込みしても残り、サーバーの最初の描画から畳んだ形で出る（画面の食い違いが出ない）",
+    B132: "「広げる」で名前付きに戻り、再読み込みしても広がったまま",
   };
   const recorded = new Set();
   // 確認の都合で順番が前後するので、ID順に並べ直してから表へ入れる
@@ -2079,6 +2082,75 @@ for (const [id, label, path] of targets) {
       `${pcWidth.scrollWidth}/${pcWidth.clientWidth}`,
       pcWidth.scrollWidth <= pcWidth.clientWidth + 1
     );
+
+    // ── 左メニューの折りたたみ（2026-10-21 ユーザー判断: ボタンで開閉・初めては開いた形） ──
+    // 畳んだときの名前は、メニューの外に出す吹き出しだけが頼り。**`opacity` と矩形は「出ている」と答えるのに
+    // 画面には無い**、という壊れ方をする（`<nav>` の `overflow-y-auto` が吹き出しを切る。以前のレールで実際に起きた）
+    // ので、その位置に本当に居るかを `elementFromPoint` で見る。最後は必ず広げた形に戻す
+    {
+      const hydration = [];
+      pcPage.on("console", (m) => {
+        if (m.type() === "error" && /#418|#422|#423|#425|hydrat/i.test(m.text())) hydration.push(m.text().slice(0, 120));
+      });
+      const asideWidth = () => pcPage.locator("aside").evaluate((el) => Math.round(el.getBoundingClientRect().width));
+      try {
+        await pcPage.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+        await pcPage.getByRole("button", { name: "メニューをたたむ" }).click();
+        await pcPage.waitForTimeout(400);
+        const collapsedWidth = await asideWidth();
+        await pcPage.locator("aside nav").getByRole("link", { name: "アルバム" }).hover();
+        await pcPage.waitForTimeout(400);
+        const tooltip = await pcPage.evaluate(() => {
+          const tip = [...document.querySelectorAll("aside nav span")].find((e) => e.textContent === "アルバム");
+          if (!tip) return { found: false, opacity: null, hit: false };
+          const r = tip.getBoundingClientRect();
+          // 吹き出しには `pointer-events-none` が付いている。**`elementFromPoint` はそれを飛ばして下の要素を返す**ので、
+          // 測る間だけ戻す（以前、直っているのに落ち続けた）
+          const previous = tip.style.pointerEvents;
+          tip.style.pointerEvents = "auto";
+          const at = document.elementFromPoint(r.x + 5, r.y + r.height / 2);
+          tip.style.pointerEvents = previous;
+          return { found: true, opacity: getComputedStyle(tip).opacity, hit: at === tip || tip.contains(at) };
+        });
+        rec(
+          "B130",
+          "幅80px以下 / 吹き出しがその位置に居る",
+          `幅${collapsedWidth}px / ${tooltip.found ? `opacity=${tooltip.opacity} その位置に居る=${tooltip.hit}` : "吹き出しが無い"}`,
+          collapsedWidth <= 80 && tooltip.found && tooltip.opacity === "1" && tooltip.hit
+        );
+
+        // サーバーが返すHTMLの時点で畳んだ形か（ブラウザで描き直して畳むのでは、開いた瞬間に一度広がる）
+        const html = await (await pcContext.request.get(`${BASE}/groups/${ids.groupId}`)).text();
+        const ssrCollapsed = /<aside[^>]*data-collapsed="true"/.test(html);
+        hydration.length = 0;
+        await pcPage.reload({ waitUntil: "networkidle" });
+        await pcPage.waitForTimeout(300);
+        const afterReload = await asideWidth();
+        rec(
+          "B131",
+          "サーバーのHTMLで畳んだ形 / 再読み込み後も80px以下 / 食い違い0件",
+          `HTML=${ssrCollapsed ? "畳んだ形" : "開いた形"} / 幅${afterReload}px / 食い違い${hydration.length}件`,
+          ssrCollapsed && afterReload <= 80 && hydration.length === 0,
+          hydration.slice(0, 2).join(" | ")
+        );
+
+        await pcPage.getByRole("button", { name: "メニューを広げる" }).click();
+        await pcPage.waitForTimeout(400);
+        const expandedWidth = await asideWidth();
+        await pcPage.reload({ waitUntil: "networkidle" });
+        await pcPage.waitForTimeout(300);
+        const expandedAfterReload = await asideWidth();
+        const labelVisible = await pcPage.locator("aside nav").getByText("アルバム", { exact: true }).isVisible();
+        rec(
+          "B132",
+          "広げた直後も再読み込み後も200px以上 / 名前が出ている",
+          `直後${expandedWidth}px / 再読み込み後${expandedAfterReload}px / 名前${labelVisible ? "あり" : "なし"}`,
+          expandedWidth >= 200 && expandedAfterReload >= 200 && labelVisible
+        );
+      } finally {
+        await pcPage.evaluate(() => (document.cookie = "ss-sidebar=; path=/; max-age=0")).catch(() => {});
+      }
+    }
   } catch (e) {
     for (const [id, item] of Object.entries(EXPECTED)) {
       if (recorded.has(id)) continue;

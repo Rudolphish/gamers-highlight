@@ -1,8 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { BottomTabs } from "@/components/layout/BottomTabs";
 import { RouteProgress } from "@/components/ui/RouteProgress";
+import { SIDEBAR_COLLAPSED, SIDEBAR_COOKIE } from "@/components/layout/sidebarState";
 
 // 骨組み（2026-10 のデザイン刷新）: PC（768px以上）は左の名前付きメニュー、スマホは下のタブ。上のヘッダーは無い。
 // スマホだけ、上にロゴの帯を出す（sticky にしない。縦が狭いので、スクロールしたら流れていってよい）。
@@ -23,12 +25,14 @@ import { RouteProgress } from "@/components/ui/RouteProgress";
 //
 // `<main>` はページ側が全部（27ページ）持っているので、ここでは出さない。
 export default function MainLayout({ children }: { children: React.ReactNode }) {
+  // 左メニューを畳んでいるか。最初の描画からその形で出すため、ここ（サーバー）で読む（sidebarState.ts）
+  const sidebarCollapsed = cookies().get(SIDEBAR_COOKIE)?.value === SIDEBAR_COLLAPSED;
   return (
     <div className="flex min-h-[100dvh] w-full bg-steam-bg pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
       <Suspense fallback={null}>
         <RouteProgress />
       </Suspense>
-      <Sidebar />
+      <Sidebar initialCollapsed={sidebarCollapsed} />
       <div className="flex min-h-[100dvh] flex-1 flex-col overflow-y-auto pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
         <div className="flex items-center px-4 pb-1 pt-3 md:hidden">
           <Link href="/" aria-label="ShareStaq ホーム" className="font-logo text-xl font-bold tracking-tight text-steam-text">

@@ -619,6 +619,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p className="text-steam-muted">
             パソコンなど横に広い画面では、下のタブの代わりに画面の左にメニューが名前付きで出ます。
             左下の自分の名前を押すと「自分」のページ（設定・ログアウト）が開きます。
+            メニューの上のボタンで、アイコンだけの細い列にたためます（アイコンに乗せると名前が出ます。もう一度押すと戻ります）。
           </p>
           <p>
             <strong className="text-steam-text">写真を見ているとき</strong>は、
