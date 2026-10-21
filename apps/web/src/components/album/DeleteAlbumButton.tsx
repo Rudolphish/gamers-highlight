@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { dangerButton } from "@/components/ui/buttonStyles";
 
 export function DeleteAlbumButton({ albumId, groupId }: { albumId: string; groupId: string }) {
   const router = useRouter();
@@ -27,9 +28,9 @@ export function DeleteAlbumButton({ albumId, groupId }: { albumId: string; group
     <button
       onClick={handleDelete}
       disabled={pending}
-      className="flex min-h-[44px] items-center gap-1.5 rounded-sm border border-steam-border px-4 text-xs text-danger hover:border-danger disabled:opacity-50"
+      className={dangerButton}
     >
-      {pending ? <Spinner size={13} /> : <Trash2 size={13} />}
+      {pending ? <Spinner size={16} /> : <Trash2 size={16} aria-hidden="true" />}
       削除
     </button>
   );

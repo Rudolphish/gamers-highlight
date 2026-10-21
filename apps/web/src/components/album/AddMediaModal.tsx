@@ -6,6 +6,7 @@ import { Plus, X, Upload as UploadIcon, Image as ImageIcon, Film, Check, AlertCi
 import { MEDIA_LIMIT_LABELS } from "@/lib/media-limits";
 import { addYoutubeMedia, uploadMediaFile } from "@/lib/uploadClient";
 import { parseYoutubeUrl } from "@/lib/youtubeLink";
+import { primaryButton } from "@/components/ui/buttonStyles";
 
 // アルバム詳細の「追加」。/upload と同じことをこのアルバムに限ってやる。
 //
@@ -117,9 +118,9 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
       <button
         onClick={() => setOpen(true)}
         aria-label="写真・動画を追加"
-        className="flex min-h-[44px] items-center gap-1.5 rounded-sm bg-accent px-4 text-xs font-bold text-accent-ink"
+        className={primaryButton}
       >
-        <Plus size={14} /> 追加
+        <Plus size={16} aria-hidden="true" /> 追加
       </button>
 
       {open && (

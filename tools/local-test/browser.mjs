@@ -3718,6 +3718,94 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── グループ画面以外のボタンの高さ（デザイン刷新の段階6） ──
+// 段階5でグループ画面に入れた決まり（スマホ44px・PC36px）を他の画面にも広げた。画面を足したらここの一覧にも足す。
+// 提案の詳細はリアクションの欄が出るよう提案を自分で作り、写真を開いた表示（ライトボックス）は main の外なので別に開いて測る
+{
+  const PAGES = [
+    "/",
+    "/albums",
+    `/albums/${ids.albumId}`,
+    `/groups/${ids.groupId}/games/${ids.gameId}`,
+    "{proposal}",
+    "/groups",
+  ];
+  const short = [];
+  let proposalId = null;
+  let measured = 0;
+  const tokenValue = await encode({ token: { name: "admin", email: "admin@example.com", sub: "admin@example.com" }, secret: SECRET, maxAge: 3600 });
+  const measure = (p, min, scope) =>
+    p.evaluate(([m, sel]) => {
+      const root = document.querySelector(sel) ?? document.body;
+      const els = [...root.querySelectorAll("button, select, input:not([type=hidden]):not([type=file]):not([type=checkbox]):not([type=radio]), textarea")]
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0;
+        });
+      return {
+        count: els.length,
+        bad: els
+          .filter((el) => el.getBoundingClientRect().height < m - 0.5)
+          .map((el) => `${(el.getAttribute("aria-label") || el.getAttribute("placeholder") || el.textContent || el.tagName).trim().slice(0, 14)}（${Math.round(el.getBoundingClientRect().height)}px）`),
+      };
+    }, [min, scope]);
+  try {
+    for (const [w, h, min] of [[390, 844, 44], [1280, 800, 36]]) {
+      const ctx = await browser.newContext({ viewport: { width: w, height: h } });
+      await ctx.addCookies([{ name: "next-auth.session-token", value: tokenValue, domain: "127.0.0.1", path: "/", httpOnly: true }]);
+      const p = await ctx.newPage();
+      try {
+        if (!proposalId) {
+          await p.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "domcontentloaded" });
+          proposalId = await p.evaluate(async (gid) => {
+            const res = await fetch(`/api/groups/${gid}/proposals`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ steamAppId: 7700139, title: "高さ確認（段階6）" }),
+            });
+            return (await res.json().catch(() => null))?.proposal?.id ?? null;
+          }, ids.groupId);
+        }
+        for (const raw of PAGES) {
+          const path = raw === "{proposal}" ? `/groups/${ids.groupId}/proposals/${proposalId}` : raw;
+          await p.goto(BASE + path, { waitUntil: "networkidle" });
+          const r = await measure(p, min, "main");
+          measured += r.count;
+          short.push(...r.bad.map((x) => `${w}px ${path.replace(/[a-z0-9]{20,}/g, "…")} ${x}`));
+        }
+        // 写真を開いた表示（ライトボックス）
+        await p.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+        // ライトボックスは role を持たないので、ほかのテスト（B36 など）と同じく写真の枠を押して開き、重ねた箱の中を測る
+        await p.locator("main div.aspect-square").first().click();
+        await p.locator("div.fixed.inset-0.z-50").first().waitFor({ timeout: 10000 });
+        await p.waitForTimeout(400);
+        const lb = await measure(p, min, "div.fixed.inset-0.z-50");
+        measured += lb.count;
+        short.push(...lb.bad.map((x) => `${w}px 写真を開いたところ ${x}`));
+      } finally {
+        await ctx.close();
+      }
+    }
+    rows.push({
+      id: "B139",
+      item: "ホーム・アルバム（一覧・詳細・写真を開いたところ）・ゲーム詳細・提案詳細・グループ一覧のボタンと入力欄が、スマホ幅で44px以上・PC幅で36px以上ある",
+      expected: "足りない部品 0件",
+      actual: `${short.length}件 / 測った部品 ${measured}個`,
+      ok: short.length === 0 && measured > 40,
+      note: short.slice(0, 5).join(" | ").slice(0, 200),
+    });
+  } catch (e) {
+    rows.push({ id: "B139", item: "グループ画面以外のボタンの高さ", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    if (proposalId) {
+      const ctx = await browser.newContext();
+      await ctx.addCookies([{ name: "next-auth.session-token", value: tokenValue, domain: "127.0.0.1", path: "/", httpOnly: true }]);
+      await ctx.request.delete(`${BASE}/api/groups/${ids.groupId}/proposals/${proposalId}`).catch(() => {});
+      await ctx.close();
+    }
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）

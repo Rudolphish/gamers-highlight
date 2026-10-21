@@ -8,6 +8,7 @@ import { AlbumSearch } from "@/components/album/AlbumSearch";
 import { getSteamCoverUrls } from "@/lib/albumCover";
 import { coverPhotoQuery } from "@/lib/albumCoverPolicy";
 import { formatRelativeTime } from "@/lib/relative-time";
+import { primaryButton } from "@/components/ui/buttonStyles";
 
 // アルバム一覧画面：自分のアルバム一覧＋未分類の投稿への導線
 export default async function AlbumsPage() {
@@ -94,23 +95,23 @@ export default async function AlbumsPage() {
         </h1>
         <Link
           href="/albums/new"
-          className="flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink"
+          className={primaryButton}
         >
-          <Plus size={14} /> 新規アルバム
+          <Plus size={16} aria-hidden="true" /> 新規アルバム
         </Link>
       </div>
 
       {unclassifiedCount > 0 && (
         <Link
           href="/albums/unclassified"
-          className="mt-4 flex items-center gap-3 rounded-sm border border-dashed border-steam-border bg-steam-surface p-3 transition hover:border-steam-blue"
+          className="mt-4 flex items-center gap-3 rounded-xl bg-steam-surface p-3 transition hover:bg-steam-panel"
         >
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sm bg-steam-panel text-steam-blue">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-steam-panel text-steam-blue">
             <Inbox size={18} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-display text-sm font-semibold text-steam-text">未分類の投稿</p>
-            <p className="text-2xs text-steam-muted">
+            <p className="text-sm text-steam-muted">
               まだどのアルバムにも入っていない投稿が{unclassifiedCount}件あります。タップして振り分ける
             </p>
           </div>

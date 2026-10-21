@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Check, X } from "lucide-react";
+import { ghostIconButton, iconButton } from "@/components/ui/buttonStyles";
 
 export function GroupNameEditor({
   groupId,
@@ -79,8 +80,8 @@ export function GroupNameEditor({
         onKeyDown={(e) => e.key === "Enter" && save()}
         className="rounded-lg border border-steam-border bg-steam-bg px-2 py-1 font-display text-2xl font-bold text-steam-text outline-none focus:border-steam-blue sm:text-3xl"
       />
-      <button onClick={save} aria-label="保存" className="p-2 text-steam-blue">
-        <Check size={18} />
+      <button onClick={save} aria-label="保存" className={`${iconButton} text-steam-blue`}>
+        <Check size={18} aria-hidden="true" />
       </button>
       <button
         onClick={() => {
@@ -88,9 +89,9 @@ export function GroupNameEditor({
           setDraft(displayName);
         }}
         aria-label="キャンセル"
-        className="p-2 text-steam-muted"
+        className={ghostIconButton}
       >
-        <X size={18} />
+        <X size={18} aria-hidden="true" />
       </button>
     </div>
   );

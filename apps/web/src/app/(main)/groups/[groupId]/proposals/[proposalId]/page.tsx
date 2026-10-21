@@ -14,6 +14,7 @@ import { GameStoreBadges } from "@/components/game/GameStoreBadges";
 import { GameVideoSection } from "@/components/game/GameVideoSection";
 import { HltbCard } from "@/components/group/HltbCard";
 import { ProposalVotePanel, type ProposalVoter } from "@/components/group/ProposalVotePanel";
+import { badge, secondaryButton } from "@/components/ui/buttonStyles";
 
 // 提案の詳細ページ：ゲーム詳細ページと同じSteam情報（レビュー・価格・ニュース・最安値）を出し、
 // 投票（やりたい/様子見/パス）もこのページから行えるようにする。
@@ -109,7 +110,7 @@ export default async function ProposalDetailPage({
 
           <div className="p-4 sm:p-6">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded-sm border border-warning/50 px-1.5 py-0.5 text-3xs text-warning">
+              <span className={badge("warning")}>
                 {proposal.status === "PENDING" ? "投票中" : "却下済み"}
               </span>
               <GameStoreBadges reviews={reviews} price={price} />
@@ -133,7 +134,7 @@ export default async function ProposalDetailPage({
                   canWithdraw={canWithdraw}
                 />
               ) : (
-                <p className="rounded-lg bg-steam-panel p-3 text-3xs text-steam-muted">
+                <p className="rounded-xl bg-steam-panel p-4 text-sm text-steam-muted">
                   この提案は決着済みのため投票できません。
                 </p>
               )}
@@ -144,9 +145,9 @@ export default async function ProposalDetailPage({
                 href={`https://store.steampowered.com/app/${proposal.steamAppId}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink"
+                className={secondaryButton}
               >
-                <ExternalLink size={13} /> Steamストアで見る
+                <ExternalLink size={16} aria-hidden="true" /> Steamストアで見る
               </a>
             </div>
 

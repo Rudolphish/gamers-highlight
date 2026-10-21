@@ -35,3 +35,17 @@ export function chipButton(active: boolean): string {
 /** 選択欄と入力欄の高さ。ボタンと並べたときに揃える */
 export const FIELD_HEIGHT = BUTTON_HEIGHT;
 export const fieldClass = `${FIELD_HEIGHT} rounded-lg border border-steam-border bg-steam-bg px-3 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50`;
+
+/**
+ * 状態や評価の札（プレイ中・非常に好評・投票中・値段）。押せないので高さの決まりの外。
+ * 枠線ではなく薄い面で色を付ける（デザイン刷新の段階6。以前は四角い枠線の札だった）
+ */
+export function badge(tone: "blue" | "positive" | "warning" | "neutral"): string {
+  const color = {
+    blue: "bg-steam-blue/15 text-steam-blue",
+    positive: "bg-positive/15 text-positive",
+    warning: "bg-warning/15 text-warning",
+    neutral: "bg-steam-panel text-steam-text",
+  }[tone];
+  return `inline-flex items-center rounded-full px-2.5 py-0.5 text-xs ${color}`;
+}

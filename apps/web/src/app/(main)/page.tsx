@@ -52,10 +52,10 @@ export default async function HomePage() {
 
       {recentPhotos.length > 0 && (
         <section className="mt-5">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-steam-muted">
+          <h2 className="font-display text-xl font-bold text-steam-text">
             最近の投稿
           </h2>
-          <div className="mt-2">
+          <div className="mt-3">
             <RecentActivity
               photos={recentPhotos.map((p) => ({
                 id: p.id,
@@ -74,7 +74,7 @@ export default async function HomePage() {
       )}
 
       <section className="mt-6">
-        <h2 className="text-xs font-bold uppercase tracking-wide text-steam-muted">
+        <h2 className="font-display text-xl font-bold text-steam-text">
           マイグループ
         </h2>
         {groups.length === 0 ? (
@@ -82,7 +82,7 @@ export default async function HomePage() {
             まだグループがありません。作成して仲間を招待しましょう。
           </p>
         ) : (
-          <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {groups.map((group) => (
               <Link
                 key={group.id}
@@ -92,7 +92,7 @@ export default async function HomePage() {
                 <p className="truncate font-display text-base font-semibold text-steam-text">
                   {group.name}
                 </p>
-                <div className="mt-2 flex items-center gap-3 text-3xs text-steam-muted">
+                <div className="mt-2 flex items-center gap-3 text-sm text-steam-muted">
                   <span className="flex items-center gap-1">
                     <Film size={11} /> {group._count.albums}
                   </span>

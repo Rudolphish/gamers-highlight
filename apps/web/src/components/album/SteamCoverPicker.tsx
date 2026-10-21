@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Gamepad2, X, Search, ImageIcon, Link2Off, AlertTriangle } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { secondaryButton } from "@/components/ui/buttonStyles";
 
 type SteamResult = { appId: number; name: string; thumbnail: string };
 
@@ -181,9 +182,9 @@ export function SteamCoverPicker({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-sm border border-steam-border px-3 py-2 text-xs text-steam-text hover:border-steam-blue"
+        className={secondaryButton}
       >
-        <Gamepad2 size={13} /> Steam連携
+        <Gamepad2 size={16} aria-hidden="true" /> Steam連携
       </button>
 
       {open && (

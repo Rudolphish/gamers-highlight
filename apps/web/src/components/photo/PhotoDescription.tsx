@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Pencil, Check, X } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { MAX_DESCRIPTION_LENGTH } from "@/lib/photoDescription";
+import { ghostIconButton, primaryButton, secondaryButton } from "@/components/ui/buttonStyles";
 
 export type DescriptionState = {
   text: string | null;
@@ -78,7 +79,7 @@ export function PhotoDescription({
           rows={4}
           autoFocus
           placeholder="この場面の説明を書く（空にすると消えます）"
-          className="w-full resize-none rounded-lg border border-steam-border bg-steam-bg p-2 text-xs text-steam-text outline-none focus:border-steam-blue"
+          className="w-full resize-none rounded-lg border border-steam-border bg-steam-bg p-2 text-sm text-steam-text outline-none focus:border-steam-blue"
         />
         <div className="flex items-center justify-between gap-2">
           <span className="text-3xs text-steam-muted">
@@ -92,17 +93,17 @@ export function PhotoDescription({
                 setError(null);
               }}
               aria-label="編集をやめる"
-              className="rounded-sm border border-steam-border px-2 py-1 text-3xs text-steam-muted hover:text-steam-text"
+              className={ghostIconButton}
             >
-              <X size={12} />
+              <X size={16} aria-hidden="true" />
             </button>
             <button
               onClick={save}
               disabled={saving}
               aria-label="説明を保存"
-              className="flex items-center gap-1 rounded-sm bg-accent px-2.5 py-1 text-3xs font-bold text-accent-ink disabled:opacity-60"
+              className={primaryButton}
             >
-              {saving ? <Spinner size={12} /> : <Check size={12} />} 保存
+              {saving ? <Spinner size={16} /> : <Check size={16} aria-hidden="true" />} 保存
             </button>
           </div>
         </div>
@@ -138,9 +139,9 @@ export function PhotoDescription({
               setEditing(true);
             }}
             aria-label={state.text ? "説明を編集" : "説明を書く"}
-            className="flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 text-3xs text-steam-muted transition hover:border-steam-blue hover:text-steam-blue"
+            className={secondaryButton}
           >
-            <Pencil size={11} /> {state.text ? "編集" : "説明を書く"}
+            <Pencil size={15} aria-hidden="true" /> {state.text ? "編集" : "説明を書く"}
           </button>
         )}
       </div>

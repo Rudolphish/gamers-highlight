@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Heart } from "lucide-react";
+import { BUTTON_HEIGHT } from "@/components/ui/buttonStyles";
 
 export type ReactionState = {
   count: number;
@@ -83,8 +84,9 @@ export function PhotoReactionButton({
         onClick={toggle}
         aria-pressed={state.reacted}
         aria-label={state.reacted ? "リアクションを取り消す" : "リアクションする"}
-        className={`inline-flex items-center gap-1 rounded-sm border transition ${
-          size === "lg" ? "min-h-[44px] px-3 text-xs" : "px-1.5 py-0.5 text-3xs"
+        // 写真の角に重ねる小さい版も、指で押せる大きさ（スマホ44px・PC36px）にする（デザイン刷新の段階6。以前は18px）
+        className={`inline-flex items-center justify-center gap-1 rounded-full border transition ${
+          size === "lg" ? "min-h-[44px] px-3 text-sm" : `${BUTTON_HEIGHT} min-w-[2.75rem] px-2.5 text-sm md:min-w-[2.25rem]`
         } ${
           state.reacted
             ? "border-danger/60 bg-steam-bg/80 text-danger"

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Users, X, UserPlus } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { secondaryButton } from "@/components/ui/buttonStyles";
 
 type Member = {
   userId: string;
@@ -104,9 +105,9 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-sm border border-steam-border px-3 py-2 text-xs text-steam-text hover:border-steam-blue"
+        className={secondaryButton}
       >
-        <Users size={13} /> メンバー
+        <Users size={16} aria-hidden="true" /> メンバー
       </button>
 
       {open && (

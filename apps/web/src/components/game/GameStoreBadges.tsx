@@ -1,4 +1,5 @@
 import type { GameDetailData } from "@/lib/gameDetail";
+import { badge } from "@/components/ui/buttonStyles";
 
 // レビュー評価と現在価格のバッジ。ステータス等のページ固有のバッジは
 // 呼び出し側が同じflexコンテナ内でこれより前に置く。
@@ -12,12 +13,12 @@ export function GameStoreBadges({
   return (
     <>
       {reviews && (
-        <span className="rounded-sm border border-positive/50 px-1.5 py-0.5 text-3xs text-positive">
+        <span className={badge("positive")}>
           {reviews.scoreDesc}（{reviews.totalReviews.toLocaleString()}件）
         </span>
       )}
       {price && (
-        <span className="rounded-sm border border-steam-border px-1.5 py-0.5 font-num text-3xs text-steam-text">
+        <span className={`${badge("neutral")} font-num`}>
           {price.isFree
             ? "無料"
             : price.discountPercent > 0

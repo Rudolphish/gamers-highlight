@@ -19,6 +19,7 @@ import { REFRESH_INTERVAL_MS } from "@/lib/externalGameCache";
 import { getGamePlaySummary } from "@/lib/playLog";
 import { GroupPlayLogPanel } from "@/components/game/GroupPlayLogPanel";
 import { GAME_STATUS_LABELS } from "@/lib/gameLabels";
+import { badge, secondaryButton } from "@/components/ui/buttonStyles";
 
 const STATUS_LABEL = GAME_STATUS_LABELS;
 
@@ -91,7 +92,7 @@ export default async function GroupGameDetailPage({
 
           <div className="p-4 sm:p-6">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded-sm border border-steam-blue/50 px-1.5 py-0.5 text-3xs text-steam-blue">
+              <span className={badge("blue")}>
                 {STATUS_LABEL[game.status]}
               </span>
               <GameStoreBadges reviews={reviews} price={price} />
@@ -132,9 +133,9 @@ export default async function GroupGameDetailPage({
                 href={`https://store.steampowered.com/app/${game.steamAppId}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink"
+                className={secondaryButton}
               >
-                <ExternalLink size={13} /> Steamストアで見る
+                <ExternalLink size={16} aria-hidden="true" /> Steamストアで見る
               </a>
             </div>
 

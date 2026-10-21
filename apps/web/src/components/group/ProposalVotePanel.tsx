@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Meh, Minus, ThumbsUp, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { PROPOSAL_REACTION_LABELS } from "@/lib/gameLabels";
+import { chipButton, textButton } from "@/components/ui/buttonStyles";
 
 export type ReactionType = "LIKE" | "MAYBE" | "PASS";
 
@@ -101,59 +102,59 @@ export function ProposalVotePanel({
   }
 
   return (
-    <div className="rounded-lg bg-steam-panel p-3">
+    <div className="rounded-xl bg-steam-panel p-4">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-3xs font-bold uppercase tracking-wide text-steam-muted">投票</h2>
-        <span className="text-3xs text-steam-muted">
+        <h2 className="text-base font-bold text-steam-text">投票</h2>
+        <span className="font-num text-sm text-steam-muted">
           やりたい {likeCount}/{likeThreshold}
         </span>
       </div>
 
-      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-sm bg-steam-bg">
+      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-steam-bg">
         <div
-          className="h-full rounded-sm bg-gradient-to-r from-steam-blue/60 to-steam-blue transition-all"
+          className="h-full rounded-full bg-steam-blue transition-all"
           style={{ width: `${Math.min((likeCount / likeThreshold) * 100, 100)}%` }}
         />
       </div>
-      <p className="mt-1 text-4xs text-steam-muted">
+      <p className="mt-2 text-sm text-steam-muted">
         「やりたい」が{likeThreshold}人に達すると、自動でゲームリストに追加されます
       </p>
 
-      <div className="mt-3 flex flex-col gap-2">
+      {/* リアクションはグループ画面のカードと同じ札を横に並べ、誰が押したかはその下にまとめる
+          （以前は札を縦に1つずつ並べ、横に名前を出していた） */}
+      <div className="mt-3 flex flex-wrap gap-2">
         {REACTIONS.map(({ type, icon: Icon, label }) => {
-          const votedBy = localVoters.filter((v) => v.type === type);
-          const active = myReaction === type;
+          const count = localVoters.filter((v) => v.type === type).length;
           return (
-            <div key={type} className="flex items-start gap-2">
-              <button
-                onClick={() => react(type)}
-                disabled={pending}
-                aria-pressed={active}
-                className={`flex flex-shrink-0 items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-3xs transition disabled:opacity-50 ${
-                  active
-                    ? "border-steam-blue text-steam-blue"
-                    : "border-steam-border text-steam-muted hover:border-steam-blue"
-                }`}
-              >
-                <Icon size={12} /> {label} {votedBy.length}
-              </button>
-              {votedBy.length > 0 && (
-                <p className="min-w-0 flex-1 pt-1.5 text-4xs text-steam-muted">
-                  {votedBy.map((v) => v.name).join("、")}
-                </p>
-              )}
-            </div>
+            <button
+              key={type}
+              onClick={() => react(type)}
+              disabled={pending}
+              aria-pressed={myReaction === type}
+              className={chipButton(myReaction === type)}
+            >
+              <Icon size={15} aria-hidden="true" />
+              <span>{`${label} ${count}`}</span>
+            </button>
           );
         })}
       </div>
+      {localVoters.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-1 text-sm text-steam-muted">
+          {REACTIONS.map(({ type, label }) => {
+            const names = localVoters.filter((v) => v.type === type).map((v) => v.name);
+            return names.length > 0 ? <li key={type}>{`${label}：${names.join("、")}`}</li> : null;
+          })}
+        </ul>
+      )}
 
       {canWithdraw && (
         <button
           onClick={withdraw}
           disabled={withdrawing}
-          className="mt-3 inline-flex items-center gap-1.5 text-3xs text-steam-muted transition hover:text-danger disabled:opacity-50"
+          className={`${textButton} mt-2 -ml-2 hover:text-danger`}
         >
-          {withdrawing ? <Spinner size={11} /> : <Trash2 size={11} />}
+          {withdrawing ? <Spinner size={16} /> : <Trash2 size={16} aria-hidden="true" />}
           この提案を取り下げる
         </button>
       )}

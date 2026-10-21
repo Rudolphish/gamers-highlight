@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { secondaryButton } from "@/components/ui/buttonStyles";
 
 // **タイムゾーンを決め打ちする。** 指定しないと実行環境のタイムゾーンで書くので、サーバー（Vercel は UTC）と
 // ブラウザ（日本）で違う時刻の文字になり、ゲーム詳細を開くたびにハイドレーションが食い違っていた
@@ -112,14 +113,14 @@ export function RefreshGameDataButton({
               ? `次に更新できるのは ${formatWhen(availableAt)} 以降です`
               : "Steam・IsThereAnyDeal・YouTube・HowLongToBeatの情報を取り直す"
           }
-          className="inline-flex items-center gap-1.5 rounded-sm border border-steam-border px-2.5 py-1.5 text-3xs text-steam-text transition hover:border-steam-blue disabled:cursor-not-allowed disabled:opacity-40"
+          className={`${secondaryButton} disabled:cursor-not-allowed`}
         >
-          {pending ? <Spinner size={11} /> : <RefreshCw size={11} />}
+          {pending ? <Spinner size={16} /> : <RefreshCw size={16} aria-hidden="true" />}
           {pending ? "更新中…" : "情報を更新"}
         </button>
 
         {lastRefreshed && (
-          <span className="text-3xs text-steam-muted">
+          <span className="text-sm text-steam-muted">
             最終更新: {formatWhen(lastRefreshed)}
           </span>
         )}

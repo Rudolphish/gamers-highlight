@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, Pencil, X } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { MAX_ALBUM_TITLE_LENGTH } from "@/lib/albumFields";
+import { ghostIconButton, iconButton } from "@/components/ui/buttonStyles";
 
 /**
  * アルバム名をその場で書き換える。
@@ -68,9 +69,9 @@ export function AlbumTitleEditor({ albumId, title }: { albumId: string; title: s
           onClick={() => setEditing(true)}
           aria-label="アルバム名を変更"
           title="アルバム名を変更"
-          className="rounded-sm border border-steam-border p-1.5 text-steam-muted hover:text-steam-text"
+          className={ghostIconButton}
         >
-          <Pencil size={13} />
+          <Pencil size={16} aria-hidden="true" />
         </button>
       </div>
     );
@@ -95,17 +96,17 @@ export function AlbumTitleEditor({ albumId, title }: { albumId: string; title: s
           onClick={save}
           disabled={pending}
           aria-label="アルバム名を保存"
-          className="rounded-sm border border-steam-border p-1.5 text-steam-blue hover:border-steam-blue disabled:opacity-50"
+          className={`${iconButton} text-steam-blue`}
         >
-          {pending ? <Spinner size={13} /> : <Check size={13} />}
+          {pending ? <Spinner size={16} /> : <Check size={16} aria-hidden="true" />}
         </button>
         <button
           onClick={cancel}
           disabled={pending}
           aria-label="変更をやめる"
-          className="rounded-sm border border-steam-border p-1.5 text-steam-muted hover:text-steam-text disabled:opacity-50"
+          className={ghostIconButton}
         >
-          <X size={13} />
+          <X size={16} aria-hidden="true" />
         </button>
       </div>
       {error && <p className="text-2xs text-danger">{error}</p>}
