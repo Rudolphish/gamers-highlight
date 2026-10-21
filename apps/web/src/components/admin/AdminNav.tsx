@@ -25,7 +25,7 @@ export function AdminNav() {
           <Link
             key={tab.href}
             href={tab.href}
-            className={`border-b-2 px-3 py-2 font-mono text-xs ${
+            className={`border-b-2 px-3 py-2 text-xs ${
               active
                 ? "border-steam-blue text-steam-blue"
                 : "border-transparent text-steam-muted hover:text-steam-text"

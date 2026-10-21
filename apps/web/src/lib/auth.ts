@@ -180,25 +180,35 @@ export const authOptions: NextAuthOptions = {
      * （`/api/allowlist/:id` のコメント参照）なので、毎回引いていた頃も
      * 「存在するか」を見ていただけで、締め出しの役には立っていなかった。
      */
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger }) {
       // サインインの回。Discord なら Discord のユーザーIDで行を引く（メールアドレスでは引かない）。
       // **token.email も DB の値で上書きする。** 管理者の判定（isAdminEmail）はこのメールを見るので、
       // Discord から来た未確認のアドレスを使うと、他人のアドレスを名乗って管理者になれてしまう
       if (user) {
         const dbUser =
           account?.provider === "discord"
-            ? await db.user.findUnique({ where: { discordUserId: account.providerAccountId }, select: { id: true, email: true } })
+            ? await db.user.findUnique({ where: { discordUserId: account.providerAccountId }, select: { id: true, email: true, name: true } })
             : user.email
-              ? await db.user.findUnique({ where: { email: user.email }, select: { id: true, email: true } })
+              ? await db.user.findUnique({ where: { email: user.email }, select: { id: true, email: true, name: true } })
               : null;
         if (dbUser) {
           token.userId = dbUser.id;
           token.email = dbUser.email;
+          // 名前も DB の表示名にする。そのままだと Discord のプロフィールの名前が入り、PCの左下のアカウントと
+          // 「自分」ページ（DBの表示名）とで名前が食い違う（プロフィールで名前を変えた人はずっと）
+          if (dbUser.name) token.name = dbUser.name;
         }
         token.devLogin = account?.provider === "dev-login" ? true : undefined;
         token.allowCheckedAt = Date.now();
         token.revoked = undefined;
         return token;
+      }
+
+      // プロフィールで表示名を変えた直後（画面が useSession().update() を呼ぶ）。名前は**DBから読み直す**。
+      // update() にはブラウザから好きな値を渡せるので、それをそのままトークンに入れてはいけない
+      if (trigger === "update" && token.userId) {
+        const fresh = await db.user.findUnique({ where: { id: token.userId }, select: { name: true } });
+        if (fresh?.name) token.name = fresh.name;
       }
 
       // idを載せる前に発行されたトークン（使い続けると期限が延びるので今も残りうる）。1回だけ引いて載せる

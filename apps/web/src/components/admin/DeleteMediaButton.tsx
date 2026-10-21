@@ -46,7 +46,7 @@ export function DeleteMediaButton({
 
   if (error) {
     return (
-      <span className="font-mono text-4xs text-[#eb4b4b]" title={error}>
+      <span className="text-4xs text-danger" title={error}>
         {error}
       </span>
     );
@@ -58,7 +58,7 @@ export function DeleteMediaButton({
         onClick={() => setConfirming(true)}
         aria-label={`${label} を削除`}
         title={`${label} を削除`}
-        className={`flex-shrink-0 text-steam-muted transition hover:text-[#eb4b4b] ${
+        className={`flex-shrink-0 text-steam-muted transition hover:text-danger ${
           compact ? "rounded-sm bg-black/60 p-1.5 backdrop-blur-sm" : "p-1.5"
         }`}
       >
@@ -78,7 +78,7 @@ export function DeleteMediaButton({
         disabled={deleting}
         aria-label="削除を実行"
         title={`${label} を完全に削除する`}
-        className="p-1 text-[#eb4b4b] transition hover:text-[#ff6b6b] disabled:opacity-50"
+        className="p-1 text-danger transition hover:text-danger disabled:opacity-50"
       >
         {deleting ? <Spinner size={11} /> : <Check size={12} />}
       </button>

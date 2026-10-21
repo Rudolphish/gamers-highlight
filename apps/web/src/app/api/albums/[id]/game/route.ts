@@ -127,7 +127,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   ]);
 
   // 間違えて追加したゲームの後片付け。**既定では消さない**——他のメンバーが
-  // 「気になる」を付けているかもしれないため、消すかどうかは画面で選ばせる
+  // 「ねらってる」を付けているかもしれないため、消すかどうかは画面で選ばせる
   if (removePrevious && current) {
     await db.groupGame.delete({ where: { id: current.id } });
     await logActivity({

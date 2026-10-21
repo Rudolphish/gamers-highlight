@@ -6,7 +6,7 @@
  */
 export function Skeleton({ className = "" }: { className?: string }) {
   return (
-    <div className={`relative overflow-hidden rounded-sm bg-steam-panel ${className}`}>
+    <div className={`relative overflow-hidden rounded-lg bg-steam-panel ${className}`}>
       <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-steam-border/40 to-transparent" />
     </div>
   );
@@ -15,7 +15,7 @@ export function Skeleton({ className = "" }: { className?: string }) {
 /** アルバム/ゲームのカード1枚分 */
 export function CardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-sm border border-steam-border bg-steam-surface">
+    <div className="overflow-hidden rounded-xl bg-steam-surface">
       <Skeleton className="h-32 w-full rounded-none" />
       <div className="flex flex-col gap-2 p-3">
         <Skeleton className="h-3.5 w-2/3" />

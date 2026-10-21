@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Search, X, LayoutGrid, List } from "lucide-react";
 import { AlbumGrid } from "./AlbumGrid";
 import { AlbumRows } from "./AlbumRows";
+import { chipButton, fieldClass, ghostIconButton } from "@/components/ui/buttonStyles";
 
 type Member = { id: string; name?: string | null; avatarUrl?: string | null };
 
@@ -71,22 +72,23 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1">
           <Search
-            size={13}
-            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-steam-muted"
+            size={16}
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-steam-muted"
           />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="アルバム名・ゲーム名で絞り込む"
-            className="w-full rounded-sm border border-steam-border bg-steam-bg py-2 pl-8 pr-8 font-mono text-xs text-steam-text outline-none focus:border-steam-blue"
+            className={`${fieldClass} w-full pl-9 pr-11 md:pr-9`}
           />
           {query && (
             <button
               onClick={() => setQuery("")}
               aria-label="絞り込みを消す"
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-steam-muted hover:text-steam-text"
+              className={`${ghostIconButton} absolute right-0 top-1/2 -translate-y-1/2`}
             >
-              <X size={12} />
+              <X size={16} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -95,7 +97,7 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
           <select
             value={groupId}
             onChange={(e) => setGroupId(e.target.value)}
-            className="rounded-sm border border-steam-border bg-steam-bg px-2 py-2 font-mono text-3xs text-steam-text outline-none focus:border-steam-blue"
+            className={fieldClass}
           >
             <option value="">すべてのグループ</option>
             {groups.map(([id, name]) => (
@@ -109,11 +111,8 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
         {emptyCount > 0 && (
           <button
             onClick={() => setOnlyWithPhotos((v) => !v)}
-            className={`rounded-sm border px-2 py-2 font-mono text-3xs transition ${
-              onlyWithPhotos
-                ? "border-steam-blue text-steam-blue"
-                : "border-steam-border text-steam-muted hover:border-steam-blue"
-            }`}
+            aria-pressed={onlyWithPhotos}
+            className={chipButton(onlyWithPhotos)}
           >
             投稿があるものだけ
           </button>
@@ -130,17 +129,14 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
             onClick={() => setView(v.value)}
             aria-label={v.label}
             title={v.label}
-            className={`inline-flex items-center gap-1 rounded-sm border px-2 py-2 font-mono text-3xs transition ${
-              view === v.value
-                ? "border-steam-blue text-steam-blue"
-                : "border-steam-border text-steam-muted hover:border-steam-blue"
-            }`}
+            aria-pressed={view === v.value}
+            className={`${chipButton(view === v.value)} w-11 px-0 md:w-9`}
           >
-            <v.icon size={12} />
+            <v.icon size={16} aria-hidden="true" />
           </button>
         ))}
 
-        <span className="font-mono text-3xs text-steam-muted">
+        <span className="text-sm text-steam-muted">
           {filtered.length === albums.length
             ? `${albums.length}件`
             : `${filtered.length} / ${albums.length}件`}
@@ -148,7 +144,7 @@ export function AlbumSearch({ albums }: { albums: Album[] }) {
       </div>
 
       {filtered.length === 0 ? (
-        <p className="mt-6 font-mono text-sm text-steam-muted">該当するアルバムがありません。</p>
+        <p className="mt-6 text-sm text-steam-muted">該当するアルバムがありません。</p>
       ) : (
         <div className="mt-4">
           {view === "grid" ? <AlbumGrid albums={filtered} /> : <AlbumRows albums={filtered} />}

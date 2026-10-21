@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus } from "lucide-react";
+import { Activity, ArrowLeft, Film, Plus, Settings, Upload } from "lucide-react";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
@@ -8,21 +8,22 @@ import { getGroupContent, getProposalHeaderImages } from "@/lib/groupData";
 import { ExpandableAlbumGrid } from "@/components/album/ExpandableAlbumGrid";
 import { GroupShareModal } from "@/components/group/GroupShareModal";
 import { GroupNameEditor } from "@/components/group/GroupNameEditor";
-import { DeleteGroupButton } from "@/components/group/DeleteGroupButton";
 import { GroupGamesSection } from "@/components/group/GroupGamesSection";
 import { PlayStatusSummary } from "@/components/group/PlayStatusSummary";
 import { GameProposals } from "@/components/group/GameProposals";
-import { NotificationSettings } from "@/components/group/NotificationSettings";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { getSteamCoverUrls } from "@/lib/albumCover";
-import { getGroupPlayTotals, getPlayLogMinParticipants, getUnknownPlays } from "@/lib/playLog";
+import { getGroupPlayTotals, getUnknownPlays } from "@/lib/playLog";
 import { PlayTotalBanner } from "@/components/group/PlayTotalBanner";
 import { getRecentActivity } from "@/lib/activityFeed";
 import { RecentActivity } from "@/components/group/RecentActivity";
 import { isAdminEmail } from "@/lib/admin";
 import { formatRelativeTime } from "@/lib/relative-time";
-import { PlayLogMinParticipantsSetting } from "@/components/group/PlayLogMinParticipantsSetting";
 import { UnknownPlays } from "@/components/group/UnknownPlays";
+import { GroupSections } from "@/components/group/GroupSections";
+import { MemberFaces } from "@/components/group/MemberFaces";
+import { iconButton, primaryButton, secondaryButton } from "@/components/ui/buttonStyles";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // サーバーから取る上限。**ここを超えた分はグループ画面から辿れなくなる**ので、
 // 数十件規模なら全部載る値にしておく（ゲーム1本につきアルバム1つ作られるため、
@@ -53,9 +54,9 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
   if (!group) notFound();
 
   const isOwner = currentUser?.id === group.ownerId;
-  // プレイ記録の最少人数は管理者だけが見て変えられる（テスト用の切り替え）。キャッシュの外で毎回読む
-  const isAdmin = isAdminEmail(currentUser.email);
-  const playLogMin = isAdmin ? await getPlayLogMinParticipants(group.id) : null;
+  // 歯車（グループの設定）はオーナーと管理者にだけ出す。設定画面の中身がその2人向けしか無いため
+  // （通知・削除はオーナー、プレイ記録の最少人数は管理者。判定は設定画面でも行う）
+  const canOpenSettings = isOwner || isAdminEmail(currentUser.email);
   const currentMembership = group.members.find((m) => m.userId === currentUser?.id);
   const canEditGames = isOwner || currentMembership?.role === "EDITOR";
   const likeThreshold = Math.floor((1 + group.members.length) / 2) + 1;
@@ -188,44 +189,10 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
     };
   });
 
-  return (
-    <main className="p-4 sm:p-6">
-      <Link
-        href="/groups"
-        className="inline-flex items-center gap-1.5 font-mono text-xs text-steam-muted hover:text-steam-text"
-      >
-        <ArrowLeft size={14} /> グループ一覧に戻る
-      </Link>
-
-      <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <GroupNameEditor groupId={group.id} name={group.name} canEdit={isOwner} />
-          {isOwner && (
-            <div className="mt-1.5">
-              <NotificationSettings
-                groupId={group.id}
-                targets={group.notificationTargets}
-                legacyChannelId={group.notificationChannelId}
-              />
-            </div>
-          )}
-          {playLogMin !== null && (
-            <div className="mt-1.5">
-              <PlayLogMinParticipantsSetting groupId={group.id} initial={playLogMin} />
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <GroupShareModal
-            groupId={group.id}
-            isOwner={isOwner}
-            members={shareMembers}
-            candidates={inviteCandidates}
-          />
-          {isOwner && <DeleteGroupButton groupId={group.id} />}
-        </div>
-      </div>
-
+  // 帯と「最近の動き」は単独で置かれる前提で上に余白を持っている（ホーム画面でも使う）。ここでは並びの間隔を gap で取り、
+  // 部品の上の余白は打ち消す。打ち消さないと、PCの2列で右の列の見出しだけが左の列より下にずれる
+  const overview = (
+    <div className="flex flex-col gap-6 [&>*]:mt-0">
       {/* 記録が1件も無いグループでは出さない（これから使うグループで空の大きな枠が出ないように） */}
       {playTotals && playTotals.totalMs > 0 && (
         <PlayTotalBanner
@@ -239,62 +206,98 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
           lastPlayedAt={playTotals.lastPlayedAt}
         />
       )}
+      {recentDays.length > 0 ? (
+        <RecentActivity groupId={group.id} days={recentDays} />
+      ) : (
+        !(playTotals && playTotals.totalMs > 0) && (
+          <EmptyState icon={Activity} title="まだ動きはありません" description="写真を投稿したり、みんなでゲームを遊んだりすると、ここに出ます。" />
+        )
+      )}
+    </div>
+  );
 
-      {recentDays.length > 0 && <RecentActivity groupId={group.id} days={recentDays} />}
-      <div className="mt-6">
-        <CollapsibleSection
-          title="アルバム"
-          headerAction={
-            <Link
-              href={`/groups/${group.id}/albums/new`}
-              className="flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
-            >
-              <Plus size={14} /> 新規アルバム
-            </Link>
-          }
-        >
-          {albumCards.length === 0 ? (
-            <p className="font-mono text-sm text-steam-muted">
-              まだアルバムがありません。作成するか、Discordに投稿してみましょう。
+  const albums = (
+    <CollapsibleSection
+      title="アルバム"
+      headerAction={
+        <Link href={`/groups/${group.id}/albums/new`} className={secondaryButton}>
+          <Plus size={16} aria-hidden="true" /> 新規アルバム
+        </Link>
+      }
+    >
+      {albumCards.length === 0 ? (
+        <EmptyState icon={Film} title="まだアルバムがありません" description="アルバムを作るか、Discordに投稿すると自動で作られます。" />
+      ) : (
+        <>
+          <ExpandableAlbumGrid albums={albumCards} initialCount={ALBUM_INITIAL_VISIBLE} />
+          {group._count.albums > albumCards.length && (
+            <p className="mt-3 text-3xs text-steam-muted">
+              更新が新しい{albumCards.length}件まで表示できます（全{group._count.albums}件）。
+              並び替えもこの{albumCards.length}件の中で効きます。
+              古いアルバムは<Link href="/albums" className="text-steam-blue hover:underline">アルバム一覧</Link>から探せます。
             </p>
-          ) : (
-            <>
-              <ExpandableAlbumGrid albums={albumCards} initialCount={ALBUM_INITIAL_VISIBLE} />
-              {group._count.albums > albumCards.length && (
-                <p className="mt-3 font-mono text-3xs text-steam-muted">
-                  更新が新しい{albumCards.length}件まで表示できます（全{group._count.albums}件）。
-                  並び替えもこの{albumCards.length}件の中で効きます。
-                  古いアルバムは<Link href="/albums" className="text-steam-blue hover:underline">アルバム一覧</Link>から探せます。
-                </p>
-              )}
-            </>
           )}
-        </CollapsibleSection>
-      </div>
+        </>
+      )}
+    </CollapsibleSection>
+  );
 
-      <div className="mt-8">
-        {/* プレイ中・クリア済みも含むので「気になっている」ではなくグループ全体のゲーム置き場として扱う */}
-        <GroupGamesSection groupId={group.id} games={gameCards} canEdit={canEditGames} currentUserId={currentUser.id}>
-          {unknownPlays.length > 0 && (
-            <UnknownPlays
-              groupId={group.id}
-              plays={unknownPlays}
-              games={gameCards.map((g) => ({ id: g.id, title: g.title }))}
-            />
-          )}
-          <PlayStatusSummary groupId={group.id} games={gameCards} />
-        </GroupGamesSection>
-      </div>
-
-      <div className="mt-8">
-        <GameProposals
+  // プレイ中・クリア済みも含むので「プレイ予定」だけではなくグループ全体のゲーム置き場として扱う
+  const games = (
+    <GroupGamesSection groupId={group.id} games={gameCards} canEdit={canEditGames} currentUserId={currentUser.id}>
+      {unknownPlays.length > 0 && (
+        <UnknownPlays
           groupId={group.id}
-          proposals={proposalCards}
-          currentUserId={currentUser.id}
-          likeThreshold={likeThreshold}
-          canManage={canEditGames}
+          plays={unknownPlays}
+          games={gameCards.map((g) => ({ id: g.id, title: g.title }))}
         />
+      )}
+      <PlayStatusSummary groupId={group.id} games={gameCards} />
+    </GroupGamesSection>
+  );
+
+  const wishlist = (
+    <GameProposals
+      groupId={group.id}
+      proposals={proposalCards}
+      currentUserId={currentUser.id}
+      likeThreshold={likeThreshold}
+      canManage={canEditGames}
+    />
+  );
+
+  return (
+    <main className="p-4 sm:p-6">
+      <Link
+        href="/groups"
+        className="inline-flex items-center gap-1.5 text-sm text-steam-muted hover:text-steam-text"
+      >
+        <ArrowLeft size={16} aria-hidden="true" /> グループ一覧に戻る
+      </Link>
+
+      {/* 見出し: 名前・顔ぶれ・よく使う操作。めったに触らない設定（通知・削除など）は歯車の先へ移した */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
+        <GroupNameEditor groupId={group.id} name={group.name} canEdit={isOwner} />
+        <MemberFaces members={shareMembers.map((m) => ({ id: m.userId, name: m.name }))} />
+        <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+          <Link href={`/upload?group=${group.id}`} className={`${primaryButton} flex-1 sm:flex-none`}>
+            <Upload size={16} aria-hidden="true" /> 写真を投稿
+          </Link>
+          <GroupShareModal
+            groupId={group.id}
+            isOwner={isOwner}
+            members={shareMembers}
+            candidates={inviteCandidates}
+          />
+          {canOpenSettings && (
+            <Link href={`/groups/${group.id}/settings`} aria-label="グループの設定" title="グループの設定" className={iconButton}>
+              <Settings size={18} aria-hidden="true" />
+            </Link>
+          )}
+        </div>
       </div>
+
+      <GroupSections overview={overview} albums={albums} games={games} wishlist={wishlist} />
     </main>
   );
 }

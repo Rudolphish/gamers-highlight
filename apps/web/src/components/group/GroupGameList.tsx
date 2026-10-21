@@ -9,6 +9,9 @@ import { Spinner } from "@/components/ui/Spinner";
 import { InterestButton, type InterestUser } from "@/components/group/InterestButton";
 import { formatPlayDuration } from "@/lib/playDuration";
 import { translateGenre } from "@/lib/steam";
+import { ActivityIcon } from "@/components/activity/ActivityIcon";
+import { GAME_STATUS_LABELS } from "@/lib/gameLabels";
+import { BUTTON_HEIGHT, ICON_BUTTON_SIZE, chipBase, chipButton, ghostIconButton, textButton } from "@/components/ui/buttonStyles";
 
 type GameStatus = "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
 
@@ -27,17 +30,12 @@ type GroupGameItem = {
 
 type SteamResult = { appId: number; name: string; thumbnail: string };
 
-const STATUS_LABEL: Record<GameStatus, string> = {
-  WISHLIST: "気になる",
-  PLAYING: "プレイ中",
-  BACKLOG: "積みゲー",
-  COMPLETED: "クリア済み",
-};
+const STATUS_LABEL: Record<GameStatus, string> = GAME_STATUS_LABELS;
 
 const STATUS_BADGE_CLASS: Record<GameStatus, string> = {
   WISHLIST: "border-steam-blue/50 text-steam-blue",
-  PLAYING: "border-[#a4d007]/50 text-[#a4d007]",
-  BACKLOG: "border-[#e0a323]/50 text-[#e0a323]",
+  PLAYING: "border-positive/50 text-positive",
+  BACKLOG: "border-warning/50 text-warning",
   COMPLETED: "border-steam-muted/50 text-steam-muted",
 };
 
@@ -86,10 +84,10 @@ export function GroupGameList({
   const router = useRouter();
   const [items, setItems] = useState(games);
   // ステータス・ジャンルとも複数選択できる。空＝絞り込みなし（＝すべて）。
-  // 同じ枠の中はOR（「気になる」＋「プレイ中」でどちらかに当てはまるもの）、
+  // 同じ枠の中はOR（「プレイ予定」＋「プレイ中」でどちらかに当てはまるもの）、
   // ステータス枠とジャンル枠の間はANDで効く。
   //
-  // 初期状態は「プレイ中」と「気になる」だけを表示する。いま話題になるのはこの2つで、
+  // 初期状態は「プレイ中」と「プレイ予定」だけを表示する。いま話題になるのはこの2つで、
   // 積みゲーとクリア済みは溜まる一方なので、既定で全部出すと本数が増えるほど埋もれる。
   // 絞り込み中は件数と「条件をクリア」が出るので、すべて見たいときは1回押せば戻せる。
   const [statusFilter, setStatusFilter] = useState<Set<GameStatus>>(
@@ -273,11 +271,7 @@ export function GroupGameList({
           <button
             onClick={() => setStatusFilter(new Set())}
             aria-pressed={statusFilter.size === 0}
-            className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
-              statusFilter.size === 0
-                ? "border-steam-blue text-steam-blue"
-                : "border-steam-border text-steam-muted hover:border-steam-blue"
-            }`}
+            className={chipButton(statusFilter.size === 0)}
           >
             すべて
           </button>
@@ -286,11 +280,7 @@ export function GroupGameList({
               key={s}
               onClick={() => setStatusFilter((prev) => toggle(prev, s))}
               aria-pressed={statusFilter.has(s)}
-              className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
-                statusFilter.has(s)
-                  ? STATUS_BADGE_CLASS[s]
-                  : "border-steam-border text-steam-muted hover:border-steam-blue"
-              }`}
+              className={statusFilter.has(s) ? `${chipBase} ${STATUS_BADGE_CLASS[s]}` : chipButton(false)}
             >
               {STATUS_LABEL[s]}
             </button>
@@ -303,11 +293,7 @@ export function GroupGameList({
           <button
             onClick={() => setGenreFilter(new Set())}
             aria-pressed={genreFilter.size === 0}
-            className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
-              genreFilter.size === 0
-                ? "border-steam-blue text-steam-blue"
-                : "border-steam-border text-steam-muted hover:border-steam-blue"
-            }`}
+            className={chipButton(genreFilter.size === 0)}
           >
             全ジャンル
           </button>
@@ -316,11 +302,7 @@ export function GroupGameList({
               key={g}
               onClick={() => setGenreFilter((prev) => toggle(prev, g))}
               aria-pressed={genreFilter.has(g)}
-              className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
-                genreFilter.has(g)
-                  ? "border-steam-blue text-steam-blue"
-                  : "border-steam-border text-steam-muted hover:border-steam-blue"
-              }`}
+              className={chipButton(genreFilter.has(g))}
             >
               {translateGenre(g)}
             </button>
@@ -330,7 +312,7 @@ export function GroupGameList({
 
       {filterCount > 0 && (
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <p className="font-mono text-3xs text-steam-muted">
+          <p className="text-sm text-steam-muted">
             {filterCount}件の条件で絞り込み中・{filteredGames.length}/{items.length}件
           </p>
           <button
@@ -338,17 +320,17 @@ export function GroupGameList({
               setStatusFilter(new Set());
               setGenreFilter(new Set());
             }}
-            className="inline-flex items-center gap-1 font-mono text-3xs text-steam-muted transition hover:text-steam-blue"
+            className={textButton}
           >
-            <X size={10} /> 条件をクリア
+            <X size={14} aria-hidden="true" /> 条件をクリア
           </button>
         </div>
       )}
 
-      {error && <p className="mt-2 font-mono text-xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
 
       {filteredGames.length === 0 ? (
-        <p className="mt-4 font-mono text-sm text-steam-muted">
+        <p className="mt-4 text-sm text-steam-muted">
           {items.length === 0
             ? "まだゲームが登録されていません。"
             : "条件に一致するゲームがありません。"}
@@ -358,7 +340,8 @@ export function GroupGameList({
           {filteredGames.map((game) => (
             <div
               key={game.id}
-              className="overflow-hidden rounded-sm border border-steam-border bg-steam-surface transition hover:border-steam-blue"
+              data-testid="game-card"
+              className="relative overflow-hidden rounded-xl bg-steam-surface transition hover:border-steam-blue"
             >
               <Link href={`/groups/${groupId}/games/${game.id}`}>
                 <div className="relative h-24 w-full overflow-hidden bg-steam-panel">
@@ -371,7 +354,7 @@ export function GroupGameList({
                       className="object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center font-mono text-3xs text-steam-muted/60">
+                    <div className="flex h-full w-full items-center justify-center text-3xs text-steam-muted">
                       No Image
                     </div>
                   )}
@@ -380,12 +363,13 @@ export function GroupGameList({
                   <p className="truncate font-display text-sm font-semibold text-steam-text">
                     {game.title}
                   </p>
-                  <p className="truncate font-mono text-4xs text-steam-muted/70">
+                  <p className="truncate text-4xs text-steam-muted">
                     {game.addedByName}が追加
                   </p>
                   {!!game.playMs && game.playMs > 0 && (
-                    <p className="mt-0.5 truncate font-mono text-3xs text-[#a4d007]" data-play-ms={game.playMs}>
-                      {`🎮 ${formatPlayDuration(game.playMs)}`}
+                    <p className="mt-0.5 flex items-center gap-1 truncate text-3xs text-steam-blue" data-play-ms={game.playMs}>
+                      <ActivityIcon kind="play.session" size={12} className="shrink-0" />
+                      <span className="font-num">{formatPlayDuration(game.playMs)}</span>
                     </p>
                   )}
                   {game.genres.length > 0 && (
@@ -393,7 +377,7 @@ export function GroupGameList({
                       {game.genres.slice(0, 2).map((g) => (
                         <span
                           key={g}
-                          className="rounded-sm bg-steam-panel px-1 py-0.5 font-mono text-4xs text-steam-muted"
+                          className="rounded-sm bg-steam-panel px-1 py-0.5 text-4xs text-steam-muted"
                         >
                           {translateGenre(g)}
                         </span>
@@ -403,13 +387,15 @@ export function GroupGameList({
                 </div>
               </Link>
               <div className="p-2">
-                <div className="flex items-center justify-between gap-1">
+                {/* 折り返せるようにしておく。スマホの2列だとカードは170px前後しかなく、「ねらってる」に文字を足したら
+                    右端が切れて削除ボタンが見えなくなった（カードが overflow-hidden なので横スクロールにも出ない。B127） */}
+                <div className="flex flex-wrap items-center justify-between gap-1">
                   {canEdit ? (
                     <select
                       value={game.status}
                       disabled={updatingId === game.id}
                       onChange={(e) => changeStatus(game.id, e.target.value as GameStatus)}
-                      className={`rounded-sm border bg-steam-panel px-1 py-0.5 font-mono text-3xs outline-none disabled:opacity-50 ${STATUS_BADGE_CLASS[game.status]}`}
+                      className={`${BUTTON_HEIGHT} rounded-lg border bg-steam-panel px-2 text-sm outline-none disabled:opacity-50 ${STATUS_BADGE_CLASS[game.status]}`}
                     >
                       {STATUS_ORDER.map((s) => (
                         <option key={s} value={s}>
@@ -419,34 +405,35 @@ export function GroupGameList({
                     </select>
                   ) : (
                     <span
-                      className={`rounded-sm border px-1.5 py-0.5 font-mono text-3xs ${STATUS_BADGE_CLASS[game.status]}`}
+                      className={`rounded-lg border px-2 py-1 text-sm ${STATUS_BADGE_CLASS[game.status]}`}
                     >
                       {STATUS_LABEL[game.status]}
                     </span>
                   )}
 
-                  <div className="flex flex-shrink-0 items-center gap-1">
-                    {currentUserId && !game.id.startsWith("temp-") && (
-                      <InterestButton
-                        groupId={groupId}
-                        gameId={game.id}
-                        users={game.interestedUsers}
-                        currentUserId={currentUserId}
-                      />
-                    )}
-                    {canEdit && (
-                      <button
-                        onClick={() => removeGame(game.id)}
-                        disabled={updatingId === game.id}
-                        className="flex-shrink-0 p-1.5 text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
-                        aria-label="削除"
-                      >
-                        {updatingId === game.id ? <Spinner size={12} /> : <Trash2 size={12} />}
-                      </button>
-                    )}
-                  </div>
+                  {currentUserId && !game.id.startsWith("temp-") && (
+                    <InterestButton
+                      groupId={groupId}
+                      gameId={game.id}
+                      users={game.interestedUsers}
+                      currentUserId={currentUserId}
+                    />
+                  )}
                 </div>
               </div>
+              {/* 削除は画像の右上に重ねる。ボタンを44pxにしたら、スマホの2列のカード（中の幅159px前後）では
+                  「ねらってる」と同じ段に収まらず、はみ出していた（B127）。削除は編集者だけが使う、たまの操作 */}
+              {canEdit && (
+                <button
+                  onClick={() => removeGame(game.id)}
+                  disabled={updatingId === game.id}
+                  className={`${ICON_BUTTON_SIZE} absolute right-1.5 top-1.5 inline-flex items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-danger disabled:opacity-50`}
+                  aria-label="削除"
+                  title="リストから削除"
+                >
+                  {updatingId === game.id ? <Spinner size={16} /> : <Trash2 size={16} aria-hidden="true" />}
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -454,7 +441,7 @@ export function GroupGameList({
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-sm border border-steam-border bg-steam-surface p-4">
+          <div className="w-full max-w-md rounded-xl bg-steam-surface p-4">
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold text-steam-text">
                 ゲームをリストに追加
@@ -462,7 +449,7 @@ export function GroupGameList({
               <button
                 onClick={() => setOpen(false)}
                 aria-label="閉じる"
-                className="p-2 text-steam-muted hover:text-steam-text"
+                className={ghostIconButton}
               >
                 <X size={16} />
               </button>
@@ -475,12 +462,12 @@ export function GroupGameList({
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 placeholder="ゲーム名で検索"
                 disabled={searching}
-                className="flex-1 rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-xs text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+                className="flex-1 rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-xs text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
               />
               <button
                 onClick={handleSearch}
                 disabled={searching || !query.trim()}
-                className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+                className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink disabled:opacity-40"
               >
                 {searching ? <Spinner size={12} /> : <Search size={12} />}
                 検索
@@ -492,7 +479,7 @@ export function GroupGameList({
                 <button
                   key={r.appId}
                   onClick={() => addGame(r)}
-                  className="flex items-center gap-3 rounded-sm border border-steam-border bg-steam-panel p-2 text-left transition hover:border-steam-blue"
+                  className="flex items-center gap-3 rounded-lg bg-steam-panel p-2 text-left transition hover:border-steam-blue"
                 >
                   <Image
                     src={r.thumbnail}
@@ -501,15 +488,15 @@ export function GroupGameList({
                     height={40}
                     className="h-10 w-16 flex-shrink-0 rounded-sm object-cover"
                   />
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-steam-text">{r.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-steam-text">{r.name}</span>
                 </button>
               ))}
               {searched && !searching && results.length === 0 && (
-                <p className="font-mono text-2xs text-steam-muted/70">見つかりませんでした</p>
+                <p className="text-2xs text-steam-muted">見つかりませんでした</p>
               )}
             </div>
 
-            {error && <p className="mt-3 font-mono text-xs text-[#eb4b4b]">{error}</p>}
+            {error && <p className="mt-3 text-xs text-danger">{error}</p>}
           </div>
         </div>
       )}

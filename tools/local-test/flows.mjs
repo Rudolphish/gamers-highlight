@@ -366,12 +366,12 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   });
   check("F35 同じゲームの二重追加は弾かれる", dup.status >= 400, dup.status);
 
-  // 「気になる」
+  // 「ねらってる」
   const interest = await api(`/api/groups/${group.id}/games/${game.id}/interest`, {
     method: "POST",
     cookie: memberCookie,
   });
-  check("F36 「気になる」を付けられる", interest.status === 200 || interest.status === 201, interest.text);
+  check("F36 「ねらってる」を付けられる", interest.status === 200 || interest.status === 201, interest.text);
 }
 
 // ───────────────────────────────────────────────────────────
@@ -847,7 +847,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     JSON.stringify(titles)
   );
   check(
-    "F72 プレイ中以外（気になる・積みゲー・クリア済み）は出ない",
+    "F72 プレイ中以外（プレイ予定・積みゲー・クリア済み）は出ない",
     !titles.some((t) => ["ELDEN RING", "DOOM（積みゲー）", "Half-Life 2（クリア済み）"].includes(t)),
     JSON.stringify(titles)
   );
@@ -1727,8 +1727,8 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       `/admin/activity?group=${group.id}&month=${month}&date=${dateString}`,
       { cookie }
     );
-    // チップは「📷 3」の形。タイムラインの行は絵文字とラベルの間にタグが挟まるので当たらない
-    const m = res.text.match(/📷 (\d+)/);
+    // 選んだ日の内訳のチップ。件数は属性に持たせてある（絵文字をやめてアイコンにしたので、文字では拾えない。デザイン刷新の段階2）
+    const m = res.text.match(/data-day-kind="photo\.created" data-count="(\d+)"/);
     return { status: res.status, photos: m ? Number(m[1]) : 0, text: res.text };
   };
 
@@ -2526,14 +2526,14 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     sent[0] ?? "投稿なし"
   );
 
-  // **必要な「いいね」の数は投票APIと同じ式で出す。**
+  // **必要な「やりたい」の数は投票APIと同じ式で出す。**
   // オーナー1人＋メンバー1人＝母数2なので、必要数は floor(2/2)+1 = 2。
   // オーナー分の+1を落とすと 1 になるので、式が違えばここで割れる。
   // （seedのグループはオーナーもGroupMemberの行を持っていて本番と形が違うため、
   //   実運用と同じ「オーナーはmembersに入らない」グループを自分で作って確かめている）
   check(
-    "F170 通知に必要な「いいね」の数が入っている（投票APIと同じ式）",
-    sent[0]?.includes("👍 が 2 人集まると"),
+    "F170 通知に必要な「やりたい」の数が入っている（投票APIと同じ式）",
+    sent[0]?.includes("「やりたい」が 2 人集まると"),
     sent[0] ?? "投稿なし"
   );
 
@@ -3638,8 +3638,9 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     await soloSnapshot(true);
     const soloAt1 = await rows();
     await soloSnapshot(false);
-    const groupPage = await api(`/groups/${group.id}`, { cookie: adminCookie });
-    const memberPage = await api(`/groups/${group.id}`, { cookie: memberCookie });
+    // 最少人数の切り替えはグループの設定画面（歯車の先）にある（デザイン刷新の段階5でグループ画面から移した）
+    const groupPage = await api(`/groups/${group.id}/settings`, { cookie: adminCookie });
+    const memberPage = await api(`/groups/${group.id}/settings`, { cookie: memberCookie });
 
     check(
       "F276 最少人数は管理者だけが1人に切り替えられ、Botへの一覧に載り、1人のプレイも記録される（既定の2人では記録されない）",
@@ -3701,9 +3702,18 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const albumOf = async (id) => (await db.photo.findUnique({ where: { id }, select: { albumId: true } }))?.albumId ?? null;
 
   const made = [];
+  // **振り分け先も、最初から入っている先も、ここで作ったアルバムを使う。** 以前は seed のアルバムを
+  // `orderBy` なしの findFirst で選んでいて、「あつまれ どうぶつの森」に当たった回だけ投稿で更新時刻が進み、
+  // ブラウザスイートの B27（seed の3件の更新順）が落ちていた（2026-10-21、デザイン刷新の段階4の通しで1回だけ出た）
+  const madeAlbums = [];
   try {
-    const target = await db.album.findFirst({ where: { groupId: group.id }, orderBy: { createdAt: "asc" } });
-    const other = await db.album.findFirst({ where: { groupId: group.id, id: { not: target.id } } });
+    for (const title of ["振り分け確認の振り分け先", "振り分け確認の別アルバム"]) {
+      const res = await api("/api/albums", { method: "POST", cookie: adminCookie, body: { title, groupId: group.id } });
+      madeAlbums.push(res.json?.album?.id ?? null);
+    }
+    if (madeAlbums.some((id) => !id)) throw new Error(`アルバムを作れなかった: ${JSON.stringify(madeAlbums)}`);
+    const target = { id: madeAlbums[0] };
+    const other = { id: madeAlbums[1] };
     const loose1 = await uploadAs(memberCookie, "A");
     const loose2 = await uploadAs(memberCookie, "B");
     const placed = other ? await uploadAs(memberCookie, "C", other.id) : null;
@@ -3729,7 +3739,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
         listedC: listed.text.includes("振り分け確認C"),
         byOutsider: [byOutsider.status, byOutsider.json?.movedCount],
         byAdmin: byAdmin.json,
-        placedStays: placed ? (await albumOf(placed)) === other?.id : "アルバムが1つしか無く未確認",
+        placedStays: placed ? (await albumOf(placed)) === other.id : "投稿できず未確認",
       })
     );
 
@@ -3746,6 +3756,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     check("F277x 未分類の振り分けの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
   } finally {
     for (const id of made.filter(Boolean)) await api(`/api/photos/${id}`, { method: "DELETE", cookie: adminCookie });
+    for (const id of madeAlbums.filter(Boolean)) await api(`/api/albums/${id}`, { method: "DELETE", cookie: adminCookie });
   }
 }
 
@@ -4001,7 +4012,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
 // 数え方の中身は lib-checks の F298。ここは画面に正しく出るか：帯の合計が増えた分だけ増える・ゲーム一覧の時間が
 // ゲーム詳細の合計と一致する・ゲームに結びついていない記録は入らない・記録の無いグループには帯が出ない
 {
-  // 一覧は既定で「プレイ中」「気になる」だけを出すので、そのどちらかのゲームを使う
+  // 一覧は既定で「プレイ中」「プレイ予定」だけを出すので、そのどちらかのゲームを使う
   const game = await db.groupGame.findFirst({ where: { groupId: group.id, status: { in: ["PLAYING", "WISHLIST"] } }, orderBy: { createdAt: "asc" } });
   const bannerMs = (html) => Number(html.match(/data-testid="play-total-banner"[^>]*data-play-ms="(\d+)"/)?.[1] ?? 0);
   // 同じゲーム詳細へのリンクは帯（いちばん遊んだゲーム）や「プレイ中」の集計にもある。
@@ -4081,9 +4092,9 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     const gameHref = `/groups/${group.id}/games/${game.id}`;
     const delta = dayTotal(after.text) - dayTotal(before.text);
     check(
-      "F300 活動カレンダーにプレイ記録が載る（日のマスに🎮・その日の合計・タイムラインに1回1行でゲームへのリンク）。管理者以外には出ない",
+      "F300 活動カレンダーにプレイ記録が載る（日のマスに遊んだアイコン・その日の合計・タイムラインに1回1行でゲームへのリンク）。管理者以外には出ない",
       after.status === 200 && delta === 90 * 60000 && (cellMs(monthView.text) ?? 0) >= 90 * 60000 &&
-        after.text.includes(" を 1時間30分") && after.text.includes(gameHref) && monthView.text.includes("🎮") &&
+        after.text.includes(" を 1時間30分") && after.text.includes(gameHref) && monthView.text.includes('data-kind="play.session"') &&
         !byMember.text.includes("day-play-total") && !byMember.text.includes("この月の記録"),
       `合計の増分=${delta / 60000}分 / マス=${cellMs(monthView.text)} / 行=${after.text.includes(" を 1時間30分")} / 管理者以外に出る=${byMember.text.includes("day-play-total")}`
     );

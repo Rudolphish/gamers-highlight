@@ -48,15 +48,15 @@ export default async function AdminUsagePage() {
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* ストレージ（R2） */}
-        <section className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
-          <h2 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
+        <section className="rounded-xl bg-steam-surface p-4 sm:p-6">
+          <h2 className="flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wide text-steam-muted">
             <HardDrive size={12} /> ストレージ（Cloudflare R2）
           </h2>
 
           {!storageResult.ok ? (
             <SectionError message={storageResult.error} />
           ) : storageResult.value.notConfigured ? (
-            <p className="mt-3 font-mono text-xs text-steam-muted">
+            <p className="mt-3 text-xs text-steam-muted">
               STORAGE_* が設定されていないため、バケットを参照できませんでした。
             </p>
           ) : (
@@ -89,9 +89,9 @@ export default async function AdminUsagePage() {
                 ].map(([label, value]) => (
                   <div
                     key={label}
-                    className="rounded-sm border border-steam-border bg-steam-panel p-3"
+                    className="rounded-lg bg-steam-panel p-3"
                   >
-                    <dt className="font-mono text-4xs text-steam-muted">
+                    <dt className="text-4xs text-steam-muted">
                       {label}
                     </dt>
                     <dd className="mt-1 font-display text-lg font-bold text-steam-text">
@@ -102,7 +102,7 @@ export default async function AdminUsagePage() {
               </dl>
 
               {storageResult.value.orphanCount > 0 && (
-                <p className="mt-2 flex items-start gap-1.5 font-mono text-4xs text-[#e0a323]">
+                <p className="mt-2 flex items-start gap-1.5 text-4xs text-warning">
                   <AlertCircle size={11} className="mt-0.5 flex-shrink-0" />
                   DBのどのレコードからも参照されていないファイルです。動画のサムネイルは
                   Photoレコードを持たない設計なので、その分はここに含まれます。
@@ -113,8 +113,8 @@ export default async function AdminUsagePage() {
         </section>
 
         {/* データベース */}
-        <section className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
-          <h2 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
+        <section className="rounded-xl bg-steam-surface p-4 sm:p-6">
+          <h2 className="flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wide text-steam-muted">
             <Database size={12} /> データベース
           </h2>
           {!databaseResult.ok ? (
@@ -149,9 +149,9 @@ export default async function AdminUsagePage() {
                 ].map(([label, value]) => (
                   <div
                     key={label}
-                    className="rounded-sm border border-steam-border bg-steam-panel p-3"
+                    className="rounded-lg bg-steam-panel p-3"
                   >
-                    <dt className="font-mono text-4xs text-steam-muted">
+                    <dt className="text-4xs text-steam-muted">
                       {label}
                     </dt>
                     <dd className="mt-1 font-display text-lg font-bold text-steam-text">
@@ -161,7 +161,7 @@ export default async function AdminUsagePage() {
                 ))}
               </dl>
               {mediaResult.value.missingSize > 0 && (
-                <p className="mt-2 font-mono text-4xs text-steam-muted/70">
+                <p className="mt-2 text-4xs text-steam-muted">
                   うち{mediaResult.value.missingSize}
                   件はサイズ未記録（Discord経由の投稿など）。容量はストレージ側の実測を参照。
                 </p>
@@ -171,8 +171,8 @@ export default async function AdminUsagePage() {
         </section>
 
         {/* YouTube Data API */}
-        <section className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6 lg:col-span-2">
-          <h2 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
+        <section className="rounded-xl bg-steam-surface p-4 sm:p-6 lg:col-span-2">
+          <h2 className="flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wide text-steam-muted">
             <Youtube size={12} /> YouTube Data API（本日・UTC基準）
           </h2>
           {!youtubeResult.ok ? (
@@ -192,11 +192,11 @@ export default async function AdminUsagePage() {
 
           {youtubeResult.ok && youtubeResult.value.history.length > 0 && (
             <div className="mt-4">
-              <p className="font-mono text-4xs text-steam-muted">直近30日</p>
+              <p className="text-4xs text-steam-muted">直近30日</p>
               <div className="mt-2 flex flex-col gap-1">
                 {youtubeResult.value.history.map((h) => (
                   <div key={h.date} className="flex items-center gap-2">
-                    <span className="w-20 flex-shrink-0 font-mono text-4xs text-steam-muted/70">
+                    <span className="w-20 flex-shrink-0 text-4xs text-steam-muted">
                       {h.date}
                     </span>
                     <div className="h-1.5 flex-1 overflow-hidden rounded-sm bg-steam-panel">
@@ -205,7 +205,7 @@ export default async function AdminUsagePage() {
                         style={{ width: `${(h.units / maxUnits) * 100}%` }}
                       />
                     </div>
-                    <span className="w-24 flex-shrink-0 text-right font-mono text-4xs text-steam-muted">
+                    <span className="w-24 flex-shrink-0 text-right text-4xs text-steam-muted">
                       {h.calls}回 / {h.units}
                     </span>
                   </div>
@@ -216,11 +216,11 @@ export default async function AdminUsagePage() {
         </section>
 
         {/* 計測できないもの */}
-        <section className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6 lg:col-span-2">
-          <h2 className="font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
+        <section className="rounded-xl bg-steam-surface p-4 sm:p-6 lg:col-span-2">
+          <h2 className="text-3xs font-bold uppercase tracking-wide text-steam-muted">
             計測対象外
           </h2>
-          <ul className="mt-3 flex flex-col gap-2 font-mono text-3xs text-steam-muted">
+          <ul className="mt-3 flex flex-col gap-2 text-3xs text-steam-muted">
             <li>
               <span className="text-steam-text">IsThereAnyDeal / Steam</span> —
               Next.jsのデータキャッシュ越しに呼んでいるため、コード側から「実際に外部へ出たか」を判別できません。呼び出し地点で数えるとキャッシュヒットも1回と数えてしまい、実態より多く出ます。

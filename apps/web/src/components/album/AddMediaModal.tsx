@@ -6,6 +6,7 @@ import { Plus, X, Upload as UploadIcon, Image as ImageIcon, Film, Check, AlertCi
 import { MEDIA_LIMIT_LABELS } from "@/lib/media-limits";
 import { addYoutubeMedia, uploadMediaFile } from "@/lib/uploadClient";
 import { parseYoutubeUrl } from "@/lib/youtubeLink";
+import { chipButton, ghostIconButton, primaryButton, secondaryButton } from "@/components/ui/buttonStyles";
 
 // アルバム詳細の「追加」。/upload と同じことをこのアルバムに限ってやる。
 //
@@ -117,14 +118,14 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
       <button
         onClick={() => setOpen(true)}
         aria-label="写真・動画を追加"
-        className="flex min-h-[44px] items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 font-mono text-xs font-bold text-[#0e1b12]"
+        className={primaryButton}
       >
-        <Plus size={14} /> 追加
+        <Plus size={16} aria-hidden="true" /> 追加
       </button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-sm border border-steam-border bg-steam-surface p-4">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-steam-surface p-4">
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold text-steam-text">
                 写真・動画を追加
@@ -132,7 +133,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
               <button
                 onClick={close}
                 aria-label="閉じる"
-                className="p-2 text-steam-muted hover:text-steam-text"
+                className={ghostIconButton}
               >
                 <X size={16} />
               </button>
@@ -141,21 +142,15 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
             <div className="mt-3 flex gap-2">
               <button
                 onClick={() => setTab("file")}
-                className={`flex-1 rounded-sm border px-3 py-1.5 font-mono text-xs ${
-                  tab === "file"
-                    ? "border-steam-blue text-steam-text"
-                    : "border-steam-border text-steam-muted"
-                }`}
+                aria-pressed={tab === "file"}
+                className={`${chipButton(tab === "file")} flex-1`}
               >
                 ファイル
               </button>
               <button
                 onClick={() => setTab("youtube")}
-                className={`flex-1 rounded-sm border px-3 py-1.5 font-mono text-xs ${
-                  tab === "youtube"
-                    ? "border-steam-blue text-steam-text"
-                    : "border-steam-border text-steam-muted"
-                }`}
+                aria-pressed={tab === "youtube"}
+                className={`${chipButton(tab === "youtube")} flex-1`}
               >
                 YouTube
               </button>
@@ -176,13 +171,13 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                 <button
                   onClick={() => inputRef.current?.click()}
                   disabled={running}
-                  className="mt-3 flex h-24 w-full flex-col items-center justify-center rounded-sm border border-dashed border-steam-border bg-steam-panel disabled:opacity-50"
+                  className="mt-3 flex h-24 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-steam-border bg-steam-panel transition hover:border-steam-blue disabled:opacity-50"
                 >
                   <UploadIcon size={18} className="text-steam-muted" />
-                  <p className="mt-1.5 font-mono text-xs text-steam-muted">
+                  <p className="mt-1.5 text-xs text-steam-muted">
                     {items.length > 0 ? "選び直す（クリック）" : "クリックしてファイルを選択（複数選択可）"}
                   </p>
-                  <p className="mt-1 font-mono text-4xs text-steam-muted/60">
+                  <p className="mt-1 text-4xs text-steam-muted">
                     {`画像: 最大${MEDIA_LIMIT_LABELS.imageSize}／動画: 最大${MEDIA_LIMIT_LABELS.videoSize}・${MEDIA_LIMIT_LABELS.videoDuration}まで`}
                   </p>
                 </button>
@@ -192,31 +187,31 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                     {items.map((item, i) => (
                       <li
                         key={i}
-                        className="flex items-center gap-2 rounded-sm border border-steam-border bg-steam-panel px-2.5 py-1.5"
+                        className="flex items-center gap-2 rounded-lg bg-steam-panel px-2.5 py-1.5"
                       >
                         {item.mode === "image" ? (
                           <ImageIcon size={13} className="flex-shrink-0 text-steam-blue" />
                         ) : (
                           <Film size={13} className="flex-shrink-0 text-steam-blue" />
                         )}
-                        <span className="min-w-0 flex-1 truncate font-mono text-2xs text-steam-text">
+                        <span className="min-w-0 flex-1 truncate text-2xs text-steam-text">
                           {item.file.name}
                         </span>
-                        <span className="flex-shrink-0 font-mono text-4xs text-steam-muted">
+                        <span className="flex-shrink-0 text-4xs text-steam-muted">
                           {(item.file.size / 1024 / 1024).toFixed(1)}MB
                         </span>
                         {item.status === "uploading" && (
-                          <span className="flex-shrink-0 font-mono text-4xs text-steam-blue">
+                          <span className="flex-shrink-0 text-4xs text-steam-blue">
                             送信中…
                           </span>
                         )}
                         {item.status === "done" && (
-                          <Check size={13} className="flex-shrink-0 text-[#a4d007]" />
+                          <Check size={13} className="flex-shrink-0 text-positive" />
                         )}
                         {item.status === "error" && (
                           <span
                             title={item.error}
-                            className="flex flex-shrink-0 items-center gap-1 font-mono text-4xs text-[#eb4b4b]"
+                            className="flex flex-shrink-0 items-center gap-1 text-4xs text-danger"
                           >
                             <AlertCircle size={11} /> 失敗
                           </span>
@@ -229,7 +224,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                 {/* 失敗の理由は一覧に収まらないので、最初の1件だけ本文で出す
                     （「失敗」だけだと容量超過なのか長すぎるのか分からない） */}
                 {anyError && (
-                  <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">
+                  <p className="mt-2 text-3xs text-danger">
                     {items.find((it) => it.status === "error")?.error}
                   </p>
                 )}
@@ -237,7 +232,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                 <button
                   onClick={handleUploadAll}
                   disabled={items.length === 0 || running || allDone}
-                  className="mt-4 w-full rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] py-2.5 font-mono text-sm font-bold text-[#0e1b12] disabled:opacity-40"
+                  className={`${primaryButton} mt-4 w-full`}
                 >
                   {running
                     ? `アップロード中… (${items.filter((i) => i.status === "done").length}/${items.length})`
@@ -245,13 +240,13 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                       ? "すべて完了"
                       : anyError
                         ? "失敗分をやり直す"
-                        : `${items.length || ""}件アップロード`}
+                        : items.length > 0 ? `${items.length}件アップロード` : "ファイルを選んでください"}
                 </button>
 
                 {allDone && (
                   <button
                     onClick={close}
-                    className="mt-2 w-full rounded-sm border border-steam-border py-2 font-mono text-xs text-steam-text"
+                    className={`${secondaryButton} mt-2 w-full`}
                   >
                     閉じる
                   </button>
@@ -259,7 +254,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
               </>
             ) : (
               <>
-                <p className="mt-3 font-mono text-2xs text-steam-muted">
+                <p className="mt-3 text-2xs text-steam-muted">
                   長い動画はYouTubeに上げてURLを貼れば、このアルバムに並べられます。容量・長さの制限はありません。
                 </p>
 
@@ -273,11 +268,11 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                   placeholder="https://www.youtube.com/watch?v=..."
                   disabled={youtubeState === "saving"}
                   aria-label="YouTubeのURL"
-                  className="mt-3 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+                  className="mt-3 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
                 />
 
                 {youtubeUrl.trim().length > 0 && !youtubeLink && (
-                  <p className="mt-1 font-mono text-3xs text-[#eb4b4b]">
+                  <p className="mt-1 text-3xs text-danger">
                     YouTubeのURLとして読み取れません（watch / youtu.be / shorts のURLに対応しています）
                   </p>
                 )}
@@ -295,18 +290,18 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                 <button
                   onClick={handleAddYoutube}
                   disabled={!youtubeLink || youtubeState === "saving"}
-                  className="mt-4 w-full rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] py-2.5 font-mono text-sm font-bold text-[#0e1b12] disabled:opacity-40"
+                  className={`${primaryButton} mt-4 w-full`}
                 >
                   {youtubeState === "saving" ? "追加中…" : "この動画を追加"}
                 </button>
 
                 {youtubeState === "done" && (
-                  <p className="mt-2 font-mono text-3xs text-[#a4d007]">
+                  <p className="mt-2 text-3xs text-positive">
                     追加しました。続けて別のURLも貼れます。
                   </p>
                 )}
                 {youtubeError && (
-                  <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{youtubeError}</p>
+                  <p className="mt-2 text-3xs text-danger">{youtubeError}</p>
                 )}
               </>
             )}

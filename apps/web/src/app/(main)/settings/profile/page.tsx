@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { User, Check, AlertCircle } from "lucide-react";
 import { SettingsNav } from "@/components/settings/SettingsNav";
+import { primaryButton } from "@/components/ui/buttonStyles";
 
 export default function ProfileSettingsPage() {
   const [name, setName] = useState("");
@@ -10,6 +12,8 @@ export default function ProfileSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  // 保存したらログイン情報の名前も更新する（PCの左下のアカウントに出る名前。値はサーバーがDBから読み直す。lib/auth.ts）
+  const { update: updateSession } = useSession();
 
   useEffect(() => {
     fetch("/api/users/me")
@@ -45,6 +49,7 @@ export default function ProfileSettingsPage() {
         const data = await res.json();
         setName(data.user.name ?? "");
         setMessage({ type: "success", text: "プロフィールを更新しました" });
+        await updateSession();
       } else {
         const data = await res.json();
         setMessage({ type: "error", text: data.error || "更新に失敗しました" });
@@ -62,26 +67,26 @@ export default function ProfileSettingsPage() {
         プロフィール設定
       </h1>
       <SettingsNav />
-      <p className="mt-4 font-mono text-xs text-steam-muted">
+      <p className="mt-4 text-xs text-steam-muted">
         表示名の確認・変更を行えます
       </p>
 
       {loading ? (
-        <p className="mt-6 font-mono text-xs text-steam-muted">読み込み中…</p>
+        <p className="mt-6 text-xs text-steam-muted">読み込み中…</p>
       ) : (
-        <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4 rounded-sm border border-steam-border bg-steam-surface p-4">
+        <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4 rounded-xl bg-steam-surface p-4">
           <div>
-            <label className="font-mono text-2xs text-steam-muted">メールアドレス（変更不可）</label>
+            <label className="text-2xs text-steam-muted">メールアドレス（変更不可）</label>
             <input
               type="text"
               value={email}
               disabled
-              className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg/50 px-3 py-2 font-mono text-sm text-steam-muted outline-none cursor-not-allowed"
+              className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg/50 px-3 py-2 text-sm text-steam-muted outline-none cursor-not-allowed"
             />
           </div>
 
           <div>
-            <label className="font-mono text-2xs text-steam-muted">表示名</label>
+            <label className="text-2xs text-steam-muted">表示名</label>
             <div className="relative mt-1">
               <input
                 type="text"
@@ -89,7 +94,7 @@ export default function ProfileSettingsPage() {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="表示名を入力"
                 disabled={saving}
-                className="w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 pl-9 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+                className="w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 pl-9 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
               />
               <User size={16} className="absolute left-3 top-2.5 text-steam-muted" />
             </div>
@@ -97,10 +102,10 @@ export default function ProfileSettingsPage() {
 
           {message && (
             <div
-              className={`flex items-center gap-2 rounded-sm p-3 font-mono text-xs ${
+              className={`flex items-center gap-2 rounded-sm p-3 text-xs ${
                 message.type === "success"
-                  ? "bg-[#a4d007]/10 text-[#a4d007] border border-[#a4d007]/30"
-                  : "bg-[#eb4b4b]/10 text-[#eb4b4b] border border-[#eb4b4b]/30"
+                  ? "bg-positive/10 text-positive border border-positive/30"
+                  : "bg-danger/10 text-danger border border-danger/30"
               }`}
             >
               {message.type === "success" ? <Check size={14} /> : <AlertCircle size={14} />}
@@ -111,7 +116,7 @@ export default function ProfileSettingsPage() {
           <button
             type="submit"
             disabled={saving || !name.trim()}
-            className="mt-2 w-full rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] py-2.5 font-mono text-sm font-bold text-[#0e1b12] disabled:opacity-40 hover:brightness-110 transition"
+            className={`${primaryButton} mt-2 w-full`}
           >
             {saving ? "保存中…" : "変更を保存"}
           </button>

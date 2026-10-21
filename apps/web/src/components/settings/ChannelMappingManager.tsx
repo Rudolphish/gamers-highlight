@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { ghostIconButton, primaryButton } from "@/components/ui/buttonStyles";
 
 type GroupOption = { id: string; name: string; guildId: string };
 type Mapping = { id: string; guildId: string; channelId: string; gameTitle: string };
@@ -71,7 +72,7 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
 
   if (groups.length === 0) {
     return (
-      <p className="mt-6 font-mono text-sm text-steam-muted">
+      <p className="mt-6 text-sm text-steam-muted">
         Discordサーバーと紐付いたグループがありません。先に
         <a href="/groups/new" className="text-steam-blue hover:underline">
           グループを作成
@@ -84,11 +85,11 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
   return (
     <div className="mt-6 max-w-xl">
       <div>
-        <label className="font-mono text-2xs text-steam-muted">対象グループ</label>
+        <label className="text-2xs text-steam-muted">対象グループ</label>
         <select
           value={groupId}
           onChange={(e) => setGroupId(e.target.value)}
-          className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue"
+          className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue"
         >
           {groups.map((g) => (
             <option key={g.id} value={g.id}>
@@ -98,28 +99,28 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
         </select>
       </div>
 
-      <div className="mt-4 rounded-sm border border-steam-border bg-steam-surface p-4">
-        <p className="font-mono text-2xs text-steam-muted">
+      <div className="mt-4 rounded-xl bg-steam-surface p-4">
+        <p className="text-2xs text-steam-muted">
           特定のチャンネルへの投稿を、ハッシュタグ無しでも自動的に指定のゲームに振り分けます
           （ハッシュタグが優先され、無い場合のフォールバックとして使われます）。
         </p>
 
         {loading ? (
-          <p className="mt-3 font-mono text-xs text-steam-muted">読み込み中…</p>
+          <p className="mt-3 text-xs text-steam-muted">読み込み中…</p>
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
             {visibleMappings.map((m) => (
               <li
                 key={m.id}
-                className="flex items-center gap-2 rounded-sm border border-steam-border bg-steam-panel px-3 py-2"
+                className="flex items-center gap-2 rounded-lg bg-steam-panel px-3 py-2"
               >
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-steam-text">
+                <span className="min-w-0 flex-1 truncate text-xs text-steam-text">
                   チャンネル {m.channelId} → {m.gameTitle}
                 </span>
                 <button
                   onClick={() => removeMapping(m.id)}
                   disabled={removingId !== null}
-                  className="flex-shrink-0 p-1.5 text-steam-muted hover:text-[#eb4b4b] disabled:opacity-50"
+                  className={`${ghostIconButton} hover:text-danger`}
                   aria-label="削除"
                 >
                   {removingId === m.id ? <Spinner size={13} /> : <Trash2 size={13} />}
@@ -127,7 +128,7 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
               </li>
             ))}
             {visibleMappings.length === 0 && (
-              <li className="font-mono text-2xs text-steam-muted/60">まだ設定がありません</li>
+              <li className="text-2xs text-steam-muted">まだ設定がありません</li>
             )}
           </ul>
         )}
@@ -138,29 +139,29 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
             onChange={(e) => setChannelId(e.target.value)}
             placeholder="チャンネルID"
             disabled={adding}
-            className="flex-1 rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-xs text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+            className="flex-1 rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-xs text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
           />
           <input
             value={gameTitle}
             onChange={(e) => setGameTitle(e.target.value)}
             placeholder="ゲーム名"
             disabled={adding}
-            className="flex-1 rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-xs text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+            className="flex-1 rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-xs text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
           />
           <button
             onClick={addMapping}
             disabled={adding || !channelId.trim() || !gameTitle.trim()}
-            className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+            className={primaryButton}
           >
             {adding ? <Spinner size={12} /> : <Plus size={12} />}
             追加
           </button>
         </div>
-        <p className="mt-2 font-mono text-3xs text-steam-muted/70">
+        <p className="mt-2 text-3xs text-steam-muted">
           チャンネルIDはDiscordの開発者モードを有効にし、チャンネルを右クリック→「IDをコピー」で取得できます。
         </p>
 
-        {error && <p className="mt-2 font-mono text-xs text-[#eb4b4b]">{error}</p>}
+        {error && <p className="mt-2 text-xs text-danger">{error}</p>}
       </div>
     </div>
   );

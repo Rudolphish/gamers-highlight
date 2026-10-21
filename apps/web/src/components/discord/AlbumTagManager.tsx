@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Hash, X, Plus } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { fieldClass, ghostIconButton, secondaryButton } from "@/components/ui/buttonStyles";
 
 // アルバムに紐付くハッシュタグ（別名）の一覧・追加・削除UI。
 // 「#eldenring」「#elden_ring」のような表記ゆれを、同じアルバムに複数タグとして
@@ -70,9 +71,9 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
   }
 
   return (
-    <div className="rounded-sm border border-steam-border bg-steam-surface p-4">
-      <h2 className="font-display font-semibold text-steam-text">タグ（ハッシュタグ別名）</h2>
-      <p className="mt-1 font-mono text-2xs text-steam-muted">
+    <div className="rounded-xl bg-steam-surface p-4">
+      <h2 className="text-base font-bold text-steam-text">タグ（ハッシュタグ別名）</h2>
+      <p className="mt-1 text-sm text-steam-muted">
         Discordでこのアルバムに投稿する際のハッシュタグを複数登録できます。
         「#eldenring」と「#elden_ring」のような表記ゆれをまとめたい場合、
         両方をここに追加してください。
@@ -82,22 +83,22 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
         {tags.map((t) => (
           <li
             key={t.id}
-            className="flex items-center gap-1 rounded-sm border border-steam-border bg-steam-panel px-2 py-1 font-mono text-2xs text-steam-muted"
+            className="flex items-center gap-1 rounded-full bg-steam-panel py-0.5 pl-3 text-sm text-steam-text"
           >
-            <Hash size={10} className="text-steam-blue" />
+            <Hash size={14} className="text-steam-blue" aria-hidden="true" />
             {t.tag}
             <button
               onClick={() => removeTag(t.id)}
               disabled={pending}
-              className="ml-1 p-1 text-steam-muted hover:text-[#eb4b4b] disabled:opacity-50"
+              className={`${ghostIconButton} hover:text-danger`}
               aria-label={`${t.tag}を削除`}
             >
-              {removingTagId === t.id ? <Spinner size={10} /> : <X size={10} />}
+              {removingTagId === t.id ? <Spinner size={14} /> : <X size={14} aria-hidden="true" />}
             </button>
           </li>
         ))}
         {tags.length === 0 && (
-          <span className="font-mono text-2xs text-steam-muted/60">
+          <span className="text-sm text-steam-muted">
             タグ未設定（このアルバムは未分類扱いになります）
           </span>
         )}
@@ -109,19 +110,19 @@ export function AlbumTagManager({ albumId, initialTags }: AlbumTagManagerProps) 
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addTag()}
           placeholder="er_clip"
-          className="flex-1 rounded-sm border border-steam-border bg-steam-bg px-3 py-1.5 font-mono text-xs text-steam-text outline-none focus:border-steam-blue"
+          className={`${fieldClass} min-w-0 flex-1`}
           disabled={pending}
         />
         <button
           onClick={addTag}
           disabled={pending || !draft.trim()}
-          className="flex items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-1.5 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+          className={secondaryButton}
         >
-          {adding ? <Spinner size={12} /> : <Plus size={12} />}
+          {adding ? <Spinner size={16} /> : <Plus size={16} aria-hidden="true" />}
           {adding ? "追加中…" : "追加"}
         </button>
       </div>
-      {error && <p className="mt-2 font-mono text-xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
     </div>
   );
 }

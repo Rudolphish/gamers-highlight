@@ -36,7 +36,7 @@ export function CollapsibleSection({
           <button
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
-            className="flex items-center gap-1.5 transition hover:text-steam-blue"
+            className="flex min-h-11 items-center gap-1.5 transition hover:text-steam-blue md:min-h-9"
           >
             <ChevronDown
               size={18}

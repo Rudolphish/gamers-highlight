@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Users, X, UserPlus } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { fieldClass, ghostIconButton, primaryButton, secondaryButton, textButton } from "@/components/ui/buttonStyles";
 
 type Member = {
   userId: string;
@@ -104,20 +105,20 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-sm border border-steam-border px-3 py-2 font-mono text-xs text-steam-text hover:border-steam-blue"
+        className={secondaryButton}
       >
-        <Users size={13} /> メンバー
+        <Users size={16} aria-hidden="true" /> メンバー
       </button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-sm border border-steam-border bg-steam-surface p-4">
+          <div className="w-full max-w-md rounded-xl bg-steam-surface p-4">
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold text-steam-text">メンバー管理</h2>
               <button
                 onClick={() => setOpen(false)}
                 aria-label="閉じる"
-                className="p-2 text-steam-muted hover:text-steam-text"
+                className={ghostIconButton}
               >
                 <X size={16} />
               </button>
@@ -127,18 +128,18 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
               {members.map((m) => (
                 <li
                   key={m.userId}
-                  className="flex items-center gap-2 rounded-sm border border-steam-border bg-steam-panel px-3 py-2"
+                  className="flex items-center gap-2 rounded-lg bg-steam-panel px-3 py-2"
                 >
                   <div className="h-6 w-6 flex-shrink-0 overflow-hidden rounded-full bg-steam-surface">
                     {m.avatarUrl ? (
                       <Image src={m.avatarUrl} alt="" width={24} height={24} className="h-full w-full object-cover" />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center font-mono text-4xs text-steam-muted">
+                      <div className="flex h-full w-full items-center justify-center text-4xs text-steam-muted">
                         {(m.name ?? "?").slice(0, 1)}
                       </div>
                     )}
                   </div>
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-steam-text">
+                  <span className="min-w-0 flex-1 truncate text-sm text-steam-text">
                     {m.name ?? "unknown"}
                   </span>
 
@@ -149,7 +150,7 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
                         value={m.role}
                         onChange={(e) => handleRoleChange(m.userId, e.target.value as "EDITOR" | "VIEWER")}
                         disabled={pending}
-                        className="rounded-sm border border-steam-border bg-steam-bg px-1.5 py-1 font-mono text-3xs text-steam-text disabled:opacity-50"
+                        className={fieldClass}
                       >
                         <option value="EDITOR">編集者</option>
                         <option value="VIEWER">閲覧者</option>
@@ -157,14 +158,14 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
                       <button
                         onClick={() => handleRemove(m.userId)}
                         disabled={pending}
-                        className="flex items-center gap-1 font-mono text-3xs text-[#eb4b4b] disabled:opacity-50"
+                        className={`${textButton} text-danger hover:text-danger`}
                       >
                         {removingUserId === m.userId && <Spinner size={10} />}
                         削除
                       </button>
                     </>
                   ) : (
-                    <span className="font-mono text-3xs text-steam-muted">{ROLE_LABEL[m.role]}</span>
+                    <span className="text-sm text-steam-muted">{ROLE_LABEL[m.role]}</span>
                   )}
                 </li>
               ))}
@@ -172,13 +173,13 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
 
             {isOwner && (
               <div className="mt-4 border-t border-steam-border pt-4">
-                <p className="font-mono text-2xs text-steam-muted">新しいメンバーを招待</p>
+                <p className="text-sm font-bold text-steam-text">新しいメンバーを招待</p>
                 <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                   <select
                     value={inviteeId}
                     onChange={(e) => setInviteeId(e.target.value)}
                     disabled={pending}
-                    className="flex-1 rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-xs text-steam-text"
+                    className={`${fieldClass} flex-1`}
                   >
                     <option value="">ユーザーを選択</option>
                     {candidates.map((c) => (
@@ -191,7 +192,7 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
                     value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value as "EDITOR" | "VIEWER")}
                     disabled={pending}
-                    className="rounded-sm border border-steam-border bg-steam-bg px-2 py-2 font-mono text-xs text-steam-text"
+                    className={fieldClass}
                   >
                     <option value="VIEWER">閲覧者</option>
                     <option value="EDITOR">編集者</option>
@@ -199,21 +200,21 @@ export function ShareModal({ albumId, isOwner, members, candidates }: ShareModal
                   <button
                     onClick={handleInvite}
                     disabled={pending || !inviteeId}
-                    className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+                    className={primaryButton}
                   >
                     {inviting ? <Spinner size={12} /> : <UserPlus size={12} />}
                     {inviting ? "招待中…" : "招待"}
                   </button>
                 </div>
                 {candidates.length === 0 && (
-                  <p className="mt-2 font-mono text-3xs text-steam-muted/70">
+                  <p className="mt-2 text-3xs text-steam-muted">
                     招待可能な未参加ユーザーがいません
                   </p>
                 )}
               </div>
             )}
 
-            {error && <p className="mt-3 font-mono text-xs text-[#eb4b4b]">{error}</p>}
+            {error && <p className="mt-3 text-xs text-danger">{error}</p>}
           </div>
         </div>
       )}

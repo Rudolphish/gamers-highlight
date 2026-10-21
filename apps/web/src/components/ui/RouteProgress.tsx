@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 /**
- * Sidebar/Header等の内部リンククリックから、遷移先ページの描画完了までの間
+ * Sidebar/BottomTabs等の内部リンククリックから、遷移先ページの描画完了までの間
  * 画面上部に進行中バーを表示する。App RouterはPages Router時代のrouter eventsを
  * 公開していないため、リンククリックをdocument全体で拾って開始を検知し、
  * pathname/searchParamsの変化（＝新しいページのレンダリング完了）で終了させる。
@@ -39,7 +39,7 @@ export function RouteProgress() {
 
   return (
     <div className="fixed left-0 top-0 z-[100] h-0.5 w-full overflow-hidden bg-steam-border/30">
-      <div className="h-full w-1/3 animate-route-progress bg-gradient-to-r from-[#4c6b22] to-[#a4d007]" />
+      <div className="h-full w-1/3 animate-route-progress bg-accent" />
     </div>
   );
 }

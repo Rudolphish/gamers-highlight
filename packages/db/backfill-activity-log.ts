@@ -137,7 +137,7 @@ async function main() {
     }))
   );
 
-  // --- ゲームへの「気になる」 ---
+  // --- ゲームへの「ねらってる」 ---
   const interests = await db.groupGameInterest.findMany({
     select: {
       id: true,

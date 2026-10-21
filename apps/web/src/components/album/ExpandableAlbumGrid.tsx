@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { AlbumGrid } from "./AlbumGrid";
+import { chipButton, secondaryButton } from "@/components/ui/buttonStyles";
 
 type Member = { id: string; name?: string | null; avatarUrl?: string | null };
 
@@ -101,17 +102,13 @@ export function ExpandableAlbumGrid({
     <>
       {albums.length > 1 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-3xs text-steam-muted/70">並び替え</span>
+          <span className="text-sm text-steam-muted">並び替え</span>
           {SORT_ORDER.map((s) => (
             <button
               key={s}
               onClick={() => setSort(s)}
               aria-pressed={sort === s}
-              className={`rounded-sm border px-2 py-1 font-mono text-3xs transition ${
-                sort === s
-                  ? "border-steam-blue text-steam-blue"
-                  : "border-steam-border text-steam-muted hover:border-steam-blue"
-              }`}
+              className={chipButton(sort === s)}
             >
               {SORT_LABEL[s]}
             </button>
@@ -124,9 +121,9 @@ export function ExpandableAlbumGrid({
       {remaining > 0 && (
         <button
           onClick={() => setVisible((n) => n + step)}
-          className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-sm border border-steam-border bg-steam-surface py-2 font-mono text-3xs text-steam-muted transition hover:border-steam-blue hover:text-steam-blue"
+          className={`${secondaryButton} mt-3 w-full`}
         >
-          <ChevronDown size={12} />
+          <ChevronDown size={16} aria-hidden="true" />
           さらに表示（残り{remaining}件）
         </button>
       )}

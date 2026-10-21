@@ -52,14 +52,14 @@ export function AdminPlaySessionActions({ session, groups }: { session: AdminPla
     }
   }
 
-  if (inProgress) return <span className="font-mono text-4xs text-steam-muted">進行中（終わってから直せます）</span>;
+  if (inProgress) return <span className="text-4xs text-steam-muted">進行中（終わってから直せます）</span>;
 
   return (
     <div className="flex items-center gap-1">
       <button
         onClick={() => setEditing(true)}
         aria-label={`${session.title} の記録を修正`}
-        className="inline-flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 font-mono text-4xs text-steam-blue hover:border-steam-blue"
+        className="inline-flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 text-4xs text-steam-blue hover:border-steam-blue"
       >
         <Pencil size={11} /> 修正
       </button>
@@ -67,7 +67,7 @@ export function AdminPlaySessionActions({ session, groups }: { session: AdminPla
         onClick={remove}
         disabled={deleting}
         aria-label={`${session.title} の記録を削除`}
-        className="inline-flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 font-mono text-4xs text-[#eb4b4b] hover:border-[#eb4b4b] disabled:opacity-50"
+        className="inline-flex items-center gap-1 rounded-sm border border-steam-border px-2 py-1 text-4xs text-danger hover:border-danger disabled:opacity-50"
       >
         {deleting ? <Spinner size={10} /> : <Trash2 size={11} />} 削除
       </button>
@@ -113,7 +113,7 @@ export function AdminAddPlaySessionButton({ groups, defaultGroupId }: { groups: 
       <button
         onClick={() => setOpen(true)}
         disabled={groups.length === 0}
-        className="inline-flex items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-1.5 font-mono text-3xs font-bold text-[#0e1b12] disabled:opacity-40"
+        className="inline-flex items-center gap-1 rounded-sm bg-accent px-3 py-1.5 text-3xs font-bold text-accent-ink disabled:opacity-40"
       >
         <Plus size={12} /> 記録を追加
       </button>
@@ -208,7 +208,7 @@ function PlaySessionModal({
   }
 
   const inputClass =
-    "mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50";
+    "mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50";
 
   // body へ出す。親に backdrop-filter などがあると fixed が画面全体に広がらない（CLAUDE.md「画面の骨格」）
   return createPortal(
@@ -218,7 +218,7 @@ function PlaySessionModal({
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-sm border border-steam-border bg-steam-surface p-4"
+        className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-xl bg-steam-surface p-4"
       >
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-semibold text-steam-text">{title}</h2>
@@ -227,7 +227,7 @@ function PlaySessionModal({
           </button>
         </div>
 
-        <label className="mt-3 block font-mono text-2xs text-steam-muted" htmlFor="play-group">
+        <label className="mt-3 block text-2xs text-steam-muted" htmlFor="play-group">
           グループ
         </label>
         <select
@@ -244,7 +244,7 @@ function PlaySessionModal({
           ))}
         </select>
 
-        <label className="mt-3 block font-mono text-2xs text-steam-muted" htmlFor="play-game">
+        <label className="mt-3 block text-2xs text-steam-muted" htmlFor="play-game">
           ゲーム
         </label>
         <select id="play-game" value={draft.groupGameId} disabled={pending} onChange={(e) => set("groupGameId", e.target.value)} className={inputClass}>
@@ -258,13 +258,13 @@ function PlaySessionModal({
 
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="block font-mono text-2xs text-steam-muted" htmlFor="play-start">
+            <label className="block text-2xs text-steam-muted" htmlFor="play-start">
               開始（日本時間）
             </label>
             <input id="play-start" type="datetime-local" value={draft.start} disabled={pending} onChange={(e) => set("start", e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className="block font-mono text-2xs text-steam-muted" htmlFor="play-end">
+            <label className="block text-2xs text-steam-muted" htmlFor="play-end">
               終了（日本時間）
             </label>
             <input id="play-end" type="datetime-local" value={draft.end} disabled={pending} onChange={(e) => set("end", e.target.value)} className={inputClass} />
@@ -272,16 +272,16 @@ function PlaySessionModal({
         </div>
 
         <fieldset className="mt-3">
-          <legend className="font-mono text-2xs text-steam-muted">参加者</legend>
+          <legend className="text-2xs text-steam-muted">参加者</legend>
           <div className="mt-1 flex flex-wrap gap-2">
             {(group?.members ?? []).map((m) => (
-              <label key={m.userId} className="inline-flex items-center gap-1.5 rounded-sm border border-steam-border px-2 py-1 font-mono text-3xs text-steam-text">
+              <label key={m.userId} className="inline-flex items-center gap-1.5 rounded-sm border border-steam-border px-2 py-1 text-3xs text-steam-text">
                 <input
                   type="checkbox"
                   checked={draft.participantIds.includes(m.userId)}
                   disabled={pending}
                   onChange={() => toggle(m.userId)}
-                  className="h-3.5 w-3.5 accent-[#a4d007]"
+                  className="h-3.5 w-3.5 accent-steam-blue"
                 />
                 {m.name}
               </label>
@@ -289,16 +289,16 @@ function PlaySessionModal({
           </div>
         </fieldset>
 
-        {error && <p className="mt-3 font-mono text-xs text-red-400">{error}</p>}
+        {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
 
         <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose} disabled={pending} className="rounded-sm border border-steam-border px-3 py-1.5 font-mono text-xs text-steam-muted">
+          <button onClick={onClose} disabled={pending} className="rounded-sm border border-steam-border px-3 py-1.5 text-xs text-steam-muted">
             やめる
           </button>
           <button
             onClick={submit}
             disabled={pending || !canSubmit}
-            className="inline-flex items-center gap-1 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-4 py-1.5 font-mono text-xs font-bold text-[#0e1b12] disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded-sm bg-accent px-4 py-1.5 text-xs font-bold text-accent-ink disabled:opacity-40"
           >
             {pending && <Spinner size={12} />} {submitLabel}
           </button>

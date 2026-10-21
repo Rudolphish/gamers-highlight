@@ -35,12 +35,12 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
                 href={inviteUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-3 py-2 font-mono text-xs font-bold text-[#0e1b12]"
+                className="mt-2 inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink"
               >
                 <ExternalLink size={13} /> Botを招待する
               </a>
             ) : (
-              <span className="text-[#eb4b4b]">招待リンクを生成できませんでした</span>
+              <span className="text-danger">招待リンクを生成できませんでした</span>
             )}
             <br />
             招待したいサーバーを選んで「認可」をクリックする。
@@ -58,7 +58,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <br />
             招待したサーバーで、画像に「#ゲーム名」のようなハッシュタグを付けて投稿してみる。しばらくして、作成したグループの配下に自動でアルバムができていれば成功。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：「/tag」「/playlog」コマンド（後述）は、Botを招待したどのサーバーでも使えます。
             入力欄に「/」を打っても出てこないときは、サーバー設定 → 連携サービス → Bot で、
             コマンドを使えるチャンネルが絞られていないか確かめ、Discordを再読み込みしてください。
@@ -82,10 +82,10 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p>
             アルバム詳細ページの「タグ（ハッシュタグ別名）」機能で、「#elden_ring」のような表記ゆれを同じアルバムに統合することもできます。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             注意：タグとして認識されるのは英数字と「_」のみです。スペースは区切り文字として扱われるので、「#Elden Ring」のように書くと「Elden」までしかタグとして拾われません。「#eldenring」や「#elden_ring」のように、スペース無しで書いてください。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             ゲームごとにチャンネルを分けているサーバーなら、
             <Link href="/settings/channel-mapping" className="text-steam-blue hover:underline">
               設定 → チャンネル対応
@@ -119,7 +119,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p>
             候補に無いゲームは「その他（入力する）」を選べば、名前で検索してその場で登録できます（アルバムも一緒に作られます）。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：クリップボードから貼り付けた画像にはファイル名の手掛かりが残らないため、この質問が出るのが普通の状態です。Steamのスクショフォルダから直接アップロードした場合は、ファイル名にゲームのIDが入っているので自動で判別されます。
           </p>
         </div>
@@ -131,7 +131,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            ゲームが決まらなかった投稿は「未分類」として残ります。サイドバーの
+            ゲームが決まらなかった投稿は「未分類」として残ります。メニューの
             <strong className="text-steam-text">「アルバム」</strong>
             を開くと、未分類が1件でもあれば上部にカードが出るので、そこから振り分け画面に入れます。
           </p>
@@ -144,7 +144,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p>
             入れたいグループがまだ無いときは、選択欄の下にある「新しいグループを作る」から作成できます。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：Botが落ちていた間の投稿も、Botが起動したときにまとめて取り込まれます。
             そのぶんはゲームを聞かれないので、ここから振り分けてください。
           </p>
@@ -157,18 +157,18 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            グループ画面の「みんなのゲーム」は、そのグループで話題になっているゲームを共有する場所です。各ゲームには「気になる」「プレイ中」「積みゲー」「クリア済み」のステータスを付けられます。
+            グループ画面の「みんなのゲーム」は、そのグループで話題になっているゲームを共有する場所です。各ゲームには「プレイ予定」「プレイ中」「積みゲー」「クリア済み」のステータスを付けられます。
             ゲームは見出しの横の<strong className="text-steam-text">「ゲームを追加」</strong>から名前で検索して追加します（編集者以上）。
           </p>
           <p>
-            <strong className="text-steam-text">開いた直後は「プレイ中」と「気になる」だけが表示されます。</strong>
+            <strong className="text-steam-text">開いた直後は「プレイ中」と「プレイ予定」だけが表示されます。</strong>
             積みゲーやクリア済みも見たいときは、ステータスの並びの先頭にある「すべて」を押してください。
           </p>
           <p>
-            ゲームカードの「気になる」ボタンは、ステータスとは別に「自分が狙っている」という印です。誰が狙っているかがカードに出るほか、ウィッシュリストの最安値がDiscordに通知されるときにも使われます。
+            ゲームカードの「ねらってる」ボタン（しおりの印）は、ステータスとは別に「自分が狙っている」という印です。人数がカードに、名前がゲームの詳細に出るほか、ウィッシュリストの最安値がDiscordに通知されるときにも使われます。
           </p>
           <p>
-            <strong className="text-steam-text">ウィッシュリスト</strong>（ゲームの提案）：グループ画面の「追加する」から「このゲームどう？」と提案すると、メンバーがリアクションできます。「いいね」がメンバーの過半数に達すると、自動でゲームリストに「気になる」として追加されます。
+            <strong className="text-steam-text">ウィッシュリスト</strong>（ゲームの提案）：グループ画面の「追加する」から「このゲームどう？」と提案すると、メンバーが「やりたい」「様子見」「パス」でリアクションできます。「やりたい」がメンバーの過半数に達すると、自動でゲームリストに「プレイ予定」として追加されます。
             <strong className="text-steam-text">提案するとDiscordにも通知が飛びます</strong>
             （「ゲームが提案されたとき」の通知先を設定している場合。下の「Discordへの通知」を参照）。
           </p>
@@ -216,9 +216,9 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             モーダルの上部に「現在のゲーム: ◯◯」と出るので、違っていたら別のゲームを検索して
             「このゲームに付け替え」を押してください。確認が出たあとに切り替わります。
             そのとき<strong className="text-steam-text">間違って追加したゲームをゲームリストからも消すか</strong>
-            をチェックで選べます（消すと、そのゲームに付いた他のメンバーの「気になる」も消えます）。
+            をチェックで選べます（消すと、そのゲームに付いた他のメンバーの「ねらってる」も消えます）。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：「ゲームとの連携を解除する」を押すと、ゲームリストにはそのまま残したうえで
             アルバムとの紐付けだけを外せます。サムネイルは変わりません（戻したいときは
             「Steam画像を解除して投稿写真に戻す」を使ってください）。
@@ -240,7 +240,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <strong className="text-steam-text">情報が出ていない項目があるとき</strong>
             ：クリア時間や関連動画は外部サービスから取っているため、追加したタイミングによっては取得できていないことがあります。ゲーム詳細ページの更新ボタンを押すと取り直せます。取れなかったサービス名はそのまま表示されるので、どこが落ちているか分かります。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：更新は連打できません（同じゲームにつき、全部揃っていれば24時間、まだ取れていない項目が残っていれば6時間の間隔が空きます）。外部サービスの呼び出し回数に上限があるためです。
           </p>
         </div>
@@ -260,7 +260,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           </p>
           <ul className="ml-4 list-disc space-y-1">
             <li>
-              グループ画面の上の帯「グループで遊んだ時間」：全ゲームの合計・いちばん遊んだゲーム・最後に遊んだ日
+              グループ画面の「ようす」（パソコンでは右の列の上）の帯「グループで遊んだ時間」：全ゲームの合計・いちばん遊んだゲーム・最後に遊んだ日
             </li>
             <li>「みんなのゲーム」の各カード：そのゲームを遊んだ時間（🎮）</li>
             <li>
@@ -293,7 +293,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             どのゲームか選んでください。過去の記録にも反映され、次からは自動で当たります。リストに無いゲームなら、
             先にゲームを追加すると自動で結びつきます。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：途中で10分以内に戻ってきた場合は、続けて1回として数えます。5分未満の記録は一覧に出しません（合計には含みます）。
             「推定」の印は、Botが止まっていた間をまたいだ記録です（止まっていた間は確認できないため、時刻が推定になります）。
           </p>
@@ -306,7 +306,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            グループ画面の<strong className="text-steam-text">「最近の動き」</strong>に、写真の投稿・アルバムの作成・
+            グループ画面の<strong className="text-steam-text">「最近の動き」</strong>（スマホでは「ようす」のタブ）に、写真の投稿・アルバムの作成・
             ウィッシュリストへの追加・一緒に遊んだ記録（🎮）などが、新しい順に5件出ます。
             同じ人が続けて写真を投稿したときは「写真を4枚投稿」のように1行にまとまります。
           </p>
@@ -315,9 +315,9 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             日のマスには、その日の動きの件数（多いほど濃い色）と、一緒に遊んだ時間（🎮 と青い文字、例: 2h44m＝2時間44分）が出ます。
             マスを押すと、その日の内訳と1件ずつの記録が見られます。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：写真の削除・❤️の取り消し・投票の取り消し・説明を消した・提案の取り下げ・アルバムやゲームの削除・
-            「気になる」を外した、は出しません（件数にも数えません）。「最近の動き」は投稿した時刻の順で、
+            「ねらってる」を外した、は出しません（件数にも数えません）。「最近の動き」は投稿した時刻の順で、
             カレンダーは実際に起きた日（撮影日時が分かる写真はその日）に置きます。
             「アルバムを作成」の行には、作った時点のアルバム名が出ます（後から名前を変えても書き換わりません）。
           </p>
@@ -330,14 +330,14 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            グループ画面のグループ名の下にある「通知の設定」から、
+            グループ画面の歯車（グループの設定）にある「Discordへの通知」から、
             <strong className="text-steam-text">通知の種類ごとに送り先のチャンネルを選べます</strong>
             （グループのオーナーだけが設定できます）。種類ごとに違うチャンネルへ送っても構いません。
           </p>
           <ul className="ml-4 list-disc space-y-1">
             <li>
               <strong className="text-steam-text">ゲームが提案されたとき</strong>
-              ：ゲーム名・提案した人・採用に必要な「いいね」の数が届きます
+              ：ゲーム名・提案した人・採用に必要な「やりたい」の数が届きます
             </li>
             <li>
               <strong className="text-steam-text">ウィッシュリストが最安値を更新したとき</strong>
@@ -357,7 +357,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             既定は4種類とも「送らない」なので、設定するまで通知は一切飛びません。
           </p>
           <p>
-            価格の通知は、「みんなのゲーム」で「気になる」ステータスのゲームと、
+            価格の通知は、「みんなのゲーム」で「プレイ予定」ステータスのゲームと、
             <strong className="text-steam-text">ウィッシュリストのゲーム</strong>
             を毎日調べて、
             <strong className="text-steam-text">過去の最安値を更新したときだけ</strong>
@@ -366,7 +366,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
 
           <p>
             通知には、そのゲームをウィッシュリストに入れた人（「📝 Aさんのウィッシュリスト」）と、
-            「気になる」を付けているメンバーの名前も添えられます。
+            「ねらってる」を付けているメンバーの名前も添えられます。
           </p>
         </div>
       ),
@@ -379,18 +379,18 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p>
             <strong className="text-steam-text">招待リンクを使う（おすすめ）</strong>
             <br />
-            グループ画面の「招待リンク」から発行できます（グループのオーナーのみ）。相手はリンクを開いてDiscordでログインするだけで、アプリへのログインとグループ加入が一度に済みます。
+            グループ画面の「メンバー」の中の「招待リンク」から発行できます（グループのオーナーのみ）。相手はリンクを開いてDiscordでログインするだけで、アプリへのログインとグループ加入が一度に済みます。
           </p>
           <p>
             発行時に権限（閲覧者／編集者）、有効期限（24時間／72時間／7日）、使用できる回数を選べます。発行済みのリンクは一覧から取り消せます。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             注意：このリンクは<strong className="text-steam-text">アプリへのログイン権限そのもの</strong>を渡すものです。回数は「リンクを踏んでログインした時点」で消費されます（グループ加入まで進まなくても消費されます）。渡す相手と回数には注意してください。
           </p>
           <p>
             <strong className="text-steam-text">既にログインしたことがある相手を招待する</strong>
             <br />
-            グループ画面の「共有」から、登録済みユーザーを選んで招待できます。まだ一度もログインしたことがない相手はここに出てこないので、上の招待リンクを使ってください。
+            グループ画面の「メンバー」から、登録済みユーザーを選んで招待できます。まだ一度もログインしたことがない相手はここに出てこないので、上の招待リンクを使ってください。
           </p>
         </div>
       ),
@@ -407,7 +407,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             グループに参加すると、配下の全アルバムを自動で閲覧できるようになります（VIEWER権限）。特定のアルバムだけ編集権限を渡したい場合は、アルバム詳細ページの「メンバー」から個別に招待できます。
           </p>
           <p>
-            サイドバーの「アルバム」は所属グループを問わず全てのアルバムをフラットに一覧表示し、どのグループ所属かバッジで表示します。「グループ」からはグループ単位でまとまったアルバム一覧を見られます。
+            メニューの「アルバム」は所属グループを問わず全てのアルバムをフラットに一覧表示し、どのグループ所属かバッジで表示します。「グループ」からはグループ単位でまとまったアルバム一覧を見られます。
           </p>
         </div>
       ),
@@ -433,7 +433,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
                 {[
                   ["写真を見る・投稿する", "閲覧者"],
                   ["❤️を付ける・説明を書く", "閲覧者"],
-                  ["ウィッシュリストに追加する・投票する・「気になる」を付ける", "閲覧者"],
+                  ["ウィッシュリストに追加する・投票する・「ねらってる」を付ける", "閲覧者"],
                   ["ゲームリストへの追加・ステータス変更・削除", "編集者"],
                   ["アルバムを作る", "グループの編集者"],
                   ["アルバム名を変える", "アルバムのオーナー、またはアルバムの編集者"],
@@ -449,9 +449,9 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
               </tbody>
             </table>
           </div>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：グループの権限は配下の全アルバムに効きます。特定のアルバムだけ強い権限を渡したいときは、
-            アルバム詳細の「共有」から個別に招待してください。
+            アルバム詳細の「メンバー」から個別に招待してください。
           </p>
         </div>
       ),
@@ -468,7 +468,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <strong className="text-steam-text">アルバム</strong>：アルバム詳細ページの「削除」ボタンから削除できます（オーナーのみ）。中の写真/動画は削除されず、「未分類」として残ります。
           </p>
           <p>
-            <strong className="text-steam-text">グループ</strong>：グループ詳細ページの「削除」ボタンから削除できます（オーナーのみ）。配下にアルバムが残っている場合は誤操作防止のため削除できません。先にアルバムを削除するか、別のグループへ移してください。
+            <strong className="text-steam-text">グループ</strong>：グループ画面の歯車（グループの設定）の「グループを削除」から削除できます（オーナーのみ）。配下にアルバムが残っている場合は誤操作防止のため削除できません。先にアルバムを削除するか、別のグループへ移してください。
           </p>
         </div>
       ),
@@ -479,7 +479,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            {`Discordを経由せず、サイドバーの「アップロード」から直接写真/動画を投稿することもできます。画像は${MEDIA_LIMIT_LABELS.imageSize}まで、動画は${MEDIA_LIMIT_LABELS.videoSize}・${MEDIA_LIMIT_LABELS.videoDuration}までのファイルに対応しています（png/jpeg/webp、mp4/webm/mov）。`}
+            {`Discordを経由せず、メニューの「写真を投稿」（スマホでは下の真ん中の「投稿」）から直接写真/動画を投稿することもできます。画像は${MEDIA_LIMIT_LABELS.imageSize}まで、動画は${MEDIA_LIMIT_LABELS.videoSize}・${MEDIA_LIMIT_LABELS.videoDuration}までのファイルに対応しています（png/jpeg/webp、mp4/webm/mov）。`}
           </p>
           <p>
             <strong className="text-steam-text">Steamのスクショはゲームを自動で判別します。</strong>
@@ -509,14 +509,14 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             容量・長さの制限はありません（動画はYouTube側にあるので、こちらのストレージを使いません）。
             追加先のグループ／アルバム／ゲームタグは、上で選んだものがそのまま使われます。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：貼れるのは「watch」「youtu.be」「shorts」のURLです。再生位置（?t=）や
             プレイリスト（&list=）が付いていても構いません（保存時に外します）。
             <strong className="text-steam-text">非公開の動画は埋め込めません</strong>ので、
             共有したいものは「限定公開」以上にしてください。投稿した人が後から動画を消したり
             非公開にすると、こちらの画面ではYouTube側のエラー表示になります。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             {`注意：上限を超えたファイルはその場でエラーになります（動画の長さはアップロードを始める前に確認します）。Discordに投稿した動画が${MEDIA_LIMIT_LABELS.videoSize}を超えていた場合は取り込まれず、Discord側にも何も出ません——大きい動画が反映されないときはサイズを疑ってください。Discord経由では長さは見ていません。`}
           </p>
         </div>
@@ -537,7 +537,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <strong className="text-steam-text">そのアルバムを見られる人なら誰でも書き換えられる</strong>
             メモです（最後に書いた人の名前と日時が出ます）。検索の対象にも入ります。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             注意：<strong className="text-steam-text">未分類の投稿には❤️も説明も付けられません。</strong>
             どのアルバムにも入っていないと「誰が触ってよいか」を決められないためです。
             先にアルバムへ振り分けてください。
@@ -572,7 +572,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             （<strong className="text-steam-text">YouTubeの動画はサムネイルに使いません</strong>。
             アルバムの見た目がYouTube側の画像に置き換わってしまうためです）。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             補足：1つのグループにアルバムが100件を超えると、更新の古いものは一覧に読み込まれません
             （その場合は画面にその旨が出ます）。
           </p>
@@ -585,7 +585,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            サイドバーの「検索」から、
+            メニューの「検索」（スマホでは「自分」→「写真を探す」）から、
             <strong className="text-steam-text">ゲームタイトル・説明</strong>
             ・投稿者・投稿日の範囲で写真/動画を絞り込めます。写真に書いた説明も対象なので、
             「あのときの決めゼリフ」のような覚え書きからも辿れます。
@@ -596,7 +596,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <strong className="text-steam-text">グループのゲームリストとウィッシュリスト</strong>
             からも一致するものを探して、まとめて表示します。
           </p>
-          <p className="text-steam-muted/70">
+          <p className="text-steam-muted">
             注意：投稿者の欄は<strong className="text-steam-text">ユーザーIDで指定します</strong>
             （表示名では引けません）。
           </p>
@@ -605,22 +605,22 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "mobile",
-      title: "スマホで使うとき（メニューの出し方）",
+      title: "メニューの使い方（スマホとパソコン）",
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            スマホのような細い画面では、<strong className="text-steam-text">画面左上の三本線のボタン</strong>
-            からメニューを開きます。ホーム・グループ・アルバム・アップロード・マニュアル・検索・設定が、
-            アイコンと文字で並びます。
+            スマホでは、<strong className="text-steam-text">画面の下に5つのタブ</strong>
+            （ホーム・グループ・投稿・アルバム・自分）が常に出ています。真ん中の青い丸が写真の投稿です。
           </p>
           <p>
-            閉じ方は4通りあります：<strong className="text-steam-text">行きたい場所を選ぶ</strong>、
-            右上の×、<strong className="text-steam-text">メニューの外側（暗くなっている部分）をタップ</strong>、
-            キーボードのEscキー。
+            検索・使い方・設定・ログアウトは<strong className="text-steam-text">「自分」</strong>のタブにまとめてあります。
+            管理者には管理画面の入口もここに出ます。
+            グループ画面は「ようす・アルバム・ゲーム・ウィッシュ」のタブで切り替えます（パソコンでは2列に並びます）。
           </p>
           <p className="text-steam-muted">
-            パソコンなど横に広い画面では、三本線のボタンは出ません。代わりに画面の左端に
-            アイコンだけの細い列が常に出ていて、アイコンにカーソルを合わせると名前が出ます。
+            パソコンなど横に広い画面では、下のタブの代わりに画面の左にメニューが名前付きで出ます。
+            左下の自分の名前を押すと「自分」のページ（設定・ログアウト）が開きます。
+            メニューの上のボタンで、アイコンだけの細い列にたためます（アイコンに乗せると名前が出ます。もう一度押すと戻ります）。
           </p>
           <p>
             <strong className="text-steam-text">写真を見ているとき</strong>は、
@@ -643,11 +643,11 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <strong className="text-steam-text">Discord連携</strong>：Discordに投稿した画像を
             「自分の投稿」として取り込むには、
             <strong className="text-steam-text">Discordアカウントでログインしている必要があります</strong>。
-            設定 → Discord連携で、連携できているかを確認できます。未連携と出ている場合は、
+            「自分」→ Discord連携で、連携できているかを確認できます。未連携と出ている場合は、
             一度Discordでログインし直してください。
           </p>
           <p>
-            <strong className="text-steam-text">表示名</strong>：設定 → プロフィールから変えられます。
+            <strong className="text-steam-text">表示名</strong>：「自分」→ プロフィールから変えられます。
             投稿者の名前や、説明を書いた人の名前として表示されます。
           </p>
         </div>
@@ -661,7 +661,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             body: (
               <div className="flex flex-col gap-3">
                 <p>
-                  メニューの「使用量・メディア」（盾のアイコン。<Link href="/admin" className="text-steam-blue hover:underline">/admin</Link>）から、
+                  メニューの「管理」（盾のアイコン。スマホでは「自分」の中。<Link href="/admin" className="text-steam-blue hover:underline">/admin</Link>）から、
                   管理者だけが使えるページに入れます。上のタブで切り替えます。
                 </p>
                 <ul className="ml-4 list-disc space-y-1">
@@ -678,7 +678,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
                   <li><strong className="text-steam-text">エラー</strong>：画面で起きたエラーとログインの失敗の記録、Discordへのエラー通知先の設定</li>
                 </ul>
                 <p>
-                  グループ画面には、管理者にだけ<strong className="text-steam-text">「プレイ記録の最少人数」</strong>が出ます。
+                  グループの設定（グループ画面の歯車）には、管理者にだけ<strong className="text-steam-text">「プレイ記録の最少人数」</strong>が出ます。
                   「1人（動作確認用）」にすると、1人で遊んでも記録されます（テスト用。友人のグループでは2人のままにしてください）。
                 </p>
               </div>
@@ -693,7 +693,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       {sections.map((s) => {
         const open = openId === s.id;
         return (
-          <div key={s.id} id={s.id} className="rounded-sm border border-steam-border bg-steam-surface">
+          <div key={s.id} id={s.id} className="rounded-xl bg-steam-surface">
             <button
               onClick={() => setOpenId(open ? null : s.id)}
               className="flex w-full items-center justify-between px-4 py-3 text-left"
@@ -705,7 +705,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
               />
             </button>
             {open && (
-              <div className="border-t border-steam-border px-4 py-3 font-mono text-xs leading-relaxed text-steam-muted">
+              <div className="border-t border-steam-border px-4 py-3 text-xs leading-relaxed text-steam-muted">
                 {s.body}
               </div>
             )}

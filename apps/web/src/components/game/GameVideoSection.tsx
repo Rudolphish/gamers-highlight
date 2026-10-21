@@ -12,7 +12,7 @@ export function GameVideoSection({
 }) {
   return (
     <div>
-      <h2 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
+      <h2 className="flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wide text-steam-muted">
         <Youtube size={12} /> 関連動画
       </h2>
       {youtubeVideoId && (
@@ -30,7 +30,7 @@ export function GameVideoSection({
         href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${title} gameplay`)}`}
         target="_blank"
         rel="noreferrer"
-        className="mt-2 inline-flex items-center gap-1.5 font-mono text-3xs text-steam-blue hover:underline"
+        className="mt-2 inline-flex items-center gap-1.5 text-3xs text-steam-blue hover:underline"
       >
         <ExternalLink size={11} /> YouTubeで他の動画を探す
       </a>

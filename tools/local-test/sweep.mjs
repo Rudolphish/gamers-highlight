@@ -50,6 +50,8 @@ const cases = [
   ["P11", "グループ詳細（他人のグループ）", `/groups/${ids.otherGroupId}`, { anon: LOGIN, admin: NF, member: NF, outsider: OK }],
   ["P12", "グループ内アルバム作成", `/groups/${ids.groupId}/albums/new`, { anon: LOGIN, admin: OK, member: OK }],
   ["P13", "ゲーム詳細", `/groups/${ids.groupId}/games/${ids.gameId}`, { anon: LOGIN, admin: OK, member: OK, outsider: NF }],
+  // グループの設定は通知・削除（オーナー）と最少人数（管理者）だけなので、どちらでもないメンバーには存在ごと伏せる
+  ["P13b", "グループの設定（オーナー・管理者のみ）", `/groups/${ids.groupId}/settings`, { anon: LOGIN, admin: OK, member: NF, outsider: NF }],
   ["P14", "提案詳細", `/groups/${ids.groupId}/proposals/${ids.proposalId}`, { anon: LOGIN, admin: OK, member: OK, outsider: NF }],
   ["P14b", "グループの活動カレンダー（自分のグループ）", `/groups/${ids.groupId}/activity`, { anon: LOGIN, admin: OK, member: OK, outsider: NF }],
   ["P14c", "グループの活動カレンダー（他人のグループ）", `/groups/${ids.otherGroupId}/activity`, { anon: LOGIN, admin: NF, member: NF, outsider: OK }],
@@ -60,6 +62,7 @@ const cases = [
   ["P19", "設定・許可リスト", "/settings/allowlist", { anon: LOGIN, admin: OK, member: OK }],
   ["P20", "設定・Discord連携", "/settings/discord", { anon: LOGIN, admin: OK }],
   ["P21", "設定・チャンネル対応", "/settings/channel-mapping", { anon: LOGIN, admin: OK }],
+  ["P21b", "自分（設定・使い方・ログアウトの入口）", "/me", { anon: LOGIN, admin: OK, member: OK, outsider: OK }],
   ["P22", "管理・使用量（管理者のみ）", "/admin", { anon: LOGIN, admin: OK, member: NF, outsider: NF }],
   ["P23", "管理・エラー", "/admin/errors", { anon: LOGIN, admin: OK, member: NF }],
   ["P24", "管理・招待リンク", "/admin/invites", { anon: LOGIN, admin: OK, member: NF }],
