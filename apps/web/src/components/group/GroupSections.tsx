@@ -8,7 +8,9 @@ import type { ReactNode } from "react";
 // - スマホ（768px未満）: 「ようす・アルバム・ゲーム・ウィッシュ」のタブで1つずつ出す。
 //   以前は全部を縦に積んでいて、ウィッシュリストまで指で長々と送る必要があった
 // - 768〜1279px: タブを出さず、4つを縦に並べる（ようす → アルバム → ゲーム → ウィッシュ）
-// - 1280px以上: 2列。左にアルバムとゲーム（大きい）、右にようすとウィッシュリスト（幅340px）
+// - 1280px以上: 2列。左にアルバムとゲーム（大きい）、右にようす（幅340px）。
+//   ウィッシュリストはその下に画面の幅いっぱいで置き、提案者を横に並べる（GameProposals）。
+//   以前は右の列に入れていたが、4人×5件で右の列だけが3000px近くまで伸びて読めなくなった（ユーザー報告）
 //
 // **区画はサーバーで全部描き、選ばれていないタブは CSS で隠すだけにする。** 中身を出し分けると、
 // タブを切り替えるたびにサーバーへ取りに行くことになり、HTMLを見ているテストからも区画が消える。
@@ -18,7 +20,9 @@ import type { ReactNode } from "react";
 // 「ようす」は既定なので URL から消す（グループのURLがいつも同じ形で済む）。
 //
 // 並べ替えは `order` で行う。2列のときの左右の箱は、1列のときは `display: contents` で消えて、
-// 中の区画が直接ここのフレックスの子になる（DOMを2通り持たずに済む）
+// 中の区画が直接ここのフレックスの子になる（DOMを2通り持たずに済む）。
+// 「ようす」とウィッシュリストは箱に入れずグリッドの直接の子にする。ウィッシュリストは2列ぶんにまたがらせて2行目に入れる
+// （グリッドの置き場所も `order` の順で決まる。左の箱は order 0 なので先に入る）
 export const GROUP_TABS = [
   { key: "overview", label: "ようす" },
   { key: "albums", label: "アルバム" },
@@ -47,13 +51,13 @@ export function GroupSections({
     window.history.pushState(null, "", url);
   }
 
-  const section = (key: GroupTabKey, node: ReactNode, order: string) => (
+  const section = (key: GroupTabKey, node: ReactNode, extra: string) => (
     <section
       id={`group-tab-${key}`}
       role="tabpanel"
       aria-labelledby={`group-tab-button-${key}`}
       data-tab={key}
-      className={`${tab === key ? "block" : "hidden"} min-w-0 md:block ${order}`}
+      className={`${tab === key ? "block" : "hidden"} min-w-0 md:block ${extra}`}
     >
       {node}
     </section>
@@ -85,10 +89,8 @@ export function GroupSections({
           {section("albums", albums, "order-2")}
           {section("games", games, "order-3")}
         </div>
-        <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-8">
-          {section("overview", overview, "order-1")}
-          {section("wishlist", wishlist, "order-4")}
-        </div>
+        {section("overview", overview, "order-1")}
+        {section("wishlist", wishlist, "order-4 xl:col-span-2")}
       </div>
     </div>
   );
