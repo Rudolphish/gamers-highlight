@@ -451,7 +451,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           </div>
           <p className="text-steam-muted">
             補足：グループの権限は配下の全アルバムに効きます。特定のアルバムだけ強い権限を渡したいときは、
-            アルバム詳細の「共有」から個別に招待してください。
+            アルバム詳細の「メンバー」から個別に招待してください。
           </p>
         </div>
       ),
