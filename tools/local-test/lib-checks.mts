@@ -212,6 +212,38 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
   }
 }
 
+// ── Discord のアイコンはログインのたびに追従する（2026-10-21。グループの見出しに顔として出すようにしたため） ──
+// 以前は作るときにしか書いておらず、Discord でアイコンを変えた人は古いURL（404）のままだった。
+// 表示名は追従しない（プロフィールで変えた名前を上書きしない）。画像が来なかった回は今のアイコンを消さない
+{
+  const D = "198000000000000021"; // 2回目以降のログイン
+  const E = "198000000000000022"; // 許可リストのメールで先に作られた行に結びつく人
+  const eMail = `avatar-${randomUUID().slice(0, 8)}@example.com`;
+  const URL1 = "https://cdn.discordapp.com/avatars/21/old.png";
+  const URL2 = "https://cdn.discordapp.com/avatars/21/new.png";
+  try {
+    const d = await db.user.create({ data: { email: null, name: "変えた名前", avatarUrl: URL1, provider: "discord", discordUserId: D } });
+    await linkDiscordUser({ discordUserId: D, email: null, emailVerified: false, name: "Discordの名前", image: URL2 });
+    const afterChange = await db.user.findUnique({ where: { id: d.id }, select: { avatarUrl: true, name: true } });
+    await linkDiscordUser({ discordUserId: D, email: null, emailVerified: false, name: "Discordの名前", image: null });
+    const afterNull = await db.user.findUnique({ where: { id: d.id }, select: { avatarUrl: true } });
+    const e = await db.user.create({ data: { email: eMail, name: null } });
+    await linkDiscordUser({ discordUserId: E, email: eMail, emailVerified: true, name: "E", image: URL1 });
+    const eAfter = await db.user.findUnique({ where: { id: e.id }, select: { avatarUrl: true, discordUserId: true } });
+    check(
+      "F312",
+      "Discord のアイコンはログインのたびに新しいURLへ追従し（表示名は上書きしない）、画像が来なかった回は消さず、メールで先に作られた行には結ぶときに入る",
+      afterChange?.avatarUrl === URL2 && afterChange?.name === "変えた名前" && afterNull?.avatarUrl === URL2 &&
+        eAfter?.discordUserId === E && eAfter?.avatarUrl === URL1,
+      { afterChange, afterNull, eAfter }
+    );
+  } catch (e) {
+    check("F312x", "アイコンの追従の確認が途中で例外になった（以降は未確認）", false, (e as Error)?.stack ?? e);
+  } finally {
+    await db.user.deleteMany({ where: { OR: [{ discordUserId: { in: [D, E] } }, { email: eMail }] } });
+  }
+}
+
 // ── cron の合言葉は「未設定なら誰も通さない」（フェイルクローズ） ──
 // 総合テストのサーバーは CRON_SECRET を設定して起動するので、未設定の側はここでしか見られない
 {
