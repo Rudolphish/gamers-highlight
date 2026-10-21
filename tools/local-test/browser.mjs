@@ -3806,6 +3806,53 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── スマホ幅で、部品が画面の右へはみ出していない（デザイン刷新の段階6） ──
+// ボタンを44pxの丸にしたら、アルバム詳細の見出しのボタン4つが1行に収まらず「削除」が画面の外に切れた。
+// ページ全体の横スクロール（B91）には出ない——レイアウトの内側の箱が横のはみ出しを抑えているため。
+// main の中の要素の右端が画面の幅を超えていないかを見る。横に送る作りの箱（overflow-x が auto など）の中は、意図したものなので除く
+{
+  const PAGES = ["/", "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/groups", "/me"];
+  const page = await context.newPage();
+  const over = [];
+  try {
+    for (const path of PAGES) {
+      await page.goto(BASE + path, { waitUntil: "networkidle" });
+      const r = await page.evaluate(() => {
+        const main = document.querySelector("main");
+        if (!main) return [];
+        const vw = document.documentElement.clientWidth;
+        const out = [];
+        for (const el of main.querySelectorAll("*")) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 || rect.right <= vw + 1) continue;
+          let scrolled = false;
+          for (let n = el.parentElement; n && n !== main.parentElement; n = n.parentElement) {
+            if (["auto", "scroll", "hidden"].includes(getComputedStyle(n).overflowX)) {
+              scrolled = true;
+              break;
+            }
+          }
+          if (!scrolled) out.push(`${(el.getAttribute("aria-label") || el.textContent || el.tagName).trim().slice(0, 12)}（+${Math.round(rect.right - vw)}px）`);
+        }
+        return out;
+      });
+      over.push(...r.slice(0, 3).map((x) => `${path.replace(/[a-z0-9]{20,}/g, "…")} ${x}`));
+    }
+    rows.push({
+      id: "B140",
+      item: "スマホ幅の主な画面で、部品が画面の右へはみ出していない（横に送る作りの箱の中は除く）",
+      expected: "0件",
+      actual: `${over.length}件 / 見た画面 ${PAGES.length}`,
+      ok: over.length === 0,
+      note: over.slice(0, 4).join(" | ").slice(0, 200),
+    });
+  } catch (e) {
+    rows.push({ id: "B140", item: "スマホ幅のはみ出し", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    await page.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）

@@ -125,7 +125,8 @@ export default async function AlbumDetailPage({
             </Link>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        {/* 折り返せるようにしておく。ボタンを44pxの丸にしたら、スマホでは4つが1行に収まらず「削除」が画面の外に切れた（B140） */}
+        <div className="flex flex-wrap items-center gap-2">
           {/* **見られる人全員に出す。** このアルバムへ投稿できる条件は「見られること」
               （`POST /api/photos` は VIEWER で通す）で、このページはVIEWERを満たさないと
               描画されない。判定はサーバーが毎回やるので、ここは入口を出すだけ */}
