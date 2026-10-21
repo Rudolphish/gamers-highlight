@@ -449,7 +449,7 @@ export default function UploadPage() {
             ? "すべて完了"
             : anyError
               ? "失敗分をやり直す"
-              : `${items.length || ""}件アップロード`}
+              : items.length > 0 ? `${items.length}件アップロード` : "ファイルを選んでください"}
       </button>
 
       {allDone && (
