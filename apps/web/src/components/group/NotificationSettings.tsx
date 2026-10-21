@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, ChevronDown } from "lucide-react";
+import { Bell } from "lucide-react";
+import { fieldClass } from "@/components/ui/buttonStyles";
 import { NOTIFICATION_KINDS } from "@/lib/notificationTargets";
 
 type ChannelOption = { id: string; name: string };
@@ -14,7 +15,10 @@ type Kind = (typeof NOTIFICATION_KINDS)[number]["kind"];
  * **「送らない」は空欄で表す。** 種類ごとにオン/オフのスイッチを別に置くと、
  * 「オンなのに送り先が空」という矛盾した状態が作れてしまう。
  *
- * チャンネル一覧はパネルを開いたときに1回だけ取る（種類ごとに引かない）。
+ * グループの設定画面（/groups/:id/settings）に、最初から開いた形で出す（2026-10 のデザイン刷新で
+ * グループ画面の見出しの下から移した。以前は押して開く小さな行だった）。
+ *
+ * チャンネル一覧は表示したときに1回だけ取る（種類ごとに引かない）。
  * 取得できない場合（サーバーID未設定・Bot未参加など）はIDの直接入力に落とす。
  */
 export function NotificationSettings({
@@ -28,12 +32,11 @@ export function NotificationSettings({
   legacyChannelId: string | null;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [channels, setChannels] = useState<ChannelOption[] | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
   const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(targets.map((t) => [t.kind, t.channelId]))
+    Object.fromEntries(targets.map((t) => [t.kind, t.channelId])),
   );
   // サーバーから最新が届いたら（router.refresh() 完了時など）正の値に置き換える
   useEffect(() => {
@@ -41,7 +44,7 @@ export function NotificationSettings({
   }, [targets]);
 
   useEffect(() => {
-    if (!open || channels !== undefined) return;
+    if (channels !== undefined) return;
     let cancelled = false;
     fetch(`/api/groups/${groupId}/discord-channels`)
       .then((res) => (res.ok ? res.json() : { channels: null }))
@@ -54,7 +57,7 @@ export function NotificationSettings({
     return () => {
       cancelled = true;
     };
-  }, [open, channels, groupId]);
+  }, [channels, groupId]);
 
   async function save(kind: Kind, channelId: string) {
     const previous = values[kind] ?? "";
@@ -83,72 +86,69 @@ export function NotificationSettings({
 
   return (
     <div>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="group flex items-center gap-1.5 text-3xs text-steam-muted transition hover:text-steam-text"
-      >
-        <Bell size={11} />
-        {`通知の設定（${configured}/${NOTIFICATION_KINDS.length} 種類がオン）`}
-        <ChevronDown size={10} className={`transition-transform ${open ? "" : "-rotate-90"}`} />
-      </button>
+      <h2 className="flex items-center gap-2 text-base font-bold text-steam-text">
+        <Bell size={18} aria-hidden="true" className="text-steam-muted" />
+        Discordへの通知
+        <span data-testid="notification-counter" className="text-sm font-normal text-steam-muted">
+          {`（${configured}/${NOTIFICATION_KINDS.length} 種類がオン）`}
+        </span>
+      </h2>
 
       {/* **引き継ぎ漏れを黙って通さない。** 種類ごとに分ける前の設定が残っているのに
           1件も設定が無い場合、通知は全部止まっている。画面で気づけるようにする */}
       {legacyChannelId && configured === 0 && (
-        <p className="mt-1 text-4xs text-warning">
+        <p className="mt-2 text-sm text-warning">
           {`以前の通知先（${legacyChannelId}）が引き継がれていません。通知は止まっています。下で種類ごとに選び直してください。`}
         </p>
       )}
 
-      {open && (
-        <div className="mt-2 flex flex-col gap-2 rounded-xl bg-steam-surface p-3">
-          {channels === undefined ? (
-            <p className="text-3xs text-steam-muted">チャンネル一覧を取得中…</p>
-          ) : (
-            NOTIFICATION_KINDS.map(({ kind, label, description }) => {
-              const value = values[kind] ?? "";
-              const knownIds = new Set((channels ?? []).map((c) => c.id));
-              return (
-                <div key={kind} className="flex flex-col gap-1">
-                  <label className="text-3xs text-steam-text" htmlFor={`notify-${kind}`}>
-                    {label}
-                  </label>
-                  {useDropdown ? (
-                    <select
-                      id={`notify-${kind}`}
-                      value={value}
-                      onChange={(e) => save(kind, e.target.value)}
-                      className="rounded-lg border border-steam-border bg-steam-bg px-2 py-1 text-3xs text-steam-text outline-none focus:border-steam-blue"
-                    >
-                      <option value="">送らない</option>
-                      {value && !knownIds.has(value) && (
-                        <option value={value}>{`#${value}（現在の設定）`}</option>
-                      )}
-                      {channels!.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {`#${c.name}`}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      id={`notify-${kind}`}
-                      defaultValue={value}
-                      onBlur={(e) => {
-                        if (e.target.value.trim() !== value) save(kind, e.target.value.trim());
-                      }}
-                      placeholder="DiscordチャンネルID（空欄で送らない）"
-                      className="rounded-lg border border-steam-border bg-steam-bg px-2 py-1 text-3xs text-steam-text outline-none focus:border-steam-blue"
-                    />
-                  )}
-                  <p className="text-4xs text-steam-muted">{description}</p>
-                </div>
-              );
-            })
-          )}
-          {error && <p className="text-4xs text-danger">{error}</p>}
-        </div>
-      )}
+      <div className="mt-3 flex flex-col gap-4">
+        {channels === undefined ? (
+          <p className="text-sm text-steam-muted">チャンネル一覧を取得中…</p>
+        ) : (
+          NOTIFICATION_KINDS.map(({ kind, label, description }) => {
+            const value = values[kind] ?? "";
+            const knownIds = new Set((channels ?? []).map((c) => c.id));
+            return (
+              <div key={kind} className="flex flex-col gap-1.5">
+                <label className="text-sm text-steam-text" htmlFor={`notify-${kind}`}>
+                  {label}
+                </label>
+                {useDropdown ? (
+                  <select
+                    id={`notify-${kind}`}
+                    value={value}
+                    onChange={(e) => save(kind, e.target.value)}
+                    className={fieldClass}
+                  >
+                    <option value="">送らない</option>
+                    {value && !knownIds.has(value) && (
+                      <option value={value}>{`#${value}（現在の設定）`}</option>
+                    )}
+                    {channels!.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {`#${c.name}`}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id={`notify-${kind}`}
+                    defaultValue={value}
+                    onBlur={(e) => {
+                      if (e.target.value.trim() !== value) save(kind, e.target.value.trim());
+                    }}
+                    placeholder="DiscordチャンネルID（空欄で送らない）"
+                    className={fieldClass}
+                  />
+                )}
+                <p className="text-xs text-steam-muted">{description}</p>
+              </div>
+            );
+          })
+        )}
+        {error && <p className="text-sm text-danger">{error}</p>}
+      </div>
     </div>
   );
 }

@@ -20,7 +20,9 @@ import { SIDEBAR_COLLAPSED, SIDEBAR_COOKIE } from "@/components/layout/sidebarSt
 // （`tools/local-test/browser.mjs` の B91 で確認済み）。
 //
 // スマホでは下のタブ（高さ56px＋ホームバーの余白）が本文の上に固定で重なるので、
-// 同じぶんだけ下を空ける。空けないと、ページのいちばん下のボタンやフッターがタブの裏に隠れて押せない（B88）。
+// そのぶん下を空ける。空けないと、ページのいちばん下のボタンやフッターがタブの裏に隠れて押せない（B88）。
+// **真ん中の「投稿」の丸は帯から20px上に出ている**ので、帯の高さ（3.5rem）ではなく丸の上端まで（5rem）空ける。
+// 帯の高さだけ空けていたときは、いちばん下まで送るとフッターの文字に丸が重なっていた
 // 左右の `safe-area-inset` は、`viewport-fit=cover` にしたことで横向きの iPhone でノッチの下に本文が潜らないようにするため。
 //
 // `<main>` はページ側が全部（27ページ）持っているので、ここでは出さない。
@@ -33,7 +35,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <RouteProgress />
       </Suspense>
       <Sidebar initialCollapsed={sidebarCollapsed} />
-      <div className="flex min-h-[100dvh] flex-1 flex-col overflow-y-auto pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
+      <div className="flex min-h-[100dvh] flex-1 flex-col overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
         <div className="flex items-center px-4 pb-1 pt-3 md:hidden">
           <Link href="/" aria-label="ShareStaq ホーム" className="font-logo text-xl font-bold tracking-tight text-steam-text">
             Share<span className="text-steam-blue">Staq</span>

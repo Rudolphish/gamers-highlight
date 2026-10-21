@@ -260,7 +260,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           </p>
           <ul className="ml-4 list-disc space-y-1">
             <li>
-              グループ画面の上の帯「グループで遊んだ時間」：全ゲームの合計・いちばん遊んだゲーム・最後に遊んだ日
+              グループ画面の「ようす」（パソコンでは右の列の上）の帯「グループで遊んだ時間」：全ゲームの合計・いちばん遊んだゲーム・最後に遊んだ日
             </li>
             <li>「みんなのゲーム」の各カード：そのゲームを遊んだ時間（🎮）</li>
             <li>
@@ -306,7 +306,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            グループ画面の<strong className="text-steam-text">「最近の動き」</strong>に、写真の投稿・アルバムの作成・
+            グループ画面の<strong className="text-steam-text">「最近の動き」</strong>（スマホでは「ようす」のタブ）に、写真の投稿・アルバムの作成・
             ウィッシュリストへの追加・一緒に遊んだ記録（🎮）などが、新しい順に5件出ます。
             同じ人が続けて写真を投稿したときは「写真を4枚投稿」のように1行にまとまります。
           </p>
@@ -330,7 +330,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            グループ画面のグループ名の下にある「通知の設定」から、
+            グループ画面の歯車（グループの設定）にある「Discordへの通知」から、
             <strong className="text-steam-text">通知の種類ごとに送り先のチャンネルを選べます</strong>
             （グループのオーナーだけが設定できます）。種類ごとに違うチャンネルへ送っても構いません。
           </p>
@@ -379,7 +379,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p>
             <strong className="text-steam-text">招待リンクを使う（おすすめ）</strong>
             <br />
-            グループ画面の「招待リンク」から発行できます（グループのオーナーのみ）。相手はリンクを開いてDiscordでログインするだけで、アプリへのログインとグループ加入が一度に済みます。
+            グループ画面の「メンバー」の中の「招待リンク」から発行できます（グループのオーナーのみ）。相手はリンクを開いてDiscordでログインするだけで、アプリへのログインとグループ加入が一度に済みます。
           </p>
           <p>
             発行時に権限（閲覧者／編集者）、有効期限（24時間／72時間／7日）、使用できる回数を選べます。発行済みのリンクは一覧から取り消せます。
@@ -390,7 +390,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p>
             <strong className="text-steam-text">既にログインしたことがある相手を招待する</strong>
             <br />
-            グループ画面の「共有」から、登録済みユーザーを選んで招待できます。まだ一度もログインしたことがない相手はここに出てこないので、上の招待リンクを使ってください。
+            グループ画面の「メンバー」から、登録済みユーザーを選んで招待できます。まだ一度もログインしたことがない相手はここに出てこないので、上の招待リンクを使ってください。
           </p>
         </div>
       ),
@@ -468,7 +468,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <strong className="text-steam-text">アルバム</strong>：アルバム詳細ページの「削除」ボタンから削除できます（オーナーのみ）。中の写真/動画は削除されず、「未分類」として残ります。
           </p>
           <p>
-            <strong className="text-steam-text">グループ</strong>：グループ詳細ページの「削除」ボタンから削除できます（オーナーのみ）。配下にアルバムが残っている場合は誤操作防止のため削除できません。先にアルバムを削除するか、別のグループへ移してください。
+            <strong className="text-steam-text">グループ</strong>：グループ画面の歯車（グループの設定）の「グループを削除」から削除できます（オーナーのみ）。配下にアルバムが残っている場合は誤操作防止のため削除できません。先にアルバムを削除するか、別のグループへ移してください。
           </p>
         </div>
       ),
@@ -615,6 +615,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p>
             検索・使い方・設定・ログアウトは<strong className="text-steam-text">「自分」</strong>のタブにまとめてあります。
             管理者には管理画面の入口もここに出ます。
+            グループ画面は「ようす・アルバム・ゲーム・ウィッシュ」のタブで切り替えます（パソコンでは2列に並びます）。
           </p>
           <p className="text-steam-muted">
             パソコンなど横に広い画面では、下のタブの代わりに画面の左にメニューが名前付きで出ます。
@@ -677,7 +678,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
                   <li><strong className="text-steam-text">エラー</strong>：画面で起きたエラーとログインの失敗の記録、Discordへのエラー通知先の設定</li>
                 </ul>
                 <p>
-                  グループ画面には、管理者にだけ<strong className="text-steam-text">「プレイ記録の最少人数」</strong>が出ます。
+                  グループの設定（グループ画面の歯車）には、管理者にだけ<strong className="text-steam-text">「プレイ記録の最少人数」</strong>が出ます。
                   「1人（動作確認用）」にすると、1人で遊んでも記録されます（テスト用。友人のグループでは2人のままにしてください）。
                 </p>
               </div>

@@ -4,6 +4,7 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 import { Plus } from "lucide-react";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { GroupGameList } from "@/components/group/GroupGameList";
+import { secondaryButton } from "@/components/ui/buttonStyles";
 
 // グループ画面の「みんなのゲーム」。**「ゲームを追加」を見出しの横に置く**（2026-10-18 ユーザー判断。
 // アルバムの「新規アルバム」・ウィッシュリストの「追加する」と同じ位置に揃えた）。
@@ -34,9 +35,9 @@ export function GroupGamesSection({
               setSectionOpen(true);
               setAddOpen(true);
             }}
-            className="flex items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink"
+            className={secondaryButton}
           >
-            <Plus size={14} /> ゲームを追加
+            <Plus size={16} aria-hidden="true" /> ゲームを追加
           </button>
         )
       }

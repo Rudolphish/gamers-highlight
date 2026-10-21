@@ -3638,8 +3638,9 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     await soloSnapshot(true);
     const soloAt1 = await rows();
     await soloSnapshot(false);
-    const groupPage = await api(`/groups/${group.id}`, { cookie: adminCookie });
-    const memberPage = await api(`/groups/${group.id}`, { cookie: memberCookie });
+    // 最少人数の切り替えはグループの設定画面（歯車の先）にある（デザイン刷新の段階5でグループ画面から移した）
+    const groupPage = await api(`/groups/${group.id}/settings`, { cookie: adminCookie });
+    const memberPage = await api(`/groups/${group.id}/settings`, { cookie: memberCookie });
 
     check(
       "F276 最少人数は管理者だけが1人に切り替えられ、Botへの一覧に載り、1人のプレイも記録される（既定の2人では記録されない）",

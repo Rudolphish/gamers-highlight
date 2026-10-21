@@ -115,8 +115,12 @@ export default function UploadPage() {
       .then((data) => {
         const list: GroupOption[] = data.groups ?? [];
         setGroups(list);
+        // グループ画面の「写真を投稿」から来たときは、そのグループを選んだ状態で開く（?group=）。
+        // 一覧に無い（入っていない）グループは選ばない。URLは誰でも書き換えられるので、そのまま使わない
+        const requested = new URLSearchParams(window.location.search).get("group");
+        if (requested && list.some((g) => g.id === requested)) setGroupId(requested);
         // 1つしか入っていない人に毎回選ばせても手数が増えるだけなので、自動で選ぶ
-        if (list.length === 1) setGroupId(list[0].id);
+        else if (list.length === 1) setGroupId(list[0].id);
       })
       .catch(() => setGroups([]));
   }, []);

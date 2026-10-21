@@ -60,7 +60,7 @@ export function GroupNameEditor({
             setDraft(displayName);
             setEditing(true);
           }}
-          className="group flex items-center gap-2 font-display text-2xl font-bold text-steam-text sm:text-3xl"
+          className="group flex min-h-11 items-center gap-2 font-display text-2xl font-bold text-steam-text sm:text-3xl md:min-h-9"
         >
           {displayName}
           <Pencil size={16} className="text-steam-muted opacity-0 transition group-hover:opacity-100" />

@@ -50,6 +50,8 @@ const cases = [
   ["P11", "グループ詳細（他人のグループ）", `/groups/${ids.otherGroupId}`, { anon: LOGIN, admin: NF, member: NF, outsider: OK }],
   ["P12", "グループ内アルバム作成", `/groups/${ids.groupId}/albums/new`, { anon: LOGIN, admin: OK, member: OK }],
   ["P13", "ゲーム詳細", `/groups/${ids.groupId}/games/${ids.gameId}`, { anon: LOGIN, admin: OK, member: OK, outsider: NF }],
+  // グループの設定は通知・削除（オーナー）と最少人数（管理者）だけなので、どちらでもないメンバーには存在ごと伏せる
+  ["P13b", "グループの設定（オーナー・管理者のみ）", `/groups/${ids.groupId}/settings`, { anon: LOGIN, admin: OK, member: NF, outsider: NF }],
   ["P14", "提案詳細", `/groups/${ids.groupId}/proposals/${ids.proposalId}`, { anon: LOGIN, admin: OK, member: OK, outsider: NF }],
   ["P14b", "グループの活動カレンダー（自分のグループ）", `/groups/${ids.groupId}/activity`, { anon: LOGIN, admin: OK, member: OK, outsider: NF }],
   ["P14c", "グループの活動カレンダー（他人のグループ）", `/groups/${ids.otherGroupId}/activity`, { anon: LOGIN, admin: NF, member: NF, outsider: OK }],

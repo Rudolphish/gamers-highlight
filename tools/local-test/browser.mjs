@@ -145,122 +145,155 @@ for (const [id, label, path] of targets) {
 // curlでは確認できないのでここで見る。
 {
   const page = await context.newPage();
-  await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
-  await page.waitForTimeout(500);
+  // **ブロックごと try/catch で包む。** 途中のクリックで止まると、以降のスイートが1件も走らずに落ちる
+  // （デザイン刷新の段階5の壊し確認で、ゲームのタブが出ない版を流したら実際にそうなった。docs/lessons.md）
+  const BLOCK = {
+    B20: "ゲーム一覧の初期フィルタが「プレイ中」「プレイ予定」だけ",
+    B21: "初期状態で積みゲー・クリア済みは出ない",
+    B22: "「すべて」を押すと積みゲー・クリア済みも出る"
+  };
+  const before = rows.length;
+  try {
+    await page.goto(`${BASE}/groups/${ids.groupId}?tab=games`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(500);
 
-  const visible = await page.evaluate(() =>
-    [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "")
-  );
-  const text = visible.join(" ");
+    const visible = await page.evaluate(() =>
+      [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "")
+    );
+    const text = visible.join(" ");
 
-  const pressed = await page.evaluate(() =>
-    [...document.querySelectorAll('button[aria-pressed="true"]')].map((b) => b.textContent?.trim())
-  );
+    const pressed = await page.evaluate(() =>
+      [...document.querySelectorAll('button[aria-pressed="true"]')].map((b) => b.textContent?.trim())
+    );
 
-  rows.push({
-    id: "B20",
-    item: "ゲーム一覧の初期フィルタが「プレイ中」「プレイ予定」だけ",
-    expected: "プレイ中・プレイ予定が選択済み",
-    actual: pressed.join(",") || "なし",
-    ok: pressed.includes("プレイ中") && pressed.includes("プレイ予定") && !pressed.includes("積みゲー"),
-    note: "",
-  });
+    rows.push({
+      id: "B20",
+      item: "ゲーム一覧の初期フィルタが「プレイ中」「プレイ予定」だけ",
+      expected: "プレイ中・プレイ予定が選択済み",
+      actual: pressed.join(",") || "なし",
+      ok: pressed.includes("プレイ中") && pressed.includes("プレイ予定") && !pressed.includes("積みゲー"),
+      note: "",
+    });
 
-  rows.push({
-    id: "B21",
-    item: "初期状態で積みゲー・クリア済みは出ない",
-    expected: "出ない",
-    actual: text.includes("積みゲー") || text.includes("クリア済み") ? "出ている" : "出ていない",
-    ok: !text.includes("積みゲー") && !text.includes("クリア済み") && text.includes("ウィッチャー3"),
-    note: text.slice(0, 120),
-  });
+    rows.push({
+      id: "B21",
+      item: "初期状態で積みゲー・クリア済みは出ない",
+      expected: "出ない",
+      actual: text.includes("積みゲー") || text.includes("クリア済み") ? "出ている" : "出ていない",
+      ok: !text.includes("積みゲー") && !text.includes("クリア済み") && text.includes("ウィッチャー3"),
+      note: text.slice(0, 120),
+    });
 
-  // 「すべて」を押せば戻せること
-  await page.getByRole("button", { name: "すべて" }).click();
-  await page.waitForTimeout(300);
-  const afterAll = await page.evaluate(() =>
-    [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "").join(" ")
-  );
-  rows.push({
-    id: "B22",
-    item: "「すべて」を押すと積みゲー・クリア済みも出る",
-    expected: "出る",
-    actual: afterAll.includes("積みゲー") ? "出た" : "出ない",
-    ok: afterAll.includes("積みゲー") && afterAll.includes("クリア済み"),
-    note: afterAll.slice(0, 120),
-  });
+    // 「すべて」を押せば戻せること
+    await page.getByRole("button", { name: "すべて" }).click();
+    await page.waitForTimeout(300);
+    const afterAll = await page.evaluate(() =>
+      [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "").join(" ")
+    );
+    rows.push({
+      id: "B22",
+      item: "「すべて」を押すと積みゲー・クリア済みも出る",
+      expected: "出る",
+      actual: afterAll.includes("積みゲー") ? "出た" : "出ない",
+      ok: afterAll.includes("積みゲー") && afterAll.includes("クリア済み"),
+      note: afterAll.slice(0, 120),
+    });
 
-  await page.close();
+  } catch (e) {
+    const done = new Set(rows.slice(before).map((r) => r.id));
+    for (const [id, item] of Object.entries(BLOCK)) {
+      if (!done.has(id)) rows.push({ id, item, expected: "—", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+    }
+  } finally {
+    await page.close();
+  }
 }
 
 // ── 絞り込みの保存（localStorage） ──
 {
   const page = await context.newPage();
-  const url = `${BASE}/groups/${ids.groupId}`;
-  const hydrationErrors = [];
-  page.on("console", (m) => {
-    const t = m.text();
-    if (/hydrat|did not match|Text content does not match/i.test(t)) hydrationErrors.push(t.slice(0, 140));
-  });
+  // **ブロックごと try/catch で包む。** 途中のクリックで止まると、以降のスイートが1件も走らずに落ちる
+  // （デザイン刷新の段階5の壊し確認で、ゲームのタブが出ない版を流したら実際にそうなった。docs/lessons.md）
+  const BLOCK = {
+    B23: "絞り込みがグループ単位のキーで保存される",
+    B24: "リロードしても前回の絞り込みが復元される",
+    B25: "保存を消すと既定（プレイ中・プレイ予定）に戻る",
+    B26: "復元でハイドレーションのずれが出ない"
+  };
+  const before = rows.length;
+  try {
+    const url = `${BASE}/groups/${ids.groupId}?tab=games`;
+    const hydrationErrors = [];
+    page.on("console", (m) => {
+      const t = m.text();
+      if (/hydrat|did not match|Text content does not match/i.test(t)) hydrationErrors.push(t.slice(0, 140));
+    });
 
-  await page.goto(url, { waitUntil: "networkidle" });
-  await page.waitForTimeout(500);
+    await page.goto(url, { waitUntil: "networkidle" });
+    await page.waitForTimeout(500);
 
-  // 「すべて」を押して既定と違う状態にする
-  await page.getByRole("button", { name: "すべて" }).click();
-  await page.waitForTimeout(400);
+    // 「すべて」を押して既定と違う状態にする
+    await page.getByRole("button", { name: "すべて" }).click();
+    await page.waitForTimeout(400);
 
-  const stored = await page.evaluate((gid) => localStorage.getItem(`gh:game-filter:v1:${gid}`), ids.groupId);
-  rows.push({
-    id: "B23",
-    item: "絞り込みがグループ単位のキーで保存される",
-    expected: "保存される",
-    actual: stored ?? "なし",
-    ok: !!stored && JSON.parse(stored).status.length === 0,
-    note: "",
-  });
+    const stored = await page.evaluate((gid) => localStorage.getItem(`gh:game-filter:v1:${gid}`), ids.groupId);
+    rows.push({
+      id: "B23",
+      item: "絞り込みがグループ単位のキーで保存される",
+      expected: "保存される",
+      actual: stored ?? "なし",
+      ok: !!stored && JSON.parse(stored).status.length === 0,
+      note: "",
+    });
 
-  // リロードしても「すべて」のまま（既定に戻らない）
-  await page.reload({ waitUntil: "networkidle" });
-  await page.waitForTimeout(700);
-  const afterReload = await page.evaluate(() =>
-    [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "").join(" ")
-  );
-  rows.push({
-    id: "B24",
-    item: "リロードしても前回の絞り込みが復元される",
-    expected: "積みゲーも出る",
-    actual: afterReload.includes("積みゲー") ? "出た" : "既定に戻った",
-    ok: afterReload.includes("積みゲー") && afterReload.includes("クリア済み"),
-    note: "",
-  });
+    // リロードしても「すべて」のまま（既定に戻らない）
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForTimeout(700);
+    const afterReload = await page.evaluate(() =>
+      [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "").join(" ")
+    );
+    rows.push({
+      id: "B24",
+      item: "リロードしても前回の絞り込みが復元される",
+      expected: "積みゲーも出る",
+      actual: afterReload.includes("積みゲー") ? "出た" : "既定に戻った",
+      ok: afterReload.includes("積みゲー") && afterReload.includes("クリア済み"),
+      note: "",
+    });
 
-  // 保存を消せば既定に戻る
-  await page.evaluate((gid) => localStorage.removeItem(`gh:game-filter:v1:${gid}`), ids.groupId);
-  await page.reload({ waitUntil: "networkidle" });
-  await page.waitForTimeout(700);
-  const afterClear = await page.evaluate(() =>
-    [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "").join(" ")
-  );
-  rows.push({
-    id: "B25",
-    item: "保存を消すと既定（プレイ中・プレイ予定）に戻る",
-    expected: "積みゲーは出ない",
-    actual: afterClear.includes("積みゲー") ? "出ている" : "出ていない",
-    ok: !afterClear.includes("積みゲー") && afterClear.includes("ウィッチャー3"),
-    note: "",
-  });
+    // 保存を消せば既定に戻る
+    await page.evaluate((gid) => localStorage.removeItem(`gh:game-filter:v1:${gid}`), ids.groupId);
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForTimeout(700);
+    const afterClear = await page.evaluate(() =>
+      [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "").join(" ")
+    );
+    rows.push({
+      id: "B25",
+      item: "保存を消すと既定（プレイ中・プレイ予定）に戻る",
+      expected: "積みゲーは出ない",
+      actual: afterClear.includes("積みゲー") ? "出ている" : "出ていない",
+      ok: !afterClear.includes("積みゲー") && afterClear.includes("ウィッチャー3"),
+      note: "",
+    });
 
-  rows.push({
-    id: "B26",
-    item: "復元でハイドレーションのずれが出ない",
-    expected: "0件",
-    actual: `${hydrationErrors.length}件`,
-    ok: hydrationErrors.length === 0,
-    note: hydrationErrors.join(" | ").slice(0, 160),
-  });
+    rows.push({
+      id: "B26",
+      item: "復元でハイドレーションのずれが出ない",
+      expected: "0件",
+      actual: `${hydrationErrors.length}件`,
+      ok: hydrationErrors.length === 0,
+      note: hydrationErrors.join(" | ").slice(0, 160),
+    });
 
-  await page.close();
+  } catch (e) {
+    const done = new Set(rows.slice(before).map((r) => r.id));
+    for (const [id, item] of Object.entries(BLOCK)) {
+      if (!done.has(id)) rows.push({ id, item, expected: "—", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+    }
+  } finally {
+    await page.close();
+  }
 }
 
 // ── アルバムの並び替え ──
@@ -273,7 +306,7 @@ for (const [id, label, path] of targets) {
 // run-all 経由のときだけ落ちた。seedで仕込んだ3件の**相対順序**だけを見る。
 {
   const page = await context.newPage();
-  await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/groups/${ids.groupId}?tab=albums`, { waitUntil: "networkidle" });
   await page.waitForTimeout(500);
 
   // 既定では4件までしか出ないので、全部出してから並びを見る
@@ -978,10 +1011,11 @@ for (const [id, label, path] of targets) {
 // **プルダウンの中身と、保存が残ることまで見る。** 以前は通知先が1つで、
 // 選ぶ経路（Discordのチャンネル一覧）はテストを一度も通っていなかった。
 {
+  // 通知の設定はグループの設定画面（歯車の先）にある。最初から開いた形（デザイン刷新の段階5で見出しの下から移した）
   const page = await context.newPage();
-  await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /通知の設定/ }).click();
+  await page.goto(`${BASE}/groups/${ids.groupId}/settings`, { waitUntil: "networkidle" });
   await page.waitForTimeout(800);
+  const counter = () => page.getByTestId("notification-counter").textContent().then((t) => (t ?? "").trim());
 
   // 文言の正本は apps/web/src/lib/notificationTargets.ts の NOTIFICATION_KINDS。種類の数（B61・B62 の「1/4」）もここから取る。
   // ここはブラウザ側のスクリプトでTSを読めないので書き写している
@@ -1020,9 +1054,8 @@ for (const [id, label, path] of targets) {
   await page.waitForTimeout(1200);
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(400);
-  const counterText = (await page.getByRole("button", { name: /通知の設定/ }).textContent()) ?? "";
-  await page.getByRole("button", { name: /通知の設定/ }).click();
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(400);
+  const counterText = await counter();
   const saved = await page.getByLabel("ゲームが提案されたとき").inputValue();
   rows.push({
     id: "B61",
@@ -1044,8 +1077,8 @@ for (const [id, label, path] of targets) {
     id: "B62",
     item: "「送らない」に戻せる（後片付け）",
     expected: "0種類がオン",
-    actual: (await page.getByRole("button", { name: /通知の設定/ }).textContent())?.trim() ?? "",
-    ok: ((await page.getByRole("button", { name: /通知の設定/ }).textContent()) ?? "").includes(`0/${labels.length}`) && cleared,
+    actual: await counter(),
+    ok: (await counter()).includes(`0/${labels.length}`) && cleared,
     note: "",
   });
 
@@ -1340,7 +1373,7 @@ for (const [id, label, path] of targets) {
       [path, method, body ?? null]
     );
 
-  await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/groups/${ids.groupId}?tab=wishlist`, { waitUntil: "networkidle" });
 
   // **他人の提案も自分で用意する。** seedの提案（member の GTA V）は、通しで流すと
   // flows が過半数まで投票して昇格させるのでPENDINGから外れ、区画が1つになる。
@@ -1783,14 +1816,16 @@ for (const [id, label, path] of targets) {
       const tabsEl = document.querySelector('[data-testid="bottom-tabs"]');
       if (!footer || !tabsEl) return { ok: false, detail: "フッターかタブが無い" };
       const f = footer.getBoundingClientRect();
-      const t = tabsEl.getBoundingClientRect();
+      // **タブの上端は、帯ではなく一番上に出ている部品で測る。** 真ん中の「投稿」の丸は帯から20px上に出ていて、
+      // 帯の上端だけで比べていたときは、丸がフッターの文字に重なっているのに通っていた（段階5の画面写真で見つかった）
+      const tabsTop = Math.min(...[tabsEl, ...tabsEl.querySelectorAll("*")].map((el) => el.getBoundingClientRect().top));
       const at = document.elementFromPoint(f.left + f.width / 2, f.top + f.height / 2);
       return {
-        ok: f.bottom <= t.top + 1 && (at === footer || footer.contains(at)),
-        detail: `フッター下端=${Math.round(f.bottom)} / タブ上端=${Math.round(t.top)} / その位置=${at?.tagName.toLowerCase() ?? "なし"}`,
+        ok: f.bottom <= tabsTop + 1 && (at === footer || footer.contains(at)),
+        detail: `フッター下端=${Math.round(f.bottom)} / タブ（出っぱりを含む）上端=${Math.round(tabsTop)} / その位置=${at?.tagName.toLowerCase() ?? "なし"}`,
       };
     });
-    rec("B88", "フッター下端 ≤ タブ上端 / その位置にフッター", footerState.detail, footerState.ok);
+    rec("B88", "フッター下端 ≤ タブ（出っぱりを含む）上端 / その位置にフッター", footerState.detail, footerState.ok);
 
     // **env(safe-area-inset-bottom) は Chromium では0なので、効いた結果は測れない。** 指定そのものを見る。
     // `viewport-fit=cover` が無いと iPhone でもこの値は0のままなので、viewport の指定も合わせて見る
@@ -2769,8 +2804,11 @@ for (const [id, label, path] of targets) {
     const banner = page.getByTestId("play-total-banner");
     const bannerText = (await banner.count()) > 0 ? ((await banner.textContent()) ?? "") : "";
     const bannerBox = (await banner.count()) > 0 ? await banner.boundingBox() : null;
-    // ナビにも「アルバム」があるので、本文の区画の見出しに限る
-    const albumHead = await page.locator("main").getByText("アルバム", { exact: true }).first().boundingBox();
+    // 帯は「ようす」の区画の先頭に置く（デザイン刷新の段階5。スマホはタブ、PCは右の列の先頭）。
+    // 以前は「アルバムより上」を見ていたが、スマホではアルバムは別のタブなので比べられない
+    const bannerFirst = (await banner.count()) > 0
+      ? await banner.evaluate((el) => !!el.closest('[data-tab="overview"]') && el.parentElement?.firstElementChild === el)
+      : false;
     const topLink = await banner.getByRole("link").count();
     // 同じゲーム詳細へのリンクは帯にもあるので、一覧のカード（「〇〇が追加」がある方）に絞る
     const card = page.locator(`a[href="/groups/${ids.groupId}/games/${gameId}"]`).filter({ hasText: "が追加" }).first();
@@ -2779,12 +2817,12 @@ for (const [id, label, path] of targets) {
     const cardPlay = (await card.count()) > 0 && (await card.locator('[data-play-ms] [data-kind="play.session"]').count()) > 0;
     const ok =
       !!created && bannerText.includes("グループで遊んだ時間") && bannerText.includes("時間") &&
-      !!bannerBox && !!albumHead && bannerBox.y < albumHead.y && topLink === 1 && cardPlay;
+      !!bannerBox && bannerFirst && topLink === 1 && cardPlay;
     rows.push({
       id: "B113",
-      item: "グループ画面の頭に「グループで遊んだ時間」の帯がアルバムより上に出て、いちばん遊んだゲームへのリンクがあり、ゲーム一覧のカードに時間が出る",
-      expected: "帯あり・アルバムより上・リンク1つ・カードに遊んだ時間",
-      actual: `記録=${!!created} / 帯=${bannerText.slice(0, 40)} / 上=${bannerBox && albumHead ? bannerBox.y < albumHead.y : "?"} / リンク=${topLink} / カード=${cardPlay}`,
+      item: "グループ画面の「ようす」の先頭に「グループで遊んだ時間」の帯が出て、いちばん遊んだゲームへのリンクがあり、ゲーム一覧のカードに時間が出る",
+      expected: "帯あり・「ようす」の先頭・リンク1つ・カードに遊んだ時間",
+      actual: `記録=${!!created} / 帯=${bannerText.slice(0, 40)} / 先頭=${bannerFirst} / リンク=${topLink} / カード=${cardPlay}`,
       ok,
       // 落ちたときの手掛かり：見えていたカード（ゲームID末尾と文字）
       note: ok ? "" : `カード=${cardText.slice(0, 60)} / 見えていた=${visibleCards.map((c) => `${c.id.slice(-4)}:${c.text}`).join(", ").slice(0, 160)}`,
@@ -2883,8 +2921,8 @@ for (const [id, label, path] of targets) {
     const section = page.getByTestId("recent-activity");
     const present = (await section.count()) > 0;
     const box = present ? await section.boundingBox() : null;
-    // ナビにも「アルバム」があるので、本文の区画の見出しに限る
-    const albumHead = await page.locator("main").getByText("アルバム", { exact: true }).first().boundingBox();
+    // 「最近の動き」は「ようす」の区画に置く（デザイン刷新の段階5）。以前は「アルバムより上」を見ていた
+    const inOverview = present ? await section.evaluate((el) => !!el.closest('[data-tab="overview"]')) : false;
     const count = present ? await section.locator("li[data-kind]").count() : 0;
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     let moved = "";
@@ -2896,13 +2934,13 @@ for (const [id, label, path] of targets) {
       moved = new URL(page.url()).pathname;
       heading = ((await page.locator("main h1").first().textContent()) ?? "").trim();
     }
-    const ok = !!box && !!albumHead && box.y < albumHead.y && count >= 1 && count <= 5 && !overflow &&
+    const ok = !!box && inOverview && count >= 1 && count <= 5 && !overflow &&
       moved === `/groups/${ids.groupId}/activity` && heading.includes("活動カレンダー");
     rows.push({
       id: "B115",
-      item: "グループ画面の「最近の動き」がアルバムより上に1〜5件出て、スマホ幅で横にはみ出さず、「カレンダーで見る」でグループの活動カレンダーに移れる",
-      expected: "アルバムより上・1〜5件・はみ出しなし・/activity へ移る",
-      actual: `欄=${present} / 上=${box && albumHead ? box.y < albumHead.y : "?"} / 件数=${count} / はみ出し=${overflow} / 移動先=${moved} / 見出し=${heading}`,
+      item: "グループ画面の「最近の動き」が「ようす」に1〜5件出て、スマホ幅で横にはみ出さず、「カレンダーで見る」でグループの活動カレンダーに移れる",
+      expected: "「ようす」の中・1〜5件・はみ出しなし・/activity へ移る",
+      actual: `欄=${present} / ようす=${inOverview} / 件数=${count} / はみ出し=${overflow} / 移動先=${moved} / 見出し=${heading}`,
       ok,
       note: "",
     });
@@ -3022,7 +3060,7 @@ for (const [id, label, path] of targets) {
 {
   const page = await context.newPage();
   try {
-    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/groups/${ids.groupId}?tab=games`, { waitUntil: "networkidle" });
     const head = page.locator("main h2").filter({ hasText: /^みんなのゲーム$/ }).first();
     const addButton = page.getByRole("button", { name: "ゲームを追加" });
     const count = await addButton.count();
@@ -3074,7 +3112,7 @@ for (const [id, label, path] of targets) {
       });
       return group.id;
     }, `価格の表示テスト-${Date.now()}`);
-    await page.goto(`${BASE}/groups/${priceGroupId}`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/groups/${priceGroupId}?tab=wishlist`, { waitUntil: "networkidle" });
     const line = page.getByTestId("wishlist-price").first();
     await line.waitFor({ timeout: 8000 }).catch(() => {});
     const m = (await line.count()) > 0
@@ -3126,7 +3164,8 @@ for (const [id, label, path] of targets) {
   watchPageErrors(page, problems, "B120");
   try {
     const seen = [];
-    for (const path of ["/albums", `/groups/${ids.groupId}`]) {
+    // グループ画面のアルバムはスマホではタブの中なので、アルバムのタブを開く（デザイン刷新の段階5）
+    for (const path of ["/albums", `/groups/${ids.groupId}?tab=albums`]) {
       await page.goto(BASE + path, { waitUntil: "networkidle" });
       // カードが出ていないと何も確かめていないことになるので、「〜前」が描かれていることも見る
       const labels = await page.evaluate(() => (document.querySelector("main")?.innerText.match(/(たった今|\d+(分|時間|日|ヶ月|年)前)/g) ?? []).length);
@@ -3215,7 +3254,7 @@ for (const [id, label, path] of targets) {
 // 除くもの: 写真・グラデーションの上の文字（背景の色を測れない）、押せない状態（半透明）の部品、見えない文字。
 // 管理画面（/admin）は刷新の対象外なので見ない
 {
-  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
+  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
   const page = await context.newPage();
   const small = [];
   const low = [];
@@ -3324,7 +3363,7 @@ for (const [id, label, path] of targets) {
 // 実際に描かれた文字で、「日本語の文が等幅で描かれている所」と「本文に出ている絵文字」を数える。
 // 使い方の説明ページは文章の中で絵文字に触れるので、絵文字の数からは外す（等幅は見る）
 {
-  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
+  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
   const page = await context.newPage();
   const monoJa = [];
   const emoji = [];
@@ -3403,7 +3442,8 @@ for (const [id, label, path] of targets) {
       return id;
     }, ids.groupId);
     if (!proposalId) throw new Error("提案を作れなかった");
-    const PAGES = [`/groups/${ids.groupId}`, `/groups/${ids.groupId}/games/${ids.gameId}`, `/groups/${ids.groupId}/proposals/${proposalId}`, `/groups/${ids.groupId}/activity`];
+    // グループ画面はスマホでは区画がタブに分かれ、隠れた区画の文字は innerText に入らないので、タブごとに開く
+    const PAGES = [`/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/games/${ids.gameId}`, `/groups/${ids.groupId}/proposals/${proposalId}`, `/groups/${ids.groupId}/activity`];
     for (const path of PAGES) {
       await page.goto(BASE + path, { waitUntil: "networkidle" });
       await page.waitForTimeout(300);
@@ -3444,7 +3484,7 @@ for (const [id, label, path] of targets) {
 {
   const page = await context.newPage();
   try {
-    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/groups/${ids.groupId}?tab=games`, { waitUntil: "networkidle" });
     await page.waitForTimeout(300);
     const r = await page.evaluate(() => {
       const out = { cards: 0, parts: 0, over: [] };
@@ -3473,6 +3513,208 @@ for (const [id, label, path] of targets) {
     rows.push({ id: "B127", item: "ゲームカードのはみ出し", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
   } finally {
     await page.close();
+  }
+}
+
+// ── グループ画面の作り（デザイン刷新の段階5） ──
+// スマホは「ようす・アルバム・ゲーム・ウィッシュ」のタブ（URL の ?tab= に持たせる）、PC（1280px以上）は2列。
+// 見出しに「写真を投稿」「メンバー」「歯車（グループの設定）」。ボタンの高さはスマホ44px・PC36px。
+// 提案のカードの部品も測るので、未採用の提案を1件作り、最後に同じ経路（API）で取り下げる
+{
+  const EXPECTED = {
+    B133: "スマホ幅でタブ4つ（ようす・アルバム・ゲーム・ウィッシュ）が出て、押すとその区画だけが見え、URLに ?tab= が付く",
+    B134: "戻るボタンで前のタブに戻り、?tab= 付きのURLを直接開くとサーバーのHTMLの時点でそのタブになっている（画面の食い違いが出ない）",
+    B135: "グループ画面のボタンと選択欄が、スマホ幅で44px以上・PC幅で36px以上ある（4つのタブすべて・提案のカードも含む）",
+    B136: "PC幅（1440px）では2列（左にアルバムとゲーム、右にようすとウィッシュリスト）、1024pxでは1列で「ようす」が一番上",
+    B137: "見出しの「写真を投稿」はこのグループを選んだ状態で投稿画面を開き、歯車はグループの設定（通知・最少人数・削除）を開く",
+    B138: "メンバー（オーナーでも管理者でもない人）にはグループ画面に歯車が出ず、設定画面も開けない",
+  };
+  const recorded = new Set();
+  const localRows = [];
+  const rec = (id, expected, actual, ok, note = "") => {
+    recorded.add(id);
+    localRows.push({ id, item: EXPECTED[id], expected, actual, ok, note });
+  };
+  const tokenFor = async (who) =>
+    encode({ token: { name: who, email: `${who}@example.com`, sub: `${who}@example.com` }, secret: SECRET, maxAge: 3600 });
+  const newCtx = async (width, height, who = "admin") => {
+    const ctx = await browser.newContext({ viewport: { width, height } });
+    await ctx.addCookies([{ name: "next-auth.session-token", value: await tokenFor(who), domain: "127.0.0.1", path: "/", httpOnly: true }]);
+    return ctx;
+  };
+  const GROUP = `${BASE}/groups/${ids.groupId}`;
+  // 見えている区画（display: none でないもの）
+  const visibleTabs = (p) =>
+    p.evaluate(() => [...document.querySelectorAll("section[data-tab]")].filter((s) => s.getBoundingClientRect().height > 0).map((s) => s.dataset.tab));
+  // 高さの足りないボタン・選択欄
+  const shortControls = (p, min) =>
+    p.evaluate((m) =>
+      [...document.querySelectorAll("main button, main select")]
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0 && r.height < m - 0.5;
+        })
+        .map((el) => `${(el.getAttribute("aria-label") || el.textContent || el.tagName).trim().slice(0, 14)}（${Math.round(el.getBoundingClientRect().height)}px）`),
+    min);
+
+  const phone = await newCtx(390, 844);
+  const page = await phone.newPage();
+  const hydration = [];
+  page.on("console", (m) => {
+    if (m.type() === "error" && /#418|#422|#423|#425|hydrat/i.test(m.text())) hydration.push(m.text().slice(0, 120));
+  });
+  let proposalId = null;
+  try {
+    await page.goto(GROUP, { waitUntil: "networkidle" });
+    proposalId = await page.evaluate(async (gid) => {
+      const res = await fetch(`/api/groups/${gid}/proposals`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ steamAppId: 7700135, title: "高さ確認の提案" }),
+      });
+      return (await res.json().catch(() => null))?.proposal?.id ?? null;
+    }, ids.groupId);
+    await page.reload({ waitUntil: "networkidle" });
+
+    // B133: タブ
+    const tabLabels = (await page.getByRole("tab").allInnerTexts()).map((t) => t.trim());
+    const initial = await visibleTabs(page);
+    await page.getByRole("tab", { name: "ゲーム" }).click();
+    await page.waitForTimeout(300);
+    const afterGames = await visibleTabs(page);
+    const urlGames = new URL(page.url()).search;
+    rec(
+      "B133",
+      "ようす・アルバム・ゲーム・ウィッシュ / 最初は overview だけ / ゲームを押すと games だけ・?tab=games",
+      `${tabLabels.join("・")} / 最初=${initial.join(",")} / 押した後=${afterGames.join(",")}・${urlGames}`,
+      JSON.stringify(tabLabels) === JSON.stringify(["ようす", "アルバム", "ゲーム", "ウィッシュ"]) &&
+        JSON.stringify(initial) === JSON.stringify(["overview"]) &&
+        JSON.stringify(afterGames) === JSON.stringify(["games"]) &&
+        urlGames === "?tab=games"
+    );
+
+    // B134: 戻る・直接開く
+    await page.getByRole("tab", { name: "ウィッシュ" }).click();
+    await page.waitForTimeout(300);
+    await page.goBack();
+    await page.waitForTimeout(500);
+    const afterBack = await visibleTabs(page);
+    const backUrl = new URL(page.url()).search;
+    const html = await (await phone.request.get(`${GROUP}?tab=albums`)).text();
+    // サーバーのHTMLで、アルバムの区画だけが隠されていない（クラスに "hidden" が無い）こと
+    const ssr = [...html.matchAll(/<section[^>]*data-tab="(\w+)"[^>]*class="([^"]*)"/g)].map(([, tab, cls]) => [tab, !/(^|\s)hidden(\s|$)/.test(cls)]);
+    const ssrShown = ssr.filter(([, shown]) => shown).map(([tab]) => tab);
+    hydration.length = 0;
+    await page.goto(`${GROUP}?tab=albums`, { waitUntil: "networkidle" });
+    const direct = await visibleTabs(page);
+    rec(
+      "B134",
+      "戻ると games・?tab=games / HTMLで albums だけ見える / 開いても albums だけ / 食い違い0件",
+      `戻った後=${afterBack.join(",")}・${backUrl} / HTML=${ssrShown.join(",") || "なし"} / 開いた後=${direct.join(",")} / 食い違い${hydration.length}件`,
+      JSON.stringify(afterBack) === JSON.stringify(["games"]) && backUrl === "?tab=games" &&
+        JSON.stringify(ssrShown) === JSON.stringify(["albums"]) && JSON.stringify(direct) === JSON.stringify(["albums"]) &&
+        hydration.length === 0,
+      hydration.slice(0, 2).join(" | ")
+    );
+
+    // B135: 高さ（スマホは4つのタブ、PCは全体）
+    const shortPhone = [];
+    for (const t of ["", "albums", "games", "wishlist"]) {
+      await page.goto(`${GROUP}${t ? `?tab=${t}` : ""}`, { waitUntil: "networkidle" });
+      shortPhone.push(...(await shortControls(page, 44)).map((x) => `${t || "overview"}:${x}`));
+    }
+    const pc = await newCtx(1440, 900);
+    const pcPage = await pc.newPage();
+    let shortPc = [];
+    let layout = { wide: null, narrow: null };
+    try {
+      await pcPage.goto(GROUP, { waitUntil: "networkidle" });
+      shortPc = await shortControls(pcPage, 36);
+      const cardControls = await pcPage.locator('section[data-tab="wishlist"] button, section[data-tab="wishlist"] select').count();
+      rec(
+        "B135",
+        "足りない部品 0件（提案のカードの部品も測っている）",
+        `スマホ ${shortPhone.length}件 / PC ${shortPc.length}件 / ウィッシュリストの部品 ${cardControls}個`,
+        shortPhone.length === 0 && shortPc.length === 0 && cardControls >= 5,
+        [...shortPhone, ...shortPc].slice(0, 5).join(" | ").slice(0, 200)
+      );
+
+      // B136: 2列と1列。区画の箱の位置で見る
+      const boxes = () =>
+        pcPage.evaluate(() =>
+          Object.fromEntries(
+            [...document.querySelectorAll("section[data-tab]")].map((s) => {
+              const r = s.getBoundingClientRect();
+              return [s.dataset.tab, { x: Math.round(r.x), y: Math.round(r.y + window.scrollY) }];
+            })
+          )
+        );
+      const w = await boxes();
+      const wideOk =
+        w.albums.x === w.games.x && w.overview.x === w.wishlist.x && w.overview.x > w.albums.x + 300 &&
+        w.albums.y < w.games.y && w.overview.y < w.wishlist.y;
+      await pcPage.setViewportSize({ width: 1024, height: 900 });
+      await pcPage.waitForTimeout(400);
+      const n = await boxes();
+      const order = Object.entries(n).sort((a, b) => a[1].y - b[1].y).map(([k]) => k);
+      const narrowOk = new Set(Object.values(n).map((b) => b.x)).size === 1 && JSON.stringify(order) === JSON.stringify(["overview", "albums", "games", "wishlist"]);
+      layout = { wideOk, narrowOk, order };
+      rec(
+        "B136",
+        "1440px: 左に albums→games、右に overview→wishlist / 1024px: 1列で overview→albums→games→wishlist",
+        `1440px=${wideOk ? "2列" : JSON.stringify(w)} / 1024px=${order.join("→")}（${narrowOk ? "1列" : "崩れている"}）`,
+        wideOk && narrowOk
+      );
+
+      // B137: 写真を投稿と歯車
+      await pcPage.setViewportSize({ width: 1440, height: 900 });
+      await pcPage.goto(GROUP, { waitUntil: "networkidle" });
+      await pcPage.locator("main").getByRole("link", { name: "写真を投稿" }).click();
+      await pcPage.waitForURL("**/upload?group=**", { timeout: 15000 });
+      await pcPage.waitForTimeout(1200);
+      const selectedGroup = await pcPage.locator(`select:has(option[value="${ids.groupId}"])`).inputValue().catch(() => "");
+      await pcPage.goto(GROUP, { waitUntil: "networkidle" });
+      await pcPage.getByRole("link", { name: "グループの設定" }).click();
+      await pcPage.waitForURL("**/settings", { timeout: 15000 });
+      // 遷移の直後は読み込み中の骨格が出ている。設定画面の見出しが出るまで待ってから読む（待たずに読んで空だった）
+      await pcPage.getByRole("heading", { name: "グループの設定" }).waitFor({ timeout: 15000 });
+      const settingsText = await pcPage.locator("main").innerText();
+      const hasAll = ["Discordへの通知", "プレイ記録", "グループの削除"].every((t) => settingsText.includes(t));
+      rec(
+        "B137",
+        "投稿画面でこのグループが選ばれている / 設定画面に通知・プレイ記録・削除",
+        `選ばれているグループ=${selectedGroup === ids.groupId ? "このグループ" : selectedGroup || "なし"} / 設定画面=${hasAll ? "3つともある" : settingsText.slice(0, 60)}`,
+        selectedGroup === ids.groupId && hasAll
+      );
+    } finally {
+      await pc.close();
+    }
+
+    // B138: メンバーには歯車も設定画面も無い
+    const member = await newCtx(390, 844, "member");
+    try {
+      const mp = await member.newPage();
+      await mp.goto(GROUP, { waitUntil: "networkidle" });
+      const gear = await mp.getByRole("link", { name: "グループの設定" }).count();
+      await mp.goto(`${GROUP}/settings`, { waitUntil: "networkidle" });
+      const body = await mp.locator("body").innerText();
+      const blocked = !body.includes("Discordへの通知") && !body.includes("グループの削除");
+      rec("B138", "歯車0個 / 設定画面の中身が出ない", `歯車${gear}個 / 設定画面=${blocked ? "出ない" : "出ている"}`, gear === 0 && blocked);
+    } finally {
+      await member.close();
+    }
+  } catch (e) {
+    for (const [id, item] of Object.entries(EXPECTED)) {
+      if (recorded.has(id)) continue;
+      localRows.push({ id, item, expected: "—", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+    }
+  } finally {
+    if (proposalId) {
+      await page.evaluate(([gid, pid]) => fetch(`/api/groups/${gid}/proposals/${pid}`, { method: "DELETE" }), [ids.groupId, proposalId]).catch(() => {});
+    }
+    localRows.sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));
+    rows.push(...localRows);
+    await phone.close();
   }
 }
 

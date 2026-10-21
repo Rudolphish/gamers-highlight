@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Bookmark } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { chipBase } from "@/components/ui/buttonStyles";
 
 export type InterestUser = { id: string; name: string };
 
@@ -70,23 +71,19 @@ export function InterestButton({
         title={mine ? "ねらってるを取り消す" : "ねらってる！"}
         aria-pressed={mine}
         aria-label={`ねらってる（${localUsers.length}人）`}
-        className={`flex flex-shrink-0 items-center gap-1 rounded-sm border px-1.5 py-1 text-3xs transition disabled:opacity-50 ${
-          mine
-            ? "border-steam-blue/60 text-steam-blue"
-            : "border-steam-border text-steam-muted hover:border-steam-blue"
-        }`}
+        className={`${chipBase} ${mine ? "border-steam-blue/60 bg-steam-blue/10 text-steam-blue" : "border-steam-border text-steam-muted hover:border-steam-blue"}`}
       >
-        {pending ? <Spinner size={10} /> : <Bookmark size={12} fill={mine ? "currentColor" : "none"} />}
+        {pending ? <Spinner size={14} /> : <Bookmark size={15} fill={mine ? "currentColor" : "none"} aria-hidden="true" />}
         <span>ねらってる</span>
         {localUsers.length > 0 && <span className="font-num">{localUsers.length}</span>}
       </button>
 
       {showNames && localUsers.length > 0 && (
-        <p className="mt-1.5 text-3xs text-steam-muted">
+        <p className="mt-1.5 text-sm text-steam-muted">
           ねらってる: {localUsers.map((u) => u.name).join("、")}
         </p>
       )}
-      {error && <p className="mt-1 text-4xs text-danger">{error}</p>}
+      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
     </div>
   );
 }

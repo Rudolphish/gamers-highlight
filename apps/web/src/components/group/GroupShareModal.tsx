@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Users, X, UserPlus } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { secondaryButton } from "@/components/ui/buttonStyles";
 import { GroupInviteLinks } from "@/components/group/GroupInviteLinks";
 
 type Member = {
@@ -103,11 +104,8 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-sm border border-steam-border px-3 py-2 text-xs text-steam-text hover:border-steam-blue"
-      >
-        <Users size={13} /> メンバー
+      <button onClick={() => setOpen(true)} className={secondaryButton}>
+        <Users size={16} aria-hidden="true" /> メンバー
       </button>
 
       {open && (
