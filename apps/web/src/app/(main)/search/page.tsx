@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Search as SearchIcon, Gamepad2 } from "lucide-react";
 import { PhotoGrid } from "@/components/photo/PhotoGrid";
 import type { MediaKind } from "@/lib/mediaKind";
+import { GAME_STATUS_LABELS } from "@/lib/gameLabels";
 
 type Media = {
   id: string;
@@ -27,12 +28,7 @@ type GroupGameResult = {
   status?: "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  WISHLIST: "プレイ予定",
-  PLAYING: "プレイ中",
-  BACKLOG: "積みゲー",
-  COMPLETED: "クリア済み",
-};
+const STATUS_LABEL: Record<string, string> = GAME_STATUS_LABELS;
 
 export default function SearchPage() {
   const [game, setGame] = useState("");

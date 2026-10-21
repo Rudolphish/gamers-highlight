@@ -10,6 +10,7 @@ import { InterestButton, type InterestUser } from "@/components/group/InterestBu
 import { formatPlayDuration } from "@/lib/playDuration";
 import { translateGenre } from "@/lib/steam";
 import { ActivityIcon } from "@/components/activity/ActivityIcon";
+import { GAME_STATUS_LABELS } from "@/lib/gameLabels";
 
 type GameStatus = "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
 
@@ -28,12 +29,7 @@ type GroupGameItem = {
 
 type SteamResult = { appId: number; name: string; thumbnail: string };
 
-const STATUS_LABEL: Record<GameStatus, string> = {
-  WISHLIST: "プレイ予定",
-  PLAYING: "プレイ中",
-  BACKLOG: "積みゲー",
-  COMPLETED: "クリア済み",
-};
+const STATUS_LABEL: Record<GameStatus, string> = GAME_STATUS_LABELS;
 
 const STATUS_BADGE_CLASS: Record<GameStatus, string> = {
   WISHLIST: "border-steam-blue/50 text-steam-blue",

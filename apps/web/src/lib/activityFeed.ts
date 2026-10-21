@@ -3,6 +3,7 @@ import { activityEmoji, type ActivityKind } from "./activityLog";
 import { RAW_LOG_RETENTION_DAYS } from "./activityRollup";
 import { DAY_MS, JST_OFFSET_MS, dateColumnToString, jstDateColumn, jstDateString } from "./jst";
 import { formatPlayDuration } from "./playDuration";
+import { PROPOSAL_REACTION_LABELS, gameStatusLabel, proposalReactionLabel } from "./gameLabels";
 import { getPlayCalendar, getRecentPlays, type PlayCalendar, type PlayCalendarEntry } from "./playLog";
 
 /**
@@ -253,14 +254,15 @@ export function timelineLabel(kind: string): string {
 function noteOf(kind: string, detail: unknown): string | null {
   if (detail === null || typeof detail !== "object") return null;
   const d = detail as Record<string, unknown>;
+  // 記録にはDBの値（WISHLIST・LIKE）が入っているので、画面の呼び方に直してから出す（以前はそのまま出ていた）
   if (kind === "game.status_changed" && typeof d.to === "string") {
-    return typeof d.from === "string" ? `${d.from} → ${d.to}` : d.to;
+    return typeof d.from === "string" ? `${gameStatusLabel(d.from)} → ${gameStatusLabel(d.to)}` : gameStatusLabel(d.to);
   }
   if ((kind === "proposal.voted" || kind === "proposal.vote_removed") && typeof d.type === "string") {
-    return d.type;
+    return proposalReactionLabel(d.type);
   }
   if (kind === "proposal.accepted" && typeof d.likeCount === "number") {
-    return `👍 ${d.likeCount}`;
+    return `${PROPOSAL_REACTION_LABELS.LIKE} ${d.likeCount}人`;
   }
   return null;
 }

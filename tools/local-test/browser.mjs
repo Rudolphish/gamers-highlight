@@ -1666,27 +1666,28 @@ for (const [id, label, path] of targets) {
 }
 
 // ───────────────────────────────────────────────────────────────
-// モバイルのナビゲーションとスクロール（B84〜B96）
+// スマホのナビゲーションとスクロール（B84〜B93）
 //
-// **このスイートは最初から 390×844（スマホ相当）で走っている**ので、ここで見るのは
-// ドロワー側。PC幅（1280px）は下で別の context を作って骨組みだけ見る——
-// 640px以上を壊しても、390pxだけ見ていると誰も気づけない。
+// 2026-10 のデザイン刷新で、ハンバーガーとドロワーをやめて下のタブ（BottomTabs）にした。
+// **このスイートは最初から 390×844（スマホ相当）で走っている**ので、ここで見るのはタブ側。
+// PC幅（1280px）は下で別の context を作って骨組みだけ見る——
+// 768px以上を壊しても、390pxだけ見ていると誰も気づけない。
 //
 // ブロックごと try/catch で包んである。**入口ごとにガードを置くのでは足りない**
 // （クリックの連鎖はどこで止まっても以降が全部消える。docs/lessons.md）
 {
   // 項目名はIDで引く（添字で引くと、順番を入れ替えた瞬間に別の項目名が入る）
   const EXPECTED = {
-    B84: "スマホ幅ではアイコンレールが出ない",
-    B85: "スマホ幅ではハンバーガーが出る",
-    B86: "ハンバーガーを押すと全項目が文字つきで出て、画面を覆う",
-    B87: "ドロワーのリンクで遷移し、ドロワーが閉じる",
-    B88: "Escで閉じる",
-    B89: "背景のタップで閉じる（本文には抜けない）",
-    B90: "開いている間は背面のスクロールが止まる",
+    B84: "スマホ幅では左のメニューが出ない",
+    B85: "スマホ幅では下のタブ5つ（ホーム・グループ・投稿・アルバム・自分）が文字つきで画面の下端に出る（ハンバーガーは無い）",
+    B86: "タブで遷移し、今いるタブにだけ印が付く",
+    B87: "「自分」タブから自分のページが開き、ログアウトと管理（管理者だけ）が出る",
+    B88: "ページのいちばん下（フッター）がタブの裏に隠れない",
+    B89: "「自分」から開く画面（設定・使い方）にいる間も「自分」のタブに印が付く",
+    B90: "下のタブと本文の下の余白が iPhone のホームバーの高さ（safe-area-inset-bottom）を足す指定になっている",
     B91: "横スクロールが出ない（スマホ幅・表のあるページ）",
     B92: "本文は window がスクロールする（高さを固定したスクローラを作っていない）",
-    B93: "ナビの開閉で例外が出ない",
+    B93: "ナビの操作で例外が出ない",
   };
   const recorded = new Set();
   // **記録した順ではなくID順で表に入れる。** 確認の都合で順番が前後するため、
@@ -1701,6 +1702,12 @@ for (const [id, label, path] of targets) {
     rows.push(...localRows);
     localRows.length = 0;
   };
+  const TAB_LABELS = ["ホーム", "グループ", "投稿", "アルバム", "自分"];
+  // 今いるタブ（aria-current="page"）の名前の一覧
+  const currentTabs = (p) =>
+    p.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="bottom-tabs"] a[aria-current="page"]')].map((a) => a.textContent.trim())
+    );
 
   const page = await context.newPage();
   const problems = [];
@@ -1719,80 +1726,109 @@ for (const [id, label, path] of targets) {
     const railVisible = (await rail.count()) > 0 && (await rail.first().isVisible());
     rec("B84", "出ていない", railVisible ? "出ている" : "出ていない", !railVisible);
 
-    const hamburger = page.getByRole("button", { name: "メニューを開く" });
-    const hamburgerVisible = (await hamburger.count()) > 0 && (await hamburger.isVisible());
-    rec("B85", "出ている", hamburgerVisible ? "出ている" : "出ていない", hamburgerVisible);
-
-    await hamburger.click();
-    const drawer = page.getByRole("dialog", { name: "ナビゲーション" });
-    const linkTexts = await drawer.getByRole("link").allInnerTexts();
-    // **高さも見る。** リンクの数と文字だけを見ていたら、ドロワーがヘッダーの帯の中
-    // （高さ74px）にしか出ていない状態でも通った。`Header` の `backdrop-blur-lg` が
-    // `position: fixed` の包含ブロックになるのが原因で、いまは body へポータルしている
-    const drawerBox = await drawer.boundingBox();
+    // **画面の下端に付いていることまで見る。** ヘッダーのように `backdrop-filter` を持つ箱の中に置くと、
+    // `fixed` が画面ではなくその箱に対して効き、文字もリンクも揃っているのに変な場所に出る（ドロワーで一度やらかした）
+    const tabs = page.locator('[data-testid="bottom-tabs"]');
+    const tabTexts = (await tabs.count()) > 0 ? (await tabs.getByRole("link").allInnerTexts()).map((t) => t.trim()) : [];
+    const tabsBox = (await tabs.count()) > 0 ? await tabs.boundingBox() : null;
     const viewportHeight = page.viewportSize().height;
-    const coversScreen = drawerBox !== null && drawerBox.height >= viewportHeight * 0.9;
-    // admin なので 管理者リンクも入って8項目（navItems.ts: 5 + 2 + 1）。
-    // **文字が出ていることまで見る**——アイコンだけに戻ると、このスイートでは
-    // 「リンクはある」で通ってしまう
-    const labelled = linkTexts.filter((t) => t.trim().length > 0);
+    const atBottom = tabsBox !== null && Math.abs(tabsBox.y + tabsBox.height - viewportHeight) <= 1;
+    const hamburgerCount = await page.getByRole("button", { name: "メニューを開く" }).count();
     rec(
-      "B86",
-      "8項目すべてに文字あり / 画面の高さを覆う",
-      `リンク${linkTexts.length}件 / 文字あり${labelled.length}件 / 高さ${Math.round(drawerBox?.height ?? 0)}（画面${viewportHeight}）`,
-      linkTexts.length === 8 && labelled.length === 8 && coversScreen,
-      labelled.join(",")
+      "B85",
+      `${TAB_LABELS.join("・")} / 下端 / ハンバーガー無し`,
+      `${tabTexts.join("・") || "タブ無し"} / 下端=${tabsBox ? Math.round(tabsBox.y + tabsBox.height) : "-"}（画面${viewportHeight}） / ハンバーガー${hamburgerCount}件`,
+      JSON.stringify(tabTexts) === JSON.stringify(TAB_LABELS) && atBottom && hamburgerCount === 0
     );
 
-    // 背面のスクロールが止まっているか（開いている今のうちに見る）
-    const bodyOverflow = await page.evaluate(() => getComputedStyle(document.body).overflow);
-    rec("B90", "hidden", bodyOverflow, bodyOverflow === "hidden");
-
-    await drawer.getByRole("link", { name: "アルバム" }).click();
+    await tabs.getByRole("link", { name: "アルバム" }).click();
     await page.waitForURL("**/albums", { timeout: 15000 });
     await page.waitForTimeout(300);
-    const stillOpen = (await page.getByRole("dialog", { name: "ナビゲーション" }).count()) > 0;
-    const restoredOverflow = await page.evaluate(() => getComputedStyle(document.body).overflow);
+    const afterAlbums = await currentTabs(page);
     rec(
-      "B87",
-      "/albums へ遷移 / 閉じている / 背面のスクロールが戻る",
-      `${new URL(page.url()).pathname} / ${stillOpen ? "開いている" : "閉じている"} / overflow=${restoredOverflow}`,
-      new URL(page.url()).pathname === "/albums" && !stillOpen && restoredOverflow !== "hidden"
+      "B86",
+      "/albums / 印はアルバムだけ",
+      `${new URL(page.url()).pathname} / 印: ${afterAlbums.join("・") || "なし"}`,
+      new URL(page.url()).pathname === "/albums" && JSON.stringify(afterAlbums) === JSON.stringify(["アルバム"])
     );
 
-    await page.reload({ waitUntil: "networkidle" });
-    await page.getByRole("button", { name: "メニューを開く" }).click();
-    await page.getByRole("dialog", { name: "ナビゲーション" }).waitFor({ timeout: 5000 });
-    await page.keyboard.press("Escape");
-    await page.waitForTimeout(200);
-    const afterEsc = await page.getByRole("dialog", { name: "ナビゲーション" }).count();
-    rec("B88", "0件", `${afterEsc}件`, afterEsc === 0);
-
-    // **閉じ方の確認は1つずつ、状態を戻してから。** Escが効かないときに開いたままだと、
-    // 次の「メニューを開く」が背景に遮られてブロックごと落ちる（壊して確認したときに踏んだ）
-    await page.reload({ waitUntil: "networkidle" });
-    await page.getByRole("button", { name: "メニューを開く" }).click();
-    await page.getByRole("dialog", { name: "ナビゲーション" }).waitFor({ timeout: 5000 });
-    // ドロワーは左端（288px）なので、右端を叩けば背景に当たる
-    const urlBeforeBackdrop = new URL(page.url()).pathname;
-    await page.mouse.click(370, 400);
+    await tabs.getByRole("link", { name: "自分" }).click();
+    await page.waitForURL("**/me", { timeout: 15000 });
     await page.waitForTimeout(300);
-    const afterBackdrop = await page.getByRole("dialog", { name: "ナビゲーション" }).count();
-    const urlAfterBackdrop = new URL(page.url()).pathname;
-    // **遷移していないことまで見る。** 背景が画面を覆えていないとクリックが本文の
-    // リンクに抜け、遷移のついでにドロワーが閉じるので「閉じた」だけでは通ってしまう
+    const afterMe = await currentTabs(page);
+    const signOut = await page.getByRole("button", { name: "ログアウト" }).count();
+    const adminLink = await page.locator('main a[href="/admin"]').count();
     rec(
-      "B89",
-      "0件 / 遷移しない",
-      `${afterBackdrop}件 / ${urlBeforeBackdrop === urlAfterBackdrop ? "遷移なし" : `${urlBeforeBackdrop}→${urlAfterBackdrop}`}`,
-      afterBackdrop === 0 && urlBeforeBackdrop === urlAfterBackdrop
+      "B87",
+      "/me / 印は自分だけ / ログアウトあり / 管理あり（admin で見ている）",
+      `${new URL(page.url()).pathname} / 印: ${afterMe.join("・") || "なし"} / ログアウト${signOut}件 / 管理${adminLink}件`,
+      new URL(page.url()).pathname === "/me" && JSON.stringify(afterMe) === JSON.stringify(["自分"]) && signOut === 1 && adminLink === 1
+    );
+
+    // 「自分」から開いた先でもタブの印が消えないこと（どこにも印が無いと、今どこにいるのか分からない）
+    const subCurrent = [];
+    for (const path of ["/settings/discord", "/manual"]) {
+      await page.goto(BASE + path, { waitUntil: "networkidle" });
+      subCurrent.push(`${path}=${(await currentTabs(page)).join("・") || "なし"}`);
+    }
+    rec("B89", "どちらも 自分", subCurrent.join(" / "), subCurrent.every((s) => s.endsWith("=自分")));
+
+    // **いちばん下まで送ったとき、フッターがタブの裏に隠れていないこと。** 本文の下を空けていないと、
+    // ページの最後のボタンが押せなくなる。矩形の比較に加え、その位置で実際に一番上にいるのがフッターかを見る
+    await page.goto(`${BASE}/manual`, { waitUntil: "networkidle" });
+    const footerState = await page.evaluate(async () => {
+      window.scrollTo(0, document.documentElement.scrollHeight);
+      await new Promise((r) => setTimeout(r, 300));
+      const footer = document.querySelector("footer");
+      const tabsEl = document.querySelector('[data-testid="bottom-tabs"]');
+      if (!footer || !tabsEl) return { ok: false, detail: "フッターかタブが無い" };
+      const f = footer.getBoundingClientRect();
+      const t = tabsEl.getBoundingClientRect();
+      const at = document.elementFromPoint(f.left + f.width / 2, f.top + f.height / 2);
+      return {
+        ok: f.bottom <= t.top + 1 && (at === footer || footer.contains(at)),
+        detail: `フッター下端=${Math.round(f.bottom)} / タブ上端=${Math.round(t.top)} / その位置=${at?.tagName.toLowerCase() ?? "なし"}`,
+      };
+    });
+    rec("B88", "フッター下端 ≤ タブ上端 / その位置にフッター", footerState.detail, footerState.ok);
+
+    // **env(safe-area-inset-bottom) は Chromium では0なので、効いた結果は測れない。** 指定そのものを見る。
+    // `viewport-fit=cover` が無いと iPhone でもこの値は0のままなので、viewport の指定も合わせて見る
+    const safeArea = await page.evaluate(() => {
+      const meta = document.querySelector('meta[name="viewport"]')?.getAttribute("content") ?? "";
+      const tabsEl = document.querySelector('[data-testid="bottom-tabs"]');
+      const column = document.querySelector("footer")?.parentElement;
+      const uses = (el) => {
+        if (!el) return false;
+        for (const sheet of document.styleSheets) {
+          let rules;
+          try {
+            rules = sheet.cssRules;
+          } catch {
+            continue;
+          }
+          for (const rule of rules) {
+            // メディアクエリの中（md:pb-0 など）は数えない。外側の規則だけを見る
+            if (!rule.selectorText || !rule.style) continue;
+            if (rule.style.paddingBottom.includes("safe-area-inset-bottom") && el.matches(rule.selectorText)) return true;
+          }
+        }
+        return false;
+      };
+      return { cover: /viewport-fit=cover/.test(meta), tabs: uses(tabsEl), column: uses(column) };
+    });
+    rec(
+      "B90",
+      "viewport-fit=cover / タブ・本文の下の余白とも指定あり",
+      `cover=${safeArea.cover} / タブ=${safeArea.tabs} / 本文=${safeArea.column}`,
+      safeArea.cover && safeArea.tabs && safeArea.column
     );
 
     // **横スクロールが出ないこと。** `/admin/users` は中に min-w-[820px] の表がある。
     // 抑えているのは `app/(main)/layout.tsx` の内側 div（`overflow-y-auto` が
     // `overflow-x` も `auto` にする）。そこを外すとページ全体が横に流れる
     const widths = [];
-    for (const path of ["/", "/admin/users"]) {
+    for (const path of ["/", "/admin/users", "/me"]) {
       await page.goto(BASE + path, { waitUntil: "networkidle" });
       widths.push(
         await page.evaluate((p) => {
@@ -1851,17 +1887,18 @@ for (const [id, label, path] of targets) {
   }
 }
 
-// PC幅（1280px）の骨組み。**390pxだけ見ていると640px以上を壊しても気づけない。**
+// PC幅（1280px）の骨組み。**390pxだけ見ていると768px以上を壊しても気づけない。**
 {
   // 他の2ブロックと同じ形に揃える。**項目名を記録側と catch 側の2箇所に書いていたのが
-  // 今回の欠陥の温床だった**（`localRows` に移したのに catch の判定は `rows` のままで、
+  // 欠陥の温床だった**（`localRows` に移したのに catch の判定は `rows` のままで、
   // 途中で落ちると記録済みの行まで「未確認」で二重に積まれる形になっていた）
   const EXPECTED = {
-    B94: "PC幅ではアイコンレールが出ている",
-    B95: "PC幅ではハンバーガーが出ない",
+    B94: "PC幅では左のメニューが出ていて、全部の項目に名前が文字で出ている",
+    B95: "PC幅では下のタブも上のヘッダーも出ない",
     B96: "PC幅で横スクロールが出ない",
-    B97: "PC幅で長いページをスクロールしてもナビが残る",
-    B98: "PC幅でアイコンにホバーすると名前が実際に読める",
+    B97: "PC幅で長いページをスクロールしてもメニューが残る",
+    B98: "PC幅ではアカウントが左下に1つ出ていて、押すと自分のページが開く",
+    B128: "PCの左メニューにある行き先は、スマホでもタブか「自分」ページから全部行ける",
   };
   const recorded = new Set();
   // 確認の都合で順番が前後するので、ID順に並べ直してから表へ入れる
@@ -1890,64 +1927,84 @@ for (const [id, label, path] of targets) {
     },
   ]);
   const pcPage = await pcContext.newPage();
+  const phonePage = await context.newPage();
   try {
     await pcPage.goto(`${BASE}/`, { waitUntil: "networkidle" });
 
+    // **名前が「文字として読める」ことまで見る。** 以前はアイコンだけのレールで、名前はホバーのツールチップにしか無かった。
+    // リンクの数だけを見ると、アイコンだけに戻っても通ってしまう。admin なので 5 + 2 + 管理 = 8項目（navItems.ts）
     const rail = pcPage.locator("aside");
     const railVisible = (await rail.count()) > 0 && (await rail.first().isVisible());
+    const items = railVisible
+      ? await pcPage.evaluate(() =>
+          [...document.querySelectorAll('aside nav a')].map((a) => {
+            const label = [...a.querySelectorAll("span")].find((s) => s.textContent.trim());
+            const r = label?.getBoundingClientRect();
+            return { text: label?.textContent.trim() ?? "", visible: !!r && r.width > 0 && r.right <= window.innerWidth && getComputedStyle(label).opacity === "1" };
+          })
+        )
+      : [];
+    const readable = items.filter((i) => i.text && i.visible);
     rec(
       "B94",
-      "出ている",
-      railVisible ? "出ている" : "出ていない",
-      railVisible
+      "出ている / 8項目すべてに名前",
+      `${railVisible ? "出ている" : "出ていない"} / ${items.length}項目・名前あり${readable.length}`,
+      railVisible && items.length === 8 && readable.length === 8,
+      readable.map((i) => i.text).join(",")
     );
 
-    const hamburger = pcPage.getByRole("button", { name: "メニューを開く" });
-    const hamburgerVisible = (await hamburger.count()) > 0 && (await hamburger.isVisible());
+    const tabsVisible = await pcPage.locator('[data-testid="bottom-tabs"]').isVisible().catch(() => false);
+    const headerCount = await pcPage.locator("header").count();
     rec(
       "B95",
-      "出ていない",
-      hamburgerVisible ? "出ている" : "出ていない",
-      !hamburgerVisible
+      "タブ無し / ヘッダー無し",
+      `タブ${tabsVisible ? "出ている" : "無し"} / ヘッダー${headerCount}件`,
+      !tabsVisible && headerCount === 0
     );
 
-    // **PC幅ではアイコンの名前を知る手段がホバーのツールチップだけ**なので、それが
-    // 実際に読めることを見る。`opacity` と矩形は「出ている」と答えるのに画面には無い、
-    // という壊れ方をする（レールの `<nav>` に `overflow-y-auto` を付けたときに実際に起きた。
-    // `overflow-y: auto` は `overflow-x` も `auto` にするため、レールの外に出る
-    // ツールチップが切り取られる。実測: `scrollWidth 202 > clientWidth 84`）。
-    // 見分けられるのは `elementFromPoint` だけ
-    await pcPage.locator("aside").getByRole("link", { name: "アルバム" }).hover();
-    await pcPage.waitForTimeout(400);
-    const tooltip = await pcPage.evaluate(() => {
-      const tip = [...document.querySelectorAll("aside span")].find((e) => e.textContent === "アルバム");
-      if (!tip) return { found: false, opacity: null, hit: false };
-      const r = tip.getBoundingClientRect();
-      // ツールチップには `pointer-events-none` が付いている。**`elementFromPoint` は
-      // pointer-events: none の要素を飛ばして下の要素を返す**ので、そのままでは必ず
-      // 「居ない」になる（これで一度、直っているのに落ち続けた）。測る間だけ戻す
-      const previous = tip.style.pointerEvents;
-      tip.style.pointerEvents = "auto";
-      const at = document.elementFromPoint(r.x + 5, r.y + r.height / 2);
-      tip.style.pointerEvents = previous;
-      return {
-        found: true,
-        opacity: getComputedStyle(tip).opacity,
-        hit: at === tip || tip.contains(at),
-      };
-    });
+    // アカウントは左下。押すと「自分」ページ（設定・使い方・ログアウト）へ行く
+    const account = pcPage.locator('[data-testid="sidebar-account"]');
+    const accountCount = await account.count();
+    const accountBox = accountCount > 0 ? await account.boundingBox() : null;
+    const vh = pcPage.viewportSize().height;
+    const bottomLeft = accountBox !== null && accountBox.x < 240 && accountBox.y + accountBox.height >= vh - 40;
+    let landed = "";
+    if (accountCount === 1) {
+      await account.click();
+      await pcPage.waitForURL("**/me", { timeout: 15000 }).catch(() => {});
+      landed = new URL(pcPage.url()).pathname;
+    }
     rec(
       "B98",
-      "その位置にツールチップが居る",
-      tooltip.found
-        ? `opacity=${tooltip.opacity} / その位置に居る=${tooltip.hit}`
-        : "ツールチップが無い",
-      tooltip.found && tooltip.opacity === "1" && tooltip.hit
+      "1つ / 左下 / /me へ",
+      `${accountCount}つ / ${accountBox ? `x=${Math.round(accountBox.x)} 下端=${Math.round(accountBox.y + accountBox.height)}（画面${vh}）` : "-"} / ${landed || "-"}`,
+      accountCount === 1 && bottomLeft && landed === "/me"
     );
 
-    // **長いページでナビが流れていかないこと。** レールは `sticky top-0 h-[100dvh]` で
-    // 画面に残す。これが無いと親のフレックスに引き伸ばされ、スクロールすると
-    // アイコンが上に抜けていく（PCでだけ起きるので390pxだけ見ていると気づけない）
+    // **PCで行ける場所はスマホでも全部行けること。** タブは5つしか無いので、残りは「自分」ページが拾う。
+    // 片方だけに項目を足すと、画面幅で行ける場所が変わる（CLAUDE.md「ナビの項目は navItems.ts が正本」）
+    await pcPage.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    const pcHrefs = await pcPage.evaluate(() => [...new Set([...document.querySelectorAll("aside a")].map((a) => a.getAttribute("href")))]);
+    await phonePage.goto(`${BASE}/me`, { waitUntil: "networkidle" });
+    const phoneHrefs = await phonePage.evaluate(() => [
+      ...new Set(
+        [...document.querySelectorAll('[data-testid="bottom-tabs"] a, main a')]
+          .filter((a) => a.getBoundingClientRect().width > 0)
+          .map((a) => a.getAttribute("href"))
+      ),
+    ]);
+    // ロゴ（/）はタブの「ホーム」と同じ行き先なので、別扱いしなくても突き合わせに入る
+    const unreachable = pcHrefs.filter((h) => !phoneHrefs.includes(h));
+    rec(
+      "B128",
+      "行けない行き先 0件",
+      unreachable.length === 0 ? `0件（PC ${pcHrefs.length}か所）` : `${unreachable.length}件: ${unreachable.join(", ")}`,
+      pcHrefs.length >= 8 && unreachable.length === 0,
+      `スマホ: ${phoneHrefs.join(" ")}`.slice(0, 200)
+    );
+
+    // **長いページでメニューが流れていかないこと。** `sticky top-0 h-[100dvh]` で画面に残す。
+    // これが無いと親のフレックスに引き伸ばされ、スクロールすると上に抜けていく（PCでだけ起きる）
     await pcPage.goto(`${BASE}/manual`, { waitUntil: "networkidle" });
     await pcPage.evaluate(() => window.scrollTo(0, 900));
     await pcPage.waitForTimeout(300);
@@ -1957,12 +2014,11 @@ for (const [id, label, path] of targets) {
     const navAfterScroll = pcPage.locator("aside").getByRole("link", { name: "ShareStaq ホーム" });
     const box = (await navAfterScroll.count()) > 0 ? await navAfterScroll.boundingBox() : null;
     const scrolled = await pcPage.evaluate(() => Math.round(window.scrollY));
-    const viewportH = pcPage.viewportSize().height;
-    const navStays = box !== null && box.y >= 0 && box.y < viewportH;
+    const navStays = box !== null && box.y >= 0 && box.y < vh;
     rec(
       "B97",
       "画面内に居る",
-      box === null ? "リンクが無い" : `y=${Math.round(box.y)}（scrollY=${scrolled} / 画面高=${viewportH}）`,
+      box === null ? "リンクが無い" : `y=${Math.round(box.y)}（scrollY=${scrolled} / 画面高=${vh}）`,
       navStays && scrolled > 0
     );
 
@@ -1991,6 +2047,7 @@ for (const [id, label, path] of targets) {
     }
   } finally {
     flushRows();
+    await phonePage.close();
     await pcPage.close();
     await pcContext.close();
   }
@@ -3040,7 +3097,7 @@ for (const [id, label, path] of targets) {
 // 除くもの: 写真・グラデーションの上の文字（背景の色を測れない）、押せない状態（半透明）の部品、見えない文字。
 // 管理画面（/admin）は刷新の対象外なので見ない
 {
-  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile"];
+  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
   const page = await context.newPage();
   const small = [];
   const low = [];
@@ -3149,7 +3206,7 @@ for (const [id, label, path] of targets) {
 // 実際に描かれた文字で、「日本語の文が等幅で描かれている所」と「本文に出ている絵文字」を数える。
 // 使い方の説明ページは文章の中で絵文字に触れるので、絵文字の数からは外す（等幅は見る）
 {
-  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile"];
+  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
   const page = await context.newPage();
   const monoJa = [];
   const emoji = [];
@@ -3199,9 +3256,11 @@ for (const [id, label, path] of targets) {
 // 「気になる」が3つの別のものに使われていた: ゲームの状態（WISHLIST）、自分が狙っている印、提案へのリアクション。
 // それぞれ「プレイ予定」「ねらってる」「様子見」に分けた（提案の「興味なし」も「パス」に）。
 // 画面の文字だけでなく title と aria-label も見る（グループ画面の提案カードはリアクションの名前を title にだけ持っている）。
-// **提案は自分で作る。** seed の提案は前のスイートで採用済みになっていて、リアクションの欄が出ない（通しで1回落ちた）
+// **提案は自分で作る。** seed の提案は前のスイートで採用済みになっていて、リアクションの欄が出ない（通しで1回落ちた）。
+// 活動の記録は補足にDBの値をそのまま出していた（「WISHLIST → PLAYING」「LIKE」「👍 2」）ので、英字の値も古い呼び方として数える。
+// 「様子見」で投票しておくと、活動の画面に投票の記録が必ず1件並ぶ
 {
-  const OLD = /気になる|気になって|興味なし/;
+  const OLD = /気になる|気になって|興味なし|\b(WISHLIST|PLAYING|BACKLOG|COMPLETED|LIKE|MAYBE|PASS)\b/;
   const NEW = ["プレイ予定", "ねらってる", "様子見", "パス"];
   const page = await context.newPage();
   const old = [];
@@ -3215,7 +3274,15 @@ for (const [id, label, path] of targets) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ steamAppId: 7700126, title: "言葉の整理テスト" }),
       });
-      return (await res.json().catch(() => null))?.proposal?.id ?? null;
+      const id = (await res.json().catch(() => null))?.proposal?.id ?? null;
+      if (id) {
+        await fetch(`/api/groups/${gid}/proposals/${id}/reactions`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ type: "MAYBE" }),
+        });
+      }
+      return id;
     }, ids.groupId);
     if (!proposalId) throw new Error("提案を作れなかった");
     const PAGES = [`/groups/${ids.groupId}`, `/groups/${ids.groupId}/games/${ids.gameId}`, `/groups/${ids.groupId}/proposals/${proposalId}`, `/groups/${ids.groupId}/activity`];
@@ -3234,7 +3301,7 @@ for (const [id, label, path] of targets) {
     const missing = NEW.filter((w) => !all.includes(w));
     rows.push({
       id: "B126",
-      item: "グループ・ゲーム詳細・提案・活動の画面に古い呼び方（気になる・興味なし）が無く、新しい呼び方（プレイ予定・ねらってる・様子見・パス）が出ている",
+      item: "グループ・ゲーム詳細・提案・活動の画面に古い呼び方（気になる・興味なし・DBの英字の値）が無く、新しい呼び方（プレイ予定・ねらってる・様子見・パス）が出ている",
       expected: "古い呼び方 0件・新しい呼び方 4つとも出ている",
       actual: `古い呼び方 ${old.length}件・出ていない新しい呼び方 ${missing.join("、") || "なし"}`,
       ok: old.length === 0 && missing.length === 0,

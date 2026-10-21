@@ -4,15 +4,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Meh, Minus, ThumbsUp, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { PROPOSAL_REACTION_LABELS } from "@/lib/gameLabels";
 
 export type ReactionType = "LIKE" | "MAYBE" | "PASS";
 
 export type ProposalVoter = { userId: string; name: string; type: ReactionType };
 
 const REACTIONS: { type: ReactionType; icon: typeof ThumbsUp; label: string }[] = [
-  { type: "LIKE", icon: ThumbsUp, label: "やりたい" },
-  { type: "MAYBE", icon: Meh, label: "様子見" },
-  { type: "PASS", icon: Minus, label: "パス" },
+  { type: "LIKE", icon: ThumbsUp, label: PROPOSAL_REACTION_LABELS.LIKE },
+  { type: "MAYBE", icon: Meh, label: PROPOSAL_REACTION_LABELS.MAYBE },
+  { type: "PASS", icon: Minus, label: PROPOSAL_REACTION_LABELS.PASS },
 ];
 
 /**

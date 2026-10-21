@@ -22,6 +22,7 @@ export const config = {
     "/albums/:path*",
     "/groups/:path*",
     "/manual/:path*",
+    "/me/:path*",
     "/search/:path*",
     "/upload/:path*",
     "/settings/:path*",

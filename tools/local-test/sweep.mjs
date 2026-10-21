@@ -60,6 +60,7 @@ const cases = [
   ["P19", "設定・許可リスト", "/settings/allowlist", { anon: LOGIN, admin: OK, member: OK }],
   ["P20", "設定・Discord連携", "/settings/discord", { anon: LOGIN, admin: OK }],
   ["P21", "設定・チャンネル対応", "/settings/channel-mapping", { anon: LOGIN, admin: OK }],
+  ["P21b", "自分（設定・使い方・ログアウトの入口）", "/me", { anon: LOGIN, admin: OK, member: OK, outsider: OK }],
   ["P22", "管理・使用量（管理者のみ）", "/admin", { anon: LOGIN, admin: OK, member: NF, outsider: NF }],
   ["P23", "管理・エラー", "/admin/errors", { anon: LOGIN, admin: OK, member: NF }],
   ["P24", "管理・招待リンク", "/admin/invites", { anon: LOGIN, admin: OK, member: NF }],

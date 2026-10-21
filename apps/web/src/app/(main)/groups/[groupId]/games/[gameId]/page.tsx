@@ -18,13 +18,9 @@ import { RefreshGameDataButton } from "@/components/group/RefreshGameDataButton"
 import { REFRESH_INTERVAL_MS } from "@/lib/externalGameCache";
 import { getGamePlaySummary } from "@/lib/playLog";
 import { GroupPlayLogPanel } from "@/components/game/GroupPlayLogPanel";
+import { GAME_STATUS_LABELS } from "@/lib/gameLabels";
 
-const STATUS_LABEL = {
-  WISHLIST: "プレイ予定",
-  PLAYING: "プレイ中",
-  BACKLOG: "積みゲー",
-  COMPLETED: "クリア済み",
-} as const;
+const STATUS_LABEL = GAME_STATUS_LABELS;
 
 // ゲーム詳細ページ：左にSteamの基本情報（レビュー・現在価格・リンク・関連動画）、
 // 右上に最新ニュースの全文、右下に価格情報（IsThereAnyDeal API）を配置する。

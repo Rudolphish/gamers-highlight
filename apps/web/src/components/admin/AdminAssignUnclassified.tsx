@@ -56,7 +56,8 @@ export function AdminAssignProvider({
       {children}
 
       {selected.size > 0 && (
-        <div className="sticky bottom-3 z-30 mt-4 flex items-center justify-between gap-3 rounded-sm border border-steam-blue bg-steam-surface px-3 py-2 shadow-lg">
+        // スマホでは下のタブ（高さ56px＋ホームバーの余白）の上に出す。bottom-3 のままだとタブの裏に隠れて押せない
+        <div className="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 mt-4 md:bottom-3 flex items-center justify-between gap-3 rounded-sm border border-steam-blue bg-steam-surface px-3 py-2 shadow-lg">
           <span className="text-xs text-steam-text">未分類 {selected.size}件を選択中</span>
           <div className="flex items-center gap-2">
             <button

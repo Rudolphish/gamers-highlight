@@ -26,6 +26,8 @@ module.exports = {
           text: "#dde5ec",
           muted: "#a3afba",
           blue: "#5ab0ea",
+          // 左のメニューとスマホの下のタブ。本文より一段暗くして、骨組みと中身を分ける
+          rail: "#0d1218",
         },
         // 目立たせる色は青1つ（押せるもの・選ばれているもの）。ink はその上に載せる文字
         accent: { DEFAULT: "#5ab0ea", ink: "#0b1218" },
