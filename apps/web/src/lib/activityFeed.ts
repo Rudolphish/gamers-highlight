@@ -4,7 +4,7 @@ import { RAW_LOG_RETENTION_DAYS } from "./activityRollup";
 import { DAY_MS, JST_OFFSET_MS, dateColumnToString, jstDateColumn, jstDateString } from "./jst";
 import { formatPlayDuration } from "./playDuration";
 import { PROPOSAL_REACTION_LABELS, gameStatusLabel, proposalReactionLabel } from "./gameLabels";
-import { getPlayCalendar, getRecentPlays, type PlayCalendar, type PlayCalendarEntry } from "./playLog";
+import { getPlayCalendar, getRecentPlaysForGroups, type PlayCalendar, type PlayCalendarEntry } from "./playLog";
 
 /**
  * カレンダーとタイムラインの読み取り。設計は docs/activity-log.md §9。
@@ -236,6 +236,7 @@ const TIMELINE_LABELS: Record<ActivityKind, string> = {
   "game.removed": "ゲームを削除",
   "game.interest_added": "ねらってるを付けた",
   "game.interest_removed": "ねらってるを外した",
+  "game.price_dropped": "最安値を更新",
   // グループ画面では「ゲーム提案」を「ウィッシュリスト」と呼ぶ（2026-10-18 ユーザー判断）。投票・採用は仕組みの言い方なので「提案」のまま
   "proposal.created": "ウィッシュリストに追加",
   "proposal.voted": "提案に投票",
@@ -263,6 +264,9 @@ function noteOf(kind: string, detail: unknown): string | null {
   }
   if (kind === "proposal.accepted" && typeof d.likeCount === "number") {
     return `${PROPOSAL_REACTION_LABELS.LIKE} ${d.likeCount}人`;
+  }
+  if (kind === "game.price_dropped" && typeof d.price === "number") {
+    return `¥${d.price.toLocaleString("ja-JP")}${typeof d.shop === "string" ? `（${d.shop}）` : ""}`;
   }
   return null;
 }
@@ -420,13 +424,25 @@ export async function loadActivityMonth(
   return { calendar, play, timeline: mergeTimeline(events, playTimelineEntries(groupId, playEntries)) };
 }
 
+export type RecentEntry = TimelineEntry & {
+  /** どのグループの出来事か。ホームの「みんなの動き」（複数のグループを混ぜる）でだけ入れる */
+  groupName: string | null;
+};
+
 export type RecentDay = {
   /** JSTの `YYYY-MM-DD` */
   date: string;
   /** 「今日」「昨日」「10/16（金）」 */
   label: string;
-  entries: TimelineEntry[];
+  entries: RecentEntry[];
 };
+
+/**
+ * 「最近の動き」に出さない種類。取り消し系（`GROUP_HIDDEN_KINDS`）に加えて**ステータスの変更**。
+ * 一覧の札を付け替えるたびに流れて、ほかの動きが押し出されていた（2026-10-21 ユーザー判断）。
+ * カレンダー（/groups/[groupId]/activity）には今までどおり出す
+ */
+export const RECENT_HIDDEN_KINDS: readonly ActivityKind[] = [...GROUP_HIDDEN_KINDS, "game.status_changed"];
 
 /** 写真のまとめで食われる分を見込んで、出す件数より多めに引く */
 const RECENT_LOG_FETCH = 50;
@@ -438,26 +454,41 @@ const RECENT_LOG_FETCH = 50;
  *   去年の位置に沈んで出てこない（週次まとめと同じ理由）。カレンダーは今までどおり `occurredAt`
  * - プレイ記録は始まった時刻で並べる
  * - **同じ人が続けて写真を投稿したら1行にまとめる**（「写真を7枚投稿」。ユーザー判断）。間に別の行が挟まる・日をまたぐと切る
- * - 取り消し系（`GROUP_HIDDEN_KINDS`）は出さない
+ * - 取り消し系とステータスの変更（`RECENT_HIDDEN_KINDS`）は出さない
  * - キャッシュに載せない。出来事は Bot・各API・cron のどこからでも書かれるので、無効化を漏れなく入れるより毎回読む
  * - リンクはプレイ記録のゲームだけ（対象が残っているかを確かめる往復をグループ画面に足さない。詳しくは専用ページで見る）
  */
 export async function getRecentActivity(groupId: string, limit = 5, now = new Date()): Promise<RecentDay[]> {
+  return getRecentActivityForGroups([{ id: groupId, name: null }], limit, now);
+}
+
+/**
+ * 複数のグループの「最近の動き」を混ぜて新しい順に `limit` 件（ホームの「みんなの動き」）。
+ * 中身の決まりは `getRecentActivity` と同じ。`name` を渡したグループは各行に名前を添える。
+ * **権限は判定しない**（呼ぶ側が、その人の所属するグループだけを渡す）
+ */
+export async function getRecentActivityForGroups(
+  groups: { id: string; name: string | null }[],
+  limit = 5,
+  now = new Date()
+): Promise<RecentDay[]> {
+  if (groups.length === 0) return [];
+  const nameOf = new Map(groups.map((g) => [g.id, g.name]));
   const [logs, plays] = await Promise.all([
     db.activityLog.findMany({
-      where: { groupId, kind: { notIn: [...GROUP_HIDDEN_KINDS] } },
+      where: { groupId: { in: groups.map((g) => g.id) }, kind: { notIn: [...RECENT_HIDDEN_KINDS] } },
       orderBy: { createdAt: "desc" },
       take: RECENT_LOG_FETCH,
-      select: { id: true, kind: true, actorId: true, targetName: true, createdAt: true },
+      select: { id: true, kind: true, actorId: true, targetName: true, createdAt: true, groupId: true, detail: true },
     }),
-    getRecentPlays(groupId, limit, now),
+    getRecentPlaysForGroups(groups.map((g) => g.id), limit, now),
   ]);
   const actorIds = [...new Set(logs.map((l) => l.actorId).filter((id): id is string => id !== null))];
   const actors = actorIds.length
     ? await db.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } })
     : [];
 
-  type Row = TimelineEntry & { actorId: string | null; photos: number; games: Set<string | null> };
+  type Row = RecentEntry & { actorId: string | null; groupId: string | null; photos: number; games: Set<string | null> };
   const rows: Row[] = [
     ...logs.map((l) => {
       const actor = actors.find((u) => u.id === l.actorId);
@@ -470,17 +501,29 @@ export async function getRecentActivity(groupId: string, limit = 5, now = new Da
         createdAt: l.createdAt,
         actorName: l.actorId ? (actor ? (actor.name ?? "メンバー") : "（退会）") : null,
         targetName: l.targetName,
-        note: null,
+        // 値が要るのは最安値の更新だけ（どの値段になったか）。ほかの種類はグループ画面では補足を出してこなかった
+        note: l.kind === "game.price_dropped" ? noteOf(l.kind, l.detail) : null,
         href: null,
+        groupName: l.groupId ? (nameOf.get(l.groupId) ?? null) : null,
         actorId: l.actorId,
+        groupId: l.groupId,
         photos: 1,
         games: new Set([l.targetName]),
       };
     }),
-    ...playTimelineEntries(groupId, plays).map((e) => ({ ...e, actorId: null, photos: 0, games: new Set<string | null>() })),
+    ...plays.flatMap(({ groupId, entry }) =>
+      playTimelineEntries(groupId, [entry]).map((e) => ({
+        ...e,
+        groupName: nameOf.get(groupId) ?? null,
+        actorId: null,
+        groupId,
+        photos: 0,
+        games: new Set<string | null>(),
+      }))
+    ),
   ].sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
 
-  // 新しい順に見て、直前の行が「同じ人の写真の投稿・同じ日」なら足し込む
+  // 新しい順に見て、直前の行が「同じ人の写真の投稿・同じグループ・同じ日」なら足し込む
   const merged: Row[] = [];
   for (const row of rows) {
     const prev = merged[merged.length - 1];
@@ -489,6 +532,7 @@ export async function getRecentActivity(groupId: string, limit = 5, now = new Da
       row.kind === "photo.created" &&
       prev.kind === "photo.created" &&
       prev.actorId === row.actorId &&
+      prev.groupId === row.groupId &&
       jstDateString(prev.occurredAt) === jstDateString(row.occurredAt)
     ) {
       prev.photos += 1;
@@ -503,7 +547,7 @@ export async function getRecentActivity(groupId: string, limit = 5, now = new Da
   const yesterday = jstDateString(new Date(now.getTime() - DAY_MS));
   const days: RecentDay[] = [];
   for (const row of merged) {
-    const { actorId: _actorId, photos, games, ...entry } = row;
+    const { actorId: _actorId, groupId: _groupId, photos, games, ...entry } = row;
     if (photos > 1) {
       entry.label = `写真を${photos}枚投稿`;
       // まとめた写真のゲームが揃っているときだけゲーム名を添える

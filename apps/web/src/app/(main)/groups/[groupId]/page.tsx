@@ -207,7 +207,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
         />
       )}
       {recentDays.length > 0 ? (
-        <RecentActivity groupId={group.id} days={recentDays} />
+        <RecentActivity days={recentDays} calendarHref={`/groups/${group.id}/activity`} />
       ) : (
         !(playTotals && playTotals.totalMs > 0) && (
           <EmptyState icon={Activity} title="まだ動きはありません" description="写真を投稿したり、みんなでゲームを遊んだりすると、ここに出ます。" />

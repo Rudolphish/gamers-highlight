@@ -20,10 +20,11 @@ export function RecentActivity({ photos }: { photos: RecentPhoto[] }) {
   if (photos.length === 0) return null;
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
+    // スマホは横に送る1列。PC（1024px以上）は「みんなの動き」の右に置くので、折り返して並べる（2026-10-21）
+    <div className="flex gap-3 overflow-x-auto pb-2 lg:grid lg:grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] lg:overflow-visible">
       {photos.map((p) => {
         const thumb = (
-          <div className="w-32 flex-shrink-0">
+          <div className="w-32 flex-shrink-0 lg:w-auto">
             <div className="relative aspect-square overflow-hidden rounded-lg bg-steam-panel">
               {p.mediaType === "VIDEO" && !p.thumbnailUrl ? (
                 <video

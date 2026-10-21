@@ -10,6 +10,8 @@
 //     → その出来事だけが週次まとめとカレンダーから永久に消える
 //   - GET なのに呼んでいる
 //     → 読んだだけで「出来事」が増える（数字が壊れる）
+//     ただし cron（isCronRequest で CRON_SECRET を確かめるハンドラ）は除く。Vercel Cron は GET で呼ぶので
+//     GET にするしかなく、人が開いて読むことはない（最安値の更新 game.price_dropped を check-wishlist-prices が書く）
 //
 // 使い方: node tools/local-test/audit-activity-log.mjs
 import { readFileSync, globSync } from "node:fs";
@@ -46,6 +48,9 @@ const HANDLER =
 // 黙って対象外にすると、本当の呼び忘れと区別がつかなくなる。
 const INTENTIONAL = /audit-activity-log:\s*(?:意図的に)?記録しない\s*[（(]?([^\n)）]*)/;
 
+// cron のハンドラ。呼び出しの形で見る（コメントの単語には反応させない。上の IMPORTS_ACTIVITY と同じ考え方）
+const CRON_GUARD = /\bisCronRequest\s*\(/;
+
 const rows = [];
 const problems = [];
 
@@ -62,7 +67,7 @@ for (const rel of files) {
     if (writes.length === 0 && !logs) continue;
 
     let issue = "";
-    if (method === "GET" && logs) {
+    if (method === "GET" && logs && !CRON_GUARD.test(body)) {
       issue = "GETなのに記録している（読んだだけで出来事が増える）";
     } else if (method !== "GET" && writes.length > 0 && !logs && !intentional) {
       issue = "記録対象を書き換えているのに logActivity を呼んでいない";

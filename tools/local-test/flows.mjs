@@ -4143,6 +4143,53 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── ホームの「みんなの動き」と、最近の動きからステータスの変更を外す（2026-10-21 ユーザー判断） ──
+// - ホームには自分の所属するグループの動きだけが出て、グループ名が添えられる（他人のグループの出来事は出ない）
+// - 「みんなの動き」は「最近の投稿」より上
+// - ステータスの変更は、グループ画面の「最近の動き」とホームには出ず、活動カレンダーには今までどおり出る
+{
+  const otherGroup = await db.group.findFirst({ where: { name: "部外者のグループ" } });
+  const made = [];
+  try {
+    const now = new Date();
+    const mk = async (groupId, kind, targetName) =>
+      made.push((await db.activityLog.create({ data: { kind, targetId: randomUUID(), targetName, groupId, actorId: null, occurredAt: now, createdAt: now } })).id);
+    await mk(group.id, "album.created", "みんなの動きの確認アルバム");
+    await mk(group.id, "game.status_changed", "ステータスだけ変えたゲーム");
+    await mk(otherGroup.id, "album.created", "部外者だけの出来事");
+    const [adminHome, outsiderHome, groupPage] = await Promise.all([
+      api("/", { cookie: adminCookie }),
+      api("/", { cookie: outsiderCookie }),
+      api(`/groups/${group.id}`, { cookie: adminCookie }),
+    ]);
+    const today = new Date(now.getTime() + 9 * 3600000).toISOString().slice(0, 10);
+    const calendar = await api(`/groups/${group.id}/activity?month=${today.slice(0, 7)}&date=${today}`, { cookie: adminCookie });
+    const homeSection = (html) => {
+      const at = html.indexOf('data-testid="home-activity"');
+      return at >= 0 ? html.slice(at, html.indexOf("</section>", at)) : "";
+    };
+    const a = homeSection(adminHome.text);
+    const o = homeSection(outsiderHome.text);
+    // 見出しのタグで比べる。素の「最近の投稿」は、HTMLの前半にある Next.js の埋め込みデータ（RSC）に先に出てくる
+    const activityBeforePhotos = adminHome.text.indexOf('data-testid="home-activity"') < adminHome.text.indexOf(">最近の投稿</h2>");
+    check(
+      "F311 ホームに所属グループの「みんなの動き」がグループ名つきで「最近の投稿」より上に出て、他人のグループの出来事は出ない。ステータスの変更は最近の動きとホームに出ず、活動カレンダーには出る",
+      adminHome.status === 200 && a.includes("みんなの動き") && a.includes("みんなの動きの確認アルバム") && a.includes(group.name) &&
+        !a.includes("部外者だけの出来事") && activityBeforePhotos &&
+        o.includes("部外者だけの出来事") && !o.includes("みんなの動きの確認アルバム") &&
+        !a.includes("ステータスだけ変えたゲーム") && !groupPage.text.includes("ステータスだけ変えたゲーム") &&
+        calendar.text.includes("ステータスだけ変えたゲーム"),
+      `ホーム(管理者)=${!!a}・自分のグループ=${a.includes("みんなの動きの確認アルバム")}・グループ名=${a.includes(group.name)}・他人=${a.includes("部外者だけの出来事")}・投稿より上=${activityBeforePhotos} / ` +
+        `ホーム(部外者)=${o.includes("部外者だけの出来事")}・他人=${o.includes("みんなの動きの確認アルバム")} / ステータス変更: ホーム=${a.includes("ステータスだけ変えたゲーム")}・グループ画面=${groupPage.text.includes("ステータスだけ変えたゲーム")}・カレンダー=${calendar.text.includes("ステータスだけ変えたゲーム")}`
+    );
+  } catch (e) {
+    check("F311x みんなの動きの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    // 出来事の記録はキャッシュに載せていない（ホームとグループ画面も毎回読む）のでDBから直接消してよい
+    await db.activityLog.deleteMany({ where: { id: { in: made } } });
+  }
+}
+
 // ── 使い方の説明ページ（2026-10-19 に載っていなかった機能を足した） ──
 // 中身はタップで開くまで描かれないので、項目の見出しで見る。管理者向けの項目は管理者にだけ出る
 {

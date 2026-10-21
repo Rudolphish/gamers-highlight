@@ -4127,6 +4127,41 @@ for (const [id, label, path] of targets) {
   }
 }
 
+// ── ホームの「みんなの動き」の置き場所（2026-10-21 ユーザー判断: 最近の投稿の上、PCは左右に並べる） ──
+// 中身（自分のグループだけ・グループ名つき）は flows の F311。ここは並び：1440px で左が「みんなの動き」・右が「最近の投稿」で
+// 上端が揃い、390px では「みんなの動き」が上。どちらの幅でも横にはみ出さない
+{
+  const page = await context.newPage();
+  try {
+    const boxes = () =>
+      page.evaluate(() => {
+        const act = document.querySelector('[data-testid="home-activity"]');
+        const photos = [...document.querySelectorAll("main h2")].find((h) => h.textContent?.trim() === "最近の投稿")?.closest("section");
+        const box = (el) => (el ? (({ x, y, width }) => ({ x: Math.round(x), y: Math.round(y + window.scrollY), w: Math.round(width) }))(el.getBoundingClientRect()) : null);
+        return { act: box(act), photos: box(photos), wide: document.documentElement.scrollWidth > window.innerWidth };
+      });
+    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    const phone = await boxes();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    const pc = await boxes();
+    const phoneOk = !!phone.act && !!phone.photos && phone.act.y < phone.photos.y && phone.act.x === phone.photos.x && !phone.wide;
+    const pcOk = !!pc.act && !!pc.photos && pc.act.x < pc.photos.x && Math.abs(pc.act.y - pc.photos.y) <= 2 && pc.act.w <= 360 && !pc.wide;
+    rows.push({
+      id: "B146",
+      item: "ホームの「みんなの動き」が、スマホ幅では「最近の投稿」の上に、PC幅では左に並び（上端が揃う）、横にはみ出さない",
+      expected: "390px: 上が「みんなの動き」・左端が同じ / 1440px: 左が「みんなの動き」（幅360px以下）・上端が揃う",
+      actual: `390px: ${JSON.stringify(phone)} / 1440px: ${JSON.stringify(pc)}`,
+      ok: phoneOk && pcOk,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B146", item: "ホームの「みんなの動き」の置き場所", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    await page.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）
