@@ -152,20 +152,14 @@ export default async function GroupGameDetailPage({
           <GameReviewsPanel reviews={reviewItems} />
           <GamePricePanel price={price} itad={itad} />
 
-          {/* 項目ごとに収録状況が違うため、1つでも時間が取れていればカードを出す */}
-          {game.hltbGameId !== null &&
-            (game.hltbMainHours !== null ||
-              game.hltbMainExtraHours !== null ||
-              game.hltbCompletionistHours !== null ||
-              game.hltbAllStylesHours !== null) && (
-              <HltbCard
-                gameId={game.hltbGameId}
-                main={game.hltbMainHours}
-                mainExtra={game.hltbMainExtraHours}
-                completionist={game.hltbCompletionistHours}
-                allStyles={game.hltbAllStylesHours}
-              />
-            )}
+          {/* 取れなかったときも枠は出す（「データなし」と書く。HltbCard のコメント） */}
+          <HltbCard
+            gameId={game.hltbGameId}
+            main={game.hltbMainHours}
+            mainExtra={game.hltbMainExtraHours}
+            completionist={game.hltbCompletionistHours}
+            allStyles={game.hltbAllStylesHours}
+          />
         </div>
       </div>
     </main>

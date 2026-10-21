@@ -11,6 +11,12 @@ const BASE = "inline-flex flex-shrink-0 items-center justify-center gap-1.5 whit
 
 /** 目立たせる操作（写真を投稿・追加する）。青は1画面に1〜2個まで */
 export const primaryButton = `${BASE} ${BUTTON_HEIGHT} bg-accent px-4 font-bold text-accent-ink hover:brightness-110`;
+/**
+ * 区画の見出しの横の「足す」操作（新規アルバム・ゲームを追加・ウィッシュリストに追加する）。薄い青の面に青い文字。
+ * 追加系だと色で分かるようにしつつ、画面でいちばん目立つのは青の塗り（写真を投稿）のままにする
+ * （同じ塗りにするとグループ画面に青の塗りが4つ並ぶ。ユーザーが2案から選んだ）
+ */
+export const addButton = `${BASE} ${BUTTON_HEIGHT} bg-steam-blue/15 px-4 font-bold text-steam-blue hover:bg-steam-blue/25`;
 /** ふつうの操作（メンバー・さらに表示） */
 export const secondaryButton = `${BASE} ${BUTTON_HEIGHT} bg-steam-panel px-4 text-steam-text hover:bg-steam-border`;
 /** 取り返しのつかない操作（削除） */

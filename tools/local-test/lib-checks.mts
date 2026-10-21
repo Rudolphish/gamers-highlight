@@ -558,11 +558,13 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
 
 // F307: ウィッシュリストのカードの価格。割引中・無料・価格なし・「今が最安値」の4通りと、ITAD の応答の取り出し
 {
-  const sale = toWishlistPrice({ isFree: false, discountPercent: 50, finalAmount: 4990 }, 4990);
+  const sale = toWishlistPrice({ isFree: false, discountPercent: 50, finalAmount: 4990, initialAmount: 9980 }, 4990);
   const above = toWishlistPrice({ isFree: false, discountPercent: 0, finalAmount: 1000 }, 640);
   const free = toWishlistPrice({ isFree: true, discountPercent: 0, finalAmount: 0 }, null);
   const lowOnly = toWishlistPrice(null, 745);
   const none = toWishlistPrice(null, null);
+  // 割引前の値段が今と同じ・安い（壊れた応答）なら取り消し線は出さない
+  const oddInitial = toWishlistPrice({ isFree: false, discountPercent: 10, finalAmount: 1000, initialAmount: 1000 }, null);
   const ok = [{ id: "g1", deals: [{ shop: { id: 35, name: "GOG" }, storeLow: { amount: 100 } }, { shop: { id: 61, name: "Steam" }, storeLow: { amount: 990 } }] }];
   const parsed = {
     steam: parseSteamStoreLow(ok, "g1"),
@@ -572,14 +574,15 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
   };
   check(
     "F307",
-    "ウィッシュリストの価格: 最安値と同じなら印が付き、高ければ付かない。無料は「無料」で印なし、最安値だけでも出し、どちらも無ければ出さない。ITAD の応答からはSteamの storeLow だけを取る",
-    sale?.atLow === true && sale.price === 4990 && sale.discountPercent === 50 &&
-      above?.atLow === false && above.steamLow === 640 &&
+    "ウィッシュリストの価格: 最安値と同じなら印が付き、高ければ付かない。割引中は割引前の値段も持つ（今より高いときだけ）。無料は「無料」で印なし、最安値だけでも出し、どちらも無ければ出さない。ITAD の応答からはSteamの storeLow だけを取る",
+    sale?.atLow === true && sale.price === 4990 && sale.discountPercent === 50 && sale.originalPrice === 9980 &&
+      above?.atLow === false && above.steamLow === 640 && above.originalPrice === null &&
+      oddInitial?.originalPrice === null &&
       free?.isFree === true && free.price === 0 && free.atLow === false &&
       lowOnly?.price === null && lowOnly.steamLow === 745 && lowOnly.atLow === false &&
       none === null &&
       parsed.steam === 990 && parsed.otherId === null && parsed.noSteam === null && parsed.notArray === null,
-    { sale, above, free, lowOnly, none, parsed }
+    { sale, above, free, lowOnly, none, oddInitial, parsed }
   );
 }
 

@@ -46,6 +46,8 @@ function appdetails(url) {
             : {
                 // 実物と同じく100倍の整数（ウィッシュリストの「最安値」の印は数値で比べる）
                 final: 473000,
+                // 割引前の値段。ウィッシュリストのカードで取り消し線を付けて出す
+                initial: 860000,
                 final_formatted: "¥ 4,730",
                 initial_formatted: "¥ 8,600",
                 discount_percent: 45,

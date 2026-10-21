@@ -4679,6 +4679,24 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── ゲーム詳細の HowLongToBeat：取れなかったゲームでも枠を出し「データなし」と書く（2026-10-21 ユーザー判断） ──
+// 以前は取れなかったゲームではカードごと出さず、「無い」のか「出し忘れ」なのか画面から分からなかった。
+// 取れているゲームでは今までどおり時間の行が出て、「データなし」は出ない
+{
+  const games = await db.groupGame.findMany({ where: { groupId: group.id }, select: { id: true, title: true, hltbGameId: true, hltbMainHours: true } });
+  const missing = games.find((g) => g.hltbGameId === null);
+  const present = games.find((g) => g.hltbGameId !== null && g.hltbMainHours !== null);
+  const pageOf = async (g) => (g ? (await api(`/groups/${group.id}/games/${g.id}`, { cookie: adminCookie })).text : "");
+  const [missingHtml, presentHtml] = await Promise.all([pageOf(missing), pageOf(present)]);
+  check(
+    "F308 ゲーム詳細：HowLongToBeat が取れなかったゲームでも枠と「データなし」が出る。取れたゲームでは時間が出て「データなし」は出ない",
+    !!missing && !!present &&
+      missingHtml.includes('data-testid="hltb-empty"') && missingHtml.includes("HowLongToBeat のデータなし") &&
+      presentHtml.includes("クリアのみ") && !presentHtml.includes('data-testid="hltb-empty"'),
+    `取れなかった=${missing?.title ?? "該当なし"}（枠=${missingHtml.includes('data-testid="hltb-empty"')}） / 取れた=${present?.title ?? "該当なし"}（時間=${presentHtml.includes("クリアのみ")}・データなし=${presentHtml.includes('data-testid="hltb-empty"')}）`
+  );
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();
