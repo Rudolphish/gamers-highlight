@@ -131,7 +131,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            ゲームが決まらなかった投稿は「未分類」として残ります。サイドバーの
+            ゲームが決まらなかった投稿は「未分類」として残ります。メニューの
             <strong className="text-steam-text">「アルバム」</strong>
             を開くと、未分類が1件でもあれば上部にカードが出るので、そこから振り分け画面に入れます。
           </p>
@@ -407,7 +407,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             グループに参加すると、配下の全アルバムを自動で閲覧できるようになります（VIEWER権限）。特定のアルバムだけ編集権限を渡したい場合は、アルバム詳細ページの「メンバー」から個別に招待できます。
           </p>
           <p>
-            サイドバーの「アルバム」は所属グループを問わず全てのアルバムをフラットに一覧表示し、どのグループ所属かバッジで表示します。「グループ」からはグループ単位でまとまったアルバム一覧を見られます。
+            メニューの「アルバム」は所属グループを問わず全てのアルバムをフラットに一覧表示し、どのグループ所属かバッジで表示します。「グループ」からはグループ単位でまとまったアルバム一覧を見られます。
           </p>
         </div>
       ),
@@ -479,7 +479,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            {`Discordを経由せず、サイドバーの「アップロード」から直接写真/動画を投稿することもできます。画像は${MEDIA_LIMIT_LABELS.imageSize}まで、動画は${MEDIA_LIMIT_LABELS.videoSize}・${MEDIA_LIMIT_LABELS.videoDuration}までのファイルに対応しています（png/jpeg/webp、mp4/webm/mov）。`}
+            {`Discordを経由せず、メニューの「写真を投稿」（スマホでは下の真ん中の「投稿」）から直接写真/動画を投稿することもできます。画像は${MEDIA_LIMIT_LABELS.imageSize}まで、動画は${MEDIA_LIMIT_LABELS.videoSize}・${MEDIA_LIMIT_LABELS.videoDuration}までのファイルに対応しています（png/jpeg/webp、mp4/webm/mov）。`}
           </p>
           <p>
             <strong className="text-steam-text">Steamのスクショはゲームを自動で判別します。</strong>
@@ -585,7 +585,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            サイドバーの「検索」から、
+            メニューの「検索」（スマホでは「自分」→「写真を探す」）から、
             <strong className="text-steam-text">ゲームタイトル・説明</strong>
             ・投稿者・投稿日の範囲で写真/動画を絞り込めます。写真に書いた説明も対象なので、
             「あのときの決めゼリフ」のような覚え書きからも辿れます。
@@ -605,22 +605,20 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     },
     {
       id: "mobile",
-      title: "スマホで使うとき（メニューの出し方）",
+      title: "メニューの使い方（スマホとパソコン）",
       body: (
         <div className="flex flex-col gap-3">
           <p>
-            スマホのような細い画面では、<strong className="text-steam-text">画面左上の三本線のボタン</strong>
-            からメニューを開きます。ホーム・グループ・アルバム・アップロード・マニュアル・検索・設定が、
-            アイコンと文字で並びます。
+            スマホでは、<strong className="text-steam-text">画面の下に5つのタブ</strong>
+            （ホーム・グループ・投稿・アルバム・自分）が常に出ています。真ん中の青い丸が写真の投稿です。
           </p>
           <p>
-            閉じ方は4通りあります：<strong className="text-steam-text">行きたい場所を選ぶ</strong>、
-            右上の×、<strong className="text-steam-text">メニューの外側（暗くなっている部分）をタップ</strong>、
-            キーボードのEscキー。
+            検索・使い方・設定・ログアウトは<strong className="text-steam-text">「自分」</strong>のタブにまとめてあります。
+            管理者には管理画面の入口もここに出ます。
           </p>
           <p className="text-steam-muted">
-            パソコンなど横に広い画面では、三本線のボタンは出ません。代わりに画面の左端に
-            アイコンだけの細い列が常に出ていて、アイコンにカーソルを合わせると名前が出ます。
+            パソコンなど横に広い画面では、下のタブの代わりに画面の左にメニューが名前付きで出ます。
+            左下の自分の名前を押すと「自分」のページ（設定・ログアウト）が開きます。
           </p>
           <p>
             <strong className="text-steam-text">写真を見ているとき</strong>は、
@@ -643,11 +641,11 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <strong className="text-steam-text">Discord連携</strong>：Discordに投稿した画像を
             「自分の投稿」として取り込むには、
             <strong className="text-steam-text">Discordアカウントでログインしている必要があります</strong>。
-            設定 → Discord連携で、連携できているかを確認できます。未連携と出ている場合は、
+            「自分」→ Discord連携で、連携できているかを確認できます。未連携と出ている場合は、
             一度Discordでログインし直してください。
           </p>
           <p>
-            <strong className="text-steam-text">表示名</strong>：設定 → プロフィールから変えられます。
+            <strong className="text-steam-text">表示名</strong>：「自分」→ プロフィールから変えられます。
             投稿者の名前や、説明を書いた人の名前として表示されます。
           </p>
         </div>
@@ -661,7 +659,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             body: (
               <div className="flex flex-col gap-3">
                 <p>
-                  メニューの「使用量・メディア」（盾のアイコン。<Link href="/admin" className="text-steam-blue hover:underline">/admin</Link>）から、
+                  メニューの「管理」（盾のアイコン。スマホでは「自分」の中。<Link href="/admin" className="text-steam-blue hover:underline">/admin</Link>）から、
                   管理者だけが使えるページに入れます。上のタブで切り替えます。
                 </p>
                 <ul className="ml-4 list-disc space-y-1">
