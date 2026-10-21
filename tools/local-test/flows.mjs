@@ -4204,6 +4204,27 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 }
 
+// ── favicon（2026-10-21 に M1 へ差し替え。経緯は docs/design/favicon.md） ──
+// ページの head にタブ用（SVG）とホーム画面用（apple-touch-icon）のリンクが出て、どちらも画像として返る。
+// SVG を読まないブラウザ用の /favicon.ico も返る。以前の紫の icon.png のリンクは出ない
+{
+  const page = await api("/login");
+  const svgHref = page.text.match(/<link rel="icon" href="([^"]+)" type="image\/svg\+xml"/)?.[1] ?? null;
+  const appleHref = page.text.match(/<link rel="apple-touch-icon" href="([^"]+)"/)?.[1] ?? null;
+  const fetchType = async (href) => {
+    if (!href) return null;
+    const res = await fetch(BASE + href);
+    return `${res.status} ${res.headers.get("content-type")}`;
+  };
+  const [svgType, appleType, icoType] = await Promise.all([fetchType(svgHref), fetchType(appleHref), fetchType("/favicon.ico")]);
+  check(
+    "F315 favicon：タブ用の SVG とホーム画面用の画像のリンクが出て、どちらも画像が返り、/favicon.ico もある（以前の icon.png は出ない）",
+    !!svgHref && svgType?.startsWith("200 image/svg+xml") && appleType?.startsWith("200 image/png") &&
+      icoType?.startsWith("200 image/") && !page.text.includes('href="/icon.png'),
+    `SVG=${svgHref}（${svgType}） / ホーム画面=${appleHref}（${appleType}） / ico=${icoType} / 古いicon.png=${page.text.includes('href="/icon.png')}`
+  );
+}
+
 // ── グループの見出しの顔：Discord のアイコンがある人は画像、無い人は頭文字（2026-10-21 ユーザー判断） ──
 // 新しく作ったグループで見る（グループの中身はキャッシュに載るので、既存のグループで見ると前の描画が返りうる）。
 // 管理者のアイコンは確認の間だけ入れて、すぐ元に戻す（ほかのページのキャッシュに残さないため、描画は1回だけ）
