@@ -3525,9 +3525,10 @@ for (const [id, label, path] of targets) {
     B133: "スマホ幅でタブ4つ（ようす・アルバム・ゲーム・ウィッシュ）が出て、押すとその区画だけが見え、URLに ?tab= が付く",
     B134: "戻るボタンで前のタブに戻り、?tab= 付きのURLを直接開くとサーバーのHTMLの時点でそのタブになっている（画面の食い違いが出ない）",
     B135: "グループ画面のボタンと選択欄が、スマホ幅で44px以上・PC幅で36px以上ある（4つのタブすべて・提案のカードも含む）",
-    B136: "PC幅（1440px）では2列（左にアルバムとゲーム、右にようすとウィッシュリスト）、1024pxでは1列で「ようす」が一番上",
+    B136: "PC幅（1440px）では2列（左にアルバムとゲーム、右にようす）でウィッシュリストはその下に幅いっぱい、1024pxでは1列で「ようす」が一番上",
     B137: "見出しの「写真を投稿」はこのグループを選んだ状態で投稿画面を開き、歯車はグループの設定（通知・最少人数・削除）を開く",
     B138: "メンバー（オーナーでも管理者でもない人）にはグループ画面に歯車が出ず、設定画面も開けない",
+    B142: "PC幅（1440px）のウィッシュリストは提案者ごとの列が横に並び、2人×5件でも1人ぶんの長さで収まる（以前は右の細い列に縦に積まれて長くなった）",
   };
   const recorded = new Set();
   const localRows = [];
@@ -3645,14 +3646,16 @@ for (const [id, label, path] of targets) {
           Object.fromEntries(
             [...document.querySelectorAll("section[data-tab]")].map((s) => {
               const r = s.getBoundingClientRect();
-              return [s.dataset.tab, { x: Math.round(r.x), y: Math.round(r.y + window.scrollY) }];
+              return [s.dataset.tab, { x: Math.round(r.x), y: Math.round(r.y + window.scrollY), w: Math.round(r.width), bottom: Math.round(r.bottom + window.scrollY) }];
             })
           )
         );
       const w = await boxes();
+      // ウィッシュリストは2列の下：左端がアルバムと同じで、幅は左の列より広く、上端はゲームと「ようす」の下端より下
       const wideOk =
-        w.albums.x === w.games.x && w.overview.x === w.wishlist.x && w.overview.x > w.albums.x + 300 &&
-        w.albums.y < w.games.y && w.overview.y < w.wishlist.y;
+        w.albums.x === w.games.x && w.overview.x > w.albums.x + 300 && w.albums.y < w.games.y &&
+        w.wishlist.x === w.albums.x && w.wishlist.w > w.albums.w + 300 &&
+        w.wishlist.y >= w.games.bottom && w.wishlist.y >= w.overview.bottom;
       await pcPage.setViewportSize({ width: 1024, height: 900 });
       await pcPage.waitForTimeout(400);
       const n = await boxes();
@@ -3661,10 +3664,59 @@ for (const [id, label, path] of targets) {
       layout = { wideOk, narrowOk, order };
       rec(
         "B136",
-        "1440px: 左に albums→games、右に overview→wishlist / 1024px: 1列で overview→albums→games→wishlist",
-        `1440px=${wideOk ? "2列" : JSON.stringify(w)} / 1024px=${order.join("→")}（${narrowOk ? "1列" : "崩れている"}）`,
+        "1440px: 左に albums→games、右に overview、その下に wishlist が幅いっぱい / 1024px: 1列で overview→albums→games→wishlist",
+        `1440px=${wideOk ? "2列＋下に幅いっぱい" : JSON.stringify(w)} / 1024px=${order.join("→")}（${narrowOk ? "1列" : "崩れている"}）`,
         wideOk && narrowOk
       );
+
+      // B142: ウィッシュリストの提案者が横に並ぶ。admin と member に5件ずつ提案させ、同じ経路（API）で取り下げる
+      await pcPage.setViewportSize({ width: 1440, height: 900 });
+      const memberPc = await newCtx(1440, 900, "member");
+      const made = [];
+      try {
+        const memberPcPage = await memberPc.newPage();
+        await memberPcPage.goto(GROUP, { waitUntil: "domcontentloaded" });
+        const propose = (p, base) =>
+          p.evaluate(
+            async ([gid, b]) => {
+              const ids = [];
+              for (let i = 0; i < 5; i++) {
+                const res = await fetch(`/api/groups/${gid}/proposals`, {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ steamAppId: b + i, title: `横並びの確認${b + i}` }),
+                });
+                const id = (await res.json().catch(() => null))?.proposal?.id;
+                if (id) ids.push(id);
+              }
+              return ids;
+            },
+            [ids.groupId, base]
+          );
+        made.push(...(await propose(pcPage, 7700140)).map((id) => ({ id, page: pcPage })));
+        made.push(...(await propose(memberPcPage, 7700150)).map((id) => ({ id, page: memberPcPage })));
+        await pcPage.goto(GROUP, { waitUntil: "networkidle" });
+        const cols = await pcPage.evaluate(() =>
+          [...document.querySelectorAll('section[data-tab="wishlist"] [data-testid="proposer-section"]')].map((el) => {
+            const r = el.getBoundingClientRect();
+            return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
+          })
+        );
+        const tops = new Set(cols.map((c) => c.y));
+        const xs = new Set(cols.map((c) => c.x));
+        const minW = cols.length ? Math.min(...cols.map((c) => c.w)) : 0;
+        rec(
+          "B142",
+          "作った10件が入っている / 提案者の列が2つ以上・全部同じ高さの段（上端が1つ）・左端がばらばら・列の幅300px以上",
+          `作った提案 ${made.length}件 / 列 ${cols.length}個・上端 ${tops.size}種類・左端 ${xs.size}種類・最小の幅 ${minW}px / 高さ ${cols.map((c) => c.h).join(",")}px`,
+          made.length === 10 && cols.length >= 2 && tops.size === 1 && xs.size === cols.length && minW >= 300
+        );
+      } finally {
+        for (const m of made) {
+          await m.page.evaluate(([gid, pid]) => fetch(`/api/groups/${gid}/proposals/${pid}`, { method: "DELETE" }), [ids.groupId, m.id]).catch(() => {});
+        }
+        await memberPc.close();
+      }
 
       // B137: 写真を投稿と歯車
       await pcPage.setViewportSize({ width: 1440, height: 900 });

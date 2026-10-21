@@ -252,7 +252,10 @@ export function GameProposals({
       {localProposals.length === 0 ? (
         <EmptyState icon={Bookmark} title="まだウィッシュリストは空です" description="「追加する」から、みんなでやりたいゲームを提案できます。" />
       ) : (
-        <div className="mt-2 flex flex-col gap-5">
+        // 1280px以上はグループ画面の下に幅いっぱいで置かれる（GroupSections）。提案者1人を1列にして横に並べ、
+        // 入りきらない人は次の段へ回す。1列の幅は300px以上（リアクションの札3つが1行に収まる幅）。
+        // `auto-fill` なので人数が少なくても列は広がらず、カードが横に間延びしない
+        <div className="mt-2 flex flex-col gap-5 xl:grid xl:grid-cols-[repeat(auto-fill,minmax(300px,1fr))] xl:items-start">
           {sections.map((section) => {
             const isMine = section.proposerId === currentUserId;
             const isExpanded = expanded.includes(section.proposerId);
@@ -262,7 +265,7 @@ export function GameProposals({
             const hiddenCount = section.proposals.length - visible.length;
 
             return (
-              <div key={section.proposerId}>
+              <div key={section.proposerId} data-testid="proposer-section">
                 {/* **1つの文字列として描く。** Reactは隣り合うテキストをコメントノードで
                     区切るため、`{name}・提案{n}件` と分けて書くと数字がテストから拾えない
                     （docs/lessons.md の「Reactは隣り合うテキストを区切る」） */}
@@ -270,7 +273,7 @@ export function GameProposals({
                   {`${section.proposerName}${isMine ? "（あなた）" : ""}・${section.proposals.length}件`}
                 </p>
 
-                {/* 1280px以上では右の細い列（幅340px）に入るので1列に戻す。画面幅で決まるため、列の幅ではなく xl で切り替える */}
+                {/* 1280px以上では提案者ごとの列に入るので1列に戻す。画面幅で決まるため、列の幅ではなく xl で切り替える */}
                 <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1">
                   {visible.map((p) => {
                     const likeCount = p.reactions.filter((r) => r.type === "LIKE").length;
