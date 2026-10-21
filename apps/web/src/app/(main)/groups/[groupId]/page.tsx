@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, Settings, Upload } from "lucide-react";
+import { Activity, ArrowLeft, Film, Plus, Settings, Upload } from "lucide-react";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
@@ -23,6 +23,7 @@ import { UnknownPlays } from "@/components/group/UnknownPlays";
 import { GroupSections } from "@/components/group/GroupSections";
 import { MemberFaces } from "@/components/group/MemberFaces";
 import { iconButton, primaryButton, secondaryButton } from "@/components/ui/buttonStyles";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // サーバーから取る上限。**ここを超えた分はグループ画面から辿れなくなる**ので、
 // 数十件規模なら全部載る値にしておく（ゲーム1本につきアルバム1つ作られるため、
@@ -209,9 +210,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
         <RecentActivity groupId={group.id} days={recentDays} />
       ) : (
         !(playTotals && playTotals.totalMs > 0) && (
-          <p className="rounded-xl bg-steam-surface p-4 text-sm text-steam-muted">
-            まだ動きはありません。写真を投稿したり、みんなでゲームを遊んだりすると、ここに出ます。
-          </p>
+          <EmptyState icon={Activity} title="まだ動きはありません" description="写真を投稿したり、みんなでゲームを遊んだりすると、ここに出ます。" />
         )
       )}
     </div>
@@ -227,9 +226,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
       }
     >
       {albumCards.length === 0 ? (
-        <p className="text-sm text-steam-muted">
-          まだアルバムがありません。作成するか、Discordに投稿してみましょう。
-        </p>
+        <EmptyState icon={Film} title="まだアルバムがありません" description="アルバムを作るか、Discordに投稿すると自動で作られます。" />
       ) : (
         <>
           <ExpandableAlbumGrid albums={albumCards} initialCount={ALBUM_INITIAL_VISIBLE} />

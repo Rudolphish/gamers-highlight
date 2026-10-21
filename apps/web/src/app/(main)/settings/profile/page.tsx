@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { User, Check, AlertCircle } from "lucide-react";
 import { SettingsNav } from "@/components/settings/SettingsNav";
+import { primaryButton } from "@/components/ui/buttonStyles";
 
 export default function ProfileSettingsPage() {
   const [name, setName] = useState("");
@@ -80,7 +81,7 @@ export default function ProfileSettingsPage() {
               type="text"
               value={email}
               disabled
-              className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg/50 px-3 py-2 text-sm text-steam-muted outline-none cursor-not-allowed"
+              className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg/50 px-3 py-2 text-sm text-steam-muted outline-none cursor-not-allowed"
             />
           </div>
 
@@ -115,7 +116,7 @@ export default function ProfileSettingsPage() {
           <button
             type="submit"
             disabled={saving || !name.trim()}
-            className="mt-2 w-full rounded-sm bg-accent py-2.5 text-sm font-bold text-accent-ink disabled:opacity-40 hover:brightness-110 transition"
+            className={`${primaryButton} mt-2 w-full`}
           >
             {saving ? "保存中…" : "変更を保存"}
           </button>

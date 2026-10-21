@@ -6,7 +6,7 @@ import { Plus, X, Upload as UploadIcon, Image as ImageIcon, Film, Check, AlertCi
 import { MEDIA_LIMIT_LABELS } from "@/lib/media-limits";
 import { addYoutubeMedia, uploadMediaFile } from "@/lib/uploadClient";
 import { parseYoutubeUrl } from "@/lib/youtubeLink";
-import { primaryButton } from "@/components/ui/buttonStyles";
+import { chipButton, ghostIconButton, primaryButton, secondaryButton } from "@/components/ui/buttonStyles";
 
 // アルバム詳細の「追加」。/upload と同じことをこのアルバムに限ってやる。
 //
@@ -133,7 +133,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
               <button
                 onClick={close}
                 aria-label="閉じる"
-                className="p-2 text-steam-muted hover:text-steam-text"
+                className={ghostIconButton}
               >
                 <X size={16} />
               </button>
@@ -142,21 +142,15 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
             <div className="mt-3 flex gap-2">
               <button
                 onClick={() => setTab("file")}
-                className={`flex-1 rounded-sm border px-3 py-1.5 text-xs ${
-                  tab === "file"
-                    ? "border-steam-blue text-steam-text"
-                    : "border-steam-border text-steam-muted"
-                }`}
+                aria-pressed={tab === "file"}
+                className={`${chipButton(tab === "file")} flex-1`}
               >
                 ファイル
               </button>
               <button
                 onClick={() => setTab("youtube")}
-                className={`flex-1 rounded-sm border px-3 py-1.5 text-xs ${
-                  tab === "youtube"
-                    ? "border-steam-blue text-steam-text"
-                    : "border-steam-border text-steam-muted"
-                }`}
+                aria-pressed={tab === "youtube"}
+                className={`${chipButton(tab === "youtube")} flex-1`}
               >
                 YouTube
               </button>
@@ -177,7 +171,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                 <button
                   onClick={() => inputRef.current?.click()}
                   disabled={running}
-                  className="mt-3 flex h-24 w-full flex-col items-center justify-center rounded-sm border border-dashed border-steam-border bg-steam-panel disabled:opacity-50"
+                  className="mt-3 flex h-24 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-steam-border bg-steam-panel transition hover:border-steam-blue disabled:opacity-50"
                 >
                   <UploadIcon size={18} className="text-steam-muted" />
                   <p className="mt-1.5 text-xs text-steam-muted">
@@ -238,7 +232,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                 <button
                   onClick={handleUploadAll}
                   disabled={items.length === 0 || running || allDone}
-                  className="mt-4 w-full rounded-sm bg-accent py-2.5 text-sm font-bold text-accent-ink disabled:opacity-40"
+                  className={`${primaryButton} mt-4 w-full`}
                 >
                   {running
                     ? `アップロード中… (${items.filter((i) => i.status === "done").length}/${items.length})`
@@ -252,7 +246,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                 {allDone && (
                   <button
                     onClick={close}
-                    className="mt-2 w-full rounded-sm border border-steam-border py-2 text-xs text-steam-text"
+                    className={`${secondaryButton} mt-2 w-full`}
                   >
                     閉じる
                   </button>
@@ -296,7 +290,7 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
                 <button
                   onClick={handleAddYoutube}
                   disabled={!youtubeLink || youtubeState === "saving"}
-                  className="mt-4 w-full rounded-sm bg-accent py-2.5 text-sm font-bold text-accent-ink disabled:opacity-40"
+                  className={`${primaryButton} mt-4 w-full`}
                 >
                   {youtubeState === "saving" ? "追加中…" : "この動画を追加"}
                 </button>

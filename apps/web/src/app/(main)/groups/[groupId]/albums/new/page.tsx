@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
+import { primaryButton, textButton } from "@/components/ui/buttonStyles";
 
 // グループ内アルバム作成画面：タイトル・説明・ゲームタグ（任意）を入力してPOST /api/albums
 export default function NewGroupAlbumPage() {
@@ -46,9 +47,9 @@ export default function NewGroupAlbumPage() {
     <main className="p-4 sm:p-6">
       <button
         onClick={() => router.back()}
-        className="mb-4 flex items-center gap-1 text-xs text-steam-muted"
+        className={`${textButton} mb-2 -ml-2`}
       >
-        <ChevronLeft size={14} /> 戻る
+        <ChevronLeft size={16} aria-hidden="true" /> 戻る
       </button>
 
       <h1 className="font-display text-2xl font-bold text-steam-text sm:text-3xl">
@@ -100,7 +101,7 @@ export default function NewGroupAlbumPage() {
         <button
           onClick={handleSubmit}
           disabled={pending || !title.trim()}
-          className="rounded-sm bg-accent py-2.5 text-sm font-bold text-accent-ink disabled:opacity-40"
+          className={`${primaryButton}`}
         >
           {pending ? "作成中…" : "アルバムを作成"}
         </button>

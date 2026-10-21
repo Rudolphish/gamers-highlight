@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { RecentActivity } from "@/components/home/RecentActivity";
 import { formatRelativeTime } from "@/lib/relative-time";
 import { Film, Users } from "lucide-react";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { primaryButton } from "@/components/ui/buttonStyles";
 
 // ホーム：最近の投稿 + 自分が所属するグループのダッシュボード
 export default async function HomePage() {
@@ -78,9 +80,14 @@ export default async function HomePage() {
           マイグループ
         </h2>
         {groups.length === 0 ? (
-          <p className="mt-4 text-sm text-steam-muted">
-            まだグループがありません。作成して仲間を招待しましょう。
-          </p>
+          <div className="mt-3">
+            <EmptyState
+              icon={Users}
+              title="まだグループがありません"
+              description="グループを作って仲間を招待すると、ここに並びます。"
+              action={<Link href="/groups/new" className={primaryButton}>グループを作る</Link>}
+            />
+          </div>
         ) : (
           <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {groups.map((group) => (

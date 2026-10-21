@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Gamepad2 } from "lucide-react";
+import { ArrowLeft, Gamepad2, Image as ImageIcon } from "lucide-react";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { hasAlbumPermission } from "@/lib/permissions";
@@ -12,6 +12,7 @@ import { DeleteAlbumButton } from "@/components/album/DeleteAlbumButton";
 import { SteamCoverPicker } from "@/components/album/SteamCoverPicker";
 import { AlbumTitleEditor } from "@/components/album/AlbumTitleEditor";
 import { AddMediaModal } from "@/components/album/AddMediaModal";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // アルバム詳細画面：写真グリッド表示、メンバー一覧、タグ管理
 export default async function AlbumDetailPage({
@@ -163,9 +164,11 @@ export default async function AlbumDetailPage({
 
       <div className="mt-6">
         {photos.length === 0 ? (
-          <p className="text-sm text-steam-muted">
-            まだ写真/動画がありません。上の「追加」から上げるか、Discordに投稿してみましょう。
-          </p>
+          <EmptyState
+            icon={ImageIcon}
+            title="まだ写真・動画がありません"
+            description="上の「追加」から上げるか、Discordに投稿してみましょう。"
+          />
         ) : (
           <PhotoGrid
             currentUserName={currentUserName}

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Inbox, Plus } from "lucide-react";
+import { Film, Inbox, Plus } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCurrentUser } from "@/lib/currentUser";
@@ -9,6 +9,7 @@ import { getSteamCoverUrls } from "@/lib/albumCover";
 import { coverPhotoQuery } from "@/lib/albumCoverPolicy";
 import { formatRelativeTime } from "@/lib/relative-time";
 import { primaryButton } from "@/components/ui/buttonStyles";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // アルバム一覧画面：自分のアルバム一覧＋未分類の投稿への導線
 export default async function AlbumsPage() {
@@ -119,9 +120,9 @@ export default async function AlbumsPage() {
       )}
 
       {albumCards.length === 0 ? (
-        <p className="mt-6 text-sm text-steam-muted">
-          まだアルバムがありません。作成するか、Discordに投稿してみましょう。
-        </p>
+        <div className="mt-6">
+          <EmptyState icon={Film} title="まだアルバムがありません" description="アルバムを作るか、Discordに投稿すると自動で作られます。" />
+        </div>
       ) : (
         <AlbumSearch albums={albumCards} />
       )}

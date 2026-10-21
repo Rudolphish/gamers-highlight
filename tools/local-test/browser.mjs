@@ -3729,6 +3729,27 @@ for (const [id, label, path] of targets) {
     `/groups/${ids.groupId}/games/${ids.gameId}`,
     "{proposal}",
     "/groups",
+    // 段階6b
+    `/groups/${ids.groupId}/activity`,
+    "/upload",
+    "/settings/profile",
+    "/settings/discord",
+    "/settings/channel-mapping",
+    "/settings/allowlist",
+    "/groups/new",
+    "/albums/new",
+    `/groups/${ids.groupId}/albums/new`,
+    "/albums/unclassified",
+    "/search",
+  ];
+  // 重ねて出す箱。開くボタンを押してから、箱（div.fixed.inset-0.z-50）の中を測る
+  const MODALS = [
+    [`/groups/${ids.groupId}`, "メンバー"],
+    [`/albums/${ids.albumId}`, "メンバー"],
+    [`/albums/${ids.albumId}`, "Steam連携"],
+    [`/albums/${ids.albumId}`, "写真・動画を追加"],
+    [`/groups/${ids.groupId}?tab=games`, "ゲームを追加"],
+    [`/groups/${ids.groupId}?tab=wishlist`, "追加する"],
   ];
   const short = [];
   let proposalId = null;
@@ -3736,7 +3757,8 @@ for (const [id, label, path] of targets) {
   const tokenValue = await encode({ token: { name: "admin", email: "admin@example.com", sub: "admin@example.com" }, secret: SECRET, maxAge: 3600 });
   const measure = (p, min, scope) =>
     p.evaluate(([m, sel]) => {
-      const root = document.querySelector(sel) ?? document.body;
+      // 当てはまる最後の要素（重ねて出す箱は後から開いたものが最後に来る）
+      const root = [...document.querySelectorAll(sel)].pop() ?? document.body;
       const els = [...root.querySelectorAll("button, select, input:not([type=hidden]):not([type=file]):not([type=checkbox]):not([type=radio]), textarea")]
         .filter((el) => {
           const r = el.getBoundingClientRect();
@@ -3773,6 +3795,15 @@ for (const [id, label, path] of targets) {
           measured += r.count;
           short.push(...r.bad.map((x) => `${w}px ${path.replace(/[a-z0-9]{20,}/g, "…")} ${x}`));
         }
+        for (const [path, opener] of MODALS) {
+          await p.goto(BASE + path, { waitUntil: "networkidle" });
+          await p.locator("main").getByRole("button", { name: opener }).first().click();
+          await p.locator("div.fixed.inset-0.z-50").last().waitFor({ timeout: 10000 });
+          await p.waitForTimeout(300);
+          const r = await measure(p, min, "div.fixed.inset-0.z-50");
+          measured += r.count;
+          short.push(...r.bad.map((x) => `${w}px 「${opener}」の箱 ${x}`));
+        }
         // 写真を開いた表示（ライトボックス）
         await p.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
         // ライトボックスは role を持たないので、ほかのテスト（B36 など）と同じく写真の枠を押して開き、重ねた箱の中を測る
@@ -3788,7 +3819,7 @@ for (const [id, label, path] of targets) {
     }
     rows.push({
       id: "B139",
-      item: "ホーム・アルバム（一覧・詳細・写真を開いたところ）・ゲーム詳細・提案詳細・グループ一覧のボタンと入力欄が、スマホ幅で44px以上・PC幅で36px以上ある",
+      item: "グループ画面以外の主な画面（17画面）と重ねて出す箱（6種類・写真を開いたところ）のボタンと入力欄が、スマホ幅で44px以上・PC幅で36px以上ある",
       expected: "足りない部品 0件",
       actual: `${short.length}件 / 測った部品 ${measured}個`,
       ok: short.length === 0 && measured > 40,
@@ -3811,7 +3842,9 @@ for (const [id, label, path] of targets) {
 // ページ全体の横スクロール（B91）には出ない——レイアウトの内側の箱が横のはみ出しを抑えているため。
 // main の中の要素の右端が画面の幅を超えていないかを見る。横に送る作りの箱（overflow-x が auto など）の中は、意図したものなので除く
 {
-  const PAGES = ["/", "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/groups", "/me"];
+  const PAGES = ["/", "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/groups", "/me",
+    // 段階6b
+    `/groups/${ids.groupId}/activity`, "/upload", "/settings/profile", "/settings/allowlist", "/settings/channel-mapping", "/groups/new", "/albums/new", "/albums/unclassified", "/search"];
   const page = await context.newPage();
   const over = [];
   try {
@@ -3849,6 +3882,44 @@ for (const [id, label, path] of targets) {
   } catch (e) {
     rows.push({ id: "B140", item: "スマホ幅のはみ出し", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
   } finally {
+    await page.close();
+  }
+}
+
+// ── 「まだ何も無い」ときの見せ方（デザイン刷新の段階6） ──
+// 以前は画面ごとに1行の灰色の文だけだった。共通の部品（components/ui/EmptyState.tsx）に揃えたので、
+// 作ったばかりのグループで、アルバムとウィッシュリストのタブにその部品（見出し付き）が出ることを見る。
+// 前のスイートのデータに頼らないよう、グループは自分で作り、最後に同じ経路（API）で消す
+{
+  const page = await context.newPage();
+  let groupId = null;
+  try {
+    await page.goto(`${BASE}/groups`, { waitUntil: "domcontentloaded" });
+    groupId = await page.evaluate(async () => {
+      const res = await fetch("/api/groups", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "空の状態の確認" }) });
+      return (await res.json().catch(() => null))?.group?.id ?? null;
+    });
+    if (!groupId) throw new Error("グループを作れなかった");
+    const seen = [];
+    for (const tab of ["albums", "wishlist"]) {
+      await page.goto(`${BASE}/groups/${groupId}?tab=${tab}`, { waitUntil: "networkidle" });
+      const box = page.locator(`section[data-tab="${tab}"] [data-testid="empty-state"]`);
+      const visible = (await box.count()) > 0 && (await box.first().isVisible());
+      const title = visible ? ((await box.first().locator("p").first().textContent()) ?? "").trim() : "";
+      seen.push({ tab, visible, title });
+    }
+    rows.push({
+      id: "B141",
+      item: "作ったばかりのグループで、アルバムとウィッシュリストのタブに「まだ何も無い」ときの共通の見せ方（見出し付き）が出る",
+      expected: "2つのタブとも見出し付きで出る",
+      actual: seen.map((s) => `${s.tab}=${s.visible ? s.title : "出ない"}`).join(" / "),
+      ok: seen.every((s) => s.visible && s.title.length > 0),
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B141", item: "空のときの見せ方", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    if (groupId) await page.evaluate((id) => fetch(`/api/groups/${id}`, { method: "DELETE" }), groupId).catch(() => {});
     await page.close();
   }
 }

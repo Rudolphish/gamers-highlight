@@ -11,7 +11,7 @@ import { formatPlayDuration } from "@/lib/playDuration";
 import { translateGenre } from "@/lib/steam";
 import { ActivityIcon } from "@/components/activity/ActivityIcon";
 import { GAME_STATUS_LABELS } from "@/lib/gameLabels";
-import { BUTTON_HEIGHT, ICON_BUTTON_SIZE, chipBase, chipButton, textButton } from "@/components/ui/buttonStyles";
+import { BUTTON_HEIGHT, ICON_BUTTON_SIZE, chipBase, chipButton, ghostIconButton, textButton } from "@/components/ui/buttonStyles";
 
 type GameStatus = "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
 
@@ -449,7 +449,7 @@ export function GroupGameList({
               <button
                 onClick={() => setOpen(false)}
                 aria-label="閉じる"
-                className="p-2 text-steam-muted hover:text-steam-text"
+                className={ghostIconButton}
               >
                 <X size={16} />
               </button>

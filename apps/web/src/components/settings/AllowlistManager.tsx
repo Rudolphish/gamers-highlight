@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2, CheckCircle2, Clock } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { ghostIconButton, primaryButton } from "@/components/ui/buttonStyles";
 
 type Entry = {
   id: string;
@@ -126,7 +127,7 @@ export function AllowlistManager() {
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex w-fit items-center gap-1.5 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink disabled:opacity-40"
+          className={`${primaryButton} w-fit`}
         >
           {saving ? <Spinner size={12} /> : <Plus size={13} />} 許可リストに追加
         </button>
@@ -158,12 +159,12 @@ export function AllowlistManager() {
                 </div>
 
                 {entry.signedIn ? (
-                  <span className="flex flex-shrink-0 items-center gap-1 text-4xs text-positive">
+                  <span className="flex flex-shrink-0 items-center gap-1 text-xs text-positive">
                     <CheckCircle2 size={11} /> ログイン済み
                   </span>
                 ) : (
                   <span
-                    className="flex flex-shrink-0 items-center gap-1 text-4xs text-steam-muted"
+                    className="flex flex-shrink-0 items-center gap-1 text-xs text-steam-muted"
                     title="本人が一度ログインするまでグループに招待できません"
                   >
                     <Clock size={11} /> 未ログイン
@@ -174,7 +175,7 @@ export function AllowlistManager() {
                   onClick={() => remove(entry.id)}
                   disabled={deletingId === entry.id}
                   aria-label="許可リストから外す"
-                  className="flex-shrink-0 p-1.5 text-steam-muted transition hover:text-danger disabled:opacity-50"
+                  className={`${ghostIconButton} hover:text-danger`}
                 >
                   {deletingId === entry.id ? <Spinner size={12} /> : <Trash2 size={12} />}
                 </button>

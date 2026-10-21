@@ -7,6 +7,7 @@ import { Play, Check, Plus } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { LoadingImage } from "@/components/ui/LoadingImage";
 import type { MediaKind } from "@/lib/mediaKind";
+import { primaryButton, secondaryButton, textButton } from "@/components/ui/buttonStyles";
 
 type Media = {
   id: string;
@@ -116,12 +117,12 @@ export function UnclassifiedPhotoManager({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2 text-xs text-steam-muted">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-steam-muted">
         <span>{selected.size}件選択中</span>
-        <button onClick={selectAll} className="text-steam-blue" disabled={pending}>
+        <button onClick={selectAll} className={`${textButton} text-steam-blue`} disabled={pending}>
           全選択
         </button>
-        <button onClick={clearSelection} className="text-steam-muted" disabled={pending}>
+        <button onClick={clearSelection} className={textButton} disabled={pending}>
           選択解除
         </button>
       </div>
@@ -235,7 +236,7 @@ export function UnclassifiedPhotoManager({
             <button
               onClick={moveToExistingAlbum}
               disabled={pending || selected.size === 0 || !targetAlbumId}
-              className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-accent px-4 py-2 text-xs font-bold text-accent-ink disabled:opacity-40"
+              className={primaryButton}
             >
               {action === "move" && <Spinner size={12} />}
               {action === "move" ? "追加中…" : "追加"}
@@ -258,7 +259,7 @@ export function UnclassifiedPhotoManager({
             <button
               onClick={createAlbumAndMove}
               disabled={pending || selected.size === 0 || !newAlbumTitle.trim() || !groupId}
-              className="flex flex-shrink-0 items-center gap-1 rounded-sm bg-accent px-4 py-2 text-xs font-bold text-accent-ink disabled:opacity-40"
+              className={secondaryButton}
             >
               {action === "create" ? <Spinner size={12} /> : <Plus size={12} />}
               {action === "create" ? "作成中…" : "作成"}

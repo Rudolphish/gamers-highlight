@@ -7,6 +7,7 @@ import { MEDIA_LIMIT_LABELS } from "@/lib/media-limits";
 import { addYoutubeMedia, uploadMediaFile } from "@/lib/uploadClient";
 import { parseYoutubeUrl } from "@/lib/youtubeLink";
 import { parseSteamScreenshotName } from "@/lib/steamScreenshot";
+import { primaryButton, secondaryButton } from "@/components/ui/buttonStyles";
 
 // アップロード画面：画像 or 動画クリップ（上限は lib/media-limits.ts）を複数まとめてアップロード可能。
 //
@@ -256,7 +257,7 @@ export default function UploadPage() {
       <button
         onClick={() => inputRef.current?.click()}
         disabled={running}
-        className="mt-4 flex h-32 w-full flex-col items-center justify-center rounded-sm border border-dashed border-steam-border bg-steam-surface disabled:opacity-50"
+        className="mt-4 flex h-32 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-steam-border bg-steam-surface transition hover:border-steam-blue disabled:opacity-50"
       >
         <UploadIcon size={20} className="text-steam-muted" />
         <p className="mt-2 text-xs text-steam-muted">
@@ -321,7 +322,7 @@ export default function UploadPage() {
       )}
 
       {detectedGames.length > 0 && (
-        <div className="mt-4 rounded-sm border border-positive/40 bg-steam-panel p-3">
+        <div className="mt-4 rounded-xl bg-positive/10 p-3">
           <p className="flex items-center gap-1.5 text-2xs text-steam-text">
             <Wand2 size={12} className="text-positive" />
             ファイル名からゲームを判別しました
@@ -440,7 +441,7 @@ export default function UploadPage() {
       <button
         onClick={handleUploadAll}
         disabled={items.length === 0 || running || allDone}
-        className="mt-5 w-full rounded-sm bg-accent py-2.5 text-sm font-bold text-accent-ink disabled:opacity-40"
+        className={`${primaryButton} mt-5 w-full`}
       >
         {running
           ? `アップロード中… (${items.filter((i) => i.status === "done").length}/${items.length})`
@@ -454,7 +455,7 @@ export default function UploadPage() {
       {allDone && (
         <button
           onClick={() => router.push("/")}
-          className="mt-2 w-full rounded-sm border border-steam-border py-2 text-xs text-steam-text"
+          className={`${secondaryButton} mt-2 w-full`}
         >
           ホームに戻る
         </button>
@@ -508,7 +509,7 @@ export default function UploadPage() {
         <button
           onClick={handleAddYoutube}
           disabled={!youtubeLink || youtubeState === "saving"}
-          className="mt-3 w-full rounded-sm border border-steam-border py-2 text-xs text-steam-text hover:border-steam-blue disabled:opacity-40"
+          className={`${secondaryButton} mt-3 w-full`}
         >
           {youtubeState === "saving" ? "追加中…" : "この動画を追加"}
         </button>

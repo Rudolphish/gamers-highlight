@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { ghostIconButton, primaryButton } from "@/components/ui/buttonStyles";
 
 type GroupOption = { id: string; name: string; guildId: string };
 type Mapping = { id: string; guildId: string; channelId: string; gameTitle: string };
@@ -119,7 +120,7 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
                 <button
                   onClick={() => removeMapping(m.id)}
                   disabled={removingId !== null}
-                  className="flex-shrink-0 p-1.5 text-steam-muted hover:text-danger disabled:opacity-50"
+                  className={`${ghostIconButton} hover:text-danger`}
                   aria-label="削除"
                 >
                   {removingId === m.id ? <Spinner size={13} /> : <Trash2 size={13} />}
@@ -150,7 +151,7 @@ export function ChannelMappingManager({ groups }: { groups: GroupOption[] }) {
           <button
             onClick={addMapping}
             disabled={adding || !channelId.trim() || !gameTitle.trim()}
-            className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink disabled:opacity-40"
+            className={primaryButton}
           >
             {adding ? <Spinner size={12} /> : <Plus size={12} />}
             追加

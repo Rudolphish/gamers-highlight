@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Gamepad2, X, Search, ImageIcon, Link2Off, AlertTriangle } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
-import { secondaryButton } from "@/components/ui/buttonStyles";
+import { ghostIconButton, secondaryButton, textButton } from "@/components/ui/buttonStyles";
 
 type SteamResult = { appId: number; name: string; thumbnail: string };
 
@@ -195,7 +195,7 @@ export function SteamCoverPicker({
               <button
                 onClick={() => setOpen(false)}
                 aria-label="閉じる"
-                className="p-2 text-steam-muted hover:text-steam-text"
+                className={ghostIconButton}
               >
                 <X size={16} />
               </button>
@@ -216,9 +216,9 @@ export function SteamCoverPicker({
                   <button
                     onClick={unlinkGame}
                     disabled={busy}
-                    className="mt-2 flex items-center gap-1 text-3xs text-steam-muted transition hover:text-danger disabled:opacity-50"
+                    className="-ml-2 mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-left text-sm text-steam-muted transition hover:text-danger disabled:opacity-50 md:min-h-9"
                   >
-                    {unlinking ? <Spinner size={11} /> : <Link2Off size={11} />}
+                    {unlinking ? <Spinner size={16} /> : <Link2Off size={16} aria-hidden="true" />}
                     ゲームとの連携を解除する（ゲームはリストに残ります）
                   </button>
                 </>
@@ -344,7 +344,7 @@ export function SteamCoverPicker({
               <button
                 onClick={clearCover}
                 disabled={busy}
-                className="mt-3 flex items-center gap-1 text-2xs text-danger disabled:opacity-50"
+                className={`${textButton} -ml-2 mt-2 text-danger hover:text-danger`}
               >
                 {clearing && <Spinner size={11} />}
                 Steam画像を解除して投稿写真に戻す

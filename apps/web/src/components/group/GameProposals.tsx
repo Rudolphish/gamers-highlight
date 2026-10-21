@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, X, Search, ThumbsUp, Meh, Minus, Trash2 } from "lucide-react";
+import { Bookmark, Plus, X, Search, ThumbsUp, Meh, Minus, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { PROPOSAL_REACTION_LABELS } from "@/lib/gameLabels";
 import { chipButton, fieldClass, ghostIconButton, secondaryButton } from "@/components/ui/buttonStyles";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { PROPOSALS_PER_PROPOSER, groupProposalsByProposer } from "@/lib/proposalRanking";
 import { formatYen, type WishlistPrice } from "@/lib/wishlistPrice";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 type ReactionType = "LIKE" | "MAYBE" | "PASS";
 
@@ -249,7 +250,7 @@ export function GameProposals({
         }
       >
       {localProposals.length === 0 ? (
-        <p className="mt-2 text-sm text-steam-muted">まだウィッシュリストは空です。</p>
+        <EmptyState icon={Bookmark} title="まだウィッシュリストは空です" description="「追加する」から、みんなでやりたいゲームを提案できます。" />
       ) : (
         <div className="mt-2 flex flex-col gap-5">
           {sections.map((section) => {
@@ -414,7 +415,7 @@ export function GameProposals({
               <button
                 onClick={() => setOpen(false)}
                 aria-label="閉じる"
-                className="p-2 text-steam-muted hover:text-steam-text"
+                className={ghostIconButton}
               >
                 <X size={16} />
               </button>

@@ -4,6 +4,8 @@ import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { getAssignTargets } from "@/lib/assignTargets";
 import { UnclassifiedPhotoManager } from "@/components/photo/UnclassifiedPhotoManager";
+import { Inbox } from "lucide-react";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // 未分類（albumIdなし）の自分の投稿を一覧表示し、既存アルバムへ追加 or
 // 新規アルバムを作ってそちらへ移動できるようにする画面。
@@ -31,9 +33,9 @@ export default async function UnclassifiedPage() {
       </p>
 
       {photos.length === 0 ? (
-        <p className="mt-6 text-sm text-steam-muted">
-          未分類の投稿はありません。
-        </p>
+        <div className="mt-6">
+          <EmptyState icon={Inbox} title="未分類の投稿はありません" description="どのアルバムにも入っていない投稿があると、ここで振り分けられます。" />
+        </div>
       ) : (
         <div className="mt-6">
           <UnclassifiedPhotoManager

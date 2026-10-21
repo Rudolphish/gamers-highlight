@@ -7,6 +7,8 @@ import { Search as SearchIcon, Gamepad2 } from "lucide-react";
 import { PhotoGrid } from "@/components/photo/PhotoGrid";
 import type { MediaKind } from "@/lib/mediaKind";
 import { GAME_STATUS_LABELS } from "@/lib/gameLabels";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { badge, primaryButton } from "@/components/ui/buttonStyles";
 
 type Media = {
   id: string;
@@ -151,7 +153,7 @@ export default function SearchPage() {
         <button
           type="submit"
           disabled={loading}
-          className="mt-2 flex items-center justify-center gap-2 rounded-sm bg-accent py-2.5 text-sm font-bold text-accent-ink disabled:opacity-50 hover:brightness-110 transition"
+          className={`${primaryButton} mt-2`}
         >
           <SearchIcon size={16} />
           {loading ? "検索中…" : "検索"}
@@ -179,9 +181,7 @@ export default function SearchPage() {
             }))}
           />
         ) : (
-          <div className="rounded-sm border border-dashed border-steam-border bg-steam-surface p-8 text-center text-xs text-steam-muted">
-            該当するスクリーンショットが見つかりませんでした。
-          </div>
+          <EmptyState icon={SearchIcon} title="見つかりませんでした" description="ゲーム名や期間を変えて、もう一度探してみてください。" />
         )}
       </section>
 
@@ -216,7 +216,7 @@ export default function SearchPage() {
                   <p className="truncate font-display text-sm font-semibold text-steam-text">{g.title}</p>
                   <p className="truncate text-4xs text-steam-muted">{g.groupName}</p>
                   {g.status && (
-                    <span className="mt-1 inline-block rounded-sm border border-steam-border px-1.5 py-0.5 text-4xs text-steam-muted">
+                    <span className={`${badge("neutral")} mt-1`}>
                       {STATUS_LABEL[g.status]}
                     </span>
                   )}
@@ -247,7 +247,7 @@ export default function SearchPage() {
                 <div className="p-2">
                   <p className="truncate font-display text-sm font-semibold text-steam-text">{p.title}</p>
                   <p className="truncate text-4xs text-steam-muted">{p.groupName}</p>
-                  <span className="mt-1 inline-flex items-center gap-1 rounded-sm border border-steam-blue/50 px-1.5 py-0.5 text-4xs text-steam-blue">
+                  <span className={`${badge("blue")} mt-1 gap-1`}>
                     <Gamepad2 size={9} /> 提案中
                   </span>
                 </div>

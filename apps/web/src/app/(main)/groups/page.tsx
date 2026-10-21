@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { formatRelativeTime } from "@/lib/relative-time";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // グループ一覧画面：自分が所有/参加しているグループ一覧
 export default async function GroupsPage() {
@@ -39,9 +40,9 @@ export default async function GroupsPage() {
       </div>
 
       {groups.length === 0 ? (
-        <p className="mt-6 text-sm text-steam-muted">
-          まだグループがありません。作成して仲間を招待しましょう。
-        </p>
+        <div className="mt-6">
+          <EmptyState icon={Users} title="まだグループがありません" description="グループを作って仲間を招待しましょう。" />
+        </div>
       ) : (
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
           {groups.map((group) => (

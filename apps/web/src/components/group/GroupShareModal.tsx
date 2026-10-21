@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Users, X, UserPlus } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
-import { secondaryButton } from "@/components/ui/buttonStyles";
+import { fieldClass, ghostIconButton, primaryButton, secondaryButton, textButton } from "@/components/ui/buttonStyles";
 import { GroupInviteLinks } from "@/components/group/GroupInviteLinks";
 
 type Member = {
@@ -116,7 +116,7 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
               <button
                 onClick={() => setOpen(false)}
                 aria-label="閉じる"
-                className="p-2 text-steam-muted hover:text-steam-text"
+                className={ghostIconButton}
               >
                 <X size={16} />
               </button>
@@ -137,7 +137,7 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
                       </div>
                     )}
                   </div>
-                  <span className="min-w-0 flex-1 truncate text-xs text-steam-text">
+                  <span className="min-w-0 flex-1 truncate text-sm text-steam-text">
                     {m.name ?? "unknown"}
                   </span>
 
@@ -148,7 +148,7 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
                         value={m.role}
                         onChange={(e) => handleRoleChange(m.userId, e.target.value as "EDITOR" | "VIEWER")}
                         disabled={pending}
-                        className="rounded-lg border border-steam-border bg-steam-bg px-1.5 py-1 text-3xs text-steam-text disabled:opacity-50"
+                        className={fieldClass}
                       >
                         <option value="EDITOR">編集者</option>
                         <option value="VIEWER">閲覧者</option>
@@ -156,14 +156,14 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
                       <button
                         onClick={() => handleRemove(m.userId)}
                         disabled={pending}
-                        className="flex items-center gap-1 text-3xs text-danger disabled:opacity-50"
+                        className={`${textButton} text-danger hover:text-danger`}
                       >
                         {removingUserId === m.userId && <Spinner size={10} />}
                         削除
                       </button>
                     </>
                   ) : (
-                    <span className="text-3xs text-steam-muted">{ROLE_LABEL[m.role]}</span>
+                    <span className="text-sm text-steam-muted">{ROLE_LABEL[m.role]}</span>
                   )}
                 </li>
               ))}
@@ -171,13 +171,13 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
 
             {isOwner && (
               <div className="mt-4 border-t border-steam-border pt-4">
-                <p className="text-2xs text-steam-muted">新しいメンバーを招待</p>
+                <p className="text-sm font-bold text-steam-text">新しいメンバーを招待</p>
                 <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                   <select
                     value={inviteeId}
                     onChange={(e) => setInviteeId(e.target.value)}
                     disabled={pending}
-                    className="flex-1 rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-xs text-steam-text"
+                    className={`${fieldClass} flex-1`}
                   >
                     <option value="">ユーザーを選択</option>
                     {candidates.map((c) => (
@@ -190,7 +190,7 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
                     value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value as "EDITOR" | "VIEWER")}
                     disabled={pending}
-                    className="rounded-lg border border-steam-border bg-steam-bg px-2 py-2 text-xs text-steam-text"
+                    className={fieldClass}
                   >
                     <option value="VIEWER">閲覧者</option>
                     <option value="EDITOR">編集者</option>
@@ -198,7 +198,7 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
                   <button
                     onClick={handleInvite}
                     disabled={pending || !inviteeId}
-                    className="flex flex-shrink-0 items-center justify-center gap-1 rounded-sm bg-accent px-3 py-2 text-xs font-bold text-accent-ink disabled:opacity-40"
+                    className={primaryButton}
                   >
                     {inviting ? <Spinner size={12} /> : <UserPlus size={12} />}
                     {inviting ? "招待中…" : "招待"}

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { reportClientError } from "@/lib/report-client-error";
 import "./globals.css";
+import { primaryButton } from "@/components/ui/buttonStyles";
 
 // ルートレイアウト自体で例外が起きた場合の最終フォールバック（自前でhtml/bodyを持つ必要がある）。
 // (main)/error.tsxではカバーできない、レイアウトより上位で起きたエラー用。
@@ -29,13 +30,13 @@ export default function GlobalError({
             <h1 className="mt-2 font-display text-xl font-bold text-steam-text">
               エラーが発生しました
             </h1>
-            <p className="mt-1 text-xs text-steam-muted">
+            <p className="mx-auto mt-1 max-w-md text-sm text-steam-muted">
               アプリの読み込み中に問題が起きました。再試行してもうまくいかない場合は時間を置いて試してください。
             </p>
           </div>
           <button
             onClick={reset}
-            className="rounded-sm bg-accent px-4 py-2 text-xs font-bold text-accent-ink"
+            className={primaryButton}
           >
             再試行
           </button>
