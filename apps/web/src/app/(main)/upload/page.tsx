@@ -7,6 +7,7 @@ import { MEDIA_LIMIT_LABELS } from "@/lib/media-limits";
 import { addYoutubeMedia, uploadMediaFile } from "@/lib/uploadClient";
 import { parseYoutubeUrl } from "@/lib/youtubeLink";
 import { parseSteamScreenshotName } from "@/lib/steamScreenshot";
+import { primaryButton, secondaryButton } from "@/components/ui/buttonStyles";
 
 // アップロード画面：画像 or 動画クリップ（上限は lib/media-limits.ts）を複数まとめてアップロード可能。
 //
@@ -115,8 +116,12 @@ export default function UploadPage() {
       .then((data) => {
         const list: GroupOption[] = data.groups ?? [];
         setGroups(list);
+        // グループ画面の「写真を投稿」から来たときは、そのグループを選んだ状態で開く（?group=）。
+        // 一覧に無い（入っていない）グループは選ばない。URLは誰でも書き換えられるので、そのまま使わない
+        const requested = new URLSearchParams(window.location.search).get("group");
+        if (requested && list.some((g) => g.id === requested)) setGroupId(requested);
         // 1つしか入っていない人に毎回選ばせても手数が増えるだけなので、自動で選ぶ
-        if (list.length === 1) setGroupId(list[0].id);
+        else if (list.length === 1) setGroupId(list[0].id);
       })
       .catch(() => setGroups([]));
   }, []);
@@ -236,7 +241,7 @@ export default function UploadPage() {
       <h1 className="font-display text-2xl font-bold text-steam-text sm:text-3xl">
         アップロード
       </h1>
-      <p className="mt-1 font-mono text-xs text-steam-muted">
+      <p className="mt-1 text-xs text-steam-muted">
         {`画像、または${MEDIA_LIMIT_LABELS.videoDuration}以内の動画クリップを複数まとめて選択できます`}
       </p>
 
@@ -252,13 +257,13 @@ export default function UploadPage() {
       <button
         onClick={() => inputRef.current?.click()}
         disabled={running}
-        className="mt-4 flex h-32 w-full flex-col items-center justify-center rounded-sm border border-dashed border-steam-border bg-steam-surface disabled:opacity-50"
+        className="mt-4 flex h-32 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-steam-border bg-steam-surface transition hover:border-steam-blue disabled:opacity-50"
       >
         <UploadIcon size={20} className="text-steam-muted" />
-        <p className="mt-2 font-mono text-xs text-steam-muted">
+        <p className="mt-2 text-xs text-steam-muted">
           {items.length > 0 ? "選び直す（クリック）" : "クリックしてファイルを選択（複数選択可）"}
         </p>
-        <p className="mt-1 font-mono text-3xs text-steam-muted/60">
+        <p className="mt-1 text-3xs text-steam-muted">
           {`画像: 最大${MEDIA_LIMIT_LABELS.imageSize}／動画: 最大${MEDIA_LIMIT_LABELS.videoSize}・${MEDIA_LIMIT_LABELS.videoDuration}まで`}
         </p>
       </button>
@@ -268,7 +273,7 @@ export default function UploadPage() {
           {items.map((item, i) => (
             <li
               key={i}
-              className="flex items-center gap-2 rounded-sm border border-steam-border bg-steam-surface px-3 py-2"
+              className="flex items-center gap-2 rounded-xl bg-steam-surface px-3 py-2"
             >
               {item.mode === "image" ? (
                 <ImageIcon size={14} className="flex-shrink-0 text-steam-blue" />
@@ -276,36 +281,36 @@ export default function UploadPage() {
                 <Film size={14} className="flex-shrink-0 text-steam-blue" />
               )}
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-mono text-xs text-steam-text">
+                <span className="block truncate text-xs text-steam-text">
                   {item.file.name}
                 </span>
                 {item.appId !== null && (identifying || identified.get(item.appId)?.title) && (
-                  <span className="block truncate font-mono text-3xs text-[#a4d007]">
+                  <span className="block truncate text-3xs text-steam-blue">
                     {identified.get(item.appId)?.title ?? "判別中…"}
                   </span>
                 )}
               </span>
-              <span className="flex-shrink-0 font-mono text-3xs text-steam-muted">
+              <span className="flex-shrink-0 text-3xs text-steam-muted">
                 {(item.file.size / 1024 / 1024).toFixed(1)}MB
               </span>
 
               {item.status === "uploading" && (
-                <span className="flex-shrink-0 font-mono text-3xs text-steam-blue">
+                <span className="flex-shrink-0 text-3xs text-steam-blue">
                   アップロード中…
                 </span>
               )}
               {item.status === "done" && (
-                <Check size={14} className="flex-shrink-0 text-[#a4d007]" />
+                <Check size={14} className="flex-shrink-0 text-positive" />
               )}
               {item.status === "error" && (
-                <span className="flex flex-shrink-0 items-center gap-1 font-mono text-3xs text-[#eb4b4b]">
+                <span className="flex flex-shrink-0 items-center gap-1 text-3xs text-danger">
                   <AlertCircle size={12} /> 失敗
                 </span>
               )}
               {item.status === "idle" && !running && (
                 <button
                   onClick={() => removeItem(i)}
-                  className="flex-shrink-0 p-1.5 text-steam-muted hover:text-[#eb4b4b]"
+                  className="flex-shrink-0 p-1.5 text-steam-muted hover:text-danger"
                   aria-label="削除"
                 >
                   <X size={14} />
@@ -317,38 +322,38 @@ export default function UploadPage() {
       )}
 
       {detectedGames.length > 0 && (
-        <div className="mt-4 rounded-sm border border-[#a4d007]/40 bg-steam-panel p-3">
-          <p className="flex items-center gap-1.5 font-mono text-2xs text-steam-text">
-            <Wand2 size={12} className="text-[#a4d007]" />
+        <div className="mt-4 rounded-xl bg-positive/10 p-3">
+          <p className="flex items-center gap-1.5 text-2xs text-steam-text">
+            <Wand2 size={12} className="text-positive" />
             ファイル名からゲームを判別しました
           </p>
           <ul className="mt-2 flex flex-col gap-1">
             {detectedGames.map((g) => (
-              <li key={g.appId} className="font-mono text-3xs text-steam-muted">
+              <li key={g.appId} className="text-3xs text-steam-muted">
                 <span className="text-steam-text">{g.title ?? `Steam app ${g.appId}`}</span>
                 {" … "}
                 {g.album ? (
-                  <span className="text-[#a4d007]">
+                  <span className="text-positive">
                     {/* **グループ名も出す。** 判別は自分が見える範囲から探すので、
                         別グループの同名アルバムが選ばれることがある */}
                     {`${g.album.groupName} のアルバム「${g.album.title}」に追加します`}
                   </span>
                 ) : (
-                  <span className="text-steam-muted/70">
+                  <span className="text-steam-muted">
                     このゲームのアルバムはまだありません（未分類で保存されます）
                   </span>
                 )}
               </li>
             ))}
           </ul>
-          <p className="mt-2 font-mono text-4xs text-steam-muted/70">
+          <p className="mt-2 text-4xs text-steam-muted">
             下でアルバムやタグを指定した場合は、そちらが優先されます。
           </p>
         </div>
       )}
 
       <div className="mt-4">
-        <label className="font-mono text-2xs text-steam-muted">グループ</label>
+        <label className="text-2xs text-steam-muted">グループ</label>
         <select
           aria-label="グループ"
           value={groupId}
@@ -357,7 +362,7 @@ export default function UploadPage() {
             setAlbumId(""); // 別グループのアルバムが選ばれたまま残らないように戻す
           }}
           disabled={running || groups.length === 0}
-          className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+          className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
         >
           <option value="">グループを選択</option>
           {groups.map((g) => (
@@ -370,7 +375,7 @@ export default function UploadPage() {
         {/* **グループが無い／新しく作りたい人の逃げ道。** ここで手が止まると、
             アルバムを選べない理由も次にどうすればよいかも分からない。
             **別タブで開く**——同じタブだと、選んだファイルが消えてやり直しになる */}
-        <p className="mt-1 font-mono text-4xs text-steam-muted/70">
+        <p className="mt-1 text-4xs text-steam-muted">
           {groups.length === 0
             ? "参加しているグループがありません。"
             : "入れたいグループが無いときは "}
@@ -389,13 +394,13 @@ export default function UploadPage() {
       </div>
 
       <div className="mt-4">
-        <label className="font-mono text-2xs text-steam-muted">追加先アルバム</label>
+        <label className="text-2xs text-steam-muted">追加先アルバム</label>
         <select
           aria-label="追加先アルバム"
           value={albumId}
           onChange={(e) => setAlbumId(e.target.value)}
           disabled={running || !groupId}
-          className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+          className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
         >
           <option value="">
             {!groupId
@@ -411,17 +416,17 @@ export default function UploadPage() {
           ))}
         </select>
         {groupId && albumsInGroup.length === 0 && (
-          <p className="mt-1 font-mono text-4xs text-steam-muted/70">
+          <p className="mt-1 text-4xs text-steam-muted">
             このグループにはまだアルバムがありません。未分類で保存して、後から振り分けられます。
           </p>
         )}
       </div>
 
       <div className="mt-3">
-        <label className="font-mono text-2xs text-steam-muted">
+        <label className="text-2xs text-steam-muted">
           ゲームタグ（任意・全ファイル共通）
           {detectedGames.length > 0 && (
-            <span className="ml-1 text-steam-muted/70">— 空なら判別したゲーム名が入ります</span>
+            <span className="ml-1 text-steam-muted">— 空なら判別したゲーム名が入ります</span>
           )}
         </label>
         <input
@@ -429,14 +434,14 @@ export default function UploadPage() {
           onChange={(e) => setGameTag(e.target.value)}
           placeholder="eldenring"
           disabled={running}
-          className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+          className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
         />
       </div>
 
       <button
         onClick={handleUploadAll}
         disabled={items.length === 0 || running || allDone}
-        className="mt-5 w-full rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] py-2.5 font-mono text-sm font-bold text-[#0e1b12] disabled:opacity-40"
+        className={`${primaryButton} mt-5 w-full`}
       >
         {running
           ? `アップロード中… (${items.filter((i) => i.status === "done").length}/${items.length})`
@@ -444,13 +449,13 @@ export default function UploadPage() {
             ? "すべて完了"
             : anyError
               ? "失敗分をやり直す"
-              : `${items.length || ""}件アップロード`}
+              : items.length > 0 ? `${items.length}件アップロード` : "ファイルを選んでください"}
       </button>
 
       {allDone && (
         <button
           onClick={() => router.push("/")}
-          className="mt-2 w-full rounded-sm border border-steam-border py-2 font-mono text-xs text-steam-text"
+          className={`${secondaryButton} mt-2 w-full`}
         >
           ホームに戻る
         </button>
@@ -461,7 +466,7 @@ export default function UploadPage() {
           容量も長さの制限も無い（自分たちのストレージに何も置かないため）。 */}
       <div className="mt-8 border-t border-steam-border pt-5">
         <h2 className="font-display text-lg font-bold text-steam-text">YouTubeの動画を追加</h2>
-        <p className="mt-1 font-mono text-2xs text-steam-muted">
+        <p className="mt-1 text-2xs text-steam-muted">
           長い動画はYouTubeに上げてURLを貼れば、アルバムに並べられます。容量・長さの制限はありません。
         </p>
 
@@ -475,11 +480,11 @@ export default function UploadPage() {
           placeholder="https://www.youtube.com/watch?v=..."
           disabled={youtubeState === "saving"}
           aria-label="YouTubeのURL"
-          className="mt-3 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+          className="mt-3 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
         />
 
         {youtubeUrl.trim().length > 0 && !youtubeLink && (
-          <p className="mt-1 font-mono text-3xs text-[#eb4b4b]">
+          <p className="mt-1 text-3xs text-danger">
             YouTubeのURLとして読み取れません（watch / youtu.be / shorts のURLに対応しています）
           </p>
         )}
@@ -493,7 +498,7 @@ export default function UploadPage() {
               alt=""
               className="h-16 w-28 flex-shrink-0 rounded-sm border border-steam-border object-cover"
             />
-            <p className="min-w-0 font-mono text-3xs text-steam-muted">
+            <p className="min-w-0 text-3xs text-steam-muted">
               {albumId
                 ? `「${albumsInGroup.find((a) => a.id === albumId)?.title ?? "選択中のアルバム"}」に追加します`
                 : "未分類に追加します（後からアルバムへ振り分けられます）"}
@@ -504,18 +509,18 @@ export default function UploadPage() {
         <button
           onClick={handleAddYoutube}
           disabled={!youtubeLink || youtubeState === "saving"}
-          className="mt-3 w-full rounded-sm border border-steam-border py-2 font-mono text-xs text-steam-text hover:border-steam-blue disabled:opacity-40"
+          className={`${secondaryButton} mt-3 w-full`}
         >
           {youtubeState === "saving" ? "追加中…" : "この動画を追加"}
         </button>
 
         {youtubeState === "done" && (
-          <p className="mt-2 font-mono text-3xs text-[#a4d007]">
+          <p className="mt-2 text-3xs text-positive">
             追加しました。続けて別のURLも貼れます。
           </p>
         )}
         {youtubeError && (
-          <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{youtubeError}</p>
+          <p className="mt-2 text-3xs text-danger">{youtubeError}</p>
         )}
       </div>
     </main>

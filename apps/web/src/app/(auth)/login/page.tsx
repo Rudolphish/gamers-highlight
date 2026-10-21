@@ -73,7 +73,7 @@ function LoginForm() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-6">
       <div className="flex flex-col items-center text-center">
-        <p className="mb-4 font-display text-4xl font-black tracking-tight text-steam-text drop-shadow-[0_0_24px_rgba(102,192,244,0.35)] sm:text-5xl">
+        <p className="mb-4 font-logo text-4xl font-bold tracking-tight text-steam-text drop-shadow-[0_0_24px_rgba(90,176,234,0.35)] sm:text-5xl">
           Share<span className="text-steam-blue">Staq</span>
         </p>
         <h1 className="text-2xl font-bold text-steam-text">ログイン</h1>
@@ -81,12 +81,12 @@ function LoginForm() {
       </div>
 
       {described && (
-        <div role="alert" className="max-w-sm rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div role="alert" className="max-w-sm rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">
           <p>{described.message}</p>
-          {described.hint && <p className="mt-1.5 text-xs text-red-600">{described.hint}</p>}
+          {described.hint && <p className="mt-1.5 text-sm text-steam-text">{described.hint}</p>}
           {/* 管理者が原因を切り分けるためのコード。知らないコード（例外メッセージ）は出さない */}
           {described.showCode && error && KNOWN_CODES.has(error) && (
-            <p className="mt-1.5 font-mono text-3xs text-red-500/80">{`エラーコード: ${error}`}</p>
+            <p className="mt-1.5 text-xs text-steam-muted">{`エラーコード: ${error}`}</p>
           )}
         </div>
       )}
@@ -95,14 +95,14 @@ function LoginForm() {
         <button
           onClick={() => handleSignIn("discord")}
           disabled={provider !== null}
-          className="flex items-center justify-center gap-2 rounded-md bg-[#5865F2] px-6 py-2.5 text-sm font-medium text-white transition hover:bg-[#4752C4] disabled:opacity-50"
+          className="flex h-12 items-center justify-center gap-2 rounded-full bg-[#5865F2] px-6 text-sm font-bold text-white transition hover:bg-[#4752C4] disabled:opacity-50"
         >
           {provider === "discord" && <Spinner size={14} />}
           {provider === "discord" ? "リダイレクト中…" : "Discordでログイン"}
         </button>
       </div>
 
-      <p className="mt-4 font-mono text-3xs text-steam-muted/60">
+      <p className="mt-4 text-3xs text-steam-muted">
         © {new Date().getFullYear()} ShareStaq
       </p>
     </main>

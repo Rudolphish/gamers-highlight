@@ -6,6 +6,9 @@ import Image from "next/image";
 import { Search as SearchIcon, Gamepad2 } from "lucide-react";
 import { PhotoGrid } from "@/components/photo/PhotoGrid";
 import type { MediaKind } from "@/lib/mediaKind";
+import { GAME_STATUS_LABELS } from "@/lib/gameLabels";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { badge, primaryButton } from "@/components/ui/buttonStyles";
 
 type Media = {
   id: string;
@@ -27,12 +30,7 @@ type GroupGameResult = {
   status?: "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  WISHLIST: "気になる",
-  PLAYING: "プレイ中",
-  BACKLOG: "積みゲー",
-  COMPLETED: "クリア済み",
-};
+const STATUS_LABEL: Record<string, string> = GAME_STATUS_LABELS;
 
 export default function SearchPage() {
   const [game, setGame] = useState("");
@@ -103,51 +101,51 @@ export default function SearchPage() {
       <h1 className="font-display text-2xl font-bold text-steam-text sm:text-3xl">
         スクショを探す
       </h1>
-      <p className="mt-1 font-mono text-xs text-steam-muted">
+      <p className="mt-1 text-xs text-steam-muted">
         ゲームタイトル、写真の説明、投稿者、日付で検索できます
       </p>
 
-      <form onSubmit={handleSearch} className="mt-4 flex flex-col gap-3 rounded-sm border border-steam-border bg-steam-surface p-4">
+      <form onSubmit={handleSearch} className="mt-4 flex flex-col gap-3 rounded-xl bg-steam-surface p-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="font-mono text-2xs text-steam-muted">ゲームタイトル・説明</label>
+            <label className="text-2xs text-steam-muted">ゲームタイトル・説明</label>
             <input
               type="text"
               value={game}
               onChange={(e) => setGame(e.target.value)}
               placeholder="例: ELDEN RING"
-              className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue"
+              className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue"
             />
           </div>
           <div>
-            <label className="font-mono text-2xs text-steam-muted">投稿者ID</label>
+            <label className="text-2xs text-steam-muted">投稿者ID</label>
             <input
               type="text"
               value={uploader}
               onChange={(e) => setUploader(e.target.value)}
               placeholder="ユーザーID"
-              className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue"
+              className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue"
             />
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="font-mono text-2xs text-steam-muted">開始日</label>
+            <label className="text-2xs text-steam-muted">開始日</label>
             <input
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue"
+              className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue"
             />
           </div>
           <div>
-            <label className="font-mono text-2xs text-steam-muted">終了日</label>
+            <label className="text-2xs text-steam-muted">終了日</label>
             <input
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue"
+              className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue"
             />
           </div>
         </div>
@@ -155,7 +153,7 @@ export default function SearchPage() {
         <button
           type="submit"
           disabled={loading}
-          className="mt-2 flex items-center justify-center gap-2 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] py-2.5 font-mono text-sm font-bold text-[#0e1b12] disabled:opacity-50 hover:brightness-110 transition"
+          className={`${primaryButton} mt-2`}
         >
           <SearchIcon size={16} />
           {loading ? "検索中…" : "検索"}
@@ -163,12 +161,12 @@ export default function SearchPage() {
       </form>
 
       <section className="mt-6">
-        <h2 className="font-mono text-xs text-steam-muted mb-3">
+        <h2 className="text-xs text-steam-muted mb-3">
           {searched ? `検索結果 (${photos.length} 件)` : "読み込み中…"}
         </h2>
 
         {loading ? (
-          <p className="font-mono text-xs text-steam-muted">読み込み中…</p>
+          <p className="text-xs text-steam-muted">読み込み中…</p>
         ) : photos.length > 0 ? (
           // 説明は表示だけ（canEditDescription を渡さないので編集ボタンは出ない）。
           // ここは複数アルバム横断で、1枚ずつEDITOR権限を判定する足場が無いため
@@ -183,15 +181,13 @@ export default function SearchPage() {
             }))}
           />
         ) : (
-          <div className="rounded-sm border border-dashed border-steam-border bg-steam-surface p-8 text-center font-mono text-xs text-steam-muted">
-            該当するスクリーンショットが見つかりませんでした。
-          </div>
+          <EmptyState icon={SearchIcon} title="見つかりませんでした" description="ゲーム名や期間を変えて、もう一度探してみてください。" />
         )}
       </section>
 
       {(groupGames.length > 0 || groupProposals.length > 0) && (
         <section className="mt-6">
-          <h2 className="mb-3 font-mono text-xs text-steam-muted">
+          <h2 className="mb-3 text-xs text-steam-muted">
             グループのゲーム/提案 ({groupGames.length + groupProposals.length} 件)
           </h2>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
@@ -199,7 +195,7 @@ export default function SearchPage() {
               <Link
                 key={`game-${g.id}`}
                 href={`/groups/${g.groupId}/games/${g.id}`}
-                className="overflow-hidden rounded-sm border border-steam-border bg-steam-surface transition hover:border-steam-blue"
+                className="overflow-hidden rounded-xl bg-steam-surface transition hover:border-steam-blue"
               >
                 <div className="relative h-24 w-full overflow-hidden bg-steam-panel">
                   {g.coverUrl ? (
@@ -211,16 +207,16 @@ export default function SearchPage() {
                       className="object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center font-mono text-3xs text-steam-muted/60">
+                    <div className="flex h-full w-full items-center justify-center text-3xs text-steam-muted">
                       No Image
                     </div>
                   )}
                 </div>
                 <div className="p-2">
                   <p className="truncate font-display text-sm font-semibold text-steam-text">{g.title}</p>
-                  <p className="truncate font-mono text-4xs text-steam-muted/70">{g.groupName}</p>
+                  <p className="truncate text-4xs text-steam-muted">{g.groupName}</p>
                   {g.status && (
-                    <span className="mt-1 inline-block rounded-sm border border-steam-border px-1.5 py-0.5 font-mono text-4xs text-steam-muted">
+                    <span className={`${badge("neutral")} mt-1`}>
                       {STATUS_LABEL[g.status]}
                     </span>
                   )}
@@ -231,7 +227,7 @@ export default function SearchPage() {
               <Link
                 key={`proposal-${p.id}`}
                 href={`/groups/${p.groupId}`}
-                className="overflow-hidden rounded-sm border border-steam-border bg-steam-surface transition hover:border-steam-blue"
+                className="overflow-hidden rounded-xl bg-steam-surface transition hover:border-steam-blue"
               >
                 <div className="relative h-24 w-full overflow-hidden bg-steam-panel">
                   {p.coverUrl ? (
@@ -243,15 +239,15 @@ export default function SearchPage() {
                       className="object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center font-mono text-3xs text-steam-muted/60">
+                    <div className="flex h-full w-full items-center justify-center text-3xs text-steam-muted">
                       No Image
                     </div>
                   )}
                 </div>
                 <div className="p-2">
                   <p className="truncate font-display text-sm font-semibold text-steam-text">{p.title}</p>
-                  <p className="truncate font-mono text-4xs text-steam-muted/70">{p.groupName}</p>
-                  <span className="mt-1 inline-flex items-center gap-1 rounded-sm border border-steam-blue/50 px-1.5 py-0.5 font-mono text-4xs text-steam-blue">
+                  <p className="truncate text-4xs text-steam-muted">{p.groupName}</p>
+                  <span className={`${badge("blue")} mt-1 gap-1`}>
                     <Gamepad2 size={9} /> 提案中
                   </span>
                 </div>

@@ -7,7 +7,7 @@ import { activityLogCreateArgs } from "@/lib/activityLog";
 // POST /api/photos/:id/reactions … 写真への❤️をトグルする。
 //
 // 既に押していれば取り消し、押していなければ付ける。種類は1つだけなので、
-// GroupGameInterest（ゲームの「気になる」）と同じ形。
+// GroupGameInterest（ゲームの「ねらってる」）と同じ形。
 //
 // **権限はVIEWER以上。** 自分の反応を示すだけでアルバムの中身は変わらないため、
 // 閲覧できる人なら誰でも押せる（GroupGameInterest と同じ考え方）。

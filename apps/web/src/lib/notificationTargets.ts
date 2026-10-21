@@ -23,12 +23,12 @@ export const NOTIFICATION_KINDS: {
   {
     kind: "PROPOSAL",
     label: "ゲームが提案されたとき",
-    description: "ゲーム名・提案した人・採用に必要な「いいね」の数を送ります",
+    description: "ゲーム名・提案した人・採用に必要な「やりたい」の数を送ります",
   },
   {
     kind: "PRICE_DROP",
     label: "ウィッシュリストが最安値を更新したとき",
-    description: "「気になる」とウィッシュリストのゲームを毎日調べて、過去の最安値を更新したときだけ送ります",
+    description: "「プレイ予定」とウィッシュリストのゲームを毎日調べて、過去の最安値を更新したときだけ送ります",
   },
   {
     kind: "WEEKLY_SUMMARY",

@@ -54,13 +54,13 @@ export function UnknownPlays({
 
   return (
     <div
-      className="mb-4 rounded-sm border border-steam-border bg-steam-panel p-3"
+      className="mb-4 rounded-lg bg-steam-panel p-3"
       data-testid="unknown-plays"
     >
-      <p className="flex items-center gap-1.5 font-mono text-xs font-bold text-steam-text">
+      <p className="flex items-center gap-1.5 text-xs font-bold text-steam-text">
         <HelpCircle size={13} /> ゲームが分からないプレイ
       </p>
-      <p className="mt-1 font-mono text-3xs text-steam-muted">
+      <p className="mt-1 text-3xs text-steam-muted">
         Discordに出ていた名前がゲームリストと一致しませんでした。どのゲームか選ぶと、
         過去の記録にも反映され、次からは自動で当たります。
         リストに無いゲームなら、先にゲームを追加してください。
@@ -69,7 +69,7 @@ export function UnknownPlays({
       <ul className="mt-2 flex flex-col gap-2">
         {plays.map((p) => (
           <li key={p.gameKey} className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-xs text-steam-text">
+            <span className="text-xs text-steam-text">
               {p.activityName}
               <span className="ml-1 text-steam-muted">（{p.sessionCount}回）</span>
             </span>
@@ -77,7 +77,7 @@ export function UnknownPlays({
               aria-label={`${p.activityName}のゲームを選ぶ`}
               value={selected[p.gameKey] ?? ""}
               onChange={(e) => setSelected((s) => ({ ...s, [p.gameKey]: e.target.value }))}
-              className="min-h-[44px] rounded-sm border border-steam-border bg-steam-surface px-2 font-mono text-xs text-steam-text"
+              className="min-h-[44px] rounded-xl bg-steam-surface px-2 text-xs text-steam-text"
             >
               <option value="">ゲームを選ぶ</option>
               {games.map((g) => (
@@ -90,7 +90,7 @@ export function UnknownPlays({
               type="button"
               onClick={() => assign(p.gameKey)}
               disabled={!selected[p.gameKey] || pendingKey !== null}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-sm bg-steam-blue/20 px-3 font-mono text-xs text-steam-text disabled:opacity-50"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-sm bg-steam-blue/20 px-3 text-xs text-steam-text disabled:opacity-50"
             >
               {pendingKey === p.gameKey && <Spinner size={12} />}
               結びつける
@@ -98,7 +98,7 @@ export function UnknownPlays({
           </li>
         ))}
       </ul>
-      {error && <p className="mt-2 font-mono text-3xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-2 text-3xs text-danger">{error}</p>}
     </div>
   );
 }

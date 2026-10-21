@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eye } from "lucide-react";
+import { Bookmark } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { chipBase } from "@/components/ui/buttonStyles";
 
 export type InterestUser = { id: string; name: string };
 
-// ウォッチリストの「気になってる」マーク。ゲームのステータス（グループとしての状態）とは別に、
+// ウォッチリストの「ねらってる」マーク（2026-10 のデザイン刷新で「気になる」から改名。ゲームの状態の「プレイ予定」と紛らわしかったため）。ゲームのステータス（グループとしての状態）とは別に、
 // メンバーが個人の興味を軽く表明するためのもの。グループのゲームリストのカードと
-// ゲーム詳細ページの両方から使う（詳細ページでは showNames で誰が気になっているかも出す）。
+// ゲーム詳細ページの両方から使う（詳細ページでは showNames で誰がねらっているかも出す）。
 export function InterestButton({
   groupId,
   gameId,
@@ -67,25 +68,22 @@ export function InterestButton({
       <button
         onClick={toggle}
         disabled={pending}
-        title={mine ? "気になるを取り消す" : "気になる！"}
+        title={mine ? "ねらってるを取り消す" : "ねらってる！"}
         aria-pressed={mine}
-        aria-label={`気になってる（${localUsers.length}人）`}
-        className={`flex flex-shrink-0 items-center gap-1 rounded-sm border px-1.5 py-1 font-mono text-3xs transition disabled:opacity-50 ${
-          mine
-            ? "border-[#a4d007]/60 text-[#a4d007]"
-            : "border-steam-border text-steam-muted hover:border-steam-blue"
-        }`}
+        aria-label={`ねらってる（${localUsers.length}人）`}
+        className={`${chipBase} ${mine ? "border-steam-blue/60 bg-steam-blue/10 text-steam-blue" : "border-steam-border text-steam-muted hover:border-steam-blue"}`}
       >
-        {pending ? <Spinner size={10} /> : <Eye size={11} />}
-        {localUsers.length}
+        {pending ? <Spinner size={14} /> : <Bookmark size={15} fill={mine ? "currentColor" : "none"} aria-hidden="true" />}
+        <span>ねらってる</span>
+        {localUsers.length > 0 && <span className="font-num">{localUsers.length}</span>}
       </button>
 
       {showNames && localUsers.length > 0 && (
-        <p className="mt-1.5 font-mono text-3xs text-steam-muted">
-          気になってる: {localUsers.map((u) => u.name).join("、")}
+        <p className="mt-1.5 text-sm text-steam-muted">
+          ねらってる: {localUsers.map((u) => u.name).join("、")}
         </p>
       )}
-      {error && <p className="mt-1 font-mono text-4xs text-[#eb4b4b]">{error}</p>}
+      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
     </div>
   );
 }

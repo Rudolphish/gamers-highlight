@@ -11,8 +11,8 @@ export function GameNewsPanel({ news }: { news: SteamNewsItem[] }) {
   const paragraphs = newsContentToParagraphs(latest.contents);
 
   return (
-    <div className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6">
-      <h2 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
+    <div className="rounded-xl bg-steam-surface p-4 sm:p-6">
+      <h2 className="flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wide text-steam-muted">
         <Newspaper size={12} /> 最新ニュース
       </h2>
       <a
@@ -23,10 +23,10 @@ export function GameNewsPanel({ news }: { news: SteamNewsItem[] }) {
       >
         {latest.title}
       </a>
-      <p className="mt-0.5 font-mono text-4xs text-steam-muted/70">
+      <p className="mt-0.5 text-4xs text-steam-muted">
         {new Date(latest.date * 1000).toLocaleDateString("ja-JP")}
       </p>
-      <div className="mt-2 max-h-48 overflow-y-auto font-mono text-xs leading-relaxed text-steam-muted">
+      <div className="mt-2 max-h-48 overflow-y-auto text-xs leading-relaxed text-steam-muted">
         {paragraphs.length > 0 ? (
           paragraphs.map((p, i) => (
             <p key={i} className="mt-2 first:mt-0">
@@ -46,7 +46,7 @@ export function GameNewsPanel({ news }: { news: SteamNewsItem[] }) {
               href={item.url}
               target="_blank"
               rel="noreferrer"
-              className="block truncate font-mono text-3xs text-steam-muted hover:text-steam-blue"
+              className="block truncate text-3xs text-steam-muted hover:text-steam-blue"
             >
               {item.title}
             </a>

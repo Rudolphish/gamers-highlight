@@ -51,16 +51,16 @@ export function AlbumRows({ albums }: { albums: Album[] }) {
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate font-mono text-xs text-steam-text">{album.title}</p>
+            <p className="truncate text-xs text-steam-text">{album.title}</p>
             {album.groupName && (
-              <p className="truncate font-mono text-4xs text-steam-muted/70">{album.groupName}</p>
+              <p className="truncate text-4xs text-steam-muted">{album.groupName}</p>
             )}
           </div>
 
-          <span className="flex-shrink-0 font-mono text-3xs text-steam-muted">
+          <span className="flex-shrink-0 font-num text-3xs text-steam-muted">
             {album.photoCount}枚
           </span>
-          <span className="hidden flex-shrink-0 font-mono text-4xs text-steam-muted/70 sm:inline">
+          <span className="hidden flex-shrink-0 text-4xs text-steam-muted sm:inline">
             {album.updatedLabel}
           </span>
         </Link>

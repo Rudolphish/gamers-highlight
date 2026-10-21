@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
+import { primaryButton, textButton } from "@/components/ui/buttonStyles";
 
 // グループ作成画面：名前を入力してPOST /api/groups
 export default function NewGroupPage() {
@@ -43,9 +44,9 @@ export default function NewGroupPage() {
     <main className="p-4 sm:p-6">
       <button
         onClick={() => router.back()}
-        className="mb-4 flex items-center gap-1 font-mono text-xs text-steam-muted"
+        className={`${textButton} mb-2 -ml-2`}
       >
-        <ChevronLeft size={14} /> 戻る
+        <ChevronLeft size={16} aria-hidden="true" /> 戻る
       </button>
 
       <h1 className="font-display text-2xl font-bold text-steam-text sm:text-3xl">
@@ -54,20 +55,20 @@ export default function NewGroupPage() {
 
       <div className="mt-6 flex max-w-md flex-col gap-4">
         <div>
-          <label className="font-mono text-2xs text-steam-muted">
-            グループ名 <span className="text-[#eb4b4b]">*</span>
+          <label className="text-2xs text-steam-muted">
+            グループ名 <span className="text-danger">*</span>
           </label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="例：ゲーム仲間"
             disabled={pending}
-            className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+            className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
           />
         </div>
 
         <div>
-          <label className="font-mono text-2xs text-steam-muted">
+          <label className="text-2xs text-steam-muted">
             DiscordサーバーID（任意）
           </label>
           <input
@@ -75,9 +76,9 @@ export default function NewGroupPage() {
             onChange={(e) => setGuildId(e.target.value)}
             placeholder="例：1534495271948521552"
             disabled={pending}
-            className="mt-1 w-full rounded-sm border border-steam-border bg-steam-bg px-3 py-2 font-mono text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
+            className="mt-1 w-full rounded-lg border border-steam-border bg-steam-bg px-3 py-2 text-sm text-steam-text outline-none focus:border-steam-blue disabled:opacity-50"
           />
-          <p className="mt-1 font-mono text-3xs text-steam-muted/70">
+          <p className="mt-1 text-3xs text-steam-muted">
             指定すると、そのDiscordサーバーでのハッシュタグ投稿がこのグループに自動で取り込まれます。
             後から変更はできません。サーバーへのBot招待手順は
             <Link href="/manual#discord-bot-invite" className="text-steam-blue hover:underline">
@@ -87,12 +88,12 @@ export default function NewGroupPage() {
           </p>
         </div>
 
-        {error && <p className="font-mono text-xs text-[#eb4b4b]">{error}</p>}
+        {error && <p className="text-xs text-danger">{error}</p>}
 
         <button
           onClick={handleSubmit}
           disabled={pending || !name.trim()}
-          className="rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] py-2.5 font-mono text-sm font-bold text-[#0e1b12] disabled:opacity-40"
+          className={`${primaryButton}`}
         >
           {pending ? "作成中…" : "グループを作成"}
         </button>

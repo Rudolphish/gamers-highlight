@@ -27,24 +27,24 @@ const formatDuration = formatPlayDuration;
 export function GroupPlayLogPanel({ summary }: { summary: GamePlaySummary }) {
   return (
     <div
-      className="rounded-sm border border-steam-border bg-steam-surface p-4 sm:p-6"
+      className="rounded-xl bg-steam-surface p-4 sm:p-6"
       data-testid="group-play-log"
     >
-      <h2 className="flex items-center gap-1.5 font-mono text-3xs font-bold uppercase tracking-wide text-steam-muted">
+      <h2 className="flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wide text-steam-muted">
         <Gamepad2 size={12} /> グループで遊んだ時間
       </h2>
 
       {summary.totalMs === 0 ? (
-        <p className="mt-3 font-mono text-xs text-steam-muted">
+        <p className="mt-3 text-xs text-steam-muted">
           まだ記録がありません。DiscordのVCで2人以上がこのゲームを遊ぶと、自動で記録されます。
         </p>
       ) : (
         <>
-          <p className="mt-3 font-display text-2xl font-bold text-steam-text" data-testid="group-play-total" data-play-ms={summary.totalMs}>
+          <p className="mt-3 font-num text-2xl font-bold text-steam-text" data-testid="group-play-total" data-play-ms={summary.totalMs}>
             {formatDuration(summary.totalMs)}
           </p>
           {summary.lastPlayedAt && (
-            <p className="mt-0.5 font-mono text-3xs text-steam-muted">
+            <p className="mt-0.5 text-3xs text-steam-muted">
               最後に遊んだ日: {dateFmt.format(new Date(summary.lastPlayedAt))}
             </p>
           )}
@@ -61,10 +61,10 @@ export function GroupPlayLogPanel({ summary }: { summary: GamePlaySummary }) {
                 return (
                   <li key={s.id} className="py-2">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                      <span className="font-mono text-xs text-steam-text">
+                      <span className="text-xs text-steam-text">
                         {dateFmt.format(start)} {timeFmt.format(start)}〜{s.inProgress ? "" : timeFmt.format(end)}
                       </span>
-                      <span className="font-mono text-xs font-bold text-steam-text">
+                      <span className="text-xs font-bold text-steam-text">
                         {s.inProgress ? `プレイ中（${formatDuration(s.durationMs)}）` : formatDuration(s.durationMs)}
                         {s.estimated && (
                           <span
@@ -76,13 +76,13 @@ export function GroupPlayLogPanel({ summary }: { summary: GamePlaySummary }) {
                         )}
                       </span>
                     </div>
-                    <p className="mt-0.5 font-mono text-3xs text-steam-muted">{s.participants.join("・")}</p>
+                    <p className="mt-0.5 text-3xs text-steam-muted">{s.participants.join("・")}</p>
                   </li>
                 );
               })}
             </ul>
           )}
-          <p className="mt-3 font-mono text-4xs text-steam-muted">
+          <p className="mt-3 text-4xs text-steam-muted">
             5分未満の記録は一覧に出していません（合計には含みます）。
           </p>
         </>

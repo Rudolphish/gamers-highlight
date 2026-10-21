@@ -52,11 +52,11 @@ export function RevokeInviteButton({
         disabled={pending}
         title="このリンクを取り消す"
         aria-label="このリンクを取り消す"
-        className="p-1.5 text-steam-muted transition hover:text-[#eb4b4b] disabled:opacity-50"
+        className="p-1.5 text-steam-muted transition hover:text-danger disabled:opacity-50"
       >
         {pending ? <Spinner size={11} /> : <Trash2 size={11} />}
       </button>
-      {error && <span className="font-mono text-4xs text-[#eb4b4b]">{error}</span>}
+      {error && <span className="text-4xs text-danger">{error}</span>}
     </span>
   );
 }

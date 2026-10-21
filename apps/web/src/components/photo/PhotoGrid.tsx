@@ -69,7 +69,7 @@ export function PhotoGrid({
           <div
             key={item.id}
             onClick={() => setSelectedIndex(index)}
-            className="relative aspect-square overflow-hidden rounded-sm border border-steam-border cursor-pointer hover:border-steam-blue hover:brightness-110 hover:shadow-[0_0_16px_-2px_rgba(102,192,244,0.5)] transition"
+            className="relative aspect-square overflow-hidden rounded-sm border border-steam-border cursor-pointer hover:border-steam-blue hover:brightness-110 hover:shadow-[0_0_16px_-2px_rgba(90,176,234,0.5)] transition"
           >
             {item.mediaType === "YOUTUBE" ? (
               // **YouTubeはグリッドでは再生しない。** サムネイル（i.ytimg.com）を出して、
@@ -102,13 +102,13 @@ export function PhotoGrid({
               />
             )}
             {item.mediaType === "VIDEO" && (
-              <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-gradient-to-r from-[#4c6b22] to-[#a4d007] px-1 py-0.5 font-mono text-4xs font-bold text-white">
+              <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-accent px-1 py-0.5 text-4xs font-bold text-white">
                 <Play size={8} fill="white" /> {`${item.durationSeconds ?? "?"}s`}
               </span>
             )}
             {item.mediaType === "YOUTUBE" && (
               // 長さは持っていない（外部APIを叩かないと分からない）ので、種類だけ示す
-              <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-[#ff0000] px-1 py-0.5 font-mono text-4xs font-bold text-white">
+              <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-sm bg-[#ff0000] px-1 py-0.5 text-4xs font-bold text-white">
                 <Play size={8} fill="white" /> YouTube
               </span>
             )}

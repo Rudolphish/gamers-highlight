@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Rajdhani:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -22,6 +22,27 @@ html {
 }
 
 body {
-  background-color: #1b2838;
-  color: #c7d5e0;
+  /* tailwind.config.js の steam.bg / steam.text と同じ値 */
+  background-color: #11161d;
+  color: #dde5ec;
+}
+
+/*
+ * 入力欄と選択欄の高さの土台（デザイン刷新の段階6）。スマホ44px・PC36px。
+ * ボタンと同じ決まり（components/ui/buttonStyles.ts）。入力欄は画面ごとに書き方がばらばらで、
+ * 36〜40px のものが多く残っていたので、1つずつ直すのではなく土台で揃える。
+ * 個別の部品が min-height を持っていればそちらが勝つ（utilities は base より後に出る）。
+ * チェックボックス・ラジオ・ファイル選択（隠してある）・スライダーは対象外
+ */
+@layer base {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="hidden"]),
+  select {
+    min-height: 2.75rem;
+  }
+  @media (min-width: 768px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="hidden"]),
+    select {
+      min-height: 2.25rem;
+    }
+  }
 }

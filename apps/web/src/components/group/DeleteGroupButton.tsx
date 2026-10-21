@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { dangerButton } from "@/components/ui/buttonStyles";
 
 export function DeleteGroupButton({ groupId }: { groupId: string }) {
   const router = useRouter();
@@ -35,13 +36,9 @@ export function DeleteGroupButton({ groupId }: { groupId: string }) {
   }
 
   return (
-    <button
-      onClick={handleDelete}
-      disabled={pending}
-      className="flex items-center gap-1.5 rounded-sm border border-steam-border px-3 py-2 font-mono text-xs text-[#eb4b4b] hover:border-[#eb4b4b] disabled:opacity-50"
-    >
-      {pending ? <Spinner size={13} /> : <Trash2 size={13} />}
-      削除
+    <button onClick={handleDelete} disabled={pending} className={dangerButton}>
+      {pending ? <Spinner size={16} /> : <Trash2 size={16} aria-hidden="true" />}
+      グループを削除
     </button>
   );
 }

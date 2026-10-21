@@ -56,7 +56,7 @@ const COUNTED: { kind: ActivityKind; label: string }[] = [
   { kind: "photo.description_set", label: "説明" },
   { kind: "album.created", label: "アルバム" },
   { kind: "game.added", label: "ゲーム追加" },
-  { kind: "game.interest_added", label: "気になる" },
+  { kind: "game.interest_added", label: "ねらってる" },
   { kind: "proposal.created", label: "提案" },
   { kind: "proposal.voted", label: "提案への投票" },
   { kind: "member.joined", label: "新メンバー" },

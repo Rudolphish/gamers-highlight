@@ -70,7 +70,7 @@ export default async function AdminActivityPage({
       {error ? (
         <SectionError message={error} />
       ) : groups.length === 0 ? (
-        <p className="mt-6 font-mono text-xs text-steam-muted">グループがまだありません。</p>
+        <p className="mt-6 text-xs text-steam-muted">グループがまだありません。</p>
       ) : (
         calendar && (
           <>
@@ -87,7 +87,7 @@ export default async function AdminActivityPage({
                     <Link
                       key={g.id}
                       href={linkTo({ group: g.id, date: null })}
-                      className={`rounded-sm border px-2.5 py-1.5 font-mono text-3xs ${
+                      className={`rounded-sm border px-2.5 py-1.5 text-3xs ${
                         g.id === calendar.groupId
                           ? "border-steam-blue text-steam-blue"
                           : "border-steam-border text-steam-muted hover:text-steam-text"

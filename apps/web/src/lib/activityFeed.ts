@@ -3,6 +3,7 @@ import { activityEmoji, type ActivityKind } from "./activityLog";
 import { RAW_LOG_RETENTION_DAYS } from "./activityRollup";
 import { DAY_MS, JST_OFFSET_MS, dateColumnToString, jstDateColumn, jstDateString } from "./jst";
 import { formatPlayDuration } from "./playDuration";
+import { PROPOSAL_REACTION_LABELS, gameStatusLabel, proposalReactionLabel } from "./gameLabels";
 import { getPlayCalendar, getRecentPlays, type PlayCalendar, type PlayCalendarEntry } from "./playLog";
 
 /**
@@ -22,7 +23,7 @@ const WEEKDAYS = ["月", "火", "水", "木", "金", "土", "日"];
 /**
  * **グループのメンバーには出さない種類**（取り消し・削除系。docs/play-log.md §11 の段階2、ユーザー判断）。
  * 管理画面だけに出す。グループ向けのカレンダーでは件数（マスの濃淡）からも外す。
- * アルバム・ゲームの削除と「気になる」を外したのは、実装後の画面で「アルバムを削除」が流れているのを見て足した（2026-10-18）
+ * アルバム・ゲームの削除と「ねらってる」（当時は「気になる」）を外したのは、実装後の画面で「アルバムを削除」が流れているのを見て足した（2026-10-18）
  */
 export const GROUP_HIDDEN_KINDS: readonly ActivityKind[] = [
   "photo.deleted",
@@ -225,15 +226,16 @@ const TIMELINE_LABELS: Record<ActivityKind, string> = {
   "photo.deleted": "写真を削除",
   "photo.description_set": "説明を書いた",
   "photo.description_cleared": "説明を消した",
-  "photo.reaction_added": "❤️を付けた",
-  "photo.reaction_removed": "❤️を取り消した",
+  // 画面ではハートのアイコンが隣に出るので、文言には絵文字を入れない（デザイン刷新の段階2）
+  "photo.reaction_added": "ハートを付けた",
+  "photo.reaction_removed": "ハートを取り消した",
   "album.created": "アルバムを作成",
   "album.deleted": "アルバムを削除",
   "game.added": "ゲームを追加",
   "game.status_changed": "ステータスを変更",
   "game.removed": "ゲームを削除",
-  "game.interest_added": "気になるを付けた",
-  "game.interest_removed": "気になるを外した",
+  "game.interest_added": "ねらってるを付けた",
+  "game.interest_removed": "ねらってるを外した",
   // グループ画面では「ゲーム提案」を「ウィッシュリスト」と呼ぶ（2026-10-18 ユーザー判断）。投票・採用は仕組みの言い方なので「提案」のまま
   "proposal.created": "ウィッシュリストに追加",
   "proposal.voted": "提案に投票",
@@ -243,18 +245,24 @@ const TIMELINE_LABELS: Record<ActivityKind, string> = {
   "member.joined": "グループに参加",
 };
 
+/** 種類の短い説明（「写真を投稿」など）。画面でアイコンだけを並べる所の読み上げ用にも使う */
+export function timelineLabel(kind: string): string {
+  return TIMELINE_LABELS[kind as ActivityKind] ?? kind;
+}
+
 /** detail から1行の補足を作る。**入っていない形は黙って捨てる**（表示のために例外を投げない） */
 function noteOf(kind: string, detail: unknown): string | null {
   if (detail === null || typeof detail !== "object") return null;
   const d = detail as Record<string, unknown>;
+  // 記録にはDBの値（WISHLIST・LIKE）が入っているので、画面の呼び方に直してから出す（以前はそのまま出ていた）
   if (kind === "game.status_changed" && typeof d.to === "string") {
-    return typeof d.from === "string" ? `${d.from} → ${d.to}` : d.to;
+    return typeof d.from === "string" ? `${gameStatusLabel(d.from)} → ${gameStatusLabel(d.to)}` : gameStatusLabel(d.to);
   }
   if ((kind === "proposal.voted" || kind === "proposal.vote_removed") && typeof d.type === "string") {
-    return d.type;
+    return proposalReactionLabel(d.type);
   }
   if (kind === "proposal.accepted" && typeof d.likeCount === "number") {
-    return `👍 ${d.likeCount}`;
+    return `${PROPOSAL_REACTION_LABELS.LIKE} ${d.likeCount}人`;
   }
   return null;
 }

@@ -143,7 +143,7 @@ async function notifyProposal(groupId: string, title: string, proposerName: stri
   const message = [
     `💡 **${title}** が提案されました`,
     `提案者: ${who}`,
-    `👍 が ${threshold} 人集まるとゲームリストに入ります`,
+    `👍「やりたい」が ${threshold} 人集まるとゲームリストに入ります`,
   ].join("\n");
 
   const ok = await postDiscordMessage(channelId, message);
