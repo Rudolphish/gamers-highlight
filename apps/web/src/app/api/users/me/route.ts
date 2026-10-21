@@ -16,8 +16,8 @@ export async function GET() {
   }
 
   // ここは getCurrentUser() で済ませられない。返すのが name を含むプロフィールで、
-  // セッションのトークンは PATCH で改名しても古い名前を持ったままだから
-  // （トークンはサインイン時にしか作り直されない）。表示名は必ずDBから読む。
+  // セッションのトークンの名前は、PATCH で改名しても画面がセッションの更新を頼むまで古いままだから
+  // （プロフィールの画面は頼むが、他の端末のトークンは次にログインするまで古い。lib/auth.ts）。表示名は必ずDBから読む。
   const user = await db.user.findUnique({
     where: { email: session.user.email },
     select: { id: true, name: true, email: true },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { User, Check, AlertCircle } from "lucide-react";
 import { SettingsNav } from "@/components/settings/SettingsNav";
 
@@ -10,6 +11,8 @@ export default function ProfileSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  // 保存したらログイン情報の名前も更新する（PCの左下のアカウントに出る名前。値はサーバーがDBから読み直す。lib/auth.ts）
+  const { update: updateSession } = useSession();
 
   useEffect(() => {
     fetch("/api/users/me")
@@ -45,6 +48,7 @@ export default function ProfileSettingsPage() {
         const data = await res.json();
         setName(data.user.name ?? "");
         setMessage({ type: "success", text: "プロフィールを更新しました" });
+        await updateSession();
       } else {
         const data = await res.json();
         setMessage({ type: "error", text: data.error || "更新に失敗しました" });

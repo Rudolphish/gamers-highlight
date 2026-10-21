@@ -1899,6 +1899,7 @@ for (const [id, label, path] of targets) {
     B97: "PC幅で長いページをスクロールしてもメニューが残る",
     B98: "PC幅ではアカウントが左下に1つ出ていて、押すと自分のページが開く",
     B128: "PCの左メニューにある行き先は、スマホでもタブか「自分」ページから全部行ける",
+    B129: "プロフィールで表示名を変えると、ログインし直さなくても左下の名前が変わる（ブラウザから送った名前は使われない）",
   };
   const recorded = new Set();
   // 確認の都合で順番が前後するので、ID順に並べ直してから表へ入れる
@@ -1980,6 +1981,51 @@ for (const [id, label, path] of targets) {
       `${accountCount}つ / ${accountBox ? `x=${Math.round(accountBox.x)} 下端=${Math.round(accountBox.y + accountBox.height)}（画面${vh}）` : "-"} / ${landed || "-"}`,
       accountCount === 1 && bottomLeft && landed === "/me"
     );
+
+    // **左下の名前は DB の表示名。** 以前はログイン時の Discord の名前のままで、プロフィールで変えても
+    // 「自分」ページ（DBの表示名）と食い違っていた。保存すると画面がセッションの更新を呼び、サーバーが DB から読み直す。
+    // 更新の要求にはブラウザが好きな名前を載せられるので、それが左下に出ないことも見る。作業後は元の名前に戻す
+    {
+      const NEW_NAME = "左下確認テスト";
+      const FORGED = "偽の名前テスト";
+      const accountText = async () => (await pcPage.locator('[data-testid="sidebar-account"]').innerText()).replace(/\s+/g, " ");
+      const original = await pcPage.evaluate(async () => (await (await fetch("/api/users/me")).json())?.user?.name ?? null);
+      try {
+        await pcPage.goto(`${BASE}/settings/profile`, { waitUntil: "networkidle" });
+        await pcPage.getByPlaceholder("表示名を入力").fill(NEW_NAME);
+        await pcPage.getByRole("button", { name: "変更を保存" }).click();
+        await pcPage.getByText("プロフィールを更新しました").waitFor({ timeout: 10000 });
+        await pcPage.waitForTimeout(800);
+        const afterSave = await accountText();
+        // 偽の更新: NextAuth の update() と同じ要求を、名前を載せて直接送る
+        await pcPage.evaluate(async (forged) => {
+          const { csrfToken } = await (await fetch("/api/auth/csrf")).json();
+          await fetch("/api/auth/session", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ csrfToken, data: { name: forged } }),
+          });
+        }, FORGED);
+        await pcPage.reload({ waitUntil: "networkidle" });
+        const afterForged = await accountText();
+        rec(
+          "B129",
+          `保存後に「${NEW_NAME}」/ 偽の更新のあとも「${FORGED}」は出ない`,
+          `保存後: ${afterSave} / 偽の更新後: ${afterForged}`,
+          afterSave.includes(NEW_NAME) && !afterForged.includes(FORGED) && afterForged.includes(NEW_NAME)
+        );
+      } finally {
+        if (original) {
+          await pcPage
+            .evaluate(async (name) => {
+              await fetch("/api/users/me", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+              const { csrfToken } = await (await fetch("/api/auth/csrf")).json();
+              await fetch("/api/auth/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ csrfToken, data: {} }) });
+            }, original)
+            .catch(() => {});
+        }
+      }
+    }
 
     // **PCで行ける場所はスマホでも全部行けること。** タブは5つしか無いので、残りは「自分」ページが拾う。
     // 片方だけに項目を足すと、画面幅で行ける場所が変わる（CLAUDE.md「ナビの項目は navItems.ts が正本」）
