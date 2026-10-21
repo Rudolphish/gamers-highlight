@@ -4253,13 +4253,16 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     sectionOf(byAdmin.text, "Discord").includes("ハッシュタグで自動取り込みする") &&
     sectionOf(byAdmin.text, "ゲーム・遊んだ記録").includes("グループで遊んだ時間（プレイ記録）") &&
     sectionOf(byAdmin.text, "管理者向け").includes("管理者向けの機能");
+  // 分類の中は読む順（書いた順ではない）。「はじめに」はメニューの使い方から、「写真・アルバム」は手動アップロードから
+  const firstOf = (label) => sectionOf(byAdmin.text, label).match(/font-semibold text-steam-text">([^<]+)</)?.[1] ?? "";
+  const ordered = firstOf("はじめに") === "メニューの使い方（スマホとパソコン）" && firstOf("写真・アルバム") === "手動アップロード";
   check(
-    "F314 マニュアルが分類（はじめに・写真・アルバム・Discord・ゲーム・遊んだ記録・管理者向け）ごとに並び、目次に件数が出て、管理者向けは管理者にだけ出る",
+    "F314 マニュアルが分類（はじめに・写真・アルバム・Discord・ゲーム・遊んだ記録・管理者向け）ごとに並び、分類の中は読む順で、目次に件数が出て、管理者向けは管理者にだけ出る",
     byAdmin.status === 200 && byMember.status === 200 &&
       a.join("|") === "はじめに|写真・アルバム|Discord|ゲーム・遊んだ記録|管理者向け" &&
       m.join("|") === "はじめに|写真・アルバム|Discord|ゲーム・遊んだ記録" &&
-      byAdmin.text.includes('href="#category-photos"') && byAdmin.text.includes("写真・アルバム（6）") && placed,
-    `管理者=${a.join("|")} / メンバー=${m.join("|")} / 目次=${byAdmin.text.includes("写真・アルバム（6）")} / 置き場所=${placed}`
+      byAdmin.text.includes('href="#category-photos"') && byAdmin.text.includes("写真・アルバム（6）") && placed && ordered,
+    `管理者=${a.join("|")} / メンバー=${m.join("|")} / 目次=${byAdmin.text.includes("写真・アルバム（6）")} / 置き場所=${placed} / 先頭=${firstOf("はじめに")}・${firstOf("写真・アルバム")}`
   );
 }
 

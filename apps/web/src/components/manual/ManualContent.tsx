@@ -7,13 +7,14 @@ import { ChevronDown, ExternalLink } from "lucide-react";
 import { chipButton } from "@/components/ui/buttonStyles";
 
 // トピックの分類（2026-10-21 ユーザー判断。トピックが22まで増えて、どこに何があるか分からなくなった）。
-// **並べる順はこの配列の順**で、分類の中はトピックを書いた順。トピックを足すときは category を必ず付ける（型で漏れを止めている）
+// **分類はこの配列の順**に並べる。分類の中は `order` の順（読む順。書いた順のままだと「はじめに」が招待から始まった）で、
+// `order` に無いトピックは後ろに書いた順で続く。トピックを足すときは category を必ず付ける（型で漏れを止めている）
 const CATEGORIES = [
-  { key: "start", label: "はじめに" },
-  { key: "photos", label: "写真・アルバム" },
-  { key: "discord", label: "Discord" },
-  { key: "games", label: "ゲーム・遊んだ記録" },
-  { key: "admin", label: "管理者向け" },
+  { key: "start", label: "はじめに", order: ["mobile", "group-vs-album", "invite-friend", "permissions", "account"] },
+  { key: "photos", label: "写真・アルバム", order: ["manual-upload", "reactions-description", "album-view", "search", "unclassified", "delete"] },
+  { key: "discord", label: "Discord", order: [] },
+  { key: "games", label: "ゲーム・遊んだ記録", order: [] },
+  { key: "admin", label: "管理者向け", order: [] },
 ] as const;
 type CategoryKey = (typeof CATEGORIES)[number]["key"];
 
@@ -728,7 +729,12 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       : []),
   ];
 
-  const groups = CATEGORIES.map((c) => ({ ...c, items: sections.filter((s) => s.category === c.key) })).filter((g) => g.items.length > 0);
+  const rank = (order: readonly string[], id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
+  const groups = CATEGORIES.map((c) => ({
+    ...c,
+    // sort は同じ順位どうしの元の並びを保つので、order に無いトピックは書いた順のまま
+    items: sections.filter((s) => s.category === c.key).sort((a, b) => rank(c.order, a.id) - rank(c.order, b.id)),
+  })).filter((g) => g.items.length > 0);
 
   return (
     <div>
