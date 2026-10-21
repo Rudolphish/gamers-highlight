@@ -3093,9 +3093,11 @@ for (const [id, label, path] of targets) {
   }
 }
 
-// ── ウィッシュリストのカードに価格を出す（2026-10-19 ユーザー判断: 見せ方は A「1行の文字」、最安値はSteamだけ） ──
-// 価格はカードが出てからあとで読み込む。スマホ幅でも4つの部分（今の値段・割引率・最安値・印）が切れずに1行に収まること。
-// seed の提案は前のスイートで決着しうるので、自分でグループと提案を作る（stub: ¥4,730・-45%・Steamの最安値 ¥4,730）
+// ── ウィッシュリストのカードに価格を出す（2026-10-19 ユーザー判断: 最安値はSteamだけ） ──
+// 2026-10-21 に2行へ変えた（ユーザー判断）:「現在：~~¥8,600~~ ¥4,730 (-45%)」「最安：¥4,730 [最安値]」。
+// 価格はカードが出てからあとで読み込む。スマホ幅（390px）と、列がいちばん狭くなる PC 幅（1280px・列300px台）の両方で、
+// どの部分も切れず、割引前の値段に取り消し線が付いていること。
+// seed の提案は前のスイートで決着しうるので、自分でグループと提案を作る（stub: 定価 ¥8,600・¥4,730・-45%・Steamの最安値 ¥4,730）
 {
   const page = await context.newPage();
   let priceGroupId = null;
@@ -3112,28 +3114,50 @@ for (const [id, label, path] of targets) {
       });
       return group.id;
     }, `価格の表示テスト-${Date.now()}`);
-    await page.goto(`${BASE}/groups/${priceGroupId}?tab=wishlist`, { waitUntil: "networkidle" });
-    const line = page.getByTestId("wishlist-price").first();
-    await line.waitFor({ timeout: 8000 }).catch(() => {});
-    const m = (await line.count()) > 0
-      ? await line.evaluate((el) => ({
-          text: el.textContent,
-          parts: Array.from(el.children).map((c) => ({ t: c.textContent, cut: c.scrollWidth > c.clientWidth })),
-          lineCut: el.scrollWidth > el.clientWidth,
+    const measure = async () => {
+      const box = page.getByTestId("wishlist-price").first();
+      await box.waitFor({ timeout: 8000 }).catch(() => {});
+      if ((await box.count()) === 0) return null;
+      return box.evaluate((el) => {
+        const lineOf = (id) => {
+          const line = el.querySelector(`[data-testid="${id}"]`);
+          if (!line) return null;
+          return {
+            parts: Array.from(line.children).map((c) => ({ t: c.textContent, tag: c.tagName, cut: c.scrollWidth > c.clientWidth })),
+            cut: line.scrollWidth > line.clientWidth,
+          };
+        };
+        return {
+          now: lineOf("wishlist-price-now"),
+          low: lineOf("wishlist-price-low"),
+          width: Math.round(el.getBoundingClientRect().width),
           pageWide: document.documentElement.scrollWidth > window.innerWidth,
-        }))
-      : null;
-    const texts = m ? m.parts.map((x) => x.t) : [];
-    const ok = !!priceGroupId && !!m &&
-      texts.join("|") === "¥4,730|-45%|· 最安 ¥4,730|最安値" &&
-      m.parts.every((x) => !x.cut) && !m.lineCut && !m.pageWide;
+        };
+      });
+    };
+    const judge = (m) =>
+      !!m && !!m.now && !!m.low &&
+      m.now.parts.map((x) => x.t).join("|") === "現在：|¥8,600|¥4,730|(-45%)" &&
+      m.now.parts[1].tag === "S" &&
+      m.low.parts.map((x) => x.t).join("|") === "最安：|¥4,730|最安値" &&
+      [...m.now.parts, ...m.low.parts].every((x) => !x.cut) && !m.now.cut && !m.low.cut && !m.pageWide;
+    const show = (m) =>
+      m
+        ? `${m.now?.parts.map((x) => x.t).join("|")} ／ ${m.low?.parts.map((x) => x.t).join("|")}（幅${m.width}px・取り消し線=${m.now?.parts[1]?.tag === "S"}・切れ=${[...(m.now?.parts ?? []), ...(m.low?.parts ?? [])].filter((x) => x.cut).map((x) => x.t).join(",") || "なし"}・横はみ出し=${m.pageWide}）`
+        : "価格が出ない";
+    await page.goto(`${BASE}/groups/${priceGroupId}?tab=wishlist`, { waitUntil: "networkidle" });
+    const phone = await measure();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`${BASE}/groups/${priceGroupId}`, { waitUntil: "networkidle" });
+    const pc = await measure();
+    const ok = !!priceGroupId && judge(phone) && judge(pc);
     rows.push({
       id: "B119",
-      item: "ウィッシュリストのカードに「今の値段・割引率・Steamの最安値・最安値の印」が1行で出て、スマホ幅でも切れない",
-      expected: "¥4,730|-45%|· 最安 ¥4,730|最安値・どれも切れない・横にはみ出さない",
-      actual: m ? `${texts.join("|")} / 切れ=${m.parts.filter((x) => x.cut).map((x) => x.t).join(",") || "なし"} / 行が切れ=${m.lineCut} / 横はみ出し=${m.pageWide}` : `グループ=${!!priceGroupId} / 価格の行が出ない`,
+      item: "ウィッシュリストのカードの価格が2行（現在：割引前に取り消し線・今の値段・割引率 ／ 最安：Steamの最安値・最安値の印）で出て、スマホ幅でもPC幅でも切れない",
+      expected: "現在：|¥8,600(取り消し線)|¥4,730|(-45%) ／ 最安：|¥4,730|最安値・390pxと1280pxでどれも切れない",
+      actual: `390px: ${show(phone)} / 1280px: ${show(pc)}`,
       ok,
-      note: "",
+      note: priceGroupId ? "" : "グループを作れなかった",
     });
   } catch (e) {
     rows.push({ id: "B119", item: "ウィッシュリストのカードの価格", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
@@ -3972,6 +3996,133 @@ for (const [id, label, path] of targets) {
     rows.push({ id: "B141", item: "空のときの見せ方", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
   } finally {
     if (groupId) await page.evaluate((id) => fetch(`/api/groups/${id}`, { method: "DELETE" }), groupId).catch(() => {});
+    await page.close();
+  }
+}
+
+// ── グループ画面の細かな直し（2026-10-21 ユーザーの「気になるポイント」） ──
+// B143: 帯の見出しは「グループで遊んだ時間」だけ。合計が3桁時間（100時間以上）でも、スマホ幅とPC幅の右の列（340px）で
+//       数字が折り返さず枠からはみ出さない。記録は管理者のAPIで足し、同じ経路で消す（1回は24時間まで → 5回で約120時間）
+// B144: 「新規アルバム」「ゲームを追加」「追加する」が同じ見た目（薄い青）で、「写真を投稿」（青の塗り）とも「メンバー」（灰）とも違う
+// B145: 「クリア済み」の絞り込みの札が、押す前と押した後で面の色も文字の色も変わる（以前は灰色のまま枠線が少し濃くなるだけだった）
+{
+  const EXPECTED = {
+    B143: "グループで遊んだ時間の帯の見出しが「グループで遊んだ時間」だけで、3桁時間でもスマホ幅・PC幅とも数字が1行に収まり枠からはみ出さない",
+    B144: "グループ画面の「新規アルバム」「ゲームを追加」「追加する」が同じ薄い青の見た目で、「写真を投稿」とも「メンバー」とも違う",
+    B145: "みんなのゲームの「クリア済み」の札を押すと、面の色も文字の色も押す前から変わる",
+  };
+  const recorded = new Set();
+  const localRows = [];
+  const rec = (id, expected, actual, ok, note = "") => {
+    recorded.add(id);
+    localRows.push({ id, item: EXPECTED[id], expected, actual, ok, note });
+  };
+  const GROUP = `${BASE}/groups/${ids.groupId}`;
+  const page = await context.newPage();
+  const sessionIds = [];
+  try {
+    // B143
+    await page.goto(GROUP + "?tab=games", { waitUntil: "networkidle" });
+    const gameId = await page.evaluate((gid) =>
+      [...document.querySelectorAll(`a[href^="/groups/${gid}/games/"]`)].find((a) => (a.textContent ?? "").includes("が追加"))?.getAttribute("href")?.split("/").pop() ?? null,
+    ids.groupId);
+    for (let i = 0; i < 5; i++) {
+      const start = new Date(Date.now() - (30 - i * 2) * 86400000);
+      const end = new Date(start.getTime() + 24 * 3600000 - 60000);
+      const id = await page.evaluate(async ([groupId, groupGameId, adminId, s, e]) => {
+        const res = await fetch("/api/admin/play-sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ groupId, groupGameId, startedAt: s, endedAt: e, participantIds: [adminId] }),
+        });
+        return res.ok ? (await res.json()).id : null;
+      }, [ids.groupId, gameId, ids.adminId, start.toISOString(), end.toISOString()]);
+      if (id) sessionIds.push(id);
+    }
+    const measureBanner = () =>
+      page.evaluate(() => {
+        const banner = document.querySelector('[data-testid="play-total-banner"]');
+        if (!banner) return null;
+        const num = banner.querySelector("p[aria-label]");
+        const b = banner.getBoundingClientRect();
+        const n = num.getBoundingClientRect();
+        // 1行かどうかは段落の高さで見る（line-height は1行の高さ。単位の小さな字は下端の位置が数字と違うので、下端では比べられない）
+        const lineHeight = parseFloat(getComputedStyle(num).lineHeight);
+        const spans = [...num.querySelectorAll("span")].map((x) => x.getBoundingClientRect());
+        return {
+          heading: banner.querySelector("p")?.textContent ?? "",
+          hours: num.querySelector("span")?.textContent ?? "",
+          label: num.getAttribute("aria-label"),
+          oneLine: n.height < lineHeight * 1.5,
+          inside: Math.max(...spans.map((r) => r.right)) <= b.right - 8 && num.scrollWidth <= num.clientWidth,
+          width: Math.round(b.width),
+        };
+      });
+    await page.goto(GROUP, { waitUntil: "networkidle" });
+    const phone = await measureBanner();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(GROUP, { waitUntil: "networkidle" });
+    const pc = await measureBanner();
+    const bannerOk = (m) => !!m && m.heading === "グループで遊んだ時間" && m.hours.length >= 3 && m.oneLine && m.inside;
+    const showBanner = (m) => (m ? `見出し「${m.heading}」・${m.label}・1行=${m.oneLine}・枠内=${m.inside}・帯の幅${m.width}px` : "帯が出ない");
+    rec(
+      "B143",
+      "見出し「グループで遊んだ時間」・時間が3桁・390pxと1440pxで1行・枠内",
+      `記録${sessionIds.length}件 / 390px: ${showBanner(phone)} / 1440px: ${showBanner(pc)}`,
+      sessionIds.length === 5 && bannerOk(phone) && bannerOk(pc)
+    );
+
+    // B144（1440px のまま。4つの区画が全部見えている）
+    const styles = await page.evaluate(() => {
+      const main = document.querySelector("main");
+      const pick = (name) => [...main.querySelectorAll("a, button")].find((el) => (el.textContent ?? "").trim() === name);
+      const st = (el) => (el ? { bg: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color } : null);
+      return {
+        album: st(pick("新規アルバム")),
+        game: st(pick("ゲームを追加")),
+        wish: st(pick("追加する")),
+        upload: st(pick("写真を投稿")),
+        member: st(pick("メンバー")),
+      };
+    });
+    const same = (a, b) => !!a && !!b && a.bg === b.bg && a.color === b.color;
+    rec(
+      "B144",
+      "3つが同じ面の色・文字の色で、写真を投稿・メンバーとは面の色が違う",
+      `新規アルバム=${styles.album?.bg}/${styles.album?.color} / ゲームを追加=${styles.game?.bg} / 追加する=${styles.wish?.bg} / 写真を投稿=${styles.upload?.bg} / メンバー=${styles.member?.bg}`,
+      same(styles.album, styles.game) && same(styles.album, styles.wish) &&
+        styles.album.bg !== styles.upload?.bg && styles.album.bg !== styles.member?.bg && styles.album.color !== styles.member?.color
+    );
+
+    // B145（スマホ幅のゲームのタブ）
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(GROUP + "?tab=games", { waitUntil: "networkidle" });
+    const chip = page.locator('section[data-tab="games"] button', { hasText: /^クリア済み$/ }).first();
+    const chipStyle = () => chip.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color, pressed: el.getAttribute("aria-pressed") }));
+    const before = await chipStyle();
+    await chip.click();
+    await page.waitForTimeout(300);
+    const after = await chipStyle();
+    // 絞り込みは覚えられるので、押す前の状態に戻しておく
+    await chip.click();
+    await page.waitForTimeout(300);
+    rec(
+      "B145",
+      "押した後は aria-pressed=true で、面の色と文字の色の両方が押す前と違う",
+      `押す前=${before.bg}/${before.color}(${before.pressed}) / 押した後=${after.bg}/${after.color}(${after.pressed})`,
+      before.pressed === "false" && after.pressed === "true" && before.bg !== after.bg && before.color !== after.color
+    );
+  } catch (e) {
+    for (const [id, item] of Object.entries(EXPECTED)) {
+      if (recorded.has(id)) continue;
+      localRows.push({ id, item, expected: "—", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+    }
+  } finally {
+    for (const id of sessionIds) {
+      await page.evaluate((sid) => fetch(`/api/admin/play-sessions/${sid}`, { method: "DELETE" }), id).catch(() => {});
+    }
+    localRows.sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));
+    rows.push(...localRows);
     await page.close();
   }
 }

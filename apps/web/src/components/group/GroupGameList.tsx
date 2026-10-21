@@ -39,6 +39,16 @@ const STATUS_BADGE_CLASS: Record<GameStatus, string> = {
   COMPLETED: "border-steam-muted/50 text-steam-muted",
 };
 
+// 絞り込みの札を押したときの色。**押す前（枠線は灰・文字は薄い灰）と面の色で区別する。**
+// 以前はカードの選択欄と同じ色（枠線と文字だけ）を使っていて、「クリア済み」は押す前と同じ灰色のまま
+// 枠線が少し濃くなるだけだったので、押したかどうか分からなかった（ユーザー報告）
+const STATUS_FILTER_ACTIVE_CLASS: Record<GameStatus, string> = {
+  WISHLIST: "border-steam-blue bg-steam-blue/15 font-bold text-steam-blue",
+  PLAYING: "border-positive bg-positive/15 font-bold text-positive",
+  BACKLOG: "border-warning bg-warning/15 font-bold text-warning",
+  COMPLETED: "border-steam-text bg-steam-text/15 font-bold text-steam-text",
+};
+
 const STATUS_ORDER: GameStatus[] = ["PLAYING", "WISHLIST", "BACKLOG", "COMPLETED"];
 
 /** 画面を開いた直後に選ばれているステータス（いま話題になるものだけ出す） */
@@ -280,7 +290,7 @@ export function GroupGameList({
               key={s}
               onClick={() => setStatusFilter((prev) => toggle(prev, s))}
               aria-pressed={statusFilter.has(s)}
-              className={statusFilter.has(s) ? `${chipBase} ${STATUS_BADGE_CLASS[s]}` : chipButton(false)}
+              className={statusFilter.has(s) ? `${chipBase} ${STATUS_FILTER_ACTIVE_CLASS[s]}` : chipButton(false)}
             >
               {STATUS_LABEL[s]}
             </button>

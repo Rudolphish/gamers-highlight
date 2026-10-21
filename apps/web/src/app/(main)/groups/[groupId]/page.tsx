@@ -22,7 +22,7 @@ import { formatRelativeTime } from "@/lib/relative-time";
 import { UnknownPlays } from "@/components/group/UnknownPlays";
 import { GroupSections } from "@/components/group/GroupSections";
 import { MemberFaces } from "@/components/group/MemberFaces";
-import { iconButton, primaryButton, secondaryButton } from "@/components/ui/buttonStyles";
+import { addButton, iconButton, primaryButton } from "@/components/ui/buttonStyles";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 // サーバーから取る上限。**ここを超えた分はグループ画面から辿れなくなる**ので、
@@ -220,7 +220,7 @@ export default async function GroupDetailPage({ params }: { params: { groupId: s
     <CollapsibleSection
       title="アルバム"
       headerAction={
-        <Link href={`/groups/${group.id}/albums/new`} className={secondaryButton}>
+        <Link href={`/groups/${group.id}/albums/new`} className={addButton}>
           <Plus size={16} aria-hidden="true" /> 新規アルバム
         </Link>
       }

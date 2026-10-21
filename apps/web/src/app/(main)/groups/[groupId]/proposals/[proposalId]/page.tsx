@@ -163,19 +163,14 @@ export default async function ProposalDetailPage({
           <GameReviewsPanel reviews={reviewItems} />
           <GamePricePanel price={price} itad={itad} />
 
-          {cache?.hltbGameId != null &&
-            (cache.hltbMainHours !== null ||
-              cache.hltbMainExtraHours !== null ||
-              cache.hltbCompletionistHours !== null ||
-              cache.hltbAllStylesHours !== null) && (
-              <HltbCard
-                gameId={cache.hltbGameId}
-                main={cache.hltbMainHours}
-                mainExtra={cache.hltbMainExtraHours}
-                completionist={cache.hltbCompletionistHours}
-                allStyles={cache.hltbAllStylesHours}
-              />
-            )}
+          {/* 取れなかったときも枠は出す（「データなし」と書く。HltbCard のコメント） */}
+          <HltbCard
+            gameId={cache?.hltbGameId ?? null}
+            main={cache?.hltbMainHours ?? null}
+            mainExtra={cache?.hltbMainExtraHours ?? null}
+            completionist={cache?.hltbCompletionistHours ?? null}
+            allStyles={cache?.hltbAllStylesHours ?? null}
+          />
         </div>
       </div>
     </main>

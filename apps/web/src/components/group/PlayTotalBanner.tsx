@@ -40,9 +40,15 @@ export function PlayTotalBanner({
           "radial-gradient(120% 140% at 100% 0%, rgba(90,176,234,0.22), transparent 60%), linear-gradient(120deg, #10202f, #1d3348 55%, #22324a)",
       }}
     >
-      <p className="text-3xs tracking-[0.08em] text-steam-blue">PLAYED TOGETHER ・ グループで遊んだ時間</p>
-      {/* 数字と単位を分けて描く。読み上げ用には「12時間34分」を1つの文字列で持たせる */}
-      <p className="mt-1 font-display text-5xl font-bold leading-none text-[#eaf3fa] sm:text-6xl" aria-label={formatPlayDuration(totalMs)}>
+      {/* 以前は「PLAYED TOGETHER ・ グループで遊んだ時間」。英語の飾りは外した（ユーザー判断） */}
+      <p className="text-3xs tracking-[0.08em] text-steam-blue">グループで遊んだ時間</p>
+      {/* 数字と単位を分けて描く。読み上げ用には「12時間34分」を1つの文字列で持たせる。
+          **1280px以上は一段小さくする。** そこでは幅340pxの右の列に入るので、大きいままだと3桁時間（「119時間55分」）で
+          「55分」が次の行へ落ちた（B143 で実測）。折り返さないよう nowrap も付けている */}
+      <p
+        className="mt-1 whitespace-nowrap font-display text-5xl font-bold leading-none text-[#eaf3fa] sm:text-6xl xl:text-5xl"
+        aria-label={formatPlayDuration(totalMs)}
+      >
         {h > 0 && (
           <>
             <span className="tabular-nums">{h}</span>
