@@ -3,7 +3,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveThemeColor, themeCss } from "@/lib/themeColors";
+import { backgroundShades, resolveThemeColor, themeCss } from "@/lib/themeColors";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { BottomTabs } from "@/components/layout/BottomTabs";
 import { RouteLoading } from "@/components/layout/RouteLoading";
@@ -34,6 +34,12 @@ import { SIDEBAR_COLLAPSED, SIDEBAR_COOKIE } from "@/components/layout/sidebarSt
 // **テーマの色はここで書き出す**（src/lib/themeColors.ts）。色はログイン情報（JWT）に載っているので DB は引かない。
 // `<style>` は globals.css より後ろに来るので、既定のブルー（globals.css の :root）を上書きする。
 // `:root` に書くので、body の直下へ出すモーダル（createPortal）にも同じ色が効く
+// スマホのURLバーの色も、その人のテーマの地の色にする（ルートの layout.tsx の themeColor を上書き。ほかの項目はそのまま）
+export async function generateViewport() {
+  const session = await getServerSession(authOptions);
+  return { themeColor: backgroundShades(resolveThemeColor(session?.user?.themeColor)).bg };
+}
+
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
   // 左メニューを畳んでいるか。最初の描画からその形で出すため、ここ（サーバー）で読む（sidebarState.ts）
   const sidebarCollapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === SIDEBAR_COLLAPSED;

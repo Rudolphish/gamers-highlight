@@ -20,7 +20,7 @@ import { getRecentActivity, getRecentActivityForGroups, mergeTimeline, playTimel
 import { GET as checkWishlistPrices } from "../../apps/web/src/app/api/cron/check-wishlist-prices/route";
 import { toWishlistPrice } from "../../apps/web/src/lib/wishlistPrice";
 import { parseSteamStoreLow } from "../../apps/web/src/lib/itad";
-import { THEME_COLORS, themeCssDeclarations, themeShades } from "../../apps/web/src/lib/themeColors";
+import { THEME_COLORS, backgroundShades, themeCssDeclarations, themeShades } from "../../apps/web/src/lib/themeColors";
 import { readFileSync } from "node:fs";
 
 type Row = { id: string; item: string; ok: boolean; detail: string };
@@ -717,8 +717,9 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
   }
 }
 
-// テーマの色そのもの: どの色でも、暗い背景の上の色の文字と、色のボタンの上の黒い文字が読める（明るさの差 4.5:1 以上）。
-// ブルーは刷新のときに手で決めた値のまま（ロゴのマーク・帯）。globals.css の既定は themeColors.ts の書き写しなので突き合わせる
+// テーマの色そのもの: どの色でも、その色の背景の上で文字・補助の文字・色の文字・削除の赤・最安値の緑が読め、
+// 色のボタンの上の黒い文字も読める（明るさの差 4.5:1 以上）。背景もテーマで色味が変わる（#144）ので、組み合わせごとに見る。
+// ブルーは刷新のときに手で決めた値のまま（ロゴのマーク・帯・背景）。globals.css の既定は themeColors.ts の書き写しなので突き合わせる
 {
   const lum = (hex: string) => {
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
@@ -728,13 +729,34 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
     const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
     return (x + 0.05) / (y + 0.05);
   };
-  const BG = "#11161d"; // steam.bg
-  const SURFACE = "#18202a"; // steam.surface
   const INK = "#0b1218"; // accent.ink
-  const low = THEME_COLORS.map((t) => ({ id: t.id, onBg: ratio(t.accent, BG), onSurface: ratio(t.accent, SURFACE), ink: ratio(INK, t.accent) })).filter(
-    (r) => r.onBg < 4.5 || r.onSurface < 4.5 || r.ink < 4.5
-  );
+  const DANGER = "#ef6461";
+  const POSITIVE = "#7cc96b";
+  const WARNING = "#e3a83a";
+  const low = THEME_COLORS.flatMap((t) => {
+    const b = backgroundShades(t.id);
+    const pairs: [string, number][] = [
+      ["文字/地", ratio(b.text, b.bg)],
+      ["文字/パネル", ratio(b.text, b.panel)],
+      ["補助の文字/パネル", ratio(b.muted, b.panel)],
+      ["色の文字/地", ratio(t.accent, b.bg)],
+      ["色の文字/パネル", ratio(t.accent, b.panel)],
+      ["黒い文字/色", ratio(INK, t.accent)],
+      ["削除/パネル", ratio(DANGER, b.panel)],
+      ["最安値/パネル", ratio(POSITIVE, b.panel)],
+      ["注意/パネル", ratio(WARNING, b.panel)],
+    ];
+    return pairs.filter(([, r]) => r < 4.5).map(([what, r]) => `${t.id}:${what}=${r.toFixed(2)}`);
+  });
+  const blueBg = backgroundShades("blue");
+  const blueBgSame =
+    blueBg.bg === "#11161d" && blueBg.surface === "#18202a" && blueBg.panel === "#1d2631" && blueBg.border === "#263241" &&
+    blueBg.rail === "#0d1218" && blueBg.text === "#dde5ec" && blueBg.muted === "#a3afba";
+  // ほかの色の背景は、明るさが今のネイビーとほぼ同じ（色味だけ変えている）。地の色が明るくなると文字の色の前提が崩れる
+  const lightness = (hex: string) => lum(hex);
+  const drift = THEME_COLORS.filter((t) => t.id !== "blue").map((t) => Math.abs(lightness(backgroundShades(t.id).bg) - lightness(blueBg.bg)));
   const blue = themeShades("blue");
+  const bgDistinct = new Set(THEME_COLORS.map((t) => backgroundShades(t.id).bg)).size;
   const blueSame =
     blue.markHi === "#7cc8f5" && blue.markLo === "#4a9fe0" && blue.markRim === "#c9ecff" && blue.markRim2 === "#e6f6ff" &&
     blue.markBackA === "#4a7fa8" && blue.markBackB === "#2f5674" && blue.bannerFrom === "#10202f";
@@ -749,9 +771,9 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
   const ids = new Set(THEME_COLORS.map((t) => t.id));
   check(
     "F314",
-    "テーマの色はどれも暗い背景の上の文字・色のボタンの上の黒い文字が 4.5:1 以上で、6色すべて違う。ブルーはロゴのマークの元の色のままで、globals.css の既定と themeColors.ts が一致している",
-    low.length === 0 && blueSame && ids.size === 6 && cssDecl === themeCssDeclarations("blue"),
-    { low, blueSame, cssDecl, expected: themeCssDeclarations("blue") }
+    "テーマの色はどれも、その色の背景の上で文字・補助の文字・色の文字・削除・最安値・注意が 4.5:1 以上で、色のボタンの上の黒い文字も読める。6色とも色も背景も違い、背景の明るさは今のネイビーから動かない。ブルーはロゴのマークも背景も元の色のままで、globals.css の既定と themeColors.ts が一致している",
+    low.length === 0 && blueSame && blueBgSame && ids.size === 6 && bgDistinct === 6 && Math.max(...drift) < 0.002 && cssDecl === themeCssDeclarations("blue"),
+    { low, blueSame, blueBgSame, bgDistinct, drift, cssDecl, expected: themeCssDeclarations("blue") }
   );
 }
 

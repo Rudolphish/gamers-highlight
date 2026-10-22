@@ -4847,18 +4847,21 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       api("/login"),
     ]);
     const themeOf = (html) => html.match(/<style id="theme-color" data-theme="([a-z]+)">([^<]*)<\/style>/);
+    // スマホのURLバーの色（<meta name="theme-color">）も、その人の背景の色になる
+    const barOf = (html) => html.match(/<meta name="theme-color" content="([^"]+)"/)?.[1] ?? null;
     const p = themeOf(purpleHome.text);
     const b = themeOf(plainHome.text);
     check(
-      "F315 テーマの色: API は6色だけを受け付け（知らない色・空は400）、表示名だけの保存では色が変わらない。画面はログイン情報の色で描かれ（色の無い古いトークンはブルー）、ログイン画面は既定のまま",
+      "F315 テーマの色: API は6色だけを受け付け（知らない色・空は400）、表示名だけの保存では色が変わらない。画面はログイン情報の色で描かれ（背景とスマホのURLバーの色も。色の無い古いトークンはブルー）、ログイン画面は既定のまま",
       set.status === 200 && set.json?.user?.themeColor === "purple" && got.json?.user?.themeColor === "purple" &&
         bad.status === 400 && empty.status === 400 && nameOnly.status === 200 &&
         after?.themeColor === "purple" && after?.name === member.name &&
-        p?.[1] === "purple" && p?.[2].includes("--accent:179 148 255") &&
-        b?.[1] === "blue" && b?.[2].includes("--accent:90 176 234") &&
+        p?.[1] === "purple" && p?.[2].includes("--accent:179 148 255") && p?.[2].includes("--c-bg:23 20 26") && barOf(purpleHome.text) === "#17141a" &&
+        b?.[1] === "blue" && b?.[2].includes("--accent:90 176 234") && b?.[2].includes("--c-bg:17 22 29") && barOf(plainHome.text) === "#11161d" &&
+        barOf(login.text) === "#11161d" &&
         login.status === 200 && !login.text.includes('id="theme-color"'),
       `PATCH=${set.status}/${set.json?.user?.themeColor} GET=${got.json?.user?.themeColor} 知らない色=${bad.status} 空=${empty.status} 名前だけ=${nameOnly.status} DB=${JSON.stringify(after)} / ` +
-        `紫のトークン=${p?.[1]}:${p?.[2]?.slice(0, 30)} 色なし=${b?.[1]} ログイン画面=${login.status}:${login.text.includes('id="theme-color"')}`
+        `紫のトークン=${p?.[1]}:${p?.[2]?.slice(0, 50)}・URLバー=${barOf(purpleHome.text)} 色なし=${b?.[1]}・URLバー=${barOf(plainHome.text)} ログイン画面のURLバー=${barOf(login.text)}・${login.status}:${login.text.includes('id="theme-color"')}`
     );
   } catch (e) {
     check("F315x テーマの色の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);

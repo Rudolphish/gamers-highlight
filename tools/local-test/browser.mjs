@@ -4552,6 +4552,9 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
 {
   const RED = "rgb(255, 122, 122)";
   const BLUE = "rgb(90, 176, 234)";
+  // 背景（地の色）もテーマで色味が変わる（#144）。レッドは明るさそのままの暗い赤茶、ブルーは今のネイビー
+  const RED_BG = "rgb(26, 21, 20)";
+  const BLUE_BG = "rgb(17, 22, 29)";
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.addCookies([
     {
@@ -4573,6 +4576,13 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
         theme: document.querySelector("#theme-color")?.getAttribute("data-theme") ?? null,
         staq: staq ? getComputedStyle(staq).color : null,
         mark: glow ? getComputedStyle(glow).fill : null,
+        // 見えている地は (main) の外枠（bg-steam-bg）。body（globals.css）と両方が同じ色のときだけ値を返す
+        bg: (() => {
+          const frame = document.querySelector("div.bg-steam-bg");
+          const a = getComputedStyle(document.body).backgroundColor;
+          const b = frame ? getComputedStyle(frame).backgroundColor : null;
+          return a === b ? a : `body=${a} 外枠=${b}`;
+        })(),
       };
     });
   const setSession = (data) =>
@@ -4598,13 +4608,13 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
     const forged = await paint();
     rows.push({
       id: "B154",
-      item: "プロフィールでテーマの色を選ぶと、ログインし直さなくても全体の色（文字・ロゴの板）が変わり、別の画面を開き直しても残る（ブラウザから送った色は使われない）",
-      expected: `最初はブルー / 選んだ直後・ホーム・偽の更新のあとも赤（${RED}）`,
-      actual: `最初: ${before.theme}・${before.staq} / 選んだ直後: ${picked.theme}・${picked.staq}・板 ${picked.mark}・選択=${checked} / ホーム: HTML=${serverTheme}・${home.staq} / 偽の更新後: ${forged.theme}・${forged.staq}`,
+      item: "プロフィールでテーマの色を選ぶと、ログインし直さなくても全体の色（文字・ロゴの板・背景）が変わり、別の画面を開き直しても残る（ブラウザから送った色は使われない）",
+      expected: `最初はブルー（地 ${BLUE_BG}） / 選んだ直後・ホーム・偽の更新のあとも赤（${RED}・地 ${RED_BG}）`,
+      actual: `最初: ${before.theme}・${before.staq}・地 ${before.bg} / 選んだ直後: ${picked.theme}・${picked.staq}・板 ${picked.mark}・地 ${picked.bg}・選択=${checked} / ホーム: HTML=${serverTheme}・${home.staq}・地 ${home.bg} / 偽の更新後: ${forged.theme}・${forged.staq}`,
       ok:
-        before.theme === "blue" && before.staq === BLUE &&
-        picked.theme === "red" && picked.staq === RED && picked.mark === RED && checked === "true" &&
-        serverTheme === "red" && home.staq === RED && home.mark === RED &&
+        before.theme === "blue" && before.staq === BLUE && before.bg === BLUE_BG &&
+        picked.theme === "red" && picked.staq === RED && picked.mark === RED && picked.bg === RED_BG && checked === "true" &&
+        serverTheme === "red" && home.staq === RED && home.mark === RED && home.bg === RED_BG &&
         forged.theme === "red" && forged.staq === RED && problems.length === 0,
       note: problems.length ? problems.join(" / ").slice(0, 160) : "",
     });
