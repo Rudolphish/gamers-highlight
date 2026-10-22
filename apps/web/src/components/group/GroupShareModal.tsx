@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Users, X, UserPlus } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { fieldClass, ghostIconButton, primaryButton, secondaryButton, textButton } from "@/components/ui/buttonStyles";
+import { modalOverlay, modalPanel } from "@/components/ui/modalStyles";
 import { GroupInviteLinks } from "@/components/group/GroupInviteLinks";
 
 type Member = {
@@ -109,8 +110,8 @@ export function GroupShareModal({ groupId, isOwner, members, candidates }: Group
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-xl bg-steam-surface p-4">
+        <div className={modalOverlay}>
+          <div className={modalPanel}>
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold text-steam-text">グループメンバー管理</h2>
               <button
