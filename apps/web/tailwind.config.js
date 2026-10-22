@@ -15,20 +15,22 @@ module.exports = {
     extend: {
       colors: {
         // **名前は Steam 風だった頃のまま、値だけ新しい配色にしてある**（デザイン刷新の段階1）。
+        // 値はテーマで変わる（CSS 変数。正本は src/lib/themeColors.ts。既定＝ブルーは今のダークネイビー
+        // #11161d / #18202a / #1d2631 / #263241 / #dde5ec / #a3afba / #0d1218）。
         // 名前を変えると全画面（約1,400か所）の書き換えになるので、まず値だけ差し替えた。
         // 面は「背景 < surface < panel」の順に明るい（入れ子にしたとき内側が浮いて見えるように）。
         // 文字の色はどの面の上でも明るさの差が 4.5:1 以上になる値にしてある（muted は 6.8:1 以上）
         steam: {
-          bg: "#11161d",
-          panel: "#1d2631",
-          surface: "#18202a",
-          border: "#263241",
-          text: "#dde5ec",
-          muted: "#a3afba",
+          bg: "rgb(var(--c-bg) / <alpha-value>)",
+          panel: "rgb(var(--c-panel) / <alpha-value>)",
+          surface: "rgb(var(--c-surface) / <alpha-value>)",
+          border: "rgb(var(--c-border) / <alpha-value>)",
+          text: "rgb(var(--c-text) / <alpha-value>)",
+          muted: "rgb(var(--c-muted) / <alpha-value>)",
           // テーマの色（ユーザーが選べる。src/lib/themeColors.ts）。名前は blue のままだが、赤や緑にもなる
           blue: "rgb(var(--accent) / <alpha-value>)",
           // 左のメニューとスマホの下のタブ。本文より一段暗くして、骨組みと中身を分ける
-          rail: "#0d1218",
+          rail: "rgb(var(--c-rail) / <alpha-value>)",
         },
         // 目立たせる色は1つ（押せるもの・選ばれているもの）。ink はその上に載せる文字。
         // 色はテーマで変わる（既定はブルー #5ab0ea）。どのテーマでも ink との明るさの差が 4.5:1 以上（lib-checks）

@@ -8,7 +8,7 @@ import { useNavLoadingPhase } from "@/components/layout/navLoading";
 // 動きは globals.css の `.brand-mark`。`animate` のときだけ板が扇に開く（候補 A）。
 //
 // **板の色はテーマで変わる**（CSS 変数。値は src/lib/themeColors.ts）。SVG の属性（stopColor・fill）には
-// var() を書けないので style で渡す。奥の左の板と「S」はどのテーマでも同じ色。
+// var() を書けないので style で渡す。「S」はどのテーマでも同じ色。
 //
 // グラデーションとフィルタの id は1ページに何個置いても衝突しないよう useId から作る
 // （同じ id が2つあると、後から置いたマークが先のマークの定義を参照して色が崩れる）
@@ -30,8 +30,8 @@ export function BrandMark({ size, animate = false, className = "" }: { size: num
     >
       <defs>
         <linearGradient id={sl} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#34465b" />
-          <stop offset="1" stopColor="#222e3c" />
+          <stop offset="0" style={{ stopColor: "var(--mark-plate-a)" }} />
+          <stop offset="1" style={{ stopColor: "var(--mark-plate-b)" }} />
         </linearGradient>
         <linearGradient id={sr} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" style={{ stopColor: "var(--mark-back-a)" }} />

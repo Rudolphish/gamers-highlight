@@ -22,19 +22,28 @@ html {
 }
 
 body {
-  /* tailwind.config.js の steam.bg / steam.text と同じ値 */
-  background-color: #11161d;
-  color: #dde5ec;
+  /* tailwind.config.js の steam.bg / steam.text と同じもの（テーマで変わる。下の :root） */
+  background-color: rgb(var(--c-bg));
+  color: rgb(var(--c-text));
 }
 
 /*
  * テーマの色の既定（ブルー）。値の正本は src/lib/themeColors.ts で、ここはその書き写し
  * （lib-checks が突き合わせている）。ログインしている画面では (main)/layout.tsx がその人の色で上書きする。
  * ここに置いているのは、レイアウトを通らない画面（ログイン・招待・global-error）でも色が出るようにするため。
- * --accent は Tailwind の steam-blue / accent が `rgb(var(--accent) / 透明度)` で読むので「R G B」の形
+ * --accent と --c-* は Tailwind の steam-* / accent が `rgb(var(--…) / 透明度)` で読むので「R G B」の形
  */
 :root {
   --accent: 90 176 234;
+  --c-bg: 17 22 29;
+  --c-surface: 24 32 42;
+  --c-panel: 29 38 49;
+  --c-border: 38 50 65;
+  --c-rail: 13 18 24;
+  --c-text: 221 229 236;
+  --c-muted: 163 175 186;
+  --mark-plate-a: #34465b;
+  --mark-plate-b: #222e3c;
   --mark-hi: #7cc8f5;
   --mark-lo: #4a9fe0;
   --mark-rim: #c9ecff;
