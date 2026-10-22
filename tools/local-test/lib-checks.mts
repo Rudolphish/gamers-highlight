@@ -22,6 +22,7 @@ import { toWishlistPrice } from "../../apps/web/src/lib/wishlistPrice";
 import { parseSteamStoreLow } from "../../apps/web/src/lib/itad";
 import { THEME_COLORS, backgroundShades, themeCssDeclarations, themeShades } from "../../apps/web/src/lib/themeColors";
 import { readFileSync } from "node:fs";
+import { nodeVersionStatus } from "../../apps/web/src/lib/nodeRuntime";
 
 type Row = { id: string; item: string; ok: boolean; detail: string };
 const rows: Row[] = [];
@@ -775,6 +776,25 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
     low.length === 0 && blueSame && blueBgSame && ids.size === 6 && bgDistinct === 6 && Math.max(...drift) < 0.002 && cssDecl === themeCssDeclarations("blue"),
     { low, blueSame, blueBgSame, bgDistinct, drift, cssDecl, expected: themeCssDeclarations("blue") }
   );
+}
+
+// /admin の「サーバーの実行環境」: Node.js の版が、系統ごとの修正版以上かの判定（2026-10-22。lib/nodeRuntime.ts）。
+// 同じ系統で patch だけ古い・minor が新しい・別の系統・表に無い系統・壊れた文字列を見る
+{
+  const cases: [string, string][] = [
+    ["v22.22.2", "outdated"],
+    ["v22.23.3", "outdated"],
+    ["v22.23.4", "patched"],
+    ["v22.24.0", "patched"],
+    ["v24.22.0", "outdated"],
+    ["24.22.1", "patched"],
+    ["v26.12.1", "patched"],
+    ["v26.11.9", "outdated"],
+    ["v20.19.0", "unknown"],
+    ["nightly", "unknown"],
+  ];
+  const wrong = cases.map(([v, want]) => [v, want, nodeVersionStatus(v).state]).filter(([, want, got]) => want !== got);
+  check("F316", "Node.js の版の判定: 系統ごとの修正版より古ければ「修正前」、同じか新しければ「修正済み」、表に無い系統や読めない版は「判定できない」", wrong.length === 0, wrong);
 }
 
 await db.$disconnect();
