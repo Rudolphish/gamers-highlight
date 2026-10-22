@@ -11,7 +11,8 @@ import { assignUnknownPlay } from "@/lib/playLog";
 //
 // プレイ記録はキャッシュに載せていない（ゲーム詳細・グループ画面とも毎回読む）ので、
 // 無効化は要らない。活動ログにも流さない（M2で決める。docs/play-log.md §4）。
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

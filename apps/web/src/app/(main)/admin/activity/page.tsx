@@ -22,11 +22,12 @@ import { SectionError } from "@/components/admin/SectionError";
 // 直接読み、日のマスには件数と別に「🎮＋その日の合計時間」を出す（濃淡は今までどおり件数だけで付ける）。
 export const dynamic = "force-dynamic";
 
-export default async function AdminActivityPage({
-  searchParams,
-}: {
-  searchParams: { group?: string; month?: string; date?: string };
-}) {
+export default async function AdminActivityPage(
+  props: {
+    searchParams: Promise<{ group?: string; month?: string; date?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (!isAdminEmail(session?.user?.email)) notFound();
 

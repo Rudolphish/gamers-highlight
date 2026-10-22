@@ -34,10 +34,8 @@ import { gameCacheTag } from "@/lib/steam";
 // 24時間直せないほうが困る。引き直すのは不足分だけなのでクォータも食わない。
 // audit-activity-log: 意図的に記録しない（外部データ〈HowLongToBeat・YouTube〉の取り直しであって、
 // グループの活動ではない。押した人がいても記録する価値が無い）
-export async function POST(
-  _req: Request,
-  { params }: { params: { id: string; gameId: string } }
-) {
+export async function POST(_req: Request, props: { params: Promise<{ id: string; gameId: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

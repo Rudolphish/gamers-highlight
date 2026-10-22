@@ -7,7 +7,8 @@ import { listGuildTextChannels } from "@/lib/discord";
 // GET /api/groups/:id/discord-channels … 通知先チャンネル設定のプルダウン用。
 // グループにguildIdが設定されていない、またはBotがそのサーバーに参加していない場合は
 // channels: null を返す（呼び出し側はチャンネルID手打ちにフォールバックする）。
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

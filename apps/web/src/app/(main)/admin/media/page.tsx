@@ -29,7 +29,8 @@ export const dynamic = "force-dynamic";
 
 type Search = { page?: string; type?: string; view?: string; album?: string };
 
-export default async function AdminMediaPage({ searchParams }: { searchParams: Search }) {
+export default async function AdminMediaPage(props: { searchParams: Promise<Search> }) {
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (!isAdminEmail(session?.user?.email)) notFound();
 

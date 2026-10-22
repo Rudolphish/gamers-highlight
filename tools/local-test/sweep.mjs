@@ -2,6 +2,7 @@
 // 「未ログインなのに描画まで進む」「権限が無いのに中身が出る」を洗い出すのが目的。
 import { encode } from "next-auth/jwt";
 import { writeResults } from "./_results.mjs";
+import { showsNotFound } from "./_notFound.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3000";
 const SECRET = process.env.NEXTAUTH_SECRET ?? "local-integration-test-secret";
@@ -26,10 +27,10 @@ const OK = 200;
 /**
  * 「見えないこと」の期待値。**ステータスだけで判定してはいけない。**
  *
- * `loading.tsx` があるルートはNext.jsがストリーミングを始め、ヘッダーを先に送ってしまうため、
- * ページ関数が後から `notFound()` してもHTTPステータスは200のまま、
+ * ストリーミングが先に始まるルートでは、ページ関数が後から `notFound()` してもHTTPステータスは200のまま、
  * 本文の途中でnot-found画面に差し替わる（#33で loading.tsx を入れた際に
- * 権限拒否のページが軒並み200になり、実際にこれで引っかかった）。
+ * 権限拒否のページが軒並み200になり、実際にこれで引っかかった。loading.tsx は Next.js 15 の不具合で
+ * 2026-10-22 に外したが、同じ形のストリーミングを足せばまた起きるので、判定は本文のまま）。
  *
  * 中身が出ていないかどうかが本題なので、not-found画面が返っていれば合格とする。
  */
@@ -93,7 +94,7 @@ for (const [id, label, path, expects] of cases) {
       actual = `307:${(res.headers.get("location") ?? "").replace(BASE, "").split("?")[0]}`;
     } else {
       const body = await res.text();
-      const notFoundShown = res.status === 404 || body.includes("NEXT_NOT_FOUND");
+      const notFoundShown = res.status === 404 || showsNotFound(body);
       if (res.status === 200) {
         actual = notFoundShown ? "200（not-found画面）" : "200";
         if (body.includes("問題が発生しました") || body.includes("Application error")) {

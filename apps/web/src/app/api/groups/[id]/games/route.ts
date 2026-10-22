@@ -15,7 +15,8 @@ const addGameSchema = z.object({
 });
 
 // GET /api/groups/:id/games … グループが共有しているゲームリスト一覧
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
@@ -34,7 +35,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 // POST /api/groups/:id/games … ゲームをグループのリストに追加（デフォルトWISHLIST）。
 // albumIdを渡すと、そのアルバムと紐付ける（アルバム側のSteam連携から呼ばれる想定）。
 // 既に同じゲームがリストにある場合、albumId無しなら409、albumId付きならそのアルバムと紐付け直す（冪等）。
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

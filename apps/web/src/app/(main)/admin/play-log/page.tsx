@@ -25,7 +25,8 @@ function jstLabel(iso: string): string {
   return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}(${wd}) ${hm}`;
 }
 
-export default async function AdminPlayLogPage({ searchParams }: { searchParams: { group?: string; page?: string } }) {
+export default async function AdminPlayLogPage(props: { searchParams: Promise<{ group?: string; page?: string }> }) {
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (!isAdminEmail(session?.user?.email)) notFound();
 

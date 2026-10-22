@@ -14,16 +14,17 @@ import { ActivityCalendarView } from "@/components/activity/ActivityCalendarView
 // - **取り消し系の出来事は出さない**（写真の削除・❤️の取り消し等。件数からも外す。ユーザー判断）
 //
 // **権限はページ側で判定する**（CLAUDE.md「ページはAPIの権限判定を通らない」）。権限が無ければ存在ごと伏せて404。
-// 配下の loading.tsx のせいで、notFound() でもステータスは200のまま本文だけが差し替わる（CLAUDE.md）。
+// テストはステータスではなく本文で見ている（以前は配下の loading.tsx のせいで notFound() でも200だった。CLAUDE.md）。
 export const dynamic = "force-dynamic";
 
-export default async function GroupActivityPage({
-  params,
-  searchParams,
-}: {
-  params: { groupId: string };
-  searchParams: { month?: string; date?: string };
-}) {
+export default async function GroupActivityPage(
+  props: {
+    params: Promise<{ groupId: string }>;
+    searchParams: Promise<{ month?: string; date?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const currentUser = await getCurrentUser();
   if (!currentUser) notFound();
   const allowed = await hasGroupPermission(params.groupId, currentUser.id, "VIEWER");

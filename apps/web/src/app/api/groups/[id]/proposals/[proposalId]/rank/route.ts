@@ -21,8 +21,9 @@ const rankSchema = z.object({
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string; proposalId: string } }
+  props: { params: Promise<{ id: string; proposalId: string }> }
 ) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

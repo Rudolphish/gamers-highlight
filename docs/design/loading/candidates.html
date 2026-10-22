@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>読み込み表示の候補</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #11161d; --surface: #182029; --panel: #1f2833; --border: #2a3542;
+    --text: #e6edf3; --muted: #8b98a8; --blue: #5ab0ea; --ink: #0b1218;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: "Noto Sans JP", system-ui, sans-serif; padding: 24px 16px 64px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 40px 0 8px; }
+  p.lead { color: var(--muted); font-size: 13px; margin: 0 0 20px; line-height: 1.7; max-width: 760px; }
+  .row { display: grid; grid-template-columns: 150px 1fr; gap: 16px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+  .label b { display: block; font-size: 15px; }
+  .label span { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; line-height: 1.6; }
+  .sizes { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+  .sizes figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .sizes figcaption { color: var(--muted); font-size: 11px; }
+  .lockup { display: flex; align-items: center; gap: 10px; }
+  .word { font-family: "Rajdhani", sans-serif; font-weight: 700; font-size: 28px; letter-spacing: -.01em; }
+  .word .staq { color: var(--blue); }
+  svg.mark { display: block; overflow: visible; }
+
+  /* ===== 共通の部品 ===== */
+  .pl { transform-origin: 20px 43px; transform: rotate(-15deg); }
+  .pr { transform-origin: 44px 43px; transform: rotate(15deg); }
+  .front { transform-origin: 32px 27px; }
+  .s { stroke-dasharray: 100; stroke-dashoffset: 0; }
+
+  /* A 扇が開く: 重ねて（Staq）→ 広げて渡す（Share） */
+  .A .pl { animation: A-l 1.6s cubic-bezier(.5,0,.2,1) infinite; }
+  .A .pr { animation: A-r 1.6s cubic-bezier(.5,0,.2,1) infinite; }
+  .A .front { animation: A-f 1.6s cubic-bezier(.5,0,.2,1) infinite; }
+  @keyframes A-l { 0%,100% { transform: translate(6px,-2px) rotate(0deg); } 45%,70% { transform: rotate(-15deg); } }
+  @keyframes A-r { 0%,100% { transform: translate(-6px,-2px) rotate(0deg); } 45%,70% { transform: rotate(15deg); } }
+  @keyframes A-f { 0%,100% { transform: translateY(2px); } 45%,70% { transform: translateY(0); } }
+
+  /* B 「S」を描く: ネオン管が灯るように */
+  .B .s { animation: B-s 1.8s ease-in-out infinite; }
+  .B .glow { animation: B-g 1.8s ease-in-out infinite; }
+  @keyframes B-s { 0% { stroke-dashoffset: 100; } 55%,80% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
+  @keyframes B-g { 0%,40% { opacity: .35; } 60% { opacity: 1; } 100% { opacity: .35; } }
+
+  /* C ネオンが息をする: 動きは最小（動きを減らす設定の人向けにも使える） */
+  .C .glow { animation: C-g 1.6s ease-in-out infinite; }
+  .C .rim { animation: C-r 1.6s ease-in-out infinite; }
+  @keyframes C-g { 0%,100% { opacity: .25; } 50% { opacity: 1; } }
+  @keyframes C-r { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+
+  /* D 積み上げる: 板が1枚ずつ降りてきて「S」が灯る */
+  .D .pl { animation: D-l 2.2s cubic-bezier(.3,1.4,.6,1) infinite; }
+  .D .pr { animation: D-r 2.2s cubic-bezier(.3,1.4,.6,1) infinite; }
+  .D .front { animation: D-f 2.2s cubic-bezier(.3,1.4,.6,1) infinite; }
+  .D .s { animation: D-s 2.2s ease infinite; }
+  @keyframes D-l { 0% { transform: translateY(-14px) rotate(-15deg); opacity: 0; } 15%,85% { transform: rotate(-15deg); opacity: 1; } 100% { opacity: 0; transform: rotate(-15deg); } }
+  @keyframes D-r { 0%,15% { transform: translateY(-14px) rotate(15deg); opacity: 0; } 30%,85% { transform: rotate(15deg); opacity: 1; } 100% { opacity: 0; transform: rotate(15deg); } }
+  @keyframes D-f { 0%,30% { transform: translateY(-16px); opacity: 0; } 45%,85% { transform: none; opacity: 1; } 100% { opacity: 0; } }
+  @keyframes D-s { 0%,45% { stroke-dashoffset: 100; } 65%,85% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 0; } }
+
+  /* E 扇が開きながら「S」を描く（A＋B） */
+  .E .pl { animation: A-l 1.8s cubic-bezier(.5,0,.2,1) infinite; }
+  .E .pr { animation: A-r 1.8s cubic-bezier(.5,0,.2,1) infinite; }
+  .E .front { animation: A-f 1.8s cubic-bezier(.5,0,.2,1) infinite; }
+  .E .s { animation: B-s 1.8s ease-in-out infinite; }
+  .E .glow { animation: B-g 1.8s ease-in-out infinite; }
+
+  /* ロゴの文字: 「Staq」に光が走る */
+  .shimmer .staq { background: linear-gradient(90deg, var(--blue) 0%, var(--blue) 35%, #e6f6ff 50%, var(--blue) 65%, var(--blue) 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: sh 1.8s linear infinite; }
+  @keyframes sh { from { background-position: 100% 0; } to { background-position: -50% 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .A *, .B *, .D *, .E *, .shimmer .staq { animation: none !important; }
+    .s { stroke-dashoffset: 0 !important; }
+  }
+
+  /* ===== スマホの画面にはめ込んだ見え方 ===== */
+  .stage { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .phone { width: 300px; height: 600px; border-radius: 36px; border: 8px solid #05080b; background: var(--bg); position: relative; overflow: hidden; flex-shrink: 0; }
+  .phone .top { display: flex; align-items: center; gap: 8px; padding: 14px 14px 6px; }
+  .phone .top .word { font-size: 18px; }
+  .phone .bar { position: absolute; left: 0; top: 0; height: 2px; width: 100%; background: rgba(42,53,66,.4); overflow: hidden; }
+  .phone .bar i { display: block; height: 100%; width: 33%; background: var(--blue); animation: bar 1.1s ease-in-out infinite; }
+  @keyframes bar { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+  .phone .content { padding: 10px 14px; }
+  .card { background: var(--surface); border-radius: 10px; height: 74px; margin-bottom: 10px; }
+  .card.s2 { height: 120px; }
+  .phone .tabs { position: absolute; left: 0; right: 0; bottom: 0; height: 56px; background: var(--surface); border-top: 1px solid var(--border); display: flex; justify-content: space-around; align-items: center; }
+  .phone .tabs i { width: 22px; height: 22px; border-radius: 6px; background: var(--panel); }
+  .phone .tabs i.fab { width: 44px; height: 44px; border-radius: 50%; background: var(--blue); transform: translateY(-16px); }
+  .overlay { position: absolute; left: 0; right: 0; top: 44px; bottom: 56px; background: rgba(17,22,29,.72); backdrop-filter: blur(2px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+  .overlay .word { font-size: 22px; }
+  .overlay small { color: var(--muted); font-size: 12px; }
+  .splash { position: absolute; inset: 0; background: radial-gradient(120% 80% at 75% 0%, #1f3d58 0%, #121a24 55%, #0d1218 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+  .splash .word { font-size: 30px; }
+  .cap { color: var(--muted); font-size: 12px; text-align: center; margin-top: 8px; width: 300px; line-height: 1.6; }
+  .switch { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 16px; }
+  .switch button { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+  .switch button[aria-pressed="true"] { background: rgba(90,176,234,.15); border-color: var(--blue); color: var(--blue); font-weight: 700; }
+  table.plan { border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  table.plan td, table.plan th { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.plan th { background: var(--panel); }
+</style>
+</head>
+<body>
+<h1>読み込み表示の候補（M1 を動かす）</h1>
+<p class="lead">favicon の M1 の部品（奥の2枚の板・手前の光る板・「S」）をそれぞれ意味のある動きにしました。下の「画面にはめ込んだ見え方」では候補を切り替えて、上の帯・本文の上・アプリを開いた最初の3か所でどう見えるかを比べられます。<br>
+動きを減らす設定（OS の「視差効果を減らす」など）の人には、どの候補も C（明滅だけ）に寄せる想定です。</p>
+
+<template id="mark">
+  <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+    <defs>
+      <linearGradient id="sl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34465b"/><stop offset="1" stop-color="#222e3c"/></linearGradient>
+      <linearGradient id="sr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a7fa8"/><stop offset="1" stop-color="#2f5674"/></linearGradient>
+      <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3.5"/></filter>
+      <filter id="glow2" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.6"/></filter>
+      <linearGradient id="f" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7cc8f5"/><stop offset="1" stop-color="#4a9fe0"/></linearGradient>
+    </defs>
+    <rect class="pl" x="4" y="27" width="30" height="23" rx="5" fill="url(#sl)"/>
+    <rect class="pr" x="30" y="27" width="30" height="23" rx="5" fill="url(#sr)"/>
+    <g class="front">
+      <rect class="glow" x="13" y="10.5" width="38" height="33" rx="6.5" fill="#5ab0ea" opacity=".7" filter="url(#glow)"/>
+      <rect x="13" y="10.5" width="38" height="33" rx="6.5" fill="url(#f)"/>
+      <rect class="rim" x="13" y="10.5" width="38" height="33" rx="6.5" fill="none" stroke="#c9ecff" stroke-width="2.2" filter="url(#glow2)"/>
+      <rect x="13" y="10.5" width="38" height="33" rx="6.5" fill="none" stroke="#e6f6ff" stroke-width="1.1"/>
+      <path class="s" pathLength="100" d="M42 18H26.5A4.5 4.5 0 0 0 22 22.5v0A4.5 4.5 0 0 0 26.5 27h11A4.5 4.5 0 0 1 42 31.5v0A4.5 4.5 0 0 1 37.5 36H22" fill="none" stroke="#0b1218" stroke-width="6.5" stroke-linecap="square"/>
+    </g>
+  </svg>
+</template>
+
+<div id="rows"></div>
+
+<h2>画面にはめ込んだ見え方</h2>
+<div class="switch" id="switch"></div>
+<div class="stage" id="stage"></div>
+
+<h2>出し分けの想定（どの候補でも同じ）</h2>
+<table class="plan">
+  <tr><th>待ち時間</th><th>出すもの</th><th>理由</th></tr>
+  <tr><td>〜0.3秒</td><td>何も出さない</td><td>ほとんどの画面移動はここで終わる。毎回ロゴが一瞬出るとチカチカして遅く感じる</td></tr>
+  <tr><td>0.3〜1秒</td><td>上の進行バー＋ロゴのマークが小さく動く（スマホは上の帯、PC は左メニューのロゴ）。前の画面はそのまま</td><td>押した手応えだけを出す。前の画面を消さないので、戻るのも迷わない</td></tr>
+  <tr><td>1秒〜</td><td>本文の場所だけ薄く暗くして、中央にマーク＋ロゴ。メニューとタブは押せるまま</td><td>待っていることがはっきり分かる。別の場所へ行き直せる</td></tr>
+  <tr><td>アプリを開いた最初</td><td>マーク＋ロゴを大きく（スプラッシュ）</td><td>ブランドの見せ場。ホーム画面から開いたとき</td></tr>
+</table>
+<p class="lead" style="margin-top:12px">一度出したら最低0.4秒は出しておく（すぐ消えるとチラつくため）。読み上げには「読み込み中」と伝える。</p>
+
+<script>
+const CANDIDATES = [
+  ["A", "扇が開く", "重ねた板（Staq）が広がって渡される（Share）。ロゴの意味をそのまま動きにした"],
+  ["B", "「S」を描く", "ネオン管が灯るように「S」が描かれ、灯った瞬間に光る。小さいサイズでも分かりやすい"],
+  ["C", "ネオンが息をする", "形は動かさず、光だけがゆっくり強弱する。いちばん控えめ。動きを減らす設定の人向けにも使う"],
+  ["D", "積み上げる", "板が1枚ずつ降りてきて重なり、最後に「S」が灯る。いちばん賑やか。1周が長め（2.2秒）"],
+  ["E", "扇＋「S」", "A と B を同時に。情報量は多いが、中央の大きいサイズでは見応えがある"],
+];
+const tpl = document.getElementById("mark").content;
+let uid = 0;
+function mark(size, cls) {
+  const node = tpl.cloneNode(true);
+  const svg = node.querySelector("svg");
+  // グラデーションとフィルタの id がページ内でぶつからないように振り直す
+  const n = ++uid;
+  svg.querySelectorAll("[id]").forEach((el) => { const old = el.id; el.id = old + n; svg.querySelectorAll("*").forEach((x) => { for (const a of ["fill", "filter", "stroke"]) { const v = x.getAttribute(a); if (v === `url(#${old})`) x.setAttribute(a, `url(#${old}${n})`); } }); });
+  svg.setAttribute("width", size); svg.setAttribute("height", size);
+  const wrap = document.createElement("span"); wrap.className = cls; wrap.style.display = "inline-block"; wrap.appendChild(svg);
+  return wrap;
+}
+function word(shimmer) {
+  const w = document.createElement("span");
+  w.className = "word" + (shimmer ? " shimmer" : "");
+  w.innerHTML = 'Share<span class="staq">Staq</span>';
+  return w;
+}
+const rows = document.getElementById("rows");
+for (const [id, name, desc] of CANDIDATES) {
+  const row = document.createElement("div"); row.className = "row";
+  row.innerHTML = `<div class="label"><b>${id}　${name}</b><span>${desc}</span></div><div class="sizes"></div>`;
+  const sizes = row.querySelector(".sizes");
+  for (const [px, cap] of [[20, "20px（上の帯）"], [40, "40px"], [96, "96px（中央）"]]) {
+    const fig = document.createElement("figure"); fig.appendChild(mark(px, id));
+    const c = document.createElement("figcaption"); c.textContent = cap; fig.appendChild(c); sizes.appendChild(fig);
+  }
+  const lock = document.createElement("figure");
+  const l = document.createElement("div"); l.className = "lockup"; l.appendChild(mark(44, id)); l.appendChild(word(true));
+  lock.appendChild(l); const lc = document.createElement("figcaption"); lc.textContent = "ロゴと並べた形（「Staq」に光が走る）"; lock.appendChild(lc);
+  sizes.appendChild(lock);
+  rows.appendChild(row);
+}
+
+const sw = document.getElementById("switch");
+const stage = document.getElementById("stage");
+function phone(kind, id) {
+  const wrap = document.createElement("div");
+  const p = document.createElement("div"); p.className = "phone";
+  const top = document.createElement("div"); top.className = "top";
+  if (kind === "small") { top.appendChild(mark(20, id)); }
+  top.appendChild(word(false));
+  p.appendChild(top);
+  const content = document.createElement("div"); content.className = "content";
+  content.innerHTML = '<div class="card s2"></div><div class="card"></div><div class="card"></div><div class="card"></div><div class="card"></div>';
+  p.appendChild(content);
+  const tabs = document.createElement("div"); tabs.className = "tabs"; tabs.innerHTML = "<i></i><i></i><i class='fab'></i><i></i><i></i>"; p.appendChild(tabs);
+  if (kind === "small") { const bar = document.createElement("div"); bar.className = "bar"; bar.innerHTML = "<i></i>"; p.appendChild(bar); }
+  if (kind === "overlay") {
+    const ov = document.createElement("div"); ov.className = "overlay";
+    ov.appendChild(mark(72, id)); ov.appendChild(word(true));
+    const s = document.createElement("small"); s.textContent = "読み込み中…"; ov.appendChild(s);
+    p.appendChild(ov);
+  }
+  if (kind === "splash") {
+    const sp = document.createElement("div"); sp.className = "splash";
+    sp.appendChild(mark(112, id)); sp.appendChild(word(true)); p.appendChild(sp);
+  }
+  wrap.appendChild(p);
+  const cap = document.createElement("div"); cap.className = "cap";
+  cap.textContent = { small: "0.3〜1秒：上の帯のマークが動き、進行バーが流れる。前の画面はそのまま", overlay: "1秒〜：本文の場所だけ暗くして中央に。タブは押せる", splash: "アプリを開いた最初（スプラッシュ）" }[kind];
+  wrap.appendChild(cap);
+  return wrap;
+}
+function show(id) {
+  stage.replaceChildren(phone("small", id), phone("overlay", id), phone("splash", id));
+  sw.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.id === id)));
+}
+for (const [id, name] of CANDIDATES) {
+  const b = document.createElement("button"); b.dataset.id = id; b.textContent = `${id} ${name}`; b.onclick = () => show(id); sw.appendChild(b);
+}
+show("A");
+</script>
+</body>
+</html>

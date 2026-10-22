@@ -74,27 +74,26 @@ const nextConfig = {
     ];
   },
 
-  // **この位置の outputFileTracingRoot は Next.js 14 では無視される**
-  // （14 では `experimental` の下が正しい。トップレベルに昇格したのは 15）。
-  // ビルドと起動のたびに `Unrecognized key(s) in object: 'outputFileTracingRoot'` が出るのはこれ。
+  // pnpmモノレポのルート（lockfile のある所）。file tracing がここを起点に `packages/db` などを拾う。
   //
-  // それでも直していないのは、**無視されたままで意図どおりに動いているから**。
-  // pnpmモノレポでfile tracingがルートを取り違えると `packages/db` が漏れるが、
-  // 実際の `.next/standalone` には `packages/db` も `apps/web/server.js` も入っている
-  // （Next.jsがlockfileを辿って自動でモノレポのルートを正しく判定している）。
-  // つまりこの設定が防ごうとしていた問題は起きていない。
-  //
-  // ここを `experimental` の下へ移すと、**プロジェクトで初めてこの設定が有効になる**。
-  // 良くて現状維持、悪くて追跡範囲が変わってデプロイ成果物が変わる。しかもVercelは
-  // 自前のビルド出力を使うので、ローカルで同じものを確認できない。得るものが警告1行の
-  // 消滅なのに対して、壊れたときは本番に出るまで分からない。だから触らない。
-  //
-  // Next.js 15 に上げるときは注意すること。**上げた瞬間にこの行が有効になる。**
+  // **Next.js 14 の間はこの行は無視されていた**（14 では `experimental` の下が正しく、トップレベルに
+  // 昇格したのは 15）。それでも動いていたのは、Next.js が lockfile を辿って同じルートを自動で判定していたから。
+  // 15 に上げてこの行が初めて効くようになったが、指している先は自動判定と同じなので、
+  // 行の有無でトレースの結果は変わらない（15 に上げたときに、行あり・なしのビルドの
+  // `.next/standalone` と `*.nft.json` を突き合わせて確かめた）。
   outputFileTracingRoot: path.join(__dirname, "../../"),
+  // Prisma公式が推奨する設定：Prisma Clientをwebpackバンドル対象から除外し、
+  // node_modules経由でそのまま読み込ませる。
+  // （Next.js 14 では `experimental.serverComponentsExternalPackages` という名前だった）
+  serverExternalPackages: ["@prisma/client", "@gamers-highlight/db"],
   experimental: {
-    // Prisma公式が推奨する設定：Prisma Clientをwebpackバンドル対象から除外し、
-    // node_modules経由でそのまま読み込ませる。
-    serverComponentsExternalPackages: ["@prisma/client", "@gamers-highlight/db"],
+    // 一度開いたページに30秒以内に戻ったときは、サーバーへ行かずにブラウザの記憶から出す。
+    // **Next.js 14 の既定がこれ（dynamic: 30）で、15 から0秒になった。** 指定しないと、タブを
+    // 行き来するたびにサーバーへ取りに行くようになり、体感が遅くなる（15 に上げたときに実測:
+    // `/groups` → `/albums` → `/groups` → `/albums` で、14 の形は2回目以降0件、15 の既定は毎回1件）。
+    // 14 のときと同じ動きに戻すだけなので、30秒の間に古い表示が出うる場面も 14 のときと変わらない。
+    // 詳しくは docs/perf-cache.md
+    staleTimes: { dynamic: 30 },
   },
 };
 

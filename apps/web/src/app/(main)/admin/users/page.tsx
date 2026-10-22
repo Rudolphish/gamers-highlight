@@ -26,11 +26,12 @@ const ROLE_LABEL: Record<string, string> = {
   VIEWER: "閲覧者",
 };
 
-export default async function AdminUsersPage({
-  searchParams,
-}: {
-  searchParams: { sort?: string };
-}) {
+export default async function AdminUsersPage(
+  props: {
+    searchParams: Promise<{ sort?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (!isAdminEmail(session?.user?.email)) notFound();
 

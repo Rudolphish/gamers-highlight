@@ -13,10 +13,8 @@ import { dbErrorResponse } from "@/lib/dbError";
 // 入口＝アプリ全体のログイン権限に関わるため、管理者にも止める手段が要る。
 //
 // 権限判定はセッションの isAdmin ではなく、必ずサーバー側で isAdminEmail を呼ぶ。
-export async function DELETE(
-  _req: Request,
-  { params }: { params: { inviteId: string } }
-) {
+export async function DELETE(_req: Request, props: { params: Promise<{ inviteId: string }> }) {
+  const params = await props.params;
   const session = await getServerSession(authOptions);
   if (!isAdminEmail(session?.user?.email)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });

@@ -19,7 +19,8 @@ export const dynamic = "force-dynamic";
 // **権限はページでも判定する**（CLAUDE.md「ページはAPIの権限判定を通らない」）。
 // 通知と削除はオーナー、最少人数は管理者だけ。どちらでもない人には存在ごと伏せて404にする
 // （メンバーにとっては設定できる項目が1つも無い画面になるため）。
-export default async function GroupSettingsPage({ params }: { params: { groupId: string } }) {
+export default async function GroupSettingsPage(props: { params: Promise<{ groupId: string }> }) {
+  const params = await props.params;
   const currentUser = await getCurrentUser();
   if (!currentUser) notFound();
   if (!(await hasGroupPermission(params.groupId, currentUser.id, "VIEWER"))) notFound();

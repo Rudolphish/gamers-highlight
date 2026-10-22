@@ -15,11 +15,12 @@ import { AddMediaModal } from "@/components/album/AddMediaModal";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 // アルバム詳細画面：写真グリッド表示、メンバー一覧、タグ管理
-export default async function AlbumDetailPage({
-  params,
-}: {
-  params: { albumId: string };
-}) {
+export default async function AlbumDetailPage(
+  props: {
+    params: Promise<{ albumId: string }>;
+  }
+) {
+  const params = await props.params;
   const currentUser = await getCurrentUser();
 
   if (!currentUser) notFound();

@@ -12,10 +12,8 @@ async function invalidateAlbumWithGroup(albumId: string) {
 }
 
 // PATCH /api/albums/:id/members/:userId … 権限変更
-export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string; userId: string } }
-) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string; userId: string }> }) {
+  const params = await props.params;
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
@@ -38,10 +36,8 @@ export async function PATCH(
 }
 
 // DELETE /api/albums/:id/members/:userId … メンバー削除
-export async function DELETE(
-  _req: Request,
-  { params }: { params: { id: string; userId: string } }
-) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string; userId: string }> }) {
+  const params = await props.params;
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

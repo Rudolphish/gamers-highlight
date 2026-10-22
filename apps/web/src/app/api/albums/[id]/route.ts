@@ -8,7 +8,8 @@ import { logActivity } from "@/lib/activityLog";
 import { cacheSteamHeaderImage } from "@/lib/albumCover";
 import { MAX_ALBUM_DESCRIPTION_LENGTH, MAX_ALBUM_TITLE_LENGTH } from "@/lib/albumFields";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
@@ -36,7 +37,8 @@ const updateAlbumSchema = z.object({
 // PATCH /api/albums/:id … OWNER/EDITORのみ更新可
 // audit-activity-log: 意図的に記録しない（アルバム名や説明の手直しは「出来事」ではない。
 // カレンダーに『アルバム名を変えた』が並ぶと、見たいもの——写真とゲームの動き——が埋もれる）
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
@@ -73,7 +75,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 // DELETE /api/albums/:id … OWNERのみ削除可
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

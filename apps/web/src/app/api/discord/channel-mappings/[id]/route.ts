@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { hasGroupPermission } from "@/lib/permissions";
 
 // DELETE /api/discord/channel-mappings/:id … 紐付け解除（自動生成されたアルバム自体は残す）
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
