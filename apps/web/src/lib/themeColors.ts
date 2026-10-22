@@ -1,13 +1,15 @@
 /**
  * 画面のテーマの色（設定 → プロフィールで選ぶ。アカウントごとに `User.themeColor` に持つ）。
  *
- * **変わるのは「目立たせる色」だけ**（押せるもの・選ばれているもの・ロゴのマーク）。背景・文字の色と、
+ * 変わるのは「目立たせる色」（押せるもの・選ばれているもの・ロゴのマーク）と、**背景・面・枠線・文字の色味**。
+ * 背景の側は明るさを変えず、色味だけをテーマの方へ控えめに寄せる（下の backgroundShades）。
  * 意味の決まった色（安い＝緑・削除＝赤・注意＝黄）はどのテーマでも同じ（ユーザー判断）。
  *
- * 色は CSS 変数で渡す。Tailwind の `steam-blue` / `accent` は `rgb(var(--accent) / <alpha>)` になっていて、
+ * 色は CSS 変数で渡す。Tailwind の `steam-blue` / `accent` は `rgb(var(--accent) / <alpha>)`、
+ * `steam-bg` などの背景・文字は `rgb(var(--c-bg) / <alpha>)` になっていて、
  * ログインしている画面では `(main)/layout.tsx` がその人の色の `:root{...}` を書き出す。
  * 既定（ブルー）は `globals.css` の `:root` にあり、ログイン画面・招待・エラー画面はそれで描かれる。
- * **目立たせる色を `#5ab0ea` のように直接書かない。** 書いたところだけテーマで変わらなくなる。
+ * **目立たせる色を `#5ab0ea` のように、背景を `#11161d` のように直接書かない。** 書いたところだけテーマで変わらなくなる。
  *
  * このファイルは `"use client"` にしない（サーバーのレイアウトと API の検証からも値として読むため）。
  */
@@ -117,12 +119,58 @@ export function themeShades(id: ThemeColorId): ThemeShades {
   };
 }
 
-/** `:root{...}` の中身（宣言だけ）。`--accent` は Tailwind の `<alpha-value>` に入れるため「R G B」の形 */
+/** 背景・面・枠線・文字（tailwind.config.js の steam.*）。ブルーはデザイン刷新で決めた今のダークネイビー */
+const BLUE_BACKGROUND = {
+  bg: "#11161d",
+  surface: "#18202a",
+  panel: "#1d2631",
+  border: "#263241",
+  rail: "#0d1218",
+  text: "#dde5ec",
+  muted: "#a3afba",
+  /** ロゴのマークの奥の左の板 */
+  plateA: "#34465b",
+  plateB: "#222e3c",
+} as const;
+
+type BackgroundShades = Record<keyof typeof BLUE_BACKGROUND, string>;
+
+/**
+ * ほかの色の背景は、今のダークネイビーを**明るさはそのまま**、色相をブルーからテーマの色へ回した分だけずらし、
+ * 鮮やかさを半分にしたもの（見本で「弱」と呼んだ強さ。ユーザー判断）。ネイビーと同じ強さ（「中」）だと
+ * レッド・ピンクが部屋ごと赤く見え、地の色につられて写真の色まで転んで見えたため。
+ * ブルーだけは今のネイビーのまま（ネイビーは「中」の強さにあたる）
+ */
+const BACKGROUND_SATURATION = 0.5;
+
+export function backgroundShades(id: ThemeColorId): BackgroundShades {
+  if (id === "blue") return { ...BLUE_BACKGROUND };
+  const accent = THEME_COLORS.find((t) => t.id === id)!.accent;
+  const shift = hexToHsl(accent)[0] - hexToHsl(THEME_COLORS[0].accent)[0];
+  const out = {} as BackgroundShades;
+  for (const key of Object.keys(BLUE_BACKGROUND) as (keyof typeof BLUE_BACKGROUND)[]) {
+    const [h, s, l] = hexToHsl(BLUE_BACKGROUND[key]);
+    out[key] = hslToHex((h + shift + 360) % 360, s * BACKGROUND_SATURATION, l);
+  }
+  return out;
+}
+
+/** `:root{...}` の中身（宣言だけ）。`--accent` と `--c-*` は Tailwind の `<alpha-value>` に入れるため「R G B」の形 */
 export function themeCssDeclarations(id: ThemeColorId): string {
   const accent = THEME_COLORS.find((t) => t.id === id)!.accent;
   const s = themeShades(id);
+  const b = backgroundShades(id);
   return [
     `--accent:${hexToRgb(accent).join(" ")}`,
+    `--c-bg:${hexToRgb(b.bg).join(" ")}`,
+    `--c-surface:${hexToRgb(b.surface).join(" ")}`,
+    `--c-panel:${hexToRgb(b.panel).join(" ")}`,
+    `--c-border:${hexToRgb(b.border).join(" ")}`,
+    `--c-rail:${hexToRgb(b.rail).join(" ")}`,
+    `--c-text:${hexToRgb(b.text).join(" ")}`,
+    `--c-muted:${hexToRgb(b.muted).join(" ")}`,
+    `--mark-plate-a:${b.plateA}`,
+    `--mark-plate-b:${b.plateB}`,
     `--mark-hi:${s.markHi}`,
     `--mark-lo:${s.markLo}`,
     `--mark-rim:${s.markRim}`,

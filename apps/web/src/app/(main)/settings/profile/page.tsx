@@ -163,7 +163,7 @@ export default function ProfileSettingsPage() {
             テーマの色
           </h2>
           <p className="mt-1 text-2xs text-steam-muted">
-            ボタンや選ばれている項目、ロゴのマークの色が変わります。選ぶとすぐに保存されます（このアカウントのどの端末でも同じ色になります）
+            ボタンや選ばれている項目、ロゴのマークの色と、背景の色味が変わります。選ぶとすぐに保存されます（このアカウントのどの端末でも同じ色になります）
           </p>
           <div role="radiogroup" aria-labelledby="theme-color-heading" className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
             {THEME_COLORS.map((t) => {
