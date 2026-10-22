@@ -150,6 +150,7 @@ export function PhotoGrid({
           }}
           hasPrev={selectedIndex > 0}
           hasNext={selectedIndex < photos.length - 1}
+          position={{ index: selectedIndex, total: photos.length }}
           reaction={reactionOf(selectedPhoto)}
           currentUserName={currentUserName}
           onReactionChange={(next) =>
