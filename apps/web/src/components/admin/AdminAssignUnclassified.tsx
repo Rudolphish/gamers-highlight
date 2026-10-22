@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { FolderInput, X } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
+import { modalOverlay, modalPanel } from "@/components/ui/modalStyles";
 
 // `/admin/media` で、未分類の投稿（誰の投稿でも）を選んでアルバムへ振り分ける。
 //
@@ -189,7 +190,7 @@ function AssignModal({
   // body へ出す。親に backdrop-filter などがあると fixed が画面全体に広がらない（CLAUDE.md「画面の骨格」）
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className={modalOverlay}
       onClick={() => !pending && onClose()}
     >
       <div
@@ -197,7 +198,7 @@ function AssignModal({
         aria-modal="true"
         aria-label="アルバムに振り分け"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-xl bg-steam-surface p-4"
+        className={modalPanel}
       >
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-semibold text-steam-text">

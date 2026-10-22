@@ -12,6 +12,7 @@ import { translateGenre } from "@/lib/steam";
 import { ActivityIcon } from "@/components/activity/ActivityIcon";
 import { GAME_STATUS_LABELS } from "@/lib/gameLabels";
 import { BUTTON_HEIGHT, ICON_BUTTON_SIZE, chipBase, chipButton, ghostIconButton, textButton } from "@/components/ui/buttonStyles";
+import { modalOverlay, modalPanel } from "@/components/ui/modalStyles";
 
 type GameStatus = "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
 
@@ -450,8 +451,8 @@ export function GroupGameList({
       )}
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-xl bg-steam-surface p-4">
+        <div className={modalOverlay}>
+          <div className={modalPanel}>
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold text-steam-text">
                 ゲームをリストに追加

@@ -7,6 +7,7 @@ import { MEDIA_LIMIT_LABELS } from "@/lib/media-limits";
 import { addYoutubeMedia, uploadMediaFile } from "@/lib/uploadClient";
 import { parseYoutubeUrl } from "@/lib/youtubeLink";
 import { chipButton, ghostIconButton, primaryButton, secondaryButton } from "@/components/ui/buttonStyles";
+import { modalOverlay, modalPanel } from "@/components/ui/modalStyles";
 
 // アルバム詳細の「追加」。/upload と同じことをこのアルバムに限ってやる。
 //
@@ -124,8 +125,8 @@ export function AddMediaModal({ albumId }: { albumId: string }) {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-steam-surface p-4">
+        <div className={modalOverlay}>
+          <div className={modalPanel}>
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold text-steam-text">
                 写真・動画を追加

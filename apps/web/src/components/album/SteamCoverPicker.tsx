@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Gamepad2, X, Search, ImageIcon, Link2Off, AlertTriangle } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { ghostIconButton, secondaryButton, textButton } from "@/components/ui/buttonStyles";
+import { modalOverlay, modalPanel } from "@/components/ui/modalStyles";
 
 type SteamResult = { appId: number; name: string; thumbnail: string };
 
@@ -188,8 +189,8 @@ export function SteamCoverPicker({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-steam-surface p-4">
+        <div className={modalOverlay}>
+          <div className={modalPanel}>
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold text-steam-text">Steam連携</h2>
               <button

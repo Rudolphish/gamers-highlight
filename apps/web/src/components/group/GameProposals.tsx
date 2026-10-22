@@ -8,6 +8,7 @@ import { Bookmark, Plus, X, Search, ThumbsUp, Meh, Minus, Trash2 } from "lucide-
 import { Spinner } from "@/components/ui/Spinner";
 import { PROPOSAL_REACTION_LABELS } from "@/lib/gameLabels";
 import { addButton, chipButton, fieldClass, ghostIconButton, secondaryButton } from "@/components/ui/buttonStyles";
+import { modalOverlay, modalPanel } from "@/components/ui/modalStyles";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { PROPOSALS_PER_PROPOSER, groupProposalsByProposer } from "@/lib/proposalRanking";
 import { formatYen, type WishlistPrice } from "@/lib/wishlistPrice";
@@ -411,8 +412,8 @@ export function GameProposals({
       </CollapsibleSection>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-xl bg-steam-surface p-4">
+        <div className={modalOverlay}>
+          <div className={modalPanel}>
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold text-steam-text">ウィッシュリストに追加</h2>
               <button

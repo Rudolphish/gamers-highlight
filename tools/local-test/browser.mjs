@@ -4464,6 +4464,86 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
   }
 }
 
+// B153: 重ねて出す箱（モーダル）は、パネルが画面より高くても一番上と一番下の部品まで届く。
+// 2026-10-22 ユーザー報告「ホーム画面に置いた Safari でメンバー一覧がスクロールしない」。グループの「メンバー」は
+// オーナーだと 1054px あり、枠を justify-center で真ん中に寄せていたので上下がはみ出したまま動かせず、
+// **上の「閉じる」にも届かなかった**（y=-249）。いまは components/ui/modalStyles.ts の枠ごとスクロールさせる。
+//
+// 縦の短い画面（390×480）で開き、パネルの上でホイールを回して下端・上端まで送り、そこにある部品が
+// **その位置に本当に居るか**（elementFromPoint）で見る。ほかの箱は今は短いが、メンバーや検索結果が増えれば同じことになるので全部見る
+{
+  const MODAL_CASES = [
+    [`/groups/${ids.groupId}`, "メンバー"],
+    [`/albums/${ids.albumId}`, "メンバー"],
+    [`/albums/${ids.albumId}`, "Steam連携"],
+    [`/albums/${ids.albumId}`, "写真・動画を追加"],
+    [`/groups/${ids.groupId}?tab=games`, "ゲームを追加"],
+    [`/groups/${ids.groupId}?tab=wishlist`, "追加する"],
+    ["/admin/play-log", "記録を追加"],
+  ];
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 480 } });
+  await ctx.addCookies(await context.cookies());
+  const page = await ctx.newPage();
+  const reach = (which) =>
+    page.evaluate((which) => {
+      const ov = [...document.querySelectorAll("div.fixed.inset-0.z-50")].pop();
+      const els = [...ov.querySelectorAll("button, select, input:not([type=hidden]):not([type=file]), textarea")].filter((e) => {
+        const r = e.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      });
+      const el = which === "last" ? els[els.length - 1] : els[0];
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2;
+      const y = r.top + r.height / 2;
+      const hit = y >= 0 && y <= innerHeight ? document.elementFromPoint(x, y) : null;
+      const panel = ov.querySelector('[role="dialog"]') ?? ov.firstElementChild;
+      return {
+        label: (el.getAttribute("aria-label") || el.textContent || el.tagName).trim().slice(0, 12),
+        y: Math.round(y),
+        ok: !!hit && (hit === el || el.contains(hit)),
+        panelH: Math.round(panel.getBoundingClientRect().height),
+      };
+    }, which);
+  const bad = [];
+  const seen = [];
+  try {
+    for (const [path, opener] of MODAL_CASES) {
+      await page.goto(BASE + path, { waitUntil: "networkidle" });
+      await page.locator("main").getByRole("button", { name: opener }).first().click();
+      await page.locator("div.fixed.inset-0.z-50").last().waitFor({ timeout: 10000 });
+      await page.waitForTimeout(300);
+      await page.mouse.move(195, 240);
+      for (let i = 0; i < 5; i++) {
+        await page.mouse.wheel(0, 1500);
+        await page.waitForTimeout(80);
+      }
+      const last = await reach("last");
+      for (let i = 0; i < 5; i++) {
+        await page.mouse.wheel(0, -1500);
+        await page.waitForTimeout(80);
+      }
+      const first = await reach("first");
+      seen.push(`${opener}=${first.panelH}px`);
+      if (!first.ok) bad.push(`「${opener}」の上「${first.label}」(y=${first.y})`);
+      if (!last.ok) bad.push(`「${opener}」の下「${last.label}」(y=${last.y})`);
+    }
+    // 画面より高いパネルを1つは含んでいないと、何も確かめていないことになる
+    const tallest = Math.max(...seen.map((s) => Number(s.match(/=(\d+)px/)[1])));
+    rows.push({
+      id: "B153",
+      item: "重ねて出す箱（7種類）は、縦の短い画面（390×480）でもスクロールで一番上の部品（閉じる）と一番下の部品まで届く",
+      expected: "届かない部品 0件・画面より高いパネルを含む",
+      actual: `${bad.length ? bad.join(" / ") : "全部届く"}（${seen.join("・")}）`,
+      ok: bad.length === 0 && seen.length === MODAL_CASES.length && tallest > 480,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B153", item: "重ねて出す箱のスクロール", expected: "-", actual: "未確認", ok: false, note: `途中で中断（${seen.length}件まで）: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    await ctx.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）

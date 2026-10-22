@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import type { AdminGroupOption, AdminPlaySession } from "@/lib/playLogAdmin";
+import { modalOverlay, modalPanel } from "@/components/ui/modalStyles";
 
 // /admin/play-log の「修正」「削除」「記録を追加」。サーバー側の一覧から1行ぶんの値を受け取ってモーダルで直す。
 // API は /api/admin/play-sessions（管理者のみ）。
@@ -212,13 +213,13 @@ function PlaySessionModal({
 
   // body へ出す。親に backdrop-filter などがあると fixed が画面全体に広がらない（CLAUDE.md「画面の骨格」）
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => !pending && onClose()}>
+    <div className={modalOverlay} onClick={() => !pending && onClose()}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-xl bg-steam-surface p-4"
+        className={modalPanel}
       >
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-semibold text-steam-text">{title}</h2>
