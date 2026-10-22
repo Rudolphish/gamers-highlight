@@ -11,10 +11,8 @@ const updateGameSchema = z.object({
 });
 
 // PATCH /api/groups/:id/games/:gameId … ステータス変更
-export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string; gameId: string } }
-) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string; gameId: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
@@ -62,10 +60,8 @@ export async function PATCH(
 }
 
 // DELETE /api/groups/:id/games/:gameId … リストから削除
-export async function DELETE(
-  _req: Request,
-  { params }: { params: { id: string; gameId: string } }
-) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string; gameId: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

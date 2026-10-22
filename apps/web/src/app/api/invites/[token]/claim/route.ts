@@ -12,7 +12,8 @@ import { dbErrorResponse } from "@/lib/dbError";
 // **未ログインから呼ばれるので認証は掛けない。** ここで置くのは招待トークンそのもので、
 // 権限を与えるものではない（有効性の判定はログイン時と加入時に改めて行う）。
 // 無効なトークンをCookieに残しても意味がないので、その場合は置かずに断る。
-export async function POST(_req: Request, { params }: { params: { token: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   try {
     const invite = await findInviteByToken(params.token);
     const result = validateInvite(invite);
@@ -21,7 +22,7 @@ export async function POST(_req: Request, { params }: { params: { token: string 
       return NextResponse.json({ error: INVALID_REASON_TEXT[result.reason] }, { status: 400 });
     }
 
-    setInviteCookie(params.token);
+    await setInviteCookie(params.token);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return dbErrorResponse("invite:claim", e);

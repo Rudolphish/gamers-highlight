@@ -46,3 +46,68 @@ body {
     }
   }
 }
+
+/*
+ * ロゴのマーク（components/brand/BrandMark.tsx）の動き。読み込み中だけ `data-animate="true"` になる。
+ * 候補 A「扇が開く」: 重ねた板（Staq）が広がって渡される（Share）。候補と選んだ経緯は docs/design/loading.md。
+ * 板の回転の中心は SVG の座標（viewBox 0 0 64 64）で書く。SVG の要素の transform-origin は viewBox が基準になる
+ */
+.brand-mark .bm-l { transform-origin: 20px 43px; transform: rotate(-15deg); }
+.brand-mark .bm-r { transform-origin: 44px 43px; transform: rotate(15deg); }
+.brand-mark .bm-front { transform-origin: 32px 27px; }
+.brand-mark[data-animate="true"] .bm-l { animation: bm-fan-l 1.6s cubic-bezier(0.5, 0, 0.2, 1) infinite; }
+.brand-mark[data-animate="true"] .bm-r { animation: bm-fan-r 1.6s cubic-bezier(0.5, 0, 0.2, 1) infinite; }
+.brand-mark[data-animate="true"] .bm-front { animation: bm-front 1.6s cubic-bezier(0.5, 0, 0.2, 1) infinite; }
+@keyframes bm-fan-l {
+  0%, 100% { transform: translate(6px, -2px) rotate(0deg); }
+  45%, 70% { transform: rotate(-15deg); }
+}
+@keyframes bm-fan-r {
+  0%, 100% { transform: translate(-6px, -2px) rotate(0deg); }
+  45%, 70% { transform: rotate(15deg); }
+}
+@keyframes bm-front {
+  0%, 100% { transform: translateY(2px); }
+  45%, 70% { transform: translateY(0); }
+}
+
+/* 中央の「Staq」に光が走る */
+.brand-shimmer {
+  background: linear-gradient(90deg, #5ab0ea 0%, #5ab0ea 35%, #e6f6ff 50%, #5ab0ea 65%, #5ab0ea 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: brand-shimmer 1.8s linear infinite;
+}
+@keyframes brand-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -50% 0; }
+}
+
+/* 動きを減らす設定の人には、形を動かさず光の明滅だけ（候補 C）にする */
+@keyframes bm-breathe {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-mark[data-animate="true"] .bm-l,
+  .brand-mark[data-animate="true"] .bm-r,
+  .brand-mark[data-animate="true"] .bm-front { animation: none; }
+  .brand-mark[data-animate="true"] .bm-glow { animation: bm-breathe 1.6s ease-in-out infinite; }
+  .brand-shimmer { animation: none; background-position: 50% 0; }
+}
+
+/*
+ * 1秒を超えたときに本文の場所だけに重ねる表示（components/layout/RouteLoading.tsx）。
+ * 左メニュー（PC。w-56、畳むと 72px）と下のタブ（スマホ。h-14＋ホームバーの余白）には重ねない。押せるままにするため。
+ * 左メニューの幅は畳んだかどうかで変わるので、aside の data-collapsed を見て合わせる
+ */
+.route-loading-overlay {
+  left: 0;
+  bottom: calc(3.5rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 768px) {
+  .route-loading-overlay { left: 14rem; bottom: 0; }
+  body:has(aside[data-collapsed="true"]) .route-loading-overlay { left: 72px; }
+}

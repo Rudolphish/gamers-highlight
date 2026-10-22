@@ -26,7 +26,8 @@ async function requireOwner(groupId: string) {
   return { actor };
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { error } = await requireOwner(params.id);
   if (error) return error;
 
@@ -53,7 +54,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   }
 }
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { actor, error } = await requireOwner(params.id);
   if (error) return error;
 

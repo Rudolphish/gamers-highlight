@@ -17,8 +17,9 @@ import { dbErrorResponse } from "@/lib/dbError";
 // グループのメンバー一覧と許可リスト画面から個別に外す）。
 export async function DELETE(
   _req: Request,
-  { params }: { params: { id: string; inviteId: string } }
+  props: { params: Promise<{ id: string; inviteId: string }> }
 ) {
+  const params = await props.params;
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

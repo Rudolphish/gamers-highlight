@@ -3249,19 +3249,27 @@ for (const [id, label, path] of targets) {
     const problems = [];
     watchPageErrors(page, problems, c.id);
     try {
+      // **React 19 はこの食い違いを報告しないことがある。** Next.js 15（React 19）に上げたあと、タイムゾーン指定を外して
+      // 壊したところ、loading.tsx を戻したビルドではサーバー「00:25」・ブラウザ「09:25」と食い違ったまま例外もコンソールの
+      // エラーも出ず、例外だけを見ていた B121 は通った（loading.tsx の無いビルドでは #418 が出た。条件で変わる）。
+      // なのでサーバーが返した HTML の時刻と、ブラウザで描かれた時刻を直接比べる
+      const serverHtml = await (await ctx.request.get(BASE + gamePath)).text();
+      const serverWhen = (serverHtml.replace(/<!-- -->/g, "").match(/最終更新: ([^<]+)</) ?? [])[1] ?? null;
       await page.goto(BASE + gamePath, { waitUntil: "networkidle" });
       await page.waitForTimeout(500);
       // 何も描かれていないのに通る、を防ぐ。ボタンと最終更新の時刻が出ていること
       const shown = await page.evaluate(() => ({
         button: [...document.querySelectorAll("button")].some((b) => b.textContent?.includes("情報を更新")),
         refreshed: document.body.innerText.includes("最終更新:"),
+        when: (document.body.innerText.match(/最終更新: ([^\n]+)/) ?? [])[1]?.trim() ?? null,
       }));
+      const sameWhen = c.id !== "B121" || (serverWhen !== null && serverWhen.trim() === shown.when);
       rows.push({
         id: c.id,
         item: c.item,
-        expected: "例外なし・「情報を更新」と最終更新の時刻が出ている",
-        actual: `${problems.slice(0, 2).join(" / ") || "例外なし"} / ボタン=${shown.button} 最終更新=${shown.refreshed}（準備の更新=${prepared}）`,
-        ok: problems.length === 0 && shown.button && shown.refreshed,
+        expected: c.id === "B121" ? "例外なし・最終更新の時刻がサーバーとブラウザで同じ" : "例外なし・「情報を更新」と最終更新の時刻が出ている",
+        actual: `${problems.slice(0, 2).join(" / ") || "例外なし"} / ボタン=${shown.button} 最終更新=${shown.refreshed}${c.id === "B121" ? `（サーバー=${serverWhen} ブラウザ=${shown.when}）` : ""}（準備の更新=${prepared}）`,
+        ok: problems.length === 0 && shown.button && shown.refreshed && sameWhen,
         note: "",
       });
     } catch (e) {
@@ -4225,6 +4233,234 @@ for (const [id, label, path] of targets) {
     await prisma.user.deleteMany({ where: { email: { in: [okMail, brokenMail] } } }).catch(() => {});
     await prisma.$disconnect();
     await page.close();
+  }
+}
+
+// ── 読み込み中の表示（2026-10-22 ユーザー判断: ロゴのマークを動かす候補 A。docs/design/loading.md） ──
+// Next.js 15 に上げたとき、loading.tsx のある画面で router.refresh() が数回に1回反映されなくなった（CLAUDE.md
+// 「loading.tsx を置かない」）。loading.tsx を外し、読み込み中の表示はブラウザ側だけで出す形（RouteLoading）にした。
+//
+// **出入りの時刻はページの中で測る。** 決まった時間だけ待ってから覗くと、CI の遅い Chrome でずれて落ちる
+// （lessons.md の B108）。クリックの瞬間を起点に、進行バー・中央の表示・マークの動きが出た／消えた時刻を記録する
+const NAV_RECORDER = () => {
+  window.__nav = { clickAt: null, events: [] };
+  document.addEventListener("click", () => {
+    window.__nav.clickAt = performance.now();
+    window.__nav.events = [];
+  }, true);
+  const seen = {};
+  const watch = [
+    ["progress", '[data-testid="route-progress"]'],
+    ["overlay", '[data-testid="route-loading"]'],
+    ["mark", 'svg.brand-mark[data-animate="true"]'],
+  ];
+  new MutationObserver(() => {
+    const now = performance.now();
+    for (const [key, sel] of watch) {
+      const on = !!document.querySelector(sel);
+      if (on === !!seen[key]) continue;
+      seen[key] = on;
+      window.__nav.events.push({ key, on, t: window.__nav.clickAt == null ? null : Math.round(now - window.__nav.clickAt) });
+    }
+  }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-animate"] });
+};
+/** 移り先の RSC（先読みは除く）だけを遅らせる。手元の移動は速すぎて読み込み表示が出ないため */
+async function delayNavigations(ctx, ms) {
+  await ctx.route("**/*", async (route) => {
+    const h = route.request().headers();
+    if (h["rsc"] === "1" && !h["next-router-prefetch"]) await new Promise((r) => setTimeout(r, ms));
+    await route.continue();
+  });
+}
+const firstOn = (events, key) => events.find((e) => e.key === key && e.on)?.t ?? null;
+const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e.t}`).join(" ");
+
+// B148: refresh が毎回反映される。React の devtools の差し込み口で commit を数え、refresh のあと増えない回を数える。
+// 不具合は「数回に1回」なので12回流す（loading.tsx を戻したビルドでは 12回中2〜8回止まった）
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addCookies(await context.cookies());
+  await ctx.addInitScript(() => {
+    window.__commits = 0;
+    window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+      supportsFiber: true,
+      renderers: new Map(),
+      inject() { return 1; },
+      checkDCE() {},
+      onScheduleFiberRoot() {},
+      onCommitFiberUnmount() {},
+      onPostCommitFiberRoot() {},
+      onCommitFiberRoot() { window.__commits++; },
+    };
+  });
+  const stuck = [];
+  let tried = 0;
+  try {
+    const paths = ["/me", `/groups/${ids.groupId}`, "/albums"];
+    for (let i = 0; i < 12; i++) {
+      const page = await ctx.newPage();
+      try {
+        await page.goto(BASE + paths[i % paths.length], { waitUntil: "networkidle" });
+        const before = await page.evaluate(() => window.__commits);
+        await page.evaluate(() => window.next.router.refresh());
+        const moved = await page
+          .waitForFunction((b) => window.__commits > b, before, { timeout: 5000 })
+          .then(() => true)
+          .catch(() => false);
+        tried++;
+        if (!moved) stuck.push(paths[i % paths.length]);
+      } finally {
+        await page.close();
+      }
+    }
+    rows.push({
+      id: "B148",
+      item: "router.refresh() が毎回画面に反映される（Next.js 15 の loading.tsx の不具合で止まらない）",
+      expected: "12回とも commit が起きる",
+      actual: `${tried - stuck.length}/${tried} 回反映${stuck.length ? `（止まった: ${stuck.join("・")}）` : ""}`,
+      ok: tried === 12 && stuck.length === 0,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B148", item: "router.refresh() の反映", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    await ctx.close();
+  }
+}
+
+// B149・B150: スマホで、待ち時間ごとに出し分ける。0.3秒までは何も出さず、0.3秒を超えたら進行バーとマーク、
+// 1秒を超えたら本文の場所に重ねて中央にマーク＋ロゴ。下のタブには重ねない。移り終えたら全部消える
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addCookies(await context.cookies());
+  await ctx.addInitScript(NAV_RECORDER);
+  await delayNavigations(ctx, 2500);
+  const page = await ctx.newPage();
+  try {
+    await page.goto(`${BASE}/me`, { waitUntil: "networkidle" });
+    await page.locator('[data-testid="bottom-tabs"] a[href="/groups"]').click();
+    const overlay = page.locator('[data-testid="route-loading"]');
+    await overlay.waitFor({ state: "visible", timeout: 5000 });
+    const geo = await page.evaluate(() => {
+      const ov = document.querySelector('[data-testid="route-loading"]').getBoundingClientRect();
+      const tabs = document.querySelector('[data-testid="bottom-tabs"]').getBoundingClientRect();
+      return { ovBottom: Math.round(ov.bottom), tabsTop: Math.round(tabs.top), role: document.querySelector('[data-testid="route-loading"]').getAttribute("role") };
+    });
+    await page.waitForURL("**/groups", { timeout: 10000 });
+    await page.waitForTimeout(1000);
+    const events = await page.evaluate(() => window.__nav.events);
+    const after = await page.evaluate(() => ({
+      progress: document.querySelectorAll('[data-testid="route-progress"]').length,
+      overlay: document.querySelectorAll('[data-testid="route-loading"]').length,
+      animating: document.querySelectorAll('svg.brand-mark[data-animate="true"]').length,
+    }));
+    const p = firstOn(events, "progress");
+    const m = firstOn(events, "mark");
+    const o = firstOn(events, "overlay");
+    rows.push({
+      id: "B149",
+      item: "スマホで待ちが長いとき、0.3秒を超えたら進行バーとロゴのマークが動き、1秒を超えたら本文の場所だけに中央の表示が出る（下のタブには重ならない）。移り終えたら消える",
+      expected: "バーとマーク=0.3〜0.9秒 / 中央=0.9〜1.8秒・role=status・下端がタブの上端以下 / 移った後は全部0",
+      actual: `${navLog(events)} / 中央の下端=${geo.ovBottom} タブの上端=${geo.tabsTop} role=${geo.role} / 後: バー${after.progress} 中央${after.overlay} 動き${after.animating}`,
+      ok:
+        p !== null && p >= 250 && p <= 900 &&
+        m !== null && m >= 250 && m <= 900 &&
+        o !== null && o >= 900 && o <= 1800 &&
+        geo.role === "status" && geo.ovBottom <= geo.tabsTop + 1 &&
+        after.progress === 0 && after.overlay === 0 && after.animating === 0,
+      note: "",
+    });
+    // B150: 0.3秒より前には何も出さない（ほとんどの移動はここで終わるので、毎回チカチカしないように）。
+    // 移動の速さに左右されないよう「出た時刻が0.3秒より後か」で見る
+    const early = events.filter((e) => e.on && e.t !== null && e.t < 280);
+    rows.push({
+      id: "B150",
+      item: "クリックから0.3秒より前には、進行バーもマークの動きも中央の表示も出ない",
+      expected: "0.28秒より前に出たものが0件",
+      actual: early.length ? navLog(early) : "0件",
+      ok: early.length === 0 && events.length > 0,
+      note: events.length ? "" : "記録が取れていない",
+    });
+  } catch (e) {
+    for (const id of ["B149", "B150"]) {
+      rows.push({ id, item: "読み込み中の表示（スマホ）", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+    }
+  } finally {
+    await ctx.close();
+  }
+}
+
+// B151: PC では、中央の表示は左メニューの右から始まる（左メニューは押せるまま）。畳んだとき（幅72px）も合わせる
+{
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  await ctx.addCookies(await context.cookies());
+  await delayNavigations(ctx, 2500);
+  const page = await ctx.newPage();
+  const measure = async (href) => {
+    await page.locator(`aside a[href="${href}"]`).click();
+    await page.locator('[data-testid="route-loading"]').waitFor({ state: "visible", timeout: 5000 });
+    const g = await page.evaluate(() => {
+      const ov = document.querySelector('[data-testid="route-loading"]').getBoundingClientRect();
+      const aside = document.querySelector("aside").getBoundingClientRect();
+      return { ovLeft: Math.round(ov.left), asideRight: Math.round(aside.right), ovBottom: Math.round(ov.bottom), vh: window.innerHeight };
+    });
+    await page.waitForURL(`**${href}`, { timeout: 10000 });
+    await page.waitForTimeout(700);
+    return g;
+  };
+  try {
+    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    const open = await measure("/groups");
+    await page.getByRole("button", { name: "メニューをたたむ" }).click();
+    await page.waitForTimeout(400);
+    const folded = await measure("/albums");
+    await page.getByRole("button", { name: "メニューを広げる" }).click();
+    await page.waitForTimeout(300);
+    const near = (a, b) => Math.abs(a - b) <= 1;
+    rows.push({
+      id: "B151",
+      item: "PC では、待ちが長いときの中央の表示が左メニューの右から始まる（開いたとき・畳んだとき）",
+      expected: "左端=左メニューの右端・下端=画面の下端",
+      actual: `開いた: 左端${open.ovLeft}/メニュー${open.asideRight}・下端${open.ovBottom}/${open.vh} / 畳んだ: 左端${folded.ovLeft}/メニュー${folded.asideRight}`,
+      ok: near(open.ovLeft, open.asideRight) && near(open.ovBottom, open.vh) && near(folded.ovLeft, folded.asideRight) && folded.asideRight < open.asideRight,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B151", item: "読み込み中の表示（PC）", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    await page.evaluate(() => (document.cookie = "ss-sidebar=; path=/; max-age=0")).catch(() => {});
+    await ctx.close();
+  }
+}
+
+// B152: 動きを減らす設定の人には、板を動かさず光の明滅だけにする（候補 C に寄せる）
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
+  await ctx.addCookies(await context.cookies());
+  await delayNavigations(ctx, 2500);
+  const page = await ctx.newPage();
+  try {
+    await page.goto(`${BASE}/me`, { waitUntil: "networkidle" });
+    await page.locator('[data-testid="bottom-tabs"] a[href="/albums"]').click();
+    await page.locator('[data-testid="route-loading"]').waitFor({ state: "visible", timeout: 5000 });
+    const anim = await page.evaluate(() => {
+      const svg = document.querySelector('[data-testid="route-loading"] svg.brand-mark');
+      const name = (sel) => getComputedStyle(svg.querySelector(sel)).animationName;
+      return { plate: name(".bm-l"), glow: name(".bm-glow") };
+    });
+    await page.waitForURL("**/albums", { timeout: 10000 });
+    rows.push({
+      id: "B152",
+      item: "動きを減らす設定では、読み込み中のマークの板は動かず、光の明滅だけになる",
+      expected: "板=none / 光=bm-breathe",
+      actual: `板=${anim.plate} / 光=${anim.glow}`,
+      ok: anim.plate === "none" && anim.glow === "bm-breathe",
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B152", item: "動きを減らす設定の読み込み表示", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
+  } finally {
+    await ctx.close();
   }
 }
 

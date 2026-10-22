@@ -9,7 +9,7 @@
 ## 1. デプロイ・環境まわり（最重要）
 - [ ] `.npmrc` の `node-linker=hoisted` を削除・変更していないか
 - [ ] Prisma の engine type が `library` のままか（`binary` に変えていないか）
-- [ ] `next.config` の `serverComponentsExternalPackages` / `outputFileTracingRoot` を壊していないか
+- [ ] `next.config` の `serverExternalPackages` / `outputFileTracingRoot` を壊していないか
 - [ ] `DATABASE_URL` の接続先が Supavisor pooler（6543番、`pgbouncer=true`）のままか
 - [ ] NextAuth のルートに `export const dynamic = "force-dynamic"` が残っているか
 

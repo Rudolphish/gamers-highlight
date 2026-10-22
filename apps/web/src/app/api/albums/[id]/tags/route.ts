@@ -15,7 +15,8 @@ async function invalidateAlbumWithGroup(albumId: string) {
 // **見られる人だけに返す。** 以前は認証も権限も無く、アルバムのIDさえ分かれば未ログインでも
 // DiscordのサーバーID・タグ・登録者のIDが読めた（テストの棚卸しで発覚。画面からは呼んでいない）。
 // 他のアルバムのAPI（GET /api/albums/:id）と同じ判定にそろえる。
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
@@ -35,7 +36,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 // 既に同じ(guildId, tag)が他のアルバムに紐付いている場合は「付け替え」として扱う。
 // これにより「#eldenring」と「#elden_ring」のような表記ゆれを、
 // 後から同じアルバムにまとめて集約できる（今回のタグ統合機能の要）。
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

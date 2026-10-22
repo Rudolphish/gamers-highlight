@@ -15,7 +15,8 @@ import { InviteAccept } from "@/components/invite/InviteAccept";
 // /invite を書かなければ最初から未保護。ここに /invite を足すと機能自体が壊れるので注意。
 export const dynamic = "force-dynamic";
 
-export default async function InvitePage({ params }: { params: { token: string } }) {
+export default async function InvitePage(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const invite = await findInviteByToken(params.token);
 
   const currentUser = await getCurrentUser();

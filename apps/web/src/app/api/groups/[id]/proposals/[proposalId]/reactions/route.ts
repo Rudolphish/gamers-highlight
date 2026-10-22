@@ -17,8 +17,9 @@ const reactSchema = z.object({
 // LIKEがグループの過半数（floor(メンバー数/2)+1）に達すると、自動でGroupGame（WISHLIST）に昇格する。
 export async function POST(
   req: Request,
-  { params }: { params: { id: string; proposalId: string } }
+  props: { params: Promise<{ id: string; proposalId: string }> }
 ) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

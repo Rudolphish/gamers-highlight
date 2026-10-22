@@ -142,12 +142,14 @@ NextAuth 組み込みの Discord 設定には発行元が無いので、`lib/aut
 
 ## Next.js
 
-### fetch は既定でキャッシュされる
+### fetch のキャッシュは必ず明示する（既定は版で逆になった）
 
-App Router のオプション無し `fetch` は `force-cache`。何も指定しないと
+Next.js 14 の App Router では、オプション無しの `fetch` は `force-cache` だった。何も指定しないと
 **一度取得した価格やレビューが更新されないまま固定される**（実際に発生した）。
+**15 からは逆で、オプション無しはキャッシュしない。** どちらに転んでも困らないよう、
 毎回描画する情報は `gameFetchOptions()`、追加・リフレッシュ時だけ引くものは
-`cache: "no-store"` を明示する。
+`cache: "no-store"` を明示する。15 に上げたとき、オプション無しで外へ取りに行っていたのは
+Discord のチャンネル一覧（`lib/discord.ts`）だけで、毎回取り直す形に変わった（チャンネルを足すとすぐ出る）。
 
 ### middleware の matcher は追加漏れする
 
@@ -169,18 +171,26 @@ IDを受け取るページを足したら、`hasAlbumPermission` / `hasGroupPerm
 呼んで `notFound()` すること（`/groups/[groupId]` と配下のゲーム詳細・提案詳細はそうなっている）。
 権限が無いときに403ではなく404を返しているのは、存在の有無自体を伏せるため。
 
-### `loading.tsx` があると notFound() でも200が返る
+### `loading.tsx` を置かない（Next.js 15 で refresh が止まる）
 
-`loading.tsx` を置いたルートはNext.jsがストリーミングを始め、**本文より先にヘッダーを送る**。
-ページ関数がその後で `notFound()` しても、もうステータスは変えられない。
-**200のまま本文の途中でnot-found画面に差し替わる**（`NEXT_NOT_FOUND` がペイロードに入る）。
+Next.js 15.5（同梱の React 19.2）では、**`loading.tsx` の Suspense 境界の下にある画面で `router.refresh()` すると、
+数回に1回、画面が切り替わらないまま止まる。** 操作は成功して DB も変わっているのに一覧が古いままで、
+15秒待っても、もう一度 refresh しても戻らない。止まったあとはタブで移っても中身が出ないことがある。
+15 に上げたとき、振り分け（B110）・プレイ記録の削除（B112）・「自分」タブ（B87）が通しテストでだけ落ちて見つかった。
 
-画面としては正しく「見つかりません」になり、**中身は漏れない**。壊れるのは
-「権限が無ければ404が返るはず」という前提で書いた確認だけで、実際に骨格表示（#33）を
-入れた直後に権限拒否のページが軒並み200になり、テストが14件落ちた。
+原因は React 側で、Transition が suspend したまま待ち解除（ping）されずに残る（commit が0回のまま。
+vercel/next.js の #98305・#100151・#86055 に同じ報告がある）。手元の計測では、loading.tsx ありで 8〜12回中1〜8回止まり、
+外すと 32/32 で正常、Next.js 14 では 12/12 で正常だった。
 
-権限まわりを確認するときは**ステータスではなく本文で見ること**
-（`tools/local-test/sweep.mjs` と `verify-album-access.mjs` はそうしてある）。
+**読み込み中の表示は Suspense を使わずにブラウザ側で出す**（`components/layout/RouteLoading.tsx`。ロゴのマークが動く。
+`docs/design/loading.md`）。読み込み表示を作り直すときも、`loading.tsx` やページの区画を包む `<Suspense>` を足したら
+**B148（refresh を12回して毎回 commit が起きるか）で確かめる。** 間欠的なので1〜2回開いただけでは分からない。
+
+なお `loading.tsx` があった頃は、ストリーミングが先に始まるため **notFound() でもステータスが200のまま**本文だけが
+not-found 画面に差し替わっていた（骨格表示 #33 を入れた直後に権限拒否のページが軒並み200になり、テストが14件落ちた）。
+権限まわりの確認は今も**ステータスではなく本文で見ている**（`tools/local-test/sweep.mjs` と `verify-album-access.mjs`）。
+目印は版で変わり（14 は `NEXT_NOT_FOUND`、15 は `NEXT_HTTP_ERROR_FALLBACK;404`）、`tools/local-test/_notFound.mjs` の1箇所で持つ。
+15 に上げたとき、3つのファイルに書き写していた `NEXT_NOT_FOUND` が一斉に外れ、**画面は正しいのに権限の確認が28件「見えている」で落ちた**。
 
 ### 画面のエラーは /admin/errors に集まる
 
@@ -222,6 +232,13 @@ IDを受け取るページを足したら、`hasAlbumPermission` / `hasGroupPerm
 **手元とCIはサーバーもブラウザも UTC なので、テストでは絶対に出ない。** ブラウザだけを日本時間にすると毎回出る（B121）。
 `timeZone: "Asia/Tokyo"` を必ず付ける。「まだ更新できない」のような時刻の判定も、最初の描画はサーバーの判定を
 使い、表示されてからブラウザの時計で見直す（B122）。
+
+**Next.js 15（React 19）からは、食い違っても報告されないことがある。** #425/#422 は無くなり、報告されるときは #418 になる
+（アルバムのカード B120 はこれで拾える）。ところが「情報を更新」のタイムゾーン指定を外して壊すと、loading.tsx を戻した
+ビルドでは、サーバー「00:25」・ブラウザ「09:25」と食い違ったまま**例外もコンソールのエラーも出なかった**（例外だけを
+見ていた B121 は通った）。loading.tsx の無いビルドでは #418 が出た。報告されるかどうかは条件で変わる。
+いまの B121 は、サーバーが返した HTML の文字とブラウザで描かれた文字を直接比べている。同じ形の確認を足すときも、
+React の報告ではなく**文字そのものを突き合わせる**こと。
 
 ### 外部依存はセクション単位で失敗させる
 
@@ -657,7 +674,7 @@ PCの左下のアカウント（`Sidebar`）と「自分」ページ（DBの表�
 
 - `.npmrc` の `node-linker=hoisted`
 - Prisma の engine type（`library` のまま）
-- `next.config.js` の `serverComponentsExternalPackages` / `outputFileTracingRoot`
+- `next.config.js` の `serverExternalPackages`（14 では `experimental.serverComponentsExternalPackages`）/ `outputFileTracingRoot`
 - NextAuth のルートの `export const dynamic = "force-dynamic"`
 
 MCP サーバー `agent-failures` が利用できる。過去に踏んだ失敗を蓄積・参照する。

@@ -27,7 +27,8 @@ const patchSchema = z.object({
 // EDITOR を要求すると、書けるのはアルバムを作った本人だけになる。
 //
 // 同時編集は後勝ち。友人内で使う規模なので競合制御は入れない。
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
@@ -103,7 +104,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 // アップロード自体を取り消す用途に使う。レコードとあわせてストレージの実体も消す。
 // 投稿者本人、またはそのアルバムのOWNERが削除できる
 // （未分類=albumIdなしの写真は投稿者本人のみ）。
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getServerSession(authOptions);
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });

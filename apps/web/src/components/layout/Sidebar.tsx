@@ -8,6 +8,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { ME_HREF, getSidebarSections, isNavItemActive } from "./navItems";
 import { accountInitial } from "./accountInitial";
 import { SIDEBAR_COLLAPSED, SIDEBAR_COOKIE } from "./sidebarState";
+import { LiveBrandMark } from "@/components/brand/BrandMark";
 
 // PC（768px以上）の左メニュー。名前を常に出す（2026-10 のデザイン刷新）。
 // 768px未満では出さず、下のタブ（BottomTabs）が受け持つ。640px で切り替えると、幅224pxのメニューで本文が狭くなりすぎる。
@@ -57,14 +58,14 @@ export function Sidebar({ initialCollapsed }: { initialCollapsed: boolean }) {
         <Link
           href="/"
           aria-label="ShareStaq ホーム"
-          className={`block rounded-lg py-1 font-logo font-bold tracking-tight text-steam-text ${collapsed ? "px-1 text-lg" : "px-3 text-2xl"}`}
+          className={`flex items-center gap-2 rounded-lg py-1 font-logo font-bold tracking-tight text-steam-text ${collapsed ? "px-1" : "px-2 text-2xl"}`}
         >
-          {collapsed ? (
-            <span className="text-steam-blue">SS</span>
-          ) : (
-            <>
+          {/* 画面を移っている間はマークが動く（RouteLoading）。畳んだときはマークだけ */}
+          <LiveBrandMark size={collapsed ? 32 : 28} />
+          {!collapsed && (
+            <span>
               Share<span className="text-steam-blue">Staq</span>
-            </>
+            </span>
           )}
         </Link>
         <button

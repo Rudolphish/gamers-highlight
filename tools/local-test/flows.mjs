@@ -6,6 +6,7 @@ import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeResults } from "./_results.mjs";
+import { showsNotFound } from "./_notFound.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3000";
 const SECRET = process.env.NEXTAUTH_SECRET ?? "local-integration-test-secret";
@@ -728,7 +729,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const byOutsider = await api(albumUrl, { cookie: outsiderCookie });
   check(
     "F63 キャッシュ済みでも権限の無い人には出ない",
-    !byOutsider.text.includes("エルデンリング") && byOutsider.text.includes("NEXT_NOT_FOUND"),
+    !byOutsider.text.includes("エルデンリング") && showsNotFound(byOutsider.text),
     `${byOutsider.status}`
   );
 
@@ -747,7 +748,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const groupByOutsider = await api(groupUrl, { cookie: outsiderCookie });
   check(
     "F65 グループもキャッシュ済みで権限の無い人には出ない",
-    !groupByOutsider.text.includes("テストグループ") && groupByOutsider.text.includes("NEXT_NOT_FOUND"),
+    !groupByOutsider.text.includes("テストグループ") && showsNotFound(groupByOutsider.text),
     `${groupByOutsider.status}`
   );
 
@@ -4406,10 +4407,10 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       "F242 外すとAPIでも画面でも見られなくなり（キャッシュが残らない）、二度目の削除は404",
       removed.status === 200 &&
         afterApi.status === 403 &&
-        afterPage.text.includes("NEXT_NOT_FOUND") &&
+        showsNotFound(afterPage.text) &&
         !afterPage.text.includes("総合テスト用のアルバム") &&
         removedAgain.status === 404,
-      `${removed.status} / API=${afterApi.status} / 画面=${afterPage.text.includes("NEXT_NOT_FOUND") ? "not-found" : "見えている"} / 再削除=${removedAgain.status}`
+      `${removed.status} / API=${afterApi.status} / 画面=${showsNotFound(afterPage.text) ? "not-found" : "見えている"} / 再削除=${removedAgain.status}`
     );
   } catch (e) {
     check("F239x アルバムのメンバー管理の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);

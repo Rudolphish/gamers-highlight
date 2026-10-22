@@ -19,7 +19,8 @@ import { activityLogCreateArgs } from "@/lib/activityLog";
 // #43 で入れた効果が活発なアルバムほど消える。
 //
 // audit-invalidation: 無効化しない（リアクションはキャッシュに載せていないため飛ばす対象が無い）
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

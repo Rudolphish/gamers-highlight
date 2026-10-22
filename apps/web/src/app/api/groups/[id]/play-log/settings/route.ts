@@ -14,7 +14,8 @@ import { getPlayLogMinParticipants } from "@/lib/playLog";
 // Botは対象者の一覧と一緒にこの値を取る（15分おき、または誰かが /playlog を打ったとき）ので、
 // 切り替えがBotに届くまで最大15分かかる。Web側の判定（スナップショットの反映）は即時。
 // 値はグループ画面のキャッシュには載せていない（管理者が開いたときだけ毎回読む）ので無効化は要らない。
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!isAdminEmail(user.email)) return NextResponse.json({ error: "forbidden" }, { status: 403 });

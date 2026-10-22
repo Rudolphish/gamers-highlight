@@ -3,7 +3,8 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { BottomTabs } from "@/components/layout/BottomTabs";
-import { RouteProgress } from "@/components/ui/RouteProgress";
+import { RouteLoading } from "@/components/layout/RouteLoading";
+import { LiveBrandMark } from "@/components/brand/BrandMark";
 import { SIDEBAR_COLLAPSED, SIDEBAR_COOKIE } from "@/components/layout/sidebarState";
 
 // 骨組み（2026-10 のデザイン刷新）: PC（768px以上）は左の名前付きメニュー、スマホは下のタブ。上のヘッダーは無い。
@@ -26,19 +27,22 @@ import { SIDEBAR_COLLAPSED, SIDEBAR_COOKIE } from "@/components/layout/sidebarSt
 // 左右の `safe-area-inset` は、`viewport-fit=cover` にしたことで横向きの iPhone でノッチの下に本文が潜らないようにするため。
 //
 // `<main>` はページ側が全部（27ページ）持っているので、ここでは出さない。
-export default function MainLayout({ children }: { children: React.ReactNode }) {
+export default async function MainLayout({ children }: { children: React.ReactNode }) {
   // 左メニューを畳んでいるか。最初の描画からその形で出すため、ここ（サーバー）で読む（sidebarState.ts）
-  const sidebarCollapsed = cookies().get(SIDEBAR_COOKIE)?.value === SIDEBAR_COLLAPSED;
+  const sidebarCollapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === SIDEBAR_COLLAPSED;
   return (
     <div className="flex min-h-[100dvh] w-full bg-steam-bg pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
       <Suspense fallback={null}>
-        <RouteProgress />
+        <RouteLoading />
       </Suspense>
       <Sidebar initialCollapsed={sidebarCollapsed} />
       <div className="flex min-h-[100dvh] flex-1 flex-col overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
         <div className="flex items-center px-4 pb-1 pt-3 md:hidden">
-          <Link href="/" aria-label="ShareStaq ホーム" className="font-logo text-xl font-bold tracking-tight text-steam-text">
-            Share<span className="text-steam-blue">Staq</span>
+          <Link href="/" aria-label="ShareStaq ホーム" className="flex items-center gap-2 font-logo text-xl font-bold tracking-tight text-steam-text">
+            <LiveBrandMark size={24} />
+            <span>
+              Share<span className="text-steam-blue">Staq</span>
+            </span>
           </Link>
         </div>
         <div className="flex-1">{children}</div>

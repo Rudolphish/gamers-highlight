@@ -9,8 +9,9 @@ import { logActivity } from "@/lib/activityLog";
 // 提案した本人、またはEDITOR以上の権限を持つメンバーが削除できる。
 export async function DELETE(
   _req: Request,
-  { params }: { params: { id: string; proposalId: string } }
+  props: { params: Promise<{ id: string; proposalId: string }> }
 ) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
