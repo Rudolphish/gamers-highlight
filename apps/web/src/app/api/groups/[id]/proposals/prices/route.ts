@@ -18,7 +18,8 @@ export const dynamic = "force-dynamic";
 //
 // どちらの取得も6時間キャッシュされる（Steamはゲーム詳細と同じ問い合わせなのでキャッシュも共有）。
 // 1件落ちても他は返す（CLAUDE.md「外部依存はセクション単位で失敗させる」）。
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

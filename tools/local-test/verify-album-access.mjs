@@ -1,11 +1,12 @@
 // アルバム詳細ページの権限マトリクス。
 //
-// **ステータスだけを見てはいけない。** `loading.tsx` があるルートはNext.jsが
-// ストリーミングを始めてヘッダーを先に送るため、ページ関数が後から notFound() しても
+// **ステータスだけを見てはいけない。** ストリーミングが先に始まるルート（以前の loading.tsx）では
+// ヘッダーが先に送られるため、ページ関数が後から notFound() しても
 // HTTPステータスは200のまま、本文の途中でnot-found画面に差し替わる。
 // 見たいのは「中身が出ていないこと」なので、本文で判定する。
 import { encode } from "next-auth/jwt";
 import { PrismaClient } from "@prisma/client";
+import { showsNotFound } from "./_notFound.mjs";
 
 const db = new PrismaClient();
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3000";
@@ -25,7 +26,7 @@ async function open(email, albumId, secretText) {
     status: res.status,
     // そのアルバム固有の文字列が出ているかどうかが本題
     visible: secretText ? html.includes(secretText) : false,
-    notFoundShown: res.status === 404 || html.includes("NEXT_NOT_FOUND"),
+    notFoundShown: res.status === 404 || showsNotFound(html),
   };
 }
 

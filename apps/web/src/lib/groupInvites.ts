@@ -113,8 +113,8 @@ export async function findInviteByToken(token: string) {
   });
 }
 
-export function setInviteCookie(token: string) {
-  cookies().set(INVITE_COOKIE, token, {
+export async function setInviteCookie(token: string) {
+  (await cookies()).set(INVITE_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
@@ -123,8 +123,8 @@ export function setInviteCookie(token: string) {
   });
 }
 
-export function clearInviteCookie() {
-  cookies().delete(INVITE_COOKIE);
+export async function clearInviteCookie() {
+  (await cookies()).delete(INVITE_COOKIE);
 }
 
 /**
@@ -141,7 +141,7 @@ export function clearInviteCookie() {
  */
 export async function registerAllowlistFromInvite(discordUserId: string): Promise<void> {
   try {
-    const token = cookies().get(INVITE_COOKIE)?.value;
+    const token = (await cookies()).get(INVITE_COOKIE)?.value;
     if (!token) return;
     await consumeInviteForAllowlist(token, discordUserId);
   } catch (e) {

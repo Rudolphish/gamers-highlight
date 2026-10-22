@@ -9,10 +9,8 @@ import { INVALID_ROLE_MESSAGE, parseMemberRole } from "@/lib/memberRole";
 // audit-activity-log: 意図的に記録しない（役割の変更と、メンバーの削除。
 // 加入〈member.joined〉だけを記録する。週次まとめに『誰が抜けた』『誰が降格した』が
 // 並ぶと、身内で使う道具としては角が立つ。必要になったら kind を足す）
-export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string; userId: string } }
-) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string; userId: string }> }) {
+  const params = await props.params;
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
@@ -35,10 +33,8 @@ export async function PATCH(
 }
 
 // DELETE /api/groups/:id/members/:userId … メンバー削除
-export async function DELETE(
-  _req: Request,
-  { params }: { params: { id: string; userId: string } }
-) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string; userId: string }> }) {
+  const params = await props.params;
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

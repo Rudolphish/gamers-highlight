@@ -8,10 +8,8 @@ import { logActivity } from "@/lib/activityLog";
 // POST /api/groups/:id/games/:gameId/interest … 「ねらってる」マークをトグルする。
 // ゲームのステータス変更（EDITOR以上）と違い、これは各メンバーが自分の興味を表明するだけの
 // 軽いマークなので、閲覧できるメンバー（VIEWER以上）なら誰でも付け外しできる。
-export async function POST(
-  _req: Request,
-  { params }: { params: { id: string; gameId: string } }
-) {
+export async function POST(_req: Request, props: { params: Promise<{ id: string; gameId: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

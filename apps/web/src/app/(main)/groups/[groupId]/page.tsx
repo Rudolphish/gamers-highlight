@@ -37,7 +37,8 @@ const ALBUM_PAGE_SIZE = 100;
 const ALBUM_INITIAL_VISIBLE = 4;
 
 // グループ詳細画面：名前編集、メンバー管理、配下アルバム一覧
-export default async function GroupDetailPage({ params }: { params: { groupId: string } }) {
+export default async function GroupDetailPage(props: { params: Promise<{ groupId: string }> }) {
+  const params = await props.params;
   const currentUser = await getCurrentUser();
   if (!currentUser) notFound();
 

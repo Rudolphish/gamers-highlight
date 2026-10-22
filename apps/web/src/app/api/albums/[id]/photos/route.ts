@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { hasAlbumPermission } from "@/lib/permissions";
 
 // GET /api/albums/:id/photos … アルバム内の写真一覧
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

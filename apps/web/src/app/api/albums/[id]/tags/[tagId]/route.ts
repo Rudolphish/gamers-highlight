@@ -12,10 +12,8 @@ async function invalidateAlbumWithGroup(albumId: string) {
 
 // DELETE /api/albums/:id/tags/:tagId … タグ（別名）の削除
 // 削除後にそのタグで投稿されると、次はまた「未分類」or 新規アルバム自動生成の対象になる。
-export async function DELETE(
-  _req: Request,
-  { params }: { params: { id: string; tagId: string } }
-) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string; tagId: string }> }) {
+  const params = await props.params;
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

@@ -7,7 +7,8 @@ import { INVALID_ROLE_MESSAGE, parseMemberRole } from "@/lib/memberRole";
 import { logActivity } from "@/lib/activityLog";
 
 // POST /api/groups/:id/members … メンバー招待（権限指定）
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

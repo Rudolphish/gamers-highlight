@@ -6,7 +6,8 @@ import { isAdminEmail } from "@/lib/admin";
 
 // DELETE /api/allowlist/:id … 許可リストから外す（管理者のみ）。
 // 既にログイン済みのUserレコードやその投稿は消さない。次回以降ログインできなくなるだけ。
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getServerSession(authOptions);
   const adminEmail = session?.user?.email;
   if (!isAdminEmail(adminEmail)) {

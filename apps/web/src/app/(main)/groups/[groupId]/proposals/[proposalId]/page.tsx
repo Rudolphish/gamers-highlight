@@ -26,11 +26,12 @@ import { badge, secondaryButton } from "@/components/ui/buttonStyles";
 //     このページから外部APIを引きに行くことはしない（YouTubeのsearch.listはクォータが厳しく、
 //     リンクのプリフェッチだけで消費されてしまうため）。採用されてリストに入った時点で埋まる。
 //   - 採用済みの提案はゲーム詳細ページへ転送する（同じゲームの情報が2箇所に並ばないように）。
-export default async function ProposalDetailPage({
-  params,
-}: {
-  params: { groupId: string; proposalId: string };
-}) {
+export default async function ProposalDetailPage(
+  props: {
+    params: Promise<{ groupId: string; proposalId: string }>;
+  }
+) {
+  const params = await props.params;
   const currentUser = await getCurrentUser();
   if (!currentUser) notFound();
 

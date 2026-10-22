@@ -31,11 +31,12 @@ const STATUS_LABEL = GAME_STATUS_LABELS;
 // いずれも外部サービス依存のため、個別に失敗してもページ全体は壊さずそのセクションだけ非表示にする。
 // HowLongToBeatは過去3回断念したが、4度目でユーザーが見つけた現行の非公式スクレイパーの
 // 実装を参考に成功。ゲーム追加時に1回だけ取得してDB保存する（lib/hltb.ts参照）。
-export default async function GroupGameDetailPage({
-  params,
-}: {
-  params: { groupId: string; gameId: string };
-}) {
+export default async function GroupGameDetailPage(
+  props: {
+    params: Promise<{ groupId: string; gameId: string }>;
+  }
+) {
+  const params = await props.params;
   const currentUser = await getCurrentUser();
   if (!currentUser) notFound();
 

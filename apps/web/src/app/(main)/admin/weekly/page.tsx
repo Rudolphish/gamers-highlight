@@ -38,11 +38,12 @@ function parseWeek(raw: string | undefined): number {
   return WEEK_CHOICES.some((w) => w.offset === n) ? n : -1;
 }
 
-export default async function AdminWeeklyPage({
-  searchParams,
-}: {
-  searchParams: { group?: string; week?: string };
-}) {
+export default async function AdminWeeklyPage(
+  props: {
+    searchParams: Promise<{ group?: string; week?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (!isAdminEmail(session?.user?.email)) notFound();
 

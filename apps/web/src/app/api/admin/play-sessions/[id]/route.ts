@@ -16,7 +16,8 @@ async function requireAdmin() {
   return isAdminEmail(session?.user?.email);
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   if (!(await requireAdmin())) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const input = readSessionInput((await req.json().catch(() => null)) as Record<string, unknown> | null);
@@ -28,7 +29,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   if (!(await requireAdmin())) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const result = await deleteSession(params.id);

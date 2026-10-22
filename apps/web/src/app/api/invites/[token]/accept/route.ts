@@ -8,7 +8,8 @@ import { dbErrorResponse } from "@/lib/dbError";
 // ログイン必須。未登録の人は先にDiscordログインを通り、その過程で
 // 許可リストへの登録が代行される（lib/groupInvites.ts の registerAllowlistFromInvite）。
 // ここに来る時点では既にログイン済みなので、あとはグループに入れるだけ。
-export async function POST(_req: Request, { params }: { params: { token: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
@@ -16,7 +17,7 @@ export async function POST(_req: Request, { params }: { params: { token: string 
     const result = await acceptInvite(params.token, user.id);
 
     // 成否によらず、役目を終えたCookieは残さない
-    clearInviteCookie();
+    await clearInviteCookie();
 
     if (!result.ok) {
       return NextResponse.json({ error: INVALID_REASON_TEXT[result.reason] }, { status: 400 });
@@ -28,7 +29,7 @@ export async function POST(_req: Request, { params }: { params: { token: string 
       alreadyMember: result.alreadyMember,
     });
   } catch (e) {
-    clearInviteCookie();
+    await clearInviteCookie();
     return dbErrorResponse("invite:accept", e);
   }
 }
