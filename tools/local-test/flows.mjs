@@ -4871,6 +4871,21 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── /admin の「サーバーの実行環境」（2026-10-22）。実際に動いている Node.js の版と、修正版かの札が出る ──
+// テストのサーバーの版は process.version と同じ（同じ機械で動かしている）。CI と手元で版が違っても通るよう、札は判定関数の結果と比べない
+{
+  const page = await api("/admin", { cookie: adminCookie });
+  const at = page.text.indexOf('data-testid="admin-node-version"');
+  const sec = at >= 0 ? page.text.slice(at, page.text.indexOf("</section>", at)) : "";
+  const plain = sec.replace(/<!-- -->/g, "");
+  const badge = ["修正済み", "修正前", "判定できない"].find((b) => plain.includes(b));
+  check(
+    "F317 /admin に本番で動いている Node.js の版と、修正版かどうかの札が出る",
+    page.status === 200 && plain.includes(process.version) && Boolean(badge),
+    `status=${page.status} 節=${Boolean(sec)} 版=${plain.includes(process.version)}（${process.version}） 札=${badge ?? "無し"}`
+  );
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();
