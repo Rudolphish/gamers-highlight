@@ -4544,6 +4544,81 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
   }
 }
 
+// B154: テーマの色（2026-10-22）。設定 → プロフィールで色を選ぶと、ログインし直さなくてもその場で全体の色が変わり、
+// 別の画面へ移っても・開き直しても残る。色はログイン情報（JWT）に載っていて、画面が update() を呼ぶとサーバーが DB から
+// 読み直す（lib/auth.ts）。**update() にはブラウザが好きな値を載せられる**ので、偽の色を送っても変わらないことも見る（B129 と同じ形）。
+// 色は CSS 変数なので、変数の値ではなく**実際に塗られた色**（「Staq」の文字・ロゴの板）で見る。
+// 他のテストの色を変えないよう一般メンバーで行い、最後にブルーへ戻す
+{
+  const RED = "rgb(255, 122, 122)";
+  const BLUE = "rgb(90, 176, 234)";
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addCookies([
+    {
+      name: "next-auth.session-token",
+      value: await encode({ token: { name: "member", email: "member@example.com", sub: "member@example.com" }, secret: SECRET, maxAge: 3600 }),
+      domain: "127.0.0.1",
+      path: "/",
+      httpOnly: true,
+    },
+  ]);
+  const page = await ctx.newPage();
+  const problems = [];
+  watchPageErrors(page, problems, "B154");
+  const paint = () =>
+    page.evaluate(() => {
+      const staq = document.querySelector('a[aria-label="ShareStaq ホーム"] .text-steam-blue');
+      const glow = document.querySelector(".brand-mark .bm-glow");
+      return {
+        theme: document.querySelector("#theme-color")?.getAttribute("data-theme") ?? null,
+        staq: staq ? getComputedStyle(staq).color : null,
+        mark: glow ? getComputedStyle(glow).fill : null,
+      };
+    });
+  const setSession = (data) =>
+    page.evaluate(async (data) => {
+      const { csrfToken } = await (await fetch("/api/auth/csrf")).json();
+      await fetch("/api/auth/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ csrfToken, data }) });
+    }, data);
+  try {
+    await page.goto(`${BASE}/settings/profile`, { waitUntil: "networkidle" });
+    const before = await paint();
+    await page.locator('[data-theme-option="red"]').click();
+    // レイアウトが描き直されて、サーバーが書き出す色が赤になるまで待つ（画面だけ先に変える仮の色ではなく）
+    await page.locator('#theme-color[data-theme="red"]').waitFor({ state: "attached", timeout: 15000 });
+    const picked = await paint();
+    const checked = await page.locator('[data-theme-option="red"]').getAttribute("aria-checked");
+    // 別の画面を開き直す。サーバーが返した HTML の時点で赤になっている（最初の描画から色が合っている）
+    const res = await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    const serverTheme = (await res.text()).match(/<style id="theme-color" data-theme="([a-z]+)"/)?.[1] ?? null;
+    const home = await paint();
+    // 偽の更新: update() と同じ要求に色を載せて直接送る
+    await setSession({ themeColor: "green" });
+    await page.reload({ waitUntil: "networkidle" });
+    const forged = await paint();
+    rows.push({
+      id: "B154",
+      item: "プロフィールでテーマの色を選ぶと、ログインし直さなくても全体の色（文字・ロゴの板）が変わり、別の画面を開き直しても残る（ブラウザから送った色は使われない）",
+      expected: `最初はブルー / 選んだ直後・ホーム・偽の更新のあとも赤（${RED}）`,
+      actual: `最初: ${before.theme}・${before.staq} / 選んだ直後: ${picked.theme}・${picked.staq}・板 ${picked.mark}・選択=${checked} / ホーム: HTML=${serverTheme}・${home.staq} / 偽の更新後: ${forged.theme}・${forged.staq}`,
+      ok:
+        before.theme === "blue" && before.staq === BLUE &&
+        picked.theme === "red" && picked.staq === RED && picked.mark === RED && checked === "true" &&
+        serverTheme === "red" && home.staq === RED && home.mark === RED &&
+        forged.theme === "red" && forged.staq === RED && problems.length === 0,
+      note: problems.length ? problems.join(" / ").slice(0, 160) : "",
+    });
+  } catch (e) {
+    rows.push({ id: "B154", item: "テーマの色の切り替え", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 120)}` });
+  } finally {
+    await page
+      .evaluate(() => fetch("/api/users/me", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ themeColor: "blue" }) }))
+      .catch(() => {});
+    await setSession({}).catch(() => {});
+    await ctx.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）

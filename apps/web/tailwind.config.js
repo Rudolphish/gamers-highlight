@@ -25,12 +25,14 @@ module.exports = {
           border: "#263241",
           text: "#dde5ec",
           muted: "#a3afba",
-          blue: "#5ab0ea",
+          // テーマの色（ユーザーが選べる。src/lib/themeColors.ts）。名前は blue のままだが、赤や緑にもなる
+          blue: "rgb(var(--accent) / <alpha-value>)",
           // 左のメニューとスマホの下のタブ。本文より一段暗くして、骨組みと中身を分ける
           rail: "#0d1218",
         },
-        // 目立たせる色は青1つ（押せるもの・選ばれているもの）。ink はその上に載せる文字
-        accent: { DEFAULT: "#5ab0ea", ink: "#0b1218" },
+        // 目立たせる色は1つ（押せるもの・選ばれているもの）。ink はその上に載せる文字。
+        // 色はテーマで変わる（既定はブルー #5ab0ea）。どのテーマでも ink との明るさの差が 4.5:1 以上（lib-checks）
+        accent: { DEFAULT: "rgb(var(--accent) / <alpha-value>)", ink: "#0b1218" },
         // 緑は「安い・お得・うまくいった」の意味だけに使う（目立たせるための色にはしない）
         positive: "#7cc96b",
         danger: "#ef6461",

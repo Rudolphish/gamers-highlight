@@ -1,4 +1,5 @@
 import "next-auth";
+import type { ThemeColorId } from "@/lib/themeColors";
 
 declare module "next-auth/jwt" {
   interface JWT {
@@ -10,6 +11,8 @@ declare module "next-auth/jwt" {
     revoked?: true;
     /** 開発用ログイン。許可リストの見直しの対象外 */
     devLogin?: true;
+    /** テーマの色。サインイン・update()・許可リストの見直しの回に DB から読む（lib/auth.ts） */
+    themeColor?: ThemeColorId;
   }
 }
 
@@ -36,6 +39,8 @@ declare module "next-auth" {
        * 表示の出し分け専用。実際の権限チェックは常にサーバー側で行う。
        */
       isAdmin?: boolean;
+      /** テーマの色（src/lib/themeColors.ts）。(main)/layout.tsx が読んで、その色の CSS 変数を書き出す */
+      themeColor?: ThemeColorId;
     };
   }
 }
