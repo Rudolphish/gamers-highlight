@@ -2335,7 +2335,8 @@ for (const [id, label, path] of targets) {
     await page.locator("main img").first().click();
     await page.waitForSelector("div.fixed.inset-0.z-50", { timeout: 10000 });
 
-    const mediaBox = "div.fixed.inset-0.z-50 > div.relative";
+    // メディアの箱（払うと指に付いて動く部分）。2026-10-22 に見出しとシートを足してから外枠の直下ではなくなったので、目印で探す
+    const mediaBox = '[data-testid="lightbox-media"]';
     const shownUrl = () =>
       page.evaluate((sel) => document.querySelector(`${sel} img`)?.getAttribute("src") ?? null, mediaBox);
     const transform = () =>
@@ -2346,8 +2347,8 @@ for (const [id, label, path] of targets) {
 
     // **払う座標はメディアの箱の中から取る。** 外側（背景）で払うと、確認したいのが
     // 送りなのか背景タップなのか混ざる（最初はそれで B102 以降が全部崩れた）。
-    // テスト用の画像は中身がPNGではないので読み込みに失敗し、箱は読み込み中の
-    // プレースホルダ（50vw × 50vh）のまま。そこを基準にする
+    // 箱は写真の場所いっぱいに広がっている（テスト用の画像は中身がPNGではないので読み込みに失敗し、
+    // 真ん中に読み込み中の表示が出たまま）。その中の左右15%を払う
     const box = await page.locator(mediaBox).boundingBox();
     const midY = box ? Math.round(box.y + box.height / 2) : 420;
     const leftX = box ? Math.round(box.x + box.width * 0.15) : 110;
@@ -2451,22 +2452,23 @@ for (const [id, label, path] of targets) {
     // **座標を決め打ちにしない。** 下部の❤️と説明のパネルは中身で高さが変わるので、
     // 「メディアの箱の下＋40px」のような固定値だとパネルの上を叩くことがある
     // （2回目の通しだけ「タップしても閉じない」で落ちた）。
-    // オーバーレイ自身がその点に居ることを `elementFromPoint` で確かめてから使う
+    // 「背景」（写真の周りの余白。data-lightbox-backdrop）がその点に居ることを `elementFromPoint` で確かめてから使う。
+    // 見出しの帯や下のシートの上では閉じない・送らない作りなので、そこに当たったら使えない
     const backdrop = await page.evaluate((sel) => {
-      const ov = document.querySelector(sel);
-      const b = document.querySelector(`${sel} > div.relative`)?.getBoundingClientRect();
+      const media = document.querySelector('[data-testid="lightbox-media"]')?.getBoundingClientRect();
+      const isBackdrop = (x, y) => Boolean(document.elementFromPoint(x, y)?.hasAttribute("data-lightbox-backdrop"));
       const cx = Math.round(window.innerWidth / 2);
       const rows = [];
-      if (b) {
-        rows.push(Math.round(b.y / 2)); // 箱の上の余白
-        rows.push(Math.round(b.bottom + (window.innerHeight - b.bottom) / 2)); // 箱の下の余白
+      if (media) {
+        rows.push(Math.round(media.y + media.height * 0.15)); // 写真の場所の上のほう（読み込み中の表示より上）
+        rows.push(Math.round(media.y + media.height * 0.85)); // 下のほう
       }
       rows.push(Math.round(window.innerHeight / 2));
       for (const y of rows) {
-        // 払う始点・終点・タップ点のどれもオーバーレイでなければ使えない
+        // 払う始点・終点・タップ点のどれも背景でなければ使えない
         const xs = [70, cx, 340];
-        if (xs.every((x) => document.elementFromPoint(x, y) === ov)) {
-          return { y, at: "overlay" };
+        if (xs.every((x) => isBackdrop(x, y))) {
+          return { y, at: "backdrop" };
         }
       }
       // 見つからなければ、何に当たっているかを返して原因が分かるようにする
@@ -2494,12 +2496,11 @@ for (const [id, label, path] of targets) {
     await page.reload({ waitUntil: "networkidle" });
     await page.locator("main img").first().click();
     await page.waitForSelector("div.fixed.inset-0.z-50", { timeout: 10000 });
-    const tapY = await page.evaluate((sel) => {
-      const ov = document.querySelector(sel);
-      const b = document.querySelector(`${sel} > div.relative`)?.getBoundingClientRect();
-      const y = b ? Math.round(b.y / 2) : 100;
-      return document.elementFromPoint(70, y) === ov ? y : Math.round(window.innerHeight / 2);
-    }, "div.fixed.inset-0.z-50");
+    const tapY = await page.evaluate(() => {
+      const media = document.querySelector('[data-testid="lightbox-media"]')?.getBoundingClientRect();
+      const y = media ? Math.round(media.y + media.height * 0.15) : 200;
+      return document.elementFromPoint(70, y)?.hasAttribute("data-lightbox-backdrop") ? y : Math.round(window.innerHeight / 2);
+    });
     await page.touchscreen.tap(70, tapY);
     await page.waitForTimeout(500);
     const closedByTap = (await page.locator("div.fixed.inset-0.z-50").count()) === 0;
@@ -4626,6 +4627,103 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
       .catch(() => {});
     await setSession({}).catch(() => {});
     await ctx.close();
+  }
+}
+
+// B155: 写真を開いた表示（Lightbox）の形（2026-10-22、他の画面のデザインに揃えた）。
+// 上に見出し（閉じる・ゲーム名かアルバム名・何枚目か）、❤️・説明・撮影情報はスマホでは写真の下のシート、PC では写真の右の列。
+// **重ならないこと**を位置で見る（以前は❤️と説明の箱が写真の下側に重なっていた）。スマホの撮影情報はつまみで広げたときだけ出る。
+// PC の右の列は畳めて、畳んだ状態は開き直しても残る（最後に出す側へ戻して、ほかのテストに残さない）
+{
+  const bad = [];
+  const seen = [];
+  const LB = '[data-testid="lightbox"]';
+  const rect = (page, sel) =>
+    page.evaluate((sel) => {
+      const el = document.querySelector(sel);
+      if (!el || el.getClientRects().length === 0) return null;
+      const r = el.getBoundingClientRect();
+      return { x: Math.round(r.x), y: Math.round(r.y), r: Math.round(r.right), b: Math.round(r.bottom), w: Math.round(r.width), h: Math.round(r.height) };
+    }, sel);
+  const open = async (page) => {
+    await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+    await page.locator("main div.aspect-square").first().click();
+    await page.locator(LB).waitFor({ timeout: 10000 });
+    await page.waitForTimeout(300);
+  };
+  const ctxs = [];
+  try {
+    // スマホ
+    const phoneCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    ctxs.push(phoneCtx);
+    await phoneCtx.addCookies(await context.cookies());
+    const phone = await phoneCtx.newPage();
+    await open(phone);
+    const head = await phone.evaluate((sel) => {
+      const lb = document.querySelector(sel);
+      return {
+        title: lb.querySelector("p.font-bold")?.textContent ?? "",
+        position: lb.querySelector('[data-testid="lightbox-position"]')?.textContent?.replace(/\s+/g, " ").trim() ?? "",
+      };
+    }, LB);
+    const close = await rect(phone, `${LB} [aria-label="閉じる"]`);
+    const media = await rect(phone, '[data-testid="lightbox-media"]');
+    const sheet = await rect(phone, '[data-testid="lightbox-details"]');
+    const metaBefore = await rect(phone, '[data-testid="lightbox-meta"]');
+    await phone.getByRole("button", { name: "撮影情報を広げる" }).click();
+    await phone.waitForTimeout(200);
+    const metaAfter = await rect(phone, '[data-testid="lightbox-meta"]');
+    seen.push(`スマホ: 見出し「${head.title}」${head.position}・写真 y=${media?.y}〜${media?.b}・シート y=${sheet?.y}〜${sheet?.b}`);
+    if (!head.title) bad.push("見出しにゲーム名もアルバム名も無い");
+    if (!/^1 \/ \d+$/.test(head.position)) bad.push(`何枚目かが「${head.position}」`);
+    if (!close || close.y < 0 || !media || close.b > media.y) bad.push(`閉じるが見出しの帯に無い（${JSON.stringify(close)}）`);
+    if (!media || !sheet || sheet.y < media.b || sheet.b > 844) bad.push("シートが写真の下に収まっていない（重なっている）");
+    if (metaBefore) bad.push("撮影情報が最初から出ている（シートが写真を隠す）");
+    if (!metaAfter) bad.push("つまみで撮影情報が出ない");
+
+    // PC
+    const pcCtx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    ctxs.push(pcCtx);
+    await pcCtx.addCookies(await context.cookies());
+    const pc = await pcCtx.newPage();
+    await open(pc);
+    const pcMedia = await rect(pc, '[data-testid="lightbox-media"]');
+    const pcPanel = await rect(pc, '[data-testid="lightbox-details"]');
+    const pcMeta = await rect(pc, '[data-testid="lightbox-meta"]');
+    await pc.getByRole("button", { name: "情報の列を畳む" }).click();
+    await pc.waitForTimeout(200);
+    const hiddenPanel = await rect(pc, '[data-testid="lightbox-details"]');
+    const widened = await rect(pc, '[data-testid="lightbox-media"]');
+    await pc.keyboard.press("Escape");
+    await open(pc);
+    const stillHidden = await rect(pc, '[data-testid="lightbox-details"]');
+    // 戻しておく。**畳んだ状態を覚えていなければ「出す」ボタンは無い**ので、無いときは押さずに記録へ回す
+    // （押しに行くと30秒待って例外になり、ほかの崩れの記録まで消えた）
+    let shownAgain = stillHidden;
+    if (!stillHidden) {
+      await pc.getByRole("button", { name: "情報の列を出す" }).click();
+      await pc.waitForTimeout(200);
+      shownAgain = await rect(pc, '[data-testid="lightbox-details"]');
+    }
+    seen.push(`PC: 写真 x=${pcMedia?.x}〜${pcMedia?.r}・列 x=${pcPanel?.x}〜${pcPanel?.r}・畳むと写真の幅 ${pcMedia?.w}→${widened?.w}`);
+    if (!pcMedia || !pcPanel || pcPanel.x < pcMedia.r || pcPanel.r > 1280) bad.push("PC で情報の列が写真の右に無い（重なっている）");
+    if (!pcMeta) bad.push("PC で撮影情報が出ていない");
+    if (hiddenPanel) bad.push("畳んでも列が残る");
+    if (!widened || !pcMedia || widened.w <= pcMedia.w) bad.push("畳んでも写真の場所が広がらない");
+    if (stillHidden) bad.push("開き直すと畳んだ状態が戻る");
+    if (!shownAgain) bad.push("「情報の列を出す」で戻らない");
+    rows.push({
+      id: "B155",
+      item: "写真を開いた表示: 上に見出し（閉じる・名前・何枚目か）、❤️・説明・撮影情報はスマホでは写真の下のシート・PC では右の列で写真に重ならない。スマホの撮影情報はつまみで広げたときだけ出る。PC の列は畳めて、開き直しても畳んだまま",
+      expected: "崩れ 0件",
+      actual: `${bad.length ? bad.join(" / ") : "崩れなし"}（${seen.join(" ／ ")}）`,
+      ok: bad.length === 0 && seen.length === 2,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B155", item: "写真を開いた表示の形", expected: "-", actual: "未確認", ok: false, note: `途中で中断（${seen.join(" ／ ")}）: ${String(e.message ?? e).slice(0, 120)}` });
+  } finally {
+    for (const c of ctxs) await c.close();
   }
 }
 
