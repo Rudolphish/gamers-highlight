@@ -4,10 +4,15 @@ import { authOptions } from "@/lib/auth";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { THEME_COLOR_IDS } from "@/lib/themeColors";
 
-const updateProfileSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(100),
-});
+// 表示名とテーマの色は別々に保存できる（プロフィールの画面は、色を選んだ瞬間に色だけを送る）
+const updateProfileSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required").max(100).optional(),
+    themeColor: z.enum(THEME_COLOR_IDS).optional(),
+  })
+  .refine((v) => v.name !== undefined || v.themeColor !== undefined, { message: "Nothing to update" });
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -20,7 +25,7 @@ export async function GET() {
   // （プロフィールの画面は頼むが、他の端末のトークンは次にログインするまで古い。lib/auth.ts）。表示名は必ずDBから読む。
   const user = await db.user.findUnique({
     where: { email: session.user.email },
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, themeColor: true },
   });
 
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -46,8 +51,8 @@ export async function PATCH(req: Request) {
 
     const updatedUser = await db.user.update({
       where: { id: user.id },
-      data: { name: parsed.data.name },
-      select: { id: true, name: true, email: true },
+      data: { name: parsed.data.name, themeColor: parsed.data.themeColor },
+      select: { id: true, name: true, email: true, themeColor: true },
     });
 
     return NextResponse.json({ user: updatedUser });

@@ -35,9 +35,10 @@ export function PlayTotalBanner({
       data-testid="play-total-banner"
       data-play-ms={totalMs}
       className="relative mt-5 overflow-hidden rounded border border-steam-border px-5 py-5 sm:px-6"
+      // 地の色はテーマの色に合わせる（CSS 変数。値は src/lib/themeColors.ts）
       style={{
         background:
-          "radial-gradient(120% 140% at 100% 0%, rgba(90,176,234,0.22), transparent 60%), linear-gradient(120deg, #10202f, #1d3348 55%, #22324a)",
+          "radial-gradient(120% 140% at 100% 0%, rgb(var(--accent) / 0.22), transparent 60%), linear-gradient(120deg, var(--banner-from), var(--banner-mid) 55%, var(--banner-to))",
       }}
     >
       {/* 以前は「PLAYED TOGETHER ・ グループで遊んだ時間」。英語の飾りは外した（ユーザー判断） */}

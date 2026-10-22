@@ -6,6 +6,7 @@ import { isAdminEmail } from "./admin";
 import { registerAllowlistFromInvite } from "./groupInvites";
 import { isStillAllowed, linkDiscordUser } from "./discordAccount";
 import { logAuthError } from "./authErrorLog";
+import { resolveThemeColor } from "./themeColors";
 
 /**
  * ログイン中の人が、いまも許可リストに載っているかを見直す間隔。
@@ -187,9 +188,9 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         const dbUser =
           account?.provider === "discord"
-            ? await db.user.findUnique({ where: { discordUserId: account.providerAccountId }, select: { id: true, email: true, name: true } })
+            ? await db.user.findUnique({ where: { discordUserId: account.providerAccountId }, select: { id: true, email: true, name: true, themeColor: true } })
             : user.email
-              ? await db.user.findUnique({ where: { email: user.email }, select: { id: true, email: true, name: true } })
+              ? await db.user.findUnique({ where: { email: user.email }, select: { id: true, email: true, name: true, themeColor: true } })
               : null;
         if (dbUser) {
           token.userId = dbUser.id;
@@ -197,6 +198,8 @@ export const authOptions: NextAuthOptions = {
           // 名前も DB の表示名にする。そのままだと Discord のプロフィールの名前が入り、PCの左下のアカウントと
           // 「自分」ページ（DBの表示名）とで名前が食い違う（プロフィールで名前を変えた人はずっと）
           if (dbUser.name) token.name = dbUser.name;
+          // テーマの色もここで載せる。ページごとに DB を引かずに、(main)/layout.tsx が最初の描画からその色で出せる
+          token.themeColor = resolveThemeColor(dbUser.themeColor);
         }
         token.devLogin = account?.provider === "dev-login" ? true : undefined;
         token.allowCheckedAt = Date.now();
@@ -204,17 +207,19 @@ export const authOptions: NextAuthOptions = {
         return token;
       }
 
-      // プロフィールで表示名を変えた直後（画面が useSession().update() を呼ぶ）。名前は**DBから読み直す**。
-      // update() にはブラウザから好きな値を渡せるので、それをそのままトークンに入れてはいけない
-      if (trigger === "update" && token.userId) {
-        const fresh = await db.user.findUnique({ where: { id: token.userId }, select: { name: true } });
-        if (fresh?.name) token.name = fresh.name;
-      }
-
-      // idを載せる前に発行されたトークン（使い続けると期限が延びるので今も残りうる）。1回だけ引いて載せる
+      // idを載せる前に発行されたトークン（使い続けると期限が延びるので今も残りうる）。1回だけ引いて載せる。
+      // 下の読み直し（update）より先に置く（id が無いと読み直せないため）
       if (!token.userId && token.email) {
         const dbUser = await db.user.findUnique({ where: { email: token.email }, select: { id: true } });
         if (dbUser) token.userId = dbUser.id;
+      }
+
+      // プロフィールで表示名やテーマの色を変えた直後（画面が useSession().update() を呼ぶ）。**DBから読み直す**。
+      // update() にはブラウザから好きな値を渡せるので、それをそのままトークンに入れてはいけない
+      if (trigger === "update" && token.userId) {
+        const fresh = await db.user.findUnique({ where: { id: token.userId }, select: { name: true, themeColor: true } });
+        if (fresh?.name) token.name = fresh.name;
+        if (fresh) token.themeColor = resolveThemeColor(fresh.themeColor);
       }
 
       // **許可リストを1時間ごとに見直す。** 外された人は次の見直しで締め出す（開発用ログインは対象外）。
@@ -223,6 +228,10 @@ export const authOptions: NextAuthOptions = {
       if (token.userId && !token.devLogin && Date.now() - checkedAt > ALLOWLIST_RECHECK_MS) {
         token.revoked = (await isStillAllowed(token.userId)) ? undefined : true;
         token.allowCheckedAt = Date.now();
+        // ついでにテーマの色も読み直す。別の端末で色を変えたとき、こちらの端末も遅くとも1時間で揃う
+        // （変えた端末は update() ですぐ変わる）。見直しの回だけなので、ページごとの往復は増えない
+        const fresh = await db.user.findUnique({ where: { id: token.userId }, select: { themeColor: true } });
+        if (fresh) token.themeColor = resolveThemeColor(fresh.themeColor);
       }
       return token;
     },
@@ -240,6 +249,9 @@ export const authOptions: NextAuthOptions = {
         // コンポーネント）から出し分けるための表示用フラグで、権限判定そのものは
         // 常にサーバー側（API・ページ）で isAdminEmail を呼んで行う。
         session.user.isAdmin = isAdminEmail(session.user.email);
+
+        // テーマの色（src/lib/themeColors.ts）。テーマを載せる前に発行されたトークンには無いので既定にする
+        session.user.themeColor = resolveThemeColor(token.themeColor);
       }
       return session;
     },

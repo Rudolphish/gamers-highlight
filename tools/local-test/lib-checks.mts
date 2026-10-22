@@ -20,6 +20,8 @@ import { getRecentActivity, getRecentActivityForGroups, mergeTimeline, playTimel
 import { GET as checkWishlistPrices } from "../../apps/web/src/app/api/cron/check-wishlist-prices/route";
 import { toWishlistPrice } from "../../apps/web/src/lib/wishlistPrice";
 import { parseSteamStoreLow } from "../../apps/web/src/lib/itad";
+import { THEME_COLORS, themeCssDeclarations, themeShades } from "../../apps/web/src/lib/themeColors";
+import { readFileSync } from "node:fs";
 
 type Row = { id: string; item: string; ok: boolean; detail: string };
 const rows: Row[] = [];
@@ -668,6 +670,88 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
       none === null &&
       parsed.steam === 990 && parsed.otherId === null && parsed.noSteam === null && parsed.notArray === null,
     { sale, above, free, lowOnly, none, oddInitial, parsed }
+  );
+}
+
+// ── テーマの色（2026-10-22。設定 → プロフィールで選ぶ） ──
+// ログイン情報（JWT）に載せるので、載せる・読み直す回（サインイン・update()・1時間ごとの見直し）を jwt コールバックで直接見る。
+// update() にはブラウザが好きな値を載せられるので、渡された値ではなく DB を読んでいることも見る（第3引数の session が偽の値）
+{
+  const mail = `lib-theme-${randomUUID()}@example.com`;
+  try {
+    const user = await db.user.create({ data: { email: mail, name: "テーマ", provider: "discord", themeColor: "pink" } });
+    await db.allowlistEntry.create({ data: { email: mail, note: "lib-checks: テーマ" } });
+    const jwt = authOptions.callbacks!.jwt!;
+    const signedIn = await jwt({ token: { email: mail }, user: { id: "x", email: mail }, account: { provider: "credentials", providerAccountId: "x", type: "credentials" } } as never);
+    await db.user.update({ where: { id: user.id }, data: { themeColor: "green" } });
+    const notYet = await jwt({ token: { ...signedIn } } as never);
+    const updated = await jwt({ token: { ...signedIn }, trigger: "update", session: { themeColor: "red" } } as never);
+    await db.user.update({ where: { id: user.id }, data: { themeColor: "orange" } });
+    const rechecked = await jwt({ token: { ...updated, allowCheckedAt: Date.now() - 2 * 60 * 60 * 1000 } } as never);
+    // DB に知らない値が入っていても、ログイン情報には使えるテーマしか載せない
+    await db.user.update({ where: { id: user.id }, data: { themeColor: "neon" } });
+    const unknown = await jwt({ token: { ...signedIn }, trigger: "update" } as never);
+    const sessionOld = await authOptions.callbacks!.session!({ session: { user: { email: mail }, expires: "" }, token: { userId: user.id } } as never);
+    const sessionNew = await authOptions.callbacks!.session!({ session: { user: { email: mail }, expires: "" }, token: rechecked } as never);
+    const got = {
+      signedIn: signedIn.themeColor,
+      notYet: notYet.themeColor,
+      updated: updated.themeColor,
+      rechecked: rechecked.themeColor,
+      unknown: unknown.themeColor,
+      sessionOld: (sessionOld as { user?: { themeColor?: string } }).user?.themeColor,
+      sessionNew: (sessionNew as { user?: { themeColor?: string } }).user?.themeColor,
+    };
+    check(
+      "F313",
+      "テーマの色はログインの回にログイン情報へ載り、変えた直後の update() と1時間ごとの見直しで DB から読み直す（update() で送られた値は使わない。それ以外の回は DB を見ない。知らない値・載せる前のトークンはブルー）",
+      got.signedIn === "pink" && got.notYet === "pink" && got.updated === "green" && got.rechecked === "orange" &&
+        got.unknown === "blue" && got.sessionOld === "blue" && got.sessionNew === "orange",
+      got
+    );
+  } catch (e) {
+    check("F313x", "テーマの色のログイン情報の確認が途中で例外になった（以降は未確認）", false, (e as Error)?.stack ?? e);
+  } finally {
+    await db.allowlistEntry.deleteMany({ where: { email: mail } });
+    await db.user.deleteMany({ where: { email: mail } });
+  }
+}
+
+// テーマの色そのもの: どの色でも、暗い背景の上の色の文字と、色のボタンの上の黒い文字が読める（明るさの差 4.5:1 以上）。
+// ブルーは刷新のときに手で決めた値のまま（ロゴのマーク・帯）。globals.css の既定は themeColors.ts の書き写しなので突き合わせる
+{
+  const lum = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const ratio = (a: string, b: string) => {
+    const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+    return (x + 0.05) / (y + 0.05);
+  };
+  const BG = "#11161d"; // steam.bg
+  const SURFACE = "#18202a"; // steam.surface
+  const INK = "#0b1218"; // accent.ink
+  const low = THEME_COLORS.map((t) => ({ id: t.id, onBg: ratio(t.accent, BG), onSurface: ratio(t.accent, SURFACE), ink: ratio(INK, t.accent) })).filter(
+    (r) => r.onBg < 4.5 || r.onSurface < 4.5 || r.ink < 4.5
+  );
+  const blue = themeShades("blue");
+  const blueSame =
+    blue.markHi === "#7cc8f5" && blue.markLo === "#4a9fe0" && blue.markRim === "#c9ecff" && blue.markRim2 === "#e6f6ff" &&
+    blue.markBackA === "#4a7fa8" && blue.markBackB === "#2f5674" && blue.bannerFrom === "#10202f";
+  // globals.css の :root（既定）の宣言を「名前:値」に直して比べる
+  const css = readFileSync(new URL("../../apps/web/src/app/globals.css", import.meta.url), "utf8");
+  const rootBlock = css.match(/:root\s*\{([^}]*)\}/)?.[1] ?? "";
+  const cssDecl = rootBlock
+    .split(";")
+    .map((d) => d.replace(/\/\*[\s\S]*?\*\//g, "").trim().replace(/\s*:\s*/, ":"))
+    .filter(Boolean)
+    .join(";");
+  const ids = new Set(THEME_COLORS.map((t) => t.id));
+  check(
+    "F314",
+    "テーマの色はどれも暗い背景の上の文字・色のボタンの上の黒い文字が 4.5:1 以上で、6色すべて違う。ブルーはロゴのマークの元の色のままで、globals.css の既定と themeColors.ts が一致している",
+    low.length === 0 && blueSame && ids.size === 6 && cssDecl === themeCssDeclarations("blue"),
+    { low, blueSame, cssDecl, expected: themeCssDeclarations("blue") }
   );
 }
 

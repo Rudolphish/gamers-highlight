@@ -73,7 +73,7 @@ function LoginForm() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-6">
       <div className="flex flex-col items-center text-center">
-        <p className="mb-4 font-logo text-4xl font-bold tracking-tight text-steam-text drop-shadow-[0_0_24px_rgba(90,176,234,0.35)] sm:text-5xl">
+        <p className="mb-4 font-logo text-4xl font-bold tracking-tight text-steam-text drop-shadow-[0_0_24px_rgb(var(--accent)/0.35)] sm:text-5xl">
           Share<span className="text-steam-blue">Staq</span>
         </p>
         <h1 className="text-2xl font-bold text-steam-text">ログイン</h1>

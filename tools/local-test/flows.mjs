@@ -4828,6 +4828,46 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 }
 
+// ── テーマの色（2026-10-22。設定 → プロフィールで選ぶ） ──
+// API は決まった6色だけを受け付け、表示名と別々に保存できる。画面の色はログイン情報（JWT）に載った値で
+// (main)/layout.tsx が書き出す（DB は引かない）。ログイン画面はレイアウトを通らないので既定（globals.css）のまま
+{
+  const member = await db.user.findUnique({ where: { email: "member@example.com" }, select: { id: true, name: true, themeColor: true } });
+  try {
+    const set = await api("/api/users/me", { method: "PATCH", cookie: memberCookie, body: { themeColor: "purple" } });
+    const got = await api("/api/users/me", { cookie: memberCookie });
+    const bad = await api("/api/users/me", { method: "PATCH", cookie: memberCookie, body: { themeColor: "neon" } });
+    const empty = await api("/api/users/me", { method: "PATCH", cookie: memberCookie, body: {} });
+    const nameOnly = await api("/api/users/me", { method: "PATCH", cookie: memberCookie, body: { name: member.name } });
+    const after = await db.user.findUnique({ where: { id: member.id }, select: { name: true, themeColor: true } });
+    const purpleToken = await encode({ token: { name: "member", email: "member@example.com", sub: "member@example.com", themeColor: "purple" }, secret: SECRET, maxAge: 3600 });
+    const [purpleHome, plainHome, login] = await Promise.all([
+      api("/", { cookie: `next-auth.session-token=${purpleToken}` }),
+      api("/", { cookie: memberCookie }),
+      api("/login"),
+    ]);
+    const themeOf = (html) => html.match(/<style id="theme-color" data-theme="([a-z]+)">([^<]*)<\/style>/);
+    const p = themeOf(purpleHome.text);
+    const b = themeOf(plainHome.text);
+    check(
+      "F315 テーマの色: API は6色だけを受け付け（知らない色・空は400）、表示名だけの保存では色が変わらない。画面はログイン情報の色で描かれ（色の無い古いトークンはブルー）、ログイン画面は既定のまま",
+      set.status === 200 && set.json?.user?.themeColor === "purple" && got.json?.user?.themeColor === "purple" &&
+        bad.status === 400 && empty.status === 400 && nameOnly.status === 200 &&
+        after?.themeColor === "purple" && after?.name === member.name &&
+        p?.[1] === "purple" && p?.[2].includes("--accent:179 148 255") &&
+        b?.[1] === "blue" && b?.[2].includes("--accent:90 176 234") &&
+        login.status === 200 && !login.text.includes('id="theme-color"'),
+      `PATCH=${set.status}/${set.json?.user?.themeColor} GET=${got.json?.user?.themeColor} 知らない色=${bad.status} 空=${empty.status} 名前だけ=${nameOnly.status} DB=${JSON.stringify(after)} / ` +
+        `紫のトークン=${p?.[1]}:${p?.[2]?.slice(0, 30)} 色なし=${b?.[1]} ログイン画面=${login.status}:${login.text.includes('id="theme-color"')}`
+    );
+  } catch (e) {
+    check("F315x テーマの色の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    // 色はログイン情報にしか効かず、キャッシュにも載せていないので DB から直接戻してよい
+    await db.user.update({ where: { id: member.id }, data: { themeColor: member.themeColor } });
+  }
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();
