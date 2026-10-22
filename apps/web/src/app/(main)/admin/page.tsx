@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { AlertCircle, Database, HardDrive, Youtube } from "lucide-react";
+import { AlertCircle, Database, HardDrive, Server, Youtube } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import {
@@ -13,6 +13,7 @@ import {
 import { AdminNav } from "@/components/admin/AdminNav";
 import { UsageBar } from "@/components/admin/UsageBar";
 import { SectionError } from "@/components/admin/SectionError";
+import { NODE_SECURITY_RELEASE, nodeVersionStatus } from "@/lib/nodeRuntime";
 
 // 管理者ページ（使用量）：課金・クォータに効く数字だけを集めて出す。
 //
@@ -34,6 +35,9 @@ export default async function AdminUsagePage() {
       getMediaCounts(),
       getYoutubeStats(),
     ]);
+
+  // 実際に動いている Node.js の版（Vercel が入れ替えるので、修正版になったかはここでしか分からない。lib/nodeRuntime.ts）
+  const nodeStatus = nodeVersionStatus(process.version);
 
   const maxUnits = youtubeResult.ok
     ? Math.max(...youtubeResult.value.history.map((h) => h.units), 1)
@@ -213,6 +217,36 @@ export default async function AdminUsagePage() {
               </div>
             </div>
           )}
+        </section>
+
+        {/* サーバーの実行環境 */}
+        <section className="rounded-xl bg-steam-surface p-4 sm:p-6 lg:col-span-2" data-testid="admin-node-version">
+          <h2 className="flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wide text-steam-muted">
+            <Server size={12} /> サーバーの実行環境
+          </h2>
+          <p className="mt-3 text-sm text-steam-text">
+            Node.js <span className="font-num">{nodeStatus.version}</span>
+            <span
+              className={`ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs ${
+                nodeStatus.state === "patched"
+                  ? "bg-positive/15 text-positive"
+                  : nodeStatus.state === "outdated"
+                    ? "bg-danger/15 text-danger"
+                    : "bg-warning/15 text-warning"
+              }`}
+            >
+              {nodeStatus.state === "patched" ? "修正済み" : nodeStatus.state === "outdated" ? "修正前" : "判定できない"}
+            </span>
+          </p>
+          <p className="mt-2 text-3xs text-steam-muted">
+            {nodeStatus.state === "unknown"
+              ? "この系統の修正版は表に無いため判定できません（lib/nodeRuntime.ts）。"
+              : `${NODE_SECURITY_RELEASE.label}で直った版は ${nodeStatus.required} 以上です。`}
+            {" "}Vercel の関数の Node.js は Vercel が入れ替えるので、修正前と出ているときは Vercel の告知を確認するか、再デプロイして入れ替わるかを見てください。
+            <a href={NODE_SECURITY_RELEASE.url} target="_blank" rel="noopener noreferrer" className="ml-1 text-steam-blue hover:underline">
+              Node.js の告知
+            </a>
+          </p>
         </section>
 
         {/* 計測できないもの */}
