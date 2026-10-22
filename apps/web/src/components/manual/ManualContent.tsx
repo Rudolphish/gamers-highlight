@@ -676,7 +676,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
     {
       id: "account",
       category: "start",
-      title: "アカウントの設定（Discord連携・表示名）",
+      title: "アカウントの設定（Discord連携・表示名・テーマの色）",
       body: (
         <div className="flex flex-col gap-3">
           <p>
@@ -689,6 +689,11 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p>
             <strong className="text-steam-text">表示名</strong>：「自分」→ プロフィールから変えられます。
             投稿者の名前や、説明を書いた人の名前として表示されます。
+          </p>
+          <p>
+            <strong className="text-steam-text">テーマの色</strong>：「自分」→ プロフィールで、ボタンや選ばれている項目・ロゴのマークの色を
+            ブルー・レッド・グリーン・オレンジ・ピンク・パープルから選べます。選ぶとすぐに保存され、同じアカウントならどの端末でも同じ色になります
+            （ほかの端末に反映されるまで最大1時間かかります）。背景や文字、「最安値」の緑・「削除」の赤などの意味のある色は変わりません。
           </p>
         </div>
       ),

@@ -28,6 +28,25 @@ body {
 }
 
 /*
+ * テーマの色の既定（ブルー）。値の正本は src/lib/themeColors.ts で、ここはその書き写し
+ * （lib-checks が突き合わせている）。ログインしている画面では (main)/layout.tsx がその人の色で上書きする。
+ * ここに置いているのは、レイアウトを通らない画面（ログイン・招待・global-error）でも色が出るようにするため。
+ * --accent は Tailwind の steam-blue / accent が `rgb(var(--accent) / 透明度)` で読むので「R G B」の形
+ */
+:root {
+  --accent: 90 176 234;
+  --mark-hi: #7cc8f5;
+  --mark-lo: #4a9fe0;
+  --mark-rim: #c9ecff;
+  --mark-rim2: #e6f6ff;
+  --mark-back-a: #4a7fa8;
+  --mark-back-b: #2f5674;
+  --banner-from: #10202f;
+  --banner-mid: #1d3348;
+  --banner-to: #22324a;
+}
+
+/*
  * 入力欄と選択欄の高さの土台（デザイン刷新の段階6）。スマホ44px・PC36px。
  * ボタンと同じ決まり（components/ui/buttonStyles.ts）。入力欄は画面ごとに書き方がばらばらで、
  * 36〜40px のものが多く残っていたので、1つずつ直すのではなく土台で揃える。
@@ -73,7 +92,14 @@ body {
 
 /* 中央の「Staq」に光が走る */
 .brand-shimmer {
-  background: linear-gradient(90deg, #5ab0ea 0%, #5ab0ea 35%, #e6f6ff 50%, #5ab0ea 65%, #5ab0ea 100%);
+  background: linear-gradient(
+    90deg,
+    rgb(var(--accent)) 0%,
+    rgb(var(--accent)) 35%,
+    var(--mark-rim2) 50%,
+    rgb(var(--accent)) 65%,
+    rgb(var(--accent)) 100%
+  );
   background-size: 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;

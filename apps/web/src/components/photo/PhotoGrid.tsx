@@ -69,7 +69,7 @@ export function PhotoGrid({
           <div
             key={item.id}
             onClick={() => setSelectedIndex(index)}
-            className="relative aspect-square overflow-hidden rounded-sm border border-steam-border cursor-pointer hover:border-steam-blue hover:brightness-110 hover:shadow-[0_0_16px_-2px_rgba(90,176,234,0.5)] transition"
+            className="relative aspect-square overflow-hidden rounded-sm border border-steam-border cursor-pointer hover:border-steam-blue hover:brightness-110 hover:shadow-[0_0_16px_-2px_rgb(var(--accent)/0.5)] transition"
           >
             {item.mediaType === "YOUTUBE" ? (
               // **YouTubeはグリッドでは再生しない。** サムネイル（i.ytimg.com）を出して、

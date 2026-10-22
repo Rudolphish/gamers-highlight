@@ -32,7 +32,7 @@ export function AlbumCard({
   const extraMembers = Math.max(memberCount - members.length, 0);
 
   return (
-    <div className="group overflow-hidden rounded-xl bg-steam-surface transition hover:border-steam-blue hover:shadow-[0_0_16px_-2px_rgba(90,176,234,0.5)]">
+    <div className="group overflow-hidden rounded-xl bg-steam-surface transition hover:border-steam-blue hover:shadow-[0_0_16px_-2px_rgb(var(--accent)/0.5)]">
       <div className="relative h-32 w-full overflow-hidden bg-steam-panel">
         {coverImageUrl ? (
           coverIsVideo ? (

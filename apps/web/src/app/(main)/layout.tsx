@@ -1,6 +1,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { resolveThemeColor, themeCss } from "@/lib/themeColors";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { BottomTabs } from "@/components/layout/BottomTabs";
 import { RouteLoading } from "@/components/layout/RouteLoading";
@@ -27,11 +30,18 @@ import { SIDEBAR_COLLAPSED, SIDEBAR_COOKIE } from "@/components/layout/sidebarSt
 // 左右の `safe-area-inset` は、`viewport-fit=cover` にしたことで横向きの iPhone でノッチの下に本文が潜らないようにするため。
 //
 // `<main>` はページ側が全部（27ページ）持っているので、ここでは出さない。
+//
+// **テーマの色はここで書き出す**（src/lib/themeColors.ts）。色はログイン情報（JWT）に載っているので DB は引かない。
+// `<style>` は globals.css より後ろに来るので、既定のブルー（globals.css の :root）を上書きする。
+// `:root` に書くので、body の直下へ出すモーダル（createPortal）にも同じ色が効く
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
   // 左メニューを畳んでいるか。最初の描画からその形で出すため、ここ（サーバー）で読む（sidebarState.ts）
   const sidebarCollapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === SIDEBAR_COLLAPSED;
+  const session = await getServerSession(authOptions);
+  const themeColor = resolveThemeColor(session?.user?.themeColor);
   return (
     <div className="flex min-h-[100dvh] w-full bg-steam-bg pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+      <style id="theme-color" data-theme={themeColor} dangerouslySetInnerHTML={{ __html: themeCss(themeColor) }} />
       <Suspense fallback={null}>
         <RouteLoading />
       </Suspense>
