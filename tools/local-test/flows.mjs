@@ -4886,6 +4886,36 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 }
 
+// ── ホーム画面に「アプリとして」入れるための設定（Web アプリのマニフェスト。2026-10-23） ──
+// ログイン前（招待リンクを開いた人・ログイン画面）にも取りに来るので、Cookie 無しで取れること。
+// アイコンは書いてある大きさの PNG が本当に返ること（大きさが違うと Chrome が「インストール」を出さない）
+{
+  const res = await fetch(BASE + "/manifest.webmanifest", { redirect: "manual" });
+  let m = null;
+  try {
+    m = await res.json();
+  } catch {}
+  const icons = [];
+  for (const icon of m?.icons ?? []) {
+    const r = await fetch(BASE + icon.src, { redirect: "manual" });
+    const buf = Buffer.from(await r.arrayBuffer());
+    const png = buf.length > 24 && buf.toString("ascii", 1, 4) === "PNG";
+    const size = png ? `${buf.readUInt32BE(16)}x${buf.readUInt32BE(20)}` : "-";
+    icons.push({ src: icon.src, status: r.status, type: r.headers.get("content-type"), size, want: icon.sizes, purpose: icon.purpose });
+  }
+  const [login, home] = await Promise.all([api("/login"), api("/", { cookie: memberCookie })]);
+  const linked = (html) => /<link rel="manifest" href="\/manifest\.webmanifest"/.test(html);
+  const sizes = new Set(icons.map((i) => i.want));
+  check(
+    "F318 マニフェストがログイン前でも取れ、名前・全画面で開く設定・192と512のアイコン（切り抜き用も）を持ち、アイコンは書いた大きさの PNG が返る。ログイン画面とホームの HTML から読まれている",
+    res.status === 200 && m?.name === "ShareStaq" && m?.display === "standalone" && m?.start_url === "/" &&
+      sizes.has("192x192") && sizes.has("512x512") && icons.some((i) => i.purpose === "maskable") &&
+      icons.length > 0 && icons.every((i) => i.status === 200 && /image\/png/.test(i.type ?? "") && i.size === i.want) &&
+      linked(login.text) && linked(home.text),
+    `status=${res.status} name=${m?.name} display=${m?.display} start=${m?.start_url} アイコン=${JSON.stringify(icons)} ログイン画面=${linked(login.text)} ホーム=${linked(home.text)}`
+  );
+}
+
 const summary = writeResults("flows", "F: 主要導線", results);
 console.table(results.filter((r) => !r.ok));
 await db.$disconnect();
