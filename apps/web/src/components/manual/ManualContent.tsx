@@ -674,6 +674,28 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
       ),
     },
     {
+      id: "install-app",
+      category: "start",
+      title: "ホーム画面に入れてアプリのように使う",
+      body: (
+        <div className="flex flex-col gap-3">
+          <p>
+            ShareStaq はホーム画面やパソコンに「アプリ」として入れられます。入れると、アドレスバーの無い画面で開きます。
+          </p>
+          <p>
+            <strong className="text-steam-text">iPhone（Safari）</strong>：画面下の共有ボタン（四角から矢印）→「ホーム画面に追加」→「追加」。
+          </p>
+          <p>
+            <strong className="text-steam-text">Android（Chrome）</strong>：右上の「︙」→「アプリをインストール」（または「ホーム画面に追加」→「インストール」）。
+          </p>
+          <p>
+            <strong className="text-steam-text">パソコン（Chrome・Edge）</strong>：アドレスバーの右にあるインストールのボタン、または「︙」のメニューの「インストール」から。
+          </p>
+          <p className="text-steam-muted">メニューの名前はブラウザの版によって少し違います。</p>
+        </div>
+      ),
+    },
+    {
       id: "account",
       category: "start",
       title: "アカウントの設定（Discord連携・表示名・テーマの色）",
