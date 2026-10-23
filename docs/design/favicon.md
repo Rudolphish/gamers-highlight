@@ -37,6 +37,8 @@
 | `apps/web/src/app/icon.svg` | ブラウザのタブ（Next.js が `<link rel="icon" type="image/svg+xml">` を出す）。`docs/design/favicon/m1.svg` と同じ |
 | `apps/web/src/app/apple-icon.png` | iPhone のホーム画面（180px）。iOS が角を丸めるので、背景の角丸を外した形から書き出した |
 | `apps/web/public/favicon.ico` | SVG を読まないブラウザ用（16・32・48px の PNG を入れた ICO） |
+| `apps/web/public/icons/icon-192.png`・`icon-512.png` | ホーム画面に「アプリとして」入れたときのアイコン（Web アプリのマニフェスト `app/manifest.ts`。2026-10-23）。`m1.svg` をそのまま書き出した |
+| `apps/web/public/icons/icon-maskable-512.png` | 同じく、Android が丸や角丸に切り抜く用。`m1-maskable.svg`（背景を角丸なしで全面に、マークを中央80%に縮めた形）から書き出した |
 
 **作り直すとき**は、`docs/design/favicon/` の SVG を直してから上の3つを書き出し直す。PNG と ICO は SVG を Chromium で
-その大きさに描いて書き出した（16・32・48・180px）。`public/icon.png`・`public/logo.png` はコードから参照されていないので触っていない。
+その大きさに描いて書き出した（16・32・48・180px。マニフェストのアイコンは 192・512px）。`public/icon.png`・`public/logo.png` はコードから参照されていないので触っていない。
