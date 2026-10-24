@@ -3395,6 +3395,8 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       voiceChannelName: "雑談",
       inVoice,
       lastSend: { at: NOW - 120_000, ok: true, groups: 0 },
+      askerPlayingHere: true,
+      askerPlayingElsewhere: [],
       ...extra,
     });
 
@@ -3408,6 +3410,8 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     /<@b>：\*\*プレイ中が届いていません/.test(silentText) &&
       silentText.includes("アクティビティのプライバシー") &&
       silentText.includes("オンライン状態を隠す") &&
+      // サーバーごとの設定（2026-10-24。週末ゲーミングで全員分が届かなかった原因）
+      silentText.includes("「プライバシー設定」→「アクティビティのステータス」") &&
       silentText.includes("<@x>：対象外") &&
       !silentText.includes("秘密のゲーム") &&
       // 見えないbも、ゲームが1つなのでその組に数える（F268 と同じ判定）
@@ -4751,6 +4755,34 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// `/playlog status`：本人のプレイ中が別のサーバーでは見えていて、このサーバーでは見えない＝このサーバーの
+// 「アクティビティのステータス」がオフ（2026-10-24。週末ゲーミングで全員分が届かず、同じ人のゲームがテスト用サーバーでは見えていた）
+{
+  const { describePlayStatus } = await import("../../apps/bot/dist/lib/playLog.js");
+  const NOW = 1_800_000_000_000;
+  const base = {
+    now: NOW,
+    ready: true,
+    eligibleCount: 4,
+    minParticipants: 2,
+    membersFetchedAt: NOW - 60_000,
+    voiceChannelId: null,
+    voiceChannelName: null,
+    inVoice: [],
+    lastSend: null,
+  };
+  const off = describePlayStatus({ ...base, askerPlayingHere: false, askerPlayingElsewhere: [{ guildName: "テスト用", games: ["Timberborn"] }] });
+  const on = describePlayStatus({ ...base, askerPlayingHere: true, askerPlayingElsewhere: [{ guildName: "テスト用", games: ["Timberborn"] }] });
+  const none = describePlayStatus({ ...base, askerPlayingHere: false, askerPlayingElsewhere: [] });
+  const SAY = "このサーバーでは見えていません";
+  check(
+    "F319 /playlog status：本人のゲームが Bot のいる別のサーバーでは見えていてここでは見えないとき、そのサーバー名とゲーム名を挙げて、このサーバーの「アクティビティのステータス」がオフだと言い切る（ここで見えている・どこでも見えないときは言わない）",
+    off.includes(SAY) && off.includes("「テスト用」（Timberborn）") && off.includes("「アクティビティのステータス」がオフ") &&
+      !on.includes(SAY) && !none.includes(SAY),
+    off.slice(0, 300)
+  );
+}
+
 {
   const { startPlayTracker, refreshPlayMembersNow, describePlayStatusFor } = await import(
     "../../apps/bot/dist/lib/playTracker.js"
@@ -4801,6 +4833,24 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       "F263 1人がVCを抜けて条件が崩れると、次の送信で記録が閉じる",
       rows.length === 1 && rows[0].endedAt !== null,
       JSON.stringify(rows.map((r) => ({ endedAt: r.endedAt })))
+    );
+
+    // 本人のプレイ中がこのサーバーでは届かず、Botのいる別のサーバーでは届いている（サーバーごとの設定がオフ）。
+    // 追跡側が別のサーバーのプレイ状況を拾って渡せているか（F319 は表示の組み立てだけ）
+    guild.presences.cache.delete("100000000000000001");
+    const OTHER = "900000000000000123";
+    client.guilds.cache.set(OTHER, {
+      id: OTHER,
+      name: "テスト用サーバー",
+      voiceStates: { cache: new Map() },
+      presences: { cache: new Map([["100000000000000001", { activities: [{ type: 0, name: "Timberborn", applicationId: null, timestamps: null }] }]]) },
+    });
+    const privacyText = await describePlayStatusFor(group.guildId, "100000000000000001");
+    client.guilds.cache.delete(OTHER);
+    check(
+      "F320 /playlog status：Botの追跡状態から、別のサーバーでは本人のゲームが見えていることを拾い、このサーバーの「アクティビティのステータス」がオフだと出す",
+      privacyText.includes("「テスト用サーバー」（Timberborn）") && privacyText.includes("「アクティビティのステータス」がオフ"),
+      privacyText.slice(0, 300)
     );
   } catch (e) {
     check("F262x Botのプレイ状況の送信の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
