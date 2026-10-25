@@ -131,6 +131,14 @@ export type PlayStatusView = {
   voiceChannelName: string | null;
   inVoice: StatusMember[];
   lastSend: { at: number; ok: boolean; groups: number; reason?: string } | null;
+  /** 打った本人のプレイ中が、このサーバーで見えているか */
+  askerPlayingHere: boolean;
+  /**
+   * 打った本人のプレイ中が見えている、Botのいる**別の**サーバー（本人がいるサーバーだけ。本人のゲーム名だけ）。
+   * ここで見えずに別のサーバーで見えているなら、このサーバーの「プライバシー設定 → アクティビティのステータス」がオフ
+   * （2026-10-24。週末ゲーミングで全員分が届かず、同じ人のゲームがテスト用サーバーでは見えていた）
+   */
+  askerPlayingElsewhere: { guildName: string; games: string[] }[];
 };
 
 const mention = (id: string) => `<@${id}>`;
@@ -142,6 +150,15 @@ const nameKey = (name: string) => name.normalize("NFKC").toLowerCase().replace(/
 
 export function describePlayStatus(v: PlayStatusView): string {
   const lines: string[] = ["**いまBotから見えている様子**"];
+
+  // いちばん多い原因を先に言い切る：本人のゲームが別のサーバーでは見えていて、ここでは見えない
+  if (!v.askerPlayingHere && v.askerPlayingElsewhere.length > 0) {
+    const where = v.askerPlayingElsewhere.map((g) => `「${g.guildName}」（${g.games.join("、")}）`).join("、");
+    lines.push(
+      `・**あなたのプレイ中は、Botのいる別のサーバー${where}では見えていますが、このサーバーでは見えていません。**` +
+        "このサーバーの名前のメニュー →「プライバシー設定」→「アクティビティのステータス」がオフになっています。オンにすると記録に入ります"
+    );
+  }
 
   if (!v.ready) lines.push("・Botの起動処理がまだ終わっていません（終わるまでは送りません）");
   if (v.eligibleCount === null || v.membersFetchedAt === null) {
@@ -190,9 +207,11 @@ export function describePlayStatus(v: PlayStatusView): string {
     );
     if (silent.length > 0) {
       lines.push(
-        "※ プレイ中が届かない主な原因は、ステータスを「オンライン状態を隠す」にしていること、または" +
+        "※ プレイ中が届かない主な原因は、" +
+          "このサーバーの名前のメニュー →「プライバシー設定」→「アクティビティのステータス」がオフになっていること（サーバーごとの設定）、" +
+          "ステータスを「オンライン状態を隠す」にしていること、" +
           "「設定 → アクティビティのプライバシー」でアクティビティの共有がオフになっていること。" +
-          "どちらも本人の画面には出ていてもBotには届きません"
+          "どれも本人の画面や友達の一覧には出ていてもBotには届きません"
       );
     }
 
