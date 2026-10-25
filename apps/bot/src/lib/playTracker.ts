@@ -1,6 +1,7 @@
 import type { Client, Guild } from "discord.js";
 import { fetchPlayLogMembers, notifyPlayLogBotStarted, sendPlaySnapshot } from "./apiClient.js";
 import {
+  ACTIVITY_PLAYING,
   computePlayingGroups,
   describePlayStatus,
   snapshotSignature,
@@ -158,8 +159,20 @@ export async function describePlayStatusFor(guildId: string, userId: string): Pr
             activities: s.eligible?.has(v.id) ? activitiesOf(guild, v.id) : [],
           }))
       : [];
+  // 本人のプレイ中が、Botのいる別のサーバーでは見えているか（サーバーごとの「アクティビティのステータス」の切り分け用）。
+  // 本人が入っているサーバーにしか本人のプレイ状況は無いので、出すのは本人が知っているサーバーの名前と本人のゲームだけ
+  const playingNames = (g: Guild) =>
+    activitiesOf(g, userId)
+      .filter((a) => a.type === ACTIVITY_PLAYING && a.name)
+      .map((a) => a.name as string);
+  const askerPlayingElsewhere = [...(client?.guilds.cache.values() ?? [])]
+    .filter((g) => g.id !== guildId)
+    .map((g) => ({ guildName: g.name ?? "別のサーバー", games: playingNames(g) }))
+    .filter((g) => g.games.length > 0);
   return describePlayStatus({
     now: Date.now(),
+    askerPlayingHere: guild ? playingNames(guild).length > 0 : false,
+    askerPlayingElsewhere,
     ready,
     eligibleCount: s.membersFetchedAt ? (s.eligible?.size ?? 0) : null,
     minParticipants: s.minParticipants,
