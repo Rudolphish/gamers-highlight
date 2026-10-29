@@ -1,0 +1,94 @@
+name: AgentFailures Rules
+
+# Rudolphish/AgentFailures の規則を CLAUDE.md の管理ブロックへ取り込む。
+# 差分があれば pull request を出すだけで、自動では反映しない（マージが承認）。
+#
+# 取得元は AgentFailures 自身の CLAUDE.md にある管理ブロック。向こうの CI が
+# docs/rules.md との一致を検査しているため、**自分に配れていないものは流れてこない**。
+# 取得するのはデータだけで、スクリプトは取得しない（他所のコードを実行しない）。
+# AgentFailures は public なのでトークンは要らない。
+#
+# 手順と既知の穴は次を参照。
+# https://github.com/Rudolphish/AgentFailures/blob/main/docs/rules-distribution.md
+
+on:
+  schedule:
+    - cron: '41 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: agentfailures-rules
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 規則を取り込む
+        run: |
+          set -euo pipefail
+          SRC='https://raw.githubusercontent.com/Rudolphish/AgentFailures/main/CLAUDE.md'
+          curl -fsSL "$SRC" -o /tmp/source.md
+          # --input-type=module は必須。runner の既定 Node 版によっては
+          # 標準入力が CommonJS として扱われ、import が構文エラーになる。
+          node --input-type=module - <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const START = '<!-- agentfailures:rules:start';
+          const END = '<!-- agentfailures:rules:end -->';
+          const cut = (text, what) => {
+            const s = text.indexOf(START);
+            const e = text.indexOf(END);
+            if (s === -1 || e === -1 || e < s) throw new Error(`${what} に管理ブロックがありません`);
+            return { s, e, inner: text.slice(text.indexOf('\n', s) + 1, e) };
+          };
+          const source = readFileSync('/tmp/source.md', 'utf8');
+          const src = cut(source, '取得元');
+          const stamp = source.slice(src.s, source.indexOf('\n', src.s));
+          if (src.inner.trim() === '') throw new Error('取得元のブロックが空です');
+
+          const target = readFileSync('CLAUDE.md', 'utf8');
+          const dst = cut(target, 'CLAUDE.md');
+          if (dst.inner.trim() === src.inner.trim()) {
+            console.log('最新です。');
+            process.exit(0);
+          }
+          writeFileSync(
+            'CLAUDE.md',
+            target.slice(0, dst.s) + stamp + '\n' + src.inner.trim() + '\n' + target.slice(dst.e),
+          );
+          console.log('CHANGED');
+          JS
+
+
+      - name: 差分があれば pull request を出す
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- CLAUDE.md; then
+            echo '差分なし。'
+            exit 0
+          fi
+          BRANCH="agentfailures-rules/$(date -u +%Y%m%d)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # 同じ日に 2 回走ると -c は既存ブランチで失敗する（手動実行で起きる）。
+          # -C と force-with-lease で、同じブランチへ上書きして PR を更新する。
+          git switch -C "$BRANCH"
+          git add CLAUDE.md
+          git commit -m 'chore: AgentFailures の規則を CLAUDE.md へ取り込む'
+          git push -u --force-with-lease origin "$BRANCH"
+          # 既に PR があるときに gh pr create は失敗する。push で更新済みなので作らない。
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+            echo '既存の pull request を更新しました。'
+            exit 0
+          fi
+          gh pr create \
+            --title 'chore: AgentFailures の規則を取り込む' \
+            --body '[AgentFailures](https://github.com/Rudolphish/AgentFailures/blob/main/docs/rules.md) の規則を CLAUDE.md の管理ブロックへ取り込みます。ブロックの外は変更していません。内容に異論があれば、このリポジトリではなく AgentFailures の docs/rules.md へ提案してください。'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
