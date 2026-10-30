@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { OPEN_PROPOSAL_STATUSES } from "@/lib/proposalPromotion";
 
 // GET /api/search/group-games?q=… 自分が所属するグループの「ゲームリスト」「ゲーム提案」を
 // タイトルであいまい検索する（/searchページの「ゲームタイトル」欄と連動）。
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
       include: { group: { select: { id: true, name: true } } },
     }),
     db.groupGameProposal.findMany({
-      where: { groupId: { in: groupIds }, status: "PENDING", title: { contains: q, mode: "insensitive" } },
+      where: { groupId: { in: groupIds }, status: { in: OPEN_PROPOSAL_STATUSES }, title: { contains: q, mode: "insensitive" } },
       orderBy: { createdAt: "desc" },
       take: 20,
       include: { group: { select: { id: true, name: true } } },

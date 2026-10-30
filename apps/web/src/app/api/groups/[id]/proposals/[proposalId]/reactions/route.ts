@@ -4,9 +4,8 @@ import { db } from "@/lib/db";
 import { invalidateGroup } from "@/lib/cacheTags";
 import { hasGroupPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activityLog";
-import { getOrFetchExternalGameData } from "@/lib/externalGameCache";
 import { z } from "zod";
-import { promotionThreshold } from "@/lib/proposalPromotion";
+import { completeIfAllPurchased, syncAgreement } from "@/lib/proposalPromotion";
 
 const reactSchema = z.object({
   type: z.enum(["LIKE", "MAYBE", "PASS"]),
@@ -14,7 +13,8 @@ const reactSchema = z.object({
 
 // POST /api/groups/:id/proposals/:proposalId/reactions … リアクションをトグルする。
 // 同じ種類を再度押すと取り消し、別の種類を押すと切り替える。
-// LIKEがグループの過半数（floor(メンバー数/2)+1）に達すると、自動でGroupGame（WISHLIST）に昇格する。
+// グループの全員が「やりたい」になると「みんなでやりたい」（AGREED）へ上がる。
+// 「みんなでやりたい」の間も投票は変えられ、誰かが外せばウィッシュリストへ戻る。
 export async function POST(
   req: Request,
   props: { params: Promise<{ id: string; proposalId: string }> }
@@ -36,7 +36,7 @@ export async function POST(
     where: { id: params.proposalId, groupId: params.id },
   });
   if (!proposal) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (proposal.status !== "PENDING") {
+  if (proposal.status !== "PENDING" && proposal.status !== "AGREED") {
     return NextResponse.json({ error: "この提案は既に決着しています" }, { status: 409 });
   }
 
@@ -65,67 +65,12 @@ export async function POST(
     detail: { type: parsed.data.type },
   });
 
-  const likeCount = await db.groupGameProposalReaction.count({
-    where: { proposalId: params.proposalId, type: "LIKE" },
-  });
-
-  const group = await db.group.findUnique({
-    where: { id: params.id },
-    select: { _count: { select: { members: true } } },
-  });
-  const threshold = promotionThreshold(group?._count.members ?? 0);
-
-  let promoted = false;
-  if (likeCount >= threshold) {
-    const { headerImage, ...external } = await getOrFetchExternalGameData(
-      proposal.steamAppId,
-      proposal.title
-    );
-    let addedGameId: string | null = null;
-    try {
-      const created = await db.groupGame.create({
-        data: {
-          groupId: params.id,
-          steamAppId: proposal.steamAppId,
-          title: proposal.title,
-          // 提案時に組み立てた固定パスより、appdetailsが返す正しいURLを優先する
-          coverUrl: headerImage ?? proposal.coverUrl,
-          ...external,
-          addedById: proposal.proposedById,
-        },
-      });
-      addedGameId = created.id;
-    } catch {
-      // 既にリストにある場合（レース条件等）は無視して採用扱いにする
-    }
-    await db.groupGameProposal.update({
-      where: { id: params.proposalId },
-      data: { status: "ACCEPTED" },
-    });
-    promoted = true;
-
-    // 採用と、それによるゲーム追加は別の出来事として記録する。
-    // **actorId は提案者**（最後に投票した人ではない）。リストに載ったゲームの
-    // 「追加した人」は GroupGame.addedById と揃えないと、画面と週次まとめで食い違う。
-    await logActivity({
-      kind: "proposal.accepted",
-      targetId: proposal.id,
-      targetName: proposal.title,
-      groupId: params.id,
-      actorId: proposal.proposedById,
-      detail: { likeCount, threshold },
-    });
-    if (addedGameId) {
-      await logActivity({
-        kind: "game.added",
-        targetId: addedGameId,
-        targetName: proposal.title,
-        groupId: params.id,
-        actorId: proposal.proposedById,
-        detail: { status: "WISHLIST", viaProposal: true },
-      });
-    }
-  }
+  // 全員が「やりたい」なら「みんなでやりたい」へ上げ、外れたらウィッシュリストへ戻す（lib/proposalPromotion.ts）。
+  // **ここではゲームリストに入れない。** 入るのは、やりたい人が全員「買った」を付けたとき（purchases の API）
+  const stage = await syncAgreement(params.proposalId, params.id);
+  // 一度ウィッシュリストへ戻ったあと上がり直したときは、「買った」が既に全員そろっていることがある
+  // （戻っても「買った」は消さない）。その場合はここでプレイ予定に入れる
+  const accepted = stage === "agreed" ? await completeIfAllPurchased(params.proposalId, params.id) : false;
 
   const updated = await db.groupGameProposal.findUnique({
     where: { id: params.proposalId },
@@ -133,5 +78,5 @@ export async function POST(
   });
 
   invalidateGroup(params.id);
-  return NextResponse.json({ proposal: updated, promoted });
+  return NextResponse.json({ proposal: updated, stage, accepted });
 }

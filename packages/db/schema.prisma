@@ -51,7 +51,12 @@ enum GroupGameStatus {
 }
 
 enum ProposalStatus {
+  /// ウィッシュリスト（投票中）
   PENDING
+  /// 「みんなでやりたい」。グループの全員が「やりたい」を押した。やりたい人が全員買うと ACCEPTED になる
+  /// （2026-10-30 ユーザー判断。それまでは「やりたい」が過半数で直接ゲームリストに入っていた）
+  AGREED
+  /// ゲームリストに入った（「プレイ予定」の GroupGame がある）
   ACCEPTED
   REJECTED
 }
@@ -121,6 +126,7 @@ model User {
   addedGroupGames    GroupGame[]                 @relation("GroupGameAddedBy")
   proposedGames      GroupGameProposal[]         @relation("ProposalProposedBy")
   proposalReactions  GroupGameProposalReaction[]
+  proposalPurchases  GroupGameProposalPurchase[]
   gameInterests      GroupGameInterest[]
   photoReactions     PhotoReaction[]
   describedPhotos    Photo[]                     @relation("PhotoDescriptionEditor")
@@ -299,9 +305,14 @@ model GroupGameProposal {
   lastKnownLowShop   String?
   lastPriceCheckedAt DateTime?
 
+  /// 「みんなでやりたい」（AGREED）に上がった時刻。区画の並び（新しく上がった順）に使う。
+  /// 誰かが「やりたい」を外してウィッシュリストへ戻ったら null に戻す
+  agreedAt DateTime?
+
   group      Group                       @relation(fields: [groupId], references: [id], onDelete: Cascade)
   proposedBy User                        @relation("ProposalProposedBy", fields: [proposedById], references: [id])
   reactions  GroupGameProposalReaction[]
+  purchases  GroupGameProposalPurchase[]
 
   @@index([groupId])
   /// 区画ごとの並べ替えで「この人のPENDINGな提案」を引くため
@@ -321,6 +332,22 @@ model GroupGameProposalReaction {
 
   @@unique([proposalId, userId])
   @@map("group_game_proposal_reactions")
+}
+
+/// 「みんなでやりたい」のゲームを買った（元から持っている・無料も含む）という自己申告。
+/// Steam の所持は外から確かめられないので申告に頼る。本人のほか、グループのオーナーが代わりに付け外しできる。
+/// 「やりたい」を押した人が全員そろうと、提案はゲームリストの「プレイ予定」に入る（lib/proposalPromotion.ts）
+model GroupGameProposalPurchase {
+  id         String   @id @default(cuid())
+  proposalId String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  proposal GroupGameProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([proposalId, userId])
+  @@map("group_game_proposal_purchases")
 }
 
 model GroupMember {

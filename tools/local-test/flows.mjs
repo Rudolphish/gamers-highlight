@@ -278,11 +278,28 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
 }
 
 // ───────────────────────────────────────────────────────────
-// C. 提案とリアクション（過半数で自動昇格）
+// C. 提案とリアクション（全員の「やりたい」で「みんなでやりたい」、やりたい人が全員「買った」でプレイ予定）
+//    2026-10-30 に変えた（それまでは「やりたい」が過半数で直接ゲームリストに入っていた）
 // ───────────────────────────────────────────────────────────
 {
   const proposal = await db.groupGameProposal.findFirst({ where: { groupId: group.id, status: "PENDING" } });
   const before = await db.groupGame.count({ where: { groupId: group.id } });
+  // **全員は数えて求める。** seed のグループはオーナーも GroupMember の行を持っているので重複を除く
+  const full = await db.group.findUnique({
+    where: { id: group.id },
+    select: { ownerId: true, members: { select: { user: { select: { id: true, email: true } } } } },
+  });
+  const owner = await db.user.findUnique({ where: { id: full.ownerId } });
+  const everyone = [...new Map([[owner.id, owner.email], ...full.members.map((m) => [m.user.id, m.user.email])]).entries()];
+  const memberUser = await db.user.findUnique({ where: { email: "member@example.com" } });
+  const purchase = (cookie, body) =>
+    api(`/api/groups/${group.id}/proposals/${proposal.id}/purchases`, { method: "POST", cookie, body });
+  const reload = () => db.groupGameProposal.findUnique({ where: { id: proposal.id } });
+  const gameCount = () => db.groupGame.count({ where: { groupId: group.id } });
+
+  // ウィッシュリストの段階では「買った」は付けられない
+  const tooEarly = await purchase(adminCookie, { purchased: true });
+  check("F321 ウィッシュリストの段階では「買った」は付けられない（409）", tooEarly.status === 409, `${tooEarly.status} ${tooEarly.text}`);
 
   const react = await api(`/api/groups/${group.id}/proposals/${proposal.id}/reactions`, {
     method: "POST",
@@ -291,22 +308,95 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   });
   check("F22 リアクションを付けられる", react.status === 200 || react.status === 201, react.text);
 
-  const updated = await db.groupGameProposal.findUnique({ where: { id: proposal.id } });
-  const after = await db.groupGame.count({ where: { groupId: group.id } });
+  // 残りの全員にも「やりたい」を押してもらう（seed では member が押している）
+  const liked = new Set(
+    (await db.groupGameProposalReaction.findMany({ where: { proposalId: proposal.id, type: "LIKE" } })).map((r) => r.userId)
+  );
+  for (const [id, email] of everyone) {
+    if (liked.has(id)) continue;
+    await api(`/api/groups/${group.id}/proposals/${proposal.id}/reactions`, {
+      method: "POST",
+      cookie: await cookieFor(email),
+      body: { type: "LIKE" },
+    });
+  }
+  const agreed = await reload();
   check(
-    "F23 LIKEが過半数に達すると自動でACCEPTED＋GroupGame化",
-    updated.status === "ACCEPTED" && after === before + 1,
-    `status=${updated.status} games ${before}→${after}`
+    "F23 全員が「やりたい」で「みんなでやりたい」（AGREED）に上がり、ゲームリストにはまだ入らない",
+    agreed.status === "AGREED" && agreed.agreedAt !== null && (await gameCount()) === before,
+    `status=${agreed.status} agreedAt=${agreed.agreedAt} games ${before}→${await gameCount()} 全員=${everyone.length}人`
   );
 
+  // 誰かが外すとウィッシュリストへ戻り、押し直すとまた上がる
+  await api(`/api/groups/${group.id}/proposals/${proposal.id}/reactions`, { method: "POST", cookie: adminCookie, body: { type: "LIKE" } });
+  const reopened = await reload();
+  await api(`/api/groups/${group.id}/proposals/${proposal.id}/reactions`, { method: "POST", cookie: adminCookie, body: { type: "LIKE" } });
+  const reagreed = await reload();
+  check(
+    "F322 「やりたい」を外すとウィッシュリストへ戻り、押し直すとまた上がる",
+    reopened.status === "PENDING" && reopened.agreedAt === null && reagreed.status === "AGREED",
+    `外す→${reopened.status} 押し直す→${reagreed.status}`
+  );
+
+  // 他の人の分はオーナーだけ
+  const byMember = await purchase(memberCookie, { purchased: true, userId: owner.id });
+  check("F323 他の人の「買った」はオーナー以外は変えられない（403）", byMember.status === 403, `${byMember.status} ${byMember.text}`);
+
+  // 「やりたい」を押していない人（グループの外の人）の分は付けられない
+  const outsiderUser = await db.user.findUnique({ where: { email: "outsider@example.com" } });
+  const notRequired = await purchase(adminCookie, { purchased: true, userId: outsiderUser.id });
+  check("F324 「やりたい」を押していない人の分は付けられない（400）", notRequired.status === 400, `${notRequired.status} ${notRequired.text}`);
+
+  // オーナーが代わりに付ける。まだ全員ではないので入らない（全員が2人以上いる前提。seed は admin と member）
+  const proxy = await purchase(adminCookie, { purchased: true, userId: memberUser.id });
+  const afterProxy = await reload();
+  const proxyRow = await db.groupGameProposalPurchase.findUnique({
+    where: { proposalId_userId: { proposalId: proposal.id, userId: memberUser.id } },
+  });
+  check(
+    "F325 オーナーは他の人の分を付けられる。全員そろうまではゲームリストに入らない",
+    proxy.status === 200 && !!proxyRow && afterProxy.status === "AGREED" && (await gameCount()) === before && everyone.length >= 2,
+    `${proxy.status} row=${!!proxyRow} status=${afterProxy.status} games=${await gameCount()} 全員=${everyone.length}人`
+  );
+
+  // 同じ人を2回付けても1件のまま（付けるか外すかを送る形なので、2回押しても外れない）
+  await purchase(adminCookie, { purchased: true, userId: memberUser.id });
+  const rows = await db.groupGameProposalPurchase.count({ where: { proposalId: proposal.id, userId: memberUser.id } });
+  check("F326 「買った」を2回付けても1件のまま（外れない）", rows === 1, `${rows}件`);
+
+  // 残りの全員が買うとプレイ予定に入る
+  for (const [id, email] of everyone) {
+    if (id === memberUser.id) continue;
+    await purchase(await cookieFor(email), { purchased: true });
+  }
+  const updated = await reload();
+  const after = await gameCount();
   const promoted = await db.groupGame.findFirst({ where: { groupId: group.id, steamAppId: proposal.steamAppId } });
+  check(
+    "F327 やりたい人が全員「買った」でACCEPTED＋ゲームリストに「プレイ予定」で入る",
+    updated.status === "ACCEPTED" && after === before + 1 && promoted?.status === "WISHLIST",
+    `status=${updated.status} games ${before}→${after} game.status=${promoted?.status}`
+  );
+
   check(
     "F24 昇格したゲームのカバーがappdetails由来（組み立てURLでない）",
     !!promoted?.coverUrl && !promoted.coverUrl.includes("cdn.akamai.steamstatic.com/steam/apps/"),
     promoted?.coverUrl
   );
 
-  // 二重リアクションは1人1件に集約される（@@unique）
+  // 活動の記録：上がった・買った・通った（通ったの actor は提案者）
+  const logs = await db.activityLog.findMany({ where: { targetId: proposal.id }, select: { kind: true, actorId: true } });
+  const kinds = logs.map((l) => l.kind);
+  check(
+    "F328 活動の記録に「上がった」「買った」「通った」が残り、通ったの actor は提案者",
+    kinds.includes("proposal.agreed") &&
+      kinds.includes("proposal.purchased") &&
+      logs.filter((l) => l.kind === "proposal.accepted").length === 1 &&
+      logs.find((l) => l.kind === "proposal.accepted")?.actorId === proposal.proposedById,
+    kinds.join(",")
+  );
+
+  // 通った後は投票も「買った」も受け付けない
   const react2 = await api(`/api/groups/${group.id}/proposals/${proposal.id}/reactions`, {
     method: "POST",
     cookie: adminCookie,
@@ -315,7 +405,40 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const count = await db.groupGameProposalReaction.count({
     where: { proposalId: proposal.id, user: { email: "admin@example.com" } },
   });
-  check("F25 同じ人のリアクションは1件のまま", count === 1, `status=${react2.status} count=${count}`);
+  const lateBuy = await purchase(adminCookie, { purchased: false });
+  check(
+    "F25 通った後は投票も「買った」も受け付けない（リアクションは1人1件のまま）",
+    react2.status === 409 && lateBuy.status === 409 && count === 1,
+    `投票=${react2.status} 買った=${lateBuy.status} count=${count}`
+  );
+}
+
+// **3人のグループで、過半数（2人）では上がらないこと。** seed のグループは2人で、過半数と全員が同じ数になるため、
+// 以前の過半数の判定に戻しても上の F23 は通ってしまう。部外者を一時的にメンバーへ入れて3人にする
+{
+  const proposed = await api(`/api/groups/${group.id}/proposals`, {
+    method: "POST",
+    cookie: adminCookie,
+    body: { steamAppId: 7700330, title: "3人で全員テスト" },
+  });
+  const pid = proposed.json?.proposal?.id;
+  await api(`/api/groups/${group.id}/members`, { method: "POST", cookie: adminCookie, body: { email: "outsider@example.com", role: "VIEWER" } });
+  const outsiderUser = await db.user.findUnique({ where: { email: "outsider@example.com" } });
+  const joined = !!(await db.groupMember.findUnique({ where: { groupId_userId: { groupId: group.id, userId: outsiderUser.id } } }));
+  for (const cookie of [adminCookie, memberCookie]) {
+    await api(`/api/groups/${group.id}/proposals/${pid}/reactions`, { method: "POST", cookie, body: { type: "LIKE" } });
+  }
+  const twoOfThree = (await db.groupGameProposal.findUnique({ where: { id: pid } }))?.status;
+  await api(`/api/groups/${group.id}/proposals/${pid}/reactions`, { method: "POST", cookie: outsiderCookie, body: { type: "LIKE" } });
+  const threeOfThree = (await db.groupGameProposal.findUnique({ where: { id: pid } }))?.status;
+  check(
+    "F330 3人のグループでは「やりたい」2人（過半数）ではウィッシュリストのまま、3人目で「みんなでやりたい」に上がる",
+    proposed.status === 201 && joined && twoOfThree === "PENDING" && threeOfThree === "AGREED",
+    `提案=${proposed.status} 参加=${joined} 2人→${twoOfThree} 3人→${threeOfThree}`
+  );
+  // 後片付け（作ったときと同じ経路で消す。部外者は他のテストのために外へ戻す）
+  if (pid) await api(`/api/groups/${group.id}/proposals/${pid}`, { method: "DELETE", cookie: adminCookie });
+  await api(`/api/groups/${group.id}/members/${outsiderUser.id}`, { method: "DELETE", cookie: adminCookie });
 }
 
 // ───────────────────────────────────────────────────────────
@@ -2528,13 +2651,13 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   );
 
   // **必要な「やりたい」の数は投票APIと同じ式で出す。**
-  // オーナー1人＋メンバー1人＝母数2なので、必要数は floor(2/2)+1 = 2。
-  // オーナー分の+1を落とすと 1 になるので、式が違えばここで割れる。
+  // 2026-10-30 からは「全員」。オーナー1人＋メンバー1人なので 2。
+  // オーナー分を落とすと 1 になるので、式が違えばここで割れる。
   // （seedのグループはオーナーもGroupMemberの行を持っていて本番と形が違うため、
   //   実運用と同じ「オーナーはmembersに入らない」グループを自分で作って確かめている）
   check(
     "F170 通知に必要な「やりたい」の数が入っている（投票APIと同じ式）",
-    sent[0]?.includes("「やりたい」が 2 人集まると"),
+    sent[0]?.includes("全員（2人）が「やりたい」"),
     sent[0] ?? "投稿なし"
   );
 
@@ -2619,6 +2742,31 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     body: { kind: "PROPOSAL", channelId: CHANNEL },
   });
   check("F178 オーナー以外は通知先を変えられない", byMember.status === 403, byMember.status);
+
+  // **やりたい人が全員買ってプレイ予定に入ったら、提案と同じ送り先へ1通送る**（2026-10-30 ユーザー判断）
+  {
+    const pid = proposed.json?.proposal?.id;
+    for (const cookie of [adminCookie, memberCookie]) {
+      await api(`/api/groups/${notifyGroupId}/proposals/${pid}/reactions`, { method: "POST", cookie, body: { type: "LIKE" } });
+    }
+    mark = discordLines().length;
+    await api(`/api/groups/${notifyGroupId}/proposals/${pid}/purchases`, { method: "POST", cookie: adminCookie, body: { purchased: true } });
+    const afterFirst = bodiesSince(mark).length;
+    await api(`/api/groups/${notifyGroupId}/proposals/${pid}/purchases`, { method: "POST", cookie: memberCookie, body: { purchased: true } });
+    const done = bodiesSince(mark);
+    const memberName = (await db.user.findUnique({ where: { email: "member@example.com" } }))?.name;
+    check(
+      "F329 やりたい人が全員買うと、ゲーム名と買った人をDiscordへ1通送る（1人目では送らない・メールアドレスは混ざらない）",
+      afterFirst === 0 &&
+        done.length === 1 &&
+        done[0].includes("グランド・セフト・オートV") &&
+        done[0].includes("買いました") &&
+        !!memberName &&
+        done[0].includes(memberName) &&
+        !done[0].includes("@example.com"),
+      `1人目=${afterFirst}件 / ${JSON.stringify(done)}`
+    );
+  }
 
   // **送り先はグループのDiscordサーバーのチャンネルに限る。** 形式だけ見ていた頃は、
   // Botが入っている別サーバーのチャンネルIDを書けば、そこへグループの通知を流せた

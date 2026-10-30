@@ -36,6 +36,12 @@ export const ACTIVITY_KINDS = [
   "proposal.created",
   "proposal.voted",
   "proposal.vote_removed",
+  // 全員が「やりたい」で「みんなでやりたい」に上がった（2026-10-30〜）
+  "proposal.agreed",
+  // 「みんなでやりたい」のゲームを買った・取り消した。オーナーが代わりに付けたときは detail.forUserId に本人
+  "proposal.purchased",
+  "proposal.purchase_removed",
+  // ゲームリストに入った。2026-10-30 からは「やりたい人が全員買った」とき（それまでは「やりたい」が過半数のとき）
   "proposal.accepted",
   "proposal.withdrawn",
   "member.joined",
@@ -133,6 +139,9 @@ export const ACTIVITY_EMOJI: Record<ActivityKind, string> = {
   "proposal.created": "💡",
   "proposal.voted": "🗳️",
   "proposal.vote_removed": "↩️",
+  "proposal.agreed": "🤝",
+  "proposal.purchased": "🛒",
+  "proposal.purchase_removed": "↩️",
   "proposal.accepted": "🎉",
   "proposal.withdrawn": "🗑️",
   "member.joined": "👤",

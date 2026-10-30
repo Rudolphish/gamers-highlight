@@ -129,7 +129,10 @@ IDしか無いと対象が消えた瞬間に何のことか分からなくなる
 | `proposal.created` | 作成時刻 | — |
 | `proposal.voted` | 投票時刻 | `{type: LIKE/MAYBE/PASS}` |
 | `proposal.vote_removed` | 取り消した時刻 | `{type}` |
-| `proposal.accepted` | 過半数に達した時刻 | `{likeCount, threshold}` |
+| `proposal.agreed` | 全員が「やりたい」で「みんなでやりたい」に上がった時刻（2026-10-30〜） | `{likeCount}` |
+| `proposal.purchased` | 「買った」を付けた時刻 | オーナーが代わりに付けたときだけ `{forUserId}` |
+| `proposal.purchase_removed` | 「買った」を外した時刻 | 同上 |
+| `proposal.accepted` | ゲームリストに入った時刻。2026-10-30 からは「やりたい人が全員買った」とき、それより前は「やりたい」が過半数に達したとき | 2026-10-30〜 `{purchasedCount}`、それより前 `{likeCount, threshold}` |
 | `proposal.withdrawn` | 取り下げた時刻 | — |
 | `member.joined` | `acceptedAt` | — |
 

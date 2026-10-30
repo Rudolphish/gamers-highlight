@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { db } from "./db";
 import { groupTag } from "./cacheTags";
 import { coverPhotoQuery } from "./albumCoverPolicy";
+import { OPEN_PROPOSAL_STATUSES } from "./proposalPromotion";
 
 /**
  * グループ画面が1回で読む提案の上限。**超えた分は区画に出ない。**
@@ -43,14 +44,15 @@ export function getGroupContent(groupId: string, albumPageSize: number) {
             orderBy: { createdAt: "desc" },
             include: { addedBy: true, interests: { include: { user: true } } },
           },
+          // ウィッシュリスト（PENDING）と「みんなでやりたい」（AGREED）。画面で2つに分けて出す
           proposals: {
-            where: { status: "PENDING" },
+            where: { status: { in: OPEN_PROPOSAL_STATUSES } },
             orderBy: { createdAt: "desc" },
             // **上限を入れてある。** 提案は取り下げるまで残り、ウィッシュリストとして
             // 使われているので増え続ける。無制限だと件数ぶんの転送量がそのまま乗る。
             // 画面は提案者ごとに既定5件しか出すので、ここは「区画を作るのに十分な量」でよい。
             take: PROPOSAL_PAGE_SIZE,
-            include: { proposedBy: true, reactions: true },
+            include: { proposedBy: true, reactions: true, purchases: { select: { userId: true } } },
           },
           // 通知の設定（種類ごとの送り先）。オーナーにしか出さないが、
           // キャッシュキーにユーザーを入れない方針なので取得自体は誰の分でも同じにする

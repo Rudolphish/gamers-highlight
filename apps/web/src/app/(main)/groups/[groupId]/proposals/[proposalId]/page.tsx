@@ -14,10 +14,12 @@ import { GameStoreBadges } from "@/components/game/GameStoreBadges";
 import { GameVideoSection } from "@/components/game/GameVideoSection";
 import { HltbCard } from "@/components/group/HltbCard";
 import { ProposalVotePanel, type ProposalVoter } from "@/components/group/ProposalVotePanel";
+import { ProposalPurchases } from "@/components/group/ProposalPurchases";
+import { agreeThreshold, requiredPurchasers } from "@/lib/proposalPromotion";
 import { badge, secondaryButton } from "@/components/ui/buttonStyles";
 
 // 提案の詳細ページ：ゲーム詳細ページと同じSteam情報（レビュー・価格・ニュース・最安値）を出し、
-// 投票（やりたい/様子見/パス）もこのページから行えるようにする。
+// 投票（やりたい/様子見/パス）と、「みんなでやりたい」に上がったあとの「買った」もこのページから行えるようにする。
 // 提案の段階では「このゲームを入れるべきか」を判断するための情報が要るのに、
 // グループ詳細のカードにはタイトルとカバーしか出ていなかった。
 //
@@ -42,8 +44,9 @@ export default async function ProposalDetailPage(
     where: { id: params.proposalId, groupId: params.groupId },
     include: {
       proposedBy: true,
-      group: { select: { name: true, _count: { select: { members: true } } } },
+      group: { select: { name: true, ownerId: true, owner: true, members: { include: { user: true } } } },
       reactions: { include: { user: true } },
+      purchases: { select: { userId: true } },
     },
   });
   if (!proposal) notFound();
@@ -57,8 +60,21 @@ export default async function ProposalDetailPage(
     if (promoted) redirect(`/groups/${params.groupId}/games/${promoted.id}`);
   }
 
-  const totalMembers = 1 + proposal.group._count.members; // オーナー分+1
-  const likeThreshold = Math.floor(totalMembers / 2) + 1;
+  // 条件の式は lib/proposalPromotion.ts から取る（以前はここだけ過半数の式を書き写していた）
+  const likeThreshold = agreeThreshold(proposal.group.ownerId, proposal.group.members.map((m) => m.userId));
+  const isOpen = proposal.status === "PENDING" || proposal.status === "AGREED";
+
+  // 「みんなでやりたい」の「買った」欄。買う必要があるのは「やりたい」を押した人のうち、今もグループにいる人
+  const memberNames = new Map([
+    [proposal.group.owner.id, proposal.group.owner.name ?? proposal.group.owner.email ?? "メンバー"],
+    ...proposal.group.members.map((m) => [m.user.id, m.user.name ?? m.user.email ?? "メンバー"] as const),
+  ]);
+  const bought = new Set(proposal.purchases.map((p) => p.userId));
+  const purchasePeople = requiredPurchasers(proposal.reactions, new Set(memberNames.keys())).map((userId) => ({
+    userId,
+    name: memberNames.get(userId) ?? "メンバー",
+    purchased: bought.has(userId),
+  }));
 
   const voters: ProposalVoter[] = proposal.reactions.map((r) => ({
     userId: r.userId,
@@ -111,8 +127,8 @@ export default async function ProposalDetailPage(
 
           <div className="p-4 sm:p-6">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className={badge("warning")}>
-                {proposal.status === "PENDING" ? "投票中" : "却下済み"}
+              <span className={badge(proposal.status === "AGREED" ? "blue" : "warning")}>
+                {proposal.status === "PENDING" ? "投票中" : proposal.status === "AGREED" ? "みんなでやりたい" : "却下済み"}
               </span>
               <GameStoreBadges reviews={reviews} price={price} />
             </div>
@@ -124,14 +140,33 @@ export default async function ProposalDetailPage(
               {proposal.proposedBy.name ?? proposal.proposedBy.email ?? "メンバー"}が提案
             </p>
 
+            {proposal.status === "AGREED" && (
+              <div className="mt-3 rounded-xl bg-steam-panel p-4">
+                <h2 className="text-base font-bold text-steam-text">買った？</h2>
+                <p className="mt-1 text-sm text-steam-muted">
+                  「やりたい」を押した人が全員「買った」になると、ゲームリストの「プレイ予定」に入ります（元から持っている・無料のときも「買った」を押してください）
+                </p>
+                <div className="mt-3">
+                  <ProposalPurchases
+                    groupId={params.groupId}
+                    proposalId={proposal.id}
+                    people={purchasePeople}
+                    currentUserId={currentUser.id}
+                    isOwner={proposal.group.ownerId === currentUser.id}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="mt-3">
-              {proposal.status === "PENDING" ? (
+              {isOpen ? (
                 <ProposalVotePanel
                   groupId={params.groupId}
                   proposalId={proposal.id}
                   voters={voters}
                   currentUserId={currentUser.id}
                   likeThreshold={likeThreshold}
+                  agreed={proposal.status === "AGREED"}
                   canWithdraw={canWithdraw}
                 />
               ) : (

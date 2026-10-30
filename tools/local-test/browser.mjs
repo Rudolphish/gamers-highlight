@@ -1022,7 +1022,7 @@ for (const [id, label, path] of targets) {
   // ここはブラウザ側のスクリプトでTSを読めないので書き写している
   // （種類を入れ替えたときにここだけ古くなり、実際に1件落ちて気づいた）
   const labels = [
-    "ゲームが提案されたとき",
+    "ゲームの提案と、全員が買ったとき",
     "ウィッシュリストが最安値を更新したとき",
     "週に一度のまとめ",
     "プレイ記録の開始と終了",
@@ -1039,7 +1039,7 @@ for (const [id, label, path] of targets) {
   });
 
   // Discordのチャンネル一覧がプルダウンに出る（取得できなければIDの直接入力に落ちる）
-  const select = page.getByLabel("ゲームが提案されたとき");
+  const select = page.getByLabel("ゲームの提案と、全員が買ったとき");
   const options = await select.locator("option").allTextContents();
   rows.push({
     id: "B60",
@@ -1057,7 +1057,7 @@ for (const [id, label, path] of targets) {
   await page.waitForTimeout(400);
   await page.waitForTimeout(400);
   const counterText = await counter();
-  const saved = await page.getByLabel("ゲームが提案されたとき").inputValue();
+  const saved = await page.getByLabel("ゲームの提案と、全員が買ったとき").inputValue();
   rows.push({
     id: "B61",
     item: "選んだ通知先が保存され、再読み込みしても残る",
@@ -1068,7 +1068,7 @@ for (const [id, label, path] of targets) {
   });
 
   // 後片付け（送らないに戻す。残すと後続の実行で件数が変わる）
-  await page.getByLabel("ゲームが提案されたとき").selectOption("");
+  await page.getByLabel("ゲームの提案と、全員が買ったとき").selectOption("");
   await page.waitForTimeout(1200);
   const cleared = await page.evaluate(async ([gid]) => {
     const res = await fetch(`/api/groups/${gid}`);
@@ -4724,6 +4724,132 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
     rows.push({ id: "B155", item: "写真を開いた表示の形", expected: "-", actual: "未確認", ok: false, note: `途中で中断（${seen.join(" ／ ")}）: ${String(e.message ?? e).slice(0, 120)}` });
   } finally {
     for (const c of ctxs) await c.close();
+  }
+}
+
+// B156: 「みんなでやりたい」（2026-10-30）。全員が「やりたい」を押したゲームはウィッシュリストのタブの上の「みんなでやりたい」に出て、
+// 「買った」を押すと数が進み、オーナーは押し忘れている人の分も付けられる。全員そろうと区画から消えて、ゲームのタブに「プレイ予定」で出る。
+// **提案は自分で作る**（seed の提案は flows が先に通している）。「買った」の札はスマホで 44px あるかも見る
+{
+  const bad = [];
+  const seen = [];
+  const TITLE = `みんなでやりたいテスト${Date.now() % 100000}`;
+  let memberCtx2 = null;
+  let gameId = null;
+  const page = await context.newPage();
+  try {
+    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "domcontentloaded" });
+    const pid = await page.evaluate(
+      async ([gid, title]) => {
+        const res = await fetch(`/api/groups/${gid}/proposals`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ steamAppId: 7700000 + Math.floor(Math.random() * 90000), title }),
+        });
+        const id = (await res.json().catch(() => null))?.proposal?.id ?? null;
+        if (id) {
+          await fetch(`/api/groups/${gid}/proposals/${id}/reactions`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ type: "LIKE" }),
+          });
+        }
+        return id;
+      },
+      [ids.groupId, TITLE]
+    );
+    if (!pid) throw new Error("提案を作れなかった");
+
+    memberCtx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await memberCtx2.addCookies([
+      {
+        name: "next-auth.session-token",
+        value: await encode({ token: { name: "member", email: "member@example.com", sub: "member@example.com" }, secret: SECRET, maxAge: 3600 }),
+        domain: "127.0.0.1",
+        path: "/",
+        httpOnly: true,
+      },
+    ]);
+    const memberPage = await memberCtx2.newPage();
+    await memberPage.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "domcontentloaded" });
+    const stage = await memberPage.evaluate(
+      async ([gid, id]) => {
+        const res = await fetch(`/api/groups/${gid}/proposals/${id}/reactions`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ type: "LIKE" }),
+        });
+        return (await res.json().catch(() => null))?.stage ?? null;
+      },
+      [ids.groupId, pid]
+    );
+    seen.push(`2人目の「やりたい」→ ${stage}`);
+
+    await page.goto(`${BASE}/groups/${ids.groupId}?tab=wishlist`, { waitUntil: "networkidle" });
+    const card = page.locator('[data-testid="agreed-proposal"]', { hasText: TITLE });
+    await card.waitFor({ timeout: 10000 });
+    const countText = async () => (await card.innerText()).match(/買った (\d+)\/(\d+)人/)?.[0] ?? "";
+    const first = await countText();
+    seen.push(`最初「${first}」`);
+    if (!/^買った 0\/\d+人$/.test(first)) bad.push(`最初の数が「${first}」`);
+
+    const mine = card.getByRole("button", { name: "買った", exact: true });
+    const h = (await mine.boundingBox())?.height ?? 0;
+    if (h < 44) bad.push(`「買った」の札の高さ ${h}px`);
+    await mine.click();
+    await page.waitForFunction(
+      ([t]) => [...document.querySelectorAll('[data-testid="agreed-proposal"]')].find((c) => c.textContent.includes(t))?.textContent.includes("買った 1/"),
+      [TITLE],
+      { timeout: 10000 }
+    );
+    await page.waitForLoadState("networkidle");
+    const pressed = await mine.getAttribute("aria-pressed");
+    seen.push(`押したあと「${await countText()}」aria-pressed=${pressed}`);
+    if (pressed !== "true") bad.push("押しても「買った」が付いた状態にならない");
+
+    // オーナー（admin）が member の分を代わりに付ける → 全員そろって区画から消える
+    const proxy = card.locator("button[title*='さんの分を「買った」にする']");
+    const proxies = await proxy.count();
+    if (proxies === 0) bad.push("オーナーに他の人の札が押せる形で出ていない");
+    for (let i = 0; i < proxies; i++) {
+      await card.locator("button[title*='さんの分を「買った」にする']").first().click();
+      await page.waitForLoadState("networkidle");
+      await page.waitForTimeout(300);
+    }
+    await page.waitForFunction(
+      ([t]) => ![...document.querySelectorAll('[data-testid="agreed-proposal"]')].some((c) => c.textContent.includes(t)),
+      [TITLE],
+      { timeout: 10000 }
+    ).catch(() => bad.push("全員そろっても「みんなでやりたい」から消えない"));
+
+    await page.goto(`${BASE}/groups/${ids.groupId}?tab=games`, { waitUntil: "networkidle" });
+    const inGames = await page.locator("main").innerText();
+    if (!inGames.includes(TITLE)) bad.push("ゲームのタブに出ない（プレイ予定・プレイ中だけの初期表示で）");
+    gameId = await page.evaluate(
+      async ([gid, t]) => {
+        const res = await fetch(`/api/groups/${gid}/games`);
+        const data = await res.json().catch(() => null);
+        return (data?.games ?? []).find((g) => g.title === t)?.id ?? null;
+      },
+      [ids.groupId, TITLE]
+    );
+    rows.push({
+      id: "B156",
+      item: "「みんなでやりたい」: 全員が「やりたい」のゲームはウィッシュリストのタブの上に出て、「買った」で数が進み（札はスマホで44px以上）、オーナーは他の人の分も付けられる。全員そろうと区画から消えてゲームのタブに出る",
+      expected: "崩れ 0件",
+      actual: `${bad.length ? bad.join(" / ") : "崩れなし"}（${seen.join(" ／ ")}）`,
+      ok: bad.length === 0,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B156", item: "「みんなでやりたい」の流れ", expected: "-", actual: "未確認", ok: false, note: `途中で中断（${seen.join(" ／ ")}）: ${String(e.message ?? e).slice(0, 120)}` });
+  } finally {
+    // 作ったゲームは同じ経路（API）で消す（2回流したときに残らないように）
+    if (gameId) {
+      await page.evaluate(([gid, id]) => fetch(`/api/groups/${gid}/games/${id}`, { method: "DELETE" }), [ids.groupId, gameId]).catch(() => {});
+    }
+    await page.close();
+    if (memberCtx2) await memberCtx2.close();
   }
 }
 
