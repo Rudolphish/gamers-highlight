@@ -53,8 +53,10 @@ jobs:
           const stamp = source.slice(src.s, source.indexOf('\n', src.s));
           if (src.inner.trim() === '') throw new Error('取得元のブロックが空です');
 
-          // ブランチ名に入れる版。刻印の source= を使い、**内容とブランチを 1 対 1 にする**。
-          // 日付だけだと、同じ日に内容が 2 回変わったときに古い中身の pull request が残る。
+          // ブランチ名に入れる版。刻印の source= を使う。これで**同じ UTC 日のうちは
+          // 内容とブランチが 1 対 1 になる**（日付だけだと、同じ日に内容が 2 回変わった
+          // ときに古い中身の pull request が残る）。日付も入るため、日をまたぐと
+          // 同じ内容でも別のブランチになる。その扱いは rules-distribution.md に書いた。
           const rev = (stamp.match(/source=(\S+)/) ?? [, 'unknown'])[1].replace(/[^A-Za-z0-9._-]/g, '');
           appendFileSync(process.env.GITHUB_OUTPUT, `rev=${rev}\n`);
 
@@ -81,9 +83,11 @@ jobs:
             exit 0
           fi
           BRANCH="agentfailures-rules/$(date -u +%Y%m%d)-${{ steps.sync.outputs.rev }}"
-          # **force push はしない。** 同じ内容なら同じブランチ名になるため、既にあれば
-          # それを使う。runner の checkout には remote-tracking ref が無く、
-          # force-with-lease が効くかを確かめられなかったので、force 自体を使わない。
+          # **force push はしない。** 同じ UTC 日に同じ内容なら同じブランチ名になるため、
+          # 既にあればそれを使う（日をまたぐと別名になり、未マージなら PR が増える。
+          # 扱いは rules-distribution.md に書いた）。runner の checkout には
+          # remote-tracking ref が無く、force-with-lease が効くかを確かめられなかった
+          # ので、force 自体を使わない。
           if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
             echo "ブランチ $BRANCH は既にあります。push は行いません。"
           else
