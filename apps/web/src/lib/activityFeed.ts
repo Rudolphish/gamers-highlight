@@ -30,6 +30,7 @@ export const GROUP_HIDDEN_KINDS: readonly ActivityKind[] = [
   "photo.reaction_removed",
   "photo.description_cleared",
   "proposal.vote_removed",
+  "proposal.purchase_removed",
   "proposal.withdrawn",
   "album.deleted",
   "game.removed",
@@ -241,6 +242,9 @@ const TIMELINE_LABELS: Record<ActivityKind, string> = {
   "proposal.created": "ウィッシュリストに追加",
   "proposal.voted": "提案に投票",
   "proposal.vote_removed": "投票を取り消した",
+  "proposal.agreed": "みんなでやりたいに上がった",
+  "proposal.purchased": "買った",
+  "proposal.purchase_removed": "買ったを取り消した",
   "proposal.accepted": "提案が通った",
   "proposal.withdrawn": "提案を取り下げた",
   "member.joined": "グループに参加",
@@ -262,7 +266,11 @@ function noteOf(kind: string, detail: unknown): string | null {
   if ((kind === "proposal.voted" || kind === "proposal.vote_removed") && typeof d.type === "string") {
     return proposalReactionLabel(d.type);
   }
-  if (kind === "proposal.accepted" && typeof d.likeCount === "number") {
+  // 2026-10-30 からは「全員が買った」で通るので購入の人数。それより前の記録は「やりたい」の人数
+  if (kind === "proposal.accepted" && typeof d.purchasedCount === "number") {
+    return `買った ${d.purchasedCount}人`;
+  }
+  if ((kind === "proposal.accepted" || kind === "proposal.agreed") && typeof d.likeCount === "number") {
     return `${PROPOSAL_REACTION_LABELS.LIKE} ${d.likeCount}人`;
   }
   if (kind === "game.price_dropped" && typeof d.price === "number") {

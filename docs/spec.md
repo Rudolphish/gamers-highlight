@@ -119,7 +119,7 @@ Discordに貼られたリンクは拾わない（雑談で貼ったリンクま�
 | | `DiscordChannelMapping` | チャンネル⇄ゲームの対応（タグが無い運用向け・任意） |
 | | `BotHeartbeat` | Botの死活監視 |
 | ゲーム | `GroupGame` / `GroupGameInterest` | グループのゲームリスト（WISHLIST/PLAYING/BACKLOG/COMPLETED）と「気になる」 |
-| | `GroupGameProposal` / `GroupGameProposalReaction` | ゲームの提案と投票（👍が過半数で自動採用） |
+| | `GroupGameProposal` / `GroupGameProposalReaction` / `GroupGameProposalPurchase` | ゲームの提案と投票。全員の「やりたい」で「みんなでやりたい」に上がり、やりたい人が全員「買った」でゲームリストへ（2026-10-30〜。それまでは👍が過半数で自動採用） |
 | | `ExternalGameCache` | Steam以外の外部（HowLongToBeat・YouTube・ITAD）の取得結果。**失敗を「取得済み」にしない**作り |
 | 運用 | `ApiUsage` | 外部APIの消費量（YouTubeのクォータ監視） |
 | | `AppSetting` | 通知先チャンネルなど、**再デプロイせずに変えたい設定** |

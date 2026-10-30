@@ -23,8 +23,8 @@ const REACTIONS: { type: ReactionType; icon: typeof ThumbsUp; label: string }[] 
  *
  * 投票先のAPIは共通（POST /api/groups/:id/proposals/:proposalId/reactions）で、
  * 同じ種類をもう一度押すと取り消し、別の種類を押すと切り替わる。
- * LIKEが過半数に達するとサーバー側でゲームリストに昇格するため、
- * その場合はページを再取得してゲーム詳細への案内に切り替える。
+ * 全員が「やりたい」になるとサーバー側で「みんなでやりたい」に上がるので、
+ * ページを再取得して「買った」の欄を出す（lib/proposalPromotion.ts）。
  */
 export function ProposalVotePanel({
   groupId,
@@ -32,13 +32,17 @@ export function ProposalVotePanel({
   voters,
   currentUserId,
   likeThreshold,
+  agreed,
   canWithdraw,
 }: {
   groupId: string;
   proposalId: string;
   voters: ProposalVoter[];
   currentUserId: string;
+  /** グループの全員の人数 */
   likeThreshold: number;
+  /** 「みんなでやりたい」に上がっている */
+  agreed: boolean;
   canWithdraw: boolean;
 }) {
   const router = useRouter();
@@ -73,7 +77,7 @@ export function ProposalVotePanel({
         const data = await res.json().catch(() => null);
         throw new Error(data?.error ?? "投票に失敗しました");
       }
-      // 昇格した場合もサーバー側の描画で採用済み表示に切り替わる
+      // 「みんなでやりたい」に上がった・戻った場合も、サーバー側の描画で切り替わる
       router.refresh();
     } catch (e) {
       setLocalVoters(previous);
@@ -117,7 +121,9 @@ export function ProposalVotePanel({
         />
       </div>
       <p className="mt-2 text-sm text-steam-muted">
-        「やりたい」が{likeThreshold}人に達すると、自動でゲームリストに追加されます
+        {agreed
+          ? "全員が「やりたい」を押したので「みんなでやりたい」に上がっています。誰かが外すとウィッシュリストに戻ります"
+          : `全員（${likeThreshold}人）が「やりたい」を押すと「みんなでやりたい」に上がります`}
       </p>
 
       {/* リアクションはグループ画面のカードと同じ札を横に並べ、誰が押したかはその下にまとめる
