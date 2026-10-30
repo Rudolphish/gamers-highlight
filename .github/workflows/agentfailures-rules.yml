@@ -56,7 +56,8 @@ jobs:
           // ブランチ名に入れる版。刻印の source= を使う。これで**同じ UTC 日のうちは
           // 内容とブランチが 1 対 1 になる**（日付だけだと、同じ日に内容が 2 回変わった
           // ときに古い中身の pull request が残る）。日付も入るため、日をまたぐと
-          // 同じ内容でも別のブランチになる。その扱いは rules-distribution.md に書いた。
+          // 同じ内容でも別のブランチになる。その扱いは冒頭の URL の
+          // rules-distribution.md に書いた。
           const rev = (stamp.match(/source=(\S+)/) ?? [, 'unknown'])[1].replace(/[^A-Za-z0-9._-]/g, '');
           appendFileSync(process.env.GITHUB_OUTPUT, `rev=${rev}\n`);
 
