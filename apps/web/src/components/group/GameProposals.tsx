@@ -11,7 +11,9 @@ import { addButton, chipButton, fieldClass, ghostIconButton, secondaryButton } f
 import { modalOverlay, modalPanel } from "@/components/ui/modalStyles";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { PROPOSALS_PER_PROPOSER, groupProposalsByProposer } from "@/lib/proposalRanking";
-import { formatYen, type WishlistPrice } from "@/lib/wishlistPrice";
+import type { WishlistPrice } from "@/lib/wishlistPrice";
+import { PriceLine } from "./WishlistPriceLine";
+import { AgreedProposals, type AgreedProposal } from "./AgreedProposals";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 type ReactionType = "LIKE" | "MAYBE" | "PASS";
@@ -38,8 +40,9 @@ const REACTIONS: { type: ReactionType; icon: typeof ThumbsUp; label: string }[] 
   { type: "PASS", icon: Minus, label: PROPOSAL_REACTION_LABELS.PASS },
 ];
 
-// ゲーム提案機能：メンバーが提案→他メンバーがリアクション→LIKEが過半数に達すると
-// 自動でグループのゲームリスト（WISHLIST）に昇格する（判定はサーバー側、reactions APIで実施）。
+// ゲーム提案機能：メンバーが提案→他メンバーがリアクション→全員が「やりたい」を押すと
+// 「みんなでやりたい」（AgreedProposals）へ上がる→やりたい人が全員「買った」を押すとゲームリストの「プレイ予定」に入る
+// （判定はサーバー側。lib/proposalPromotion.ts）。「みんなでやりたい」はこの部品の上に出す（価格の取得を共有するため）。
 //
 // **提案者ごとに区画を分けて出す。** 実際には各自のウィッシュリストとして使われていて、
 // 1つの一覧に全員分を混ぜると件数が増えた時点で読めなくなった（友人からの要望）。
@@ -51,15 +54,22 @@ const REACTIONS: { type: ReactionType; icon: typeof ThumbsUp; label: string }[] 
 export function GameProposals({
   groupId,
   proposals,
+  agreed,
   currentUserId,
   likeThreshold,
   canManage,
+  isOwner,
 }: {
   groupId: string;
   proposals: Proposal[];
+  /** 「みんなでやりたい」に上がった提案 */
+  agreed: AgreedProposal[];
   currentUserId: string;
+  /** 「みんなでやりたい」に上がるのに要る「やりたい」の数（＝グループの全員） */
   likeThreshold: number;
   canManage: boolean;
+  /** オーナーは他の人の「買った」も付け外しできる */
+  isOwner: boolean;
 }) {
   const router = useRouter();
   const [localProposals, setLocalProposals] = useState(proposals);
@@ -79,7 +89,7 @@ export function GameProposals({
   const [prices, setPrices] = useState<Record<number, WishlistPrice> | null>(null);
 
   // サーバーから届いた一覧のゲームが変わったときだけ読み直す（リアクションや順位の変更では読まない）
-  const priceKey = Array.from(new Set(proposals.map((p) => p.steamAppId)))
+  const priceKey = Array.from(new Set([...proposals, ...agreed].map((p) => p.steamAppId)))
     .sort((a, b) => a - b)
     .join(",");
   useEffect(() => {
@@ -239,7 +249,9 @@ export function GameProposals({
   const sections = groupProposalsByProposer(localProposals, currentUserId);
 
   return (
-    <div>
+    <div className="flex flex-col gap-8">
+      <AgreedProposals groupId={groupId} items={agreed} currentUserId={currentUserId} isOwner={isOwner} prices={prices} />
+
       {/* 提案は「みんなのゲーム」とは別の話（まだリストに入っていない候補）なので独立させる。
           モーダルは畳んでも操作できるよう、開閉するセクションの外に置く。 */}
       <CollapsibleSection
@@ -320,7 +332,7 @@ export function GameProposals({
                             )}
                             {/* 提案者は区画の見出しに出ているので、カードからは外した */}
                             <p className="truncate text-xs text-steam-muted">
-                              {`「${PROPOSAL_REACTION_LABELS.LIKE}」${likeCount}/${likeThreshold}人でゲームリストへ`}
+                              {`「${PROPOSAL_REACTION_LABELS.LIKE}」${likeCount}/${likeThreshold}人で「みんなでやりたい」へ`}
                             </p>
                             {/* 順位は**提案者本人だけ**が変えられる（判定はサーバー側でも行う）。
                                 他人のカードには出さない */}
@@ -467,47 +479,6 @@ export function GameProposals({
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * カードの価格。**2行に分ける**（2026-10-21 ユーザー判断。2案から選んだ）:
- *   現在：~~¥1,900~~ ¥1,615 (-15%)
- *   最安：¥1,615 [最安値]
- * 以前は「¥1,615 -15% · 最安 ¥1,615 最安値」の1行で、今の値段と元の値段がぱっと見で分からなかった。
- * 1行のままだと、セール中は幅300pxのカードで最安値の部分が切れる。
- * 最安値はSteamだけのもの（lib/itad.ts の getSteamStoreLow）。取れなかった行は出さない。
- * 各部分は**1つの文字列として描く**（Reactは隣り合うテキストを区切り、テストから拾えなくなる。docs/lessons.md）
- */
-function PriceLine({ price }: { price: WishlistPrice | "loading" | undefined }) {
-  if (price === "loading") {
-    return <p className="text-4xs text-steam-muted/50">…</p>;
-  }
-  if (!price) return null;
-  const now = price.isFree ? "無料" : price.price !== null ? formatYen(price.price) : null;
-  const row = "flex items-center gap-1.5 overflow-hidden whitespace-nowrap";
-  return (
-    <div data-testid="wishlist-price" className="flex flex-col gap-0.5 font-num text-3xs">
-      {now && (
-        <p data-testid="wishlist-price-now" className={row}>
-          <span className="flex-shrink-0 text-steam-muted">現在：</span>
-          {price.originalPrice !== null && (
-            <s className="flex-shrink-0 text-steam-muted">{formatYen(price.originalPrice)}</s>
-          )}
-          <span className="flex-shrink-0 font-bold text-steam-text">{now}</span>
-          {price.discountPercent > 0 && <span className="truncate font-bold text-positive">{`(-${price.discountPercent}%)`}</span>}
-        </p>
-      )}
-      {price.steamLow !== null && (
-        <p data-testid="wishlist-price-low" className={row}>
-          <span className="flex-shrink-0 text-steam-muted">最安：</span>
-          <span className="truncate text-steam-text">{formatYen(price.steamLow)}</span>
-          {price.atLow && (
-            <span className="flex-shrink-0 rounded-full bg-positive/15 px-1.5 font-bold text-positive">最安値</span>
-          )}
-        </p>
       )}
     </div>
   );

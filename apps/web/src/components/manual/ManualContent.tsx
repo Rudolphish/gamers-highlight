@@ -187,9 +187,17 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             ゲームカードの「ねらってる」ボタン（しおりの印）は、ステータスとは別に「自分が狙っている」という印です。人数がカードに、名前がゲームの詳細に出るほか、ウィッシュリストの最安値がDiscordに通知されるときにも使われます。
           </p>
           <p>
-            <strong className="text-steam-text">ウィッシュリスト</strong>（ゲームの提案）：グループ画面の「追加する」から「このゲームどう？」と提案すると、メンバーが「やりたい」「様子見」「パス」でリアクションできます。「やりたい」がメンバーの過半数に達すると、自動でゲームリストに「プレイ予定」として追加されます。
+            <strong className="text-steam-text">ウィッシュリスト</strong>（ゲームの提案）：グループ画面の「追加する」から「このゲームどう？」と提案すると、メンバーが「やりたい」「様子見」「パス」でリアクションできます。
             <strong className="text-steam-text">提案するとDiscordにも通知が飛びます</strong>
-            （「ゲームが提案されたとき」の通知先を設定している場合。下の「Discordへの通知」を参照）。
+            （「ゲームの提案と、全員が買ったとき」の通知先を設定している場合。下の「Discordへの通知」を参照）。
+          </p>
+          <p>
+            <strong className="text-steam-text">グループの全員が「やりたい」を押すと、「みんなでやりたい」に上がります</strong>
+            （ウィッシュリストのタブのいちばん上）。ここでは各自、買ったら（元から持っている・無料のときも）
+            <strong className="text-steam-text">「買った」</strong>を押します。
+            <strong className="text-steam-text">「やりたい」を押した人が全員「買った」になると、ゲームリストに「プレイ予定」として入ります</strong>
+            （Discordにも通知が飛びます）。押し忘れている人の分は、グループのオーナーが代わりに付け外しできます。
+            「みんなでやりたい」に上がったあとも投票は変えられ、誰かが「やりたい」を外すとウィッシュリストに戻ります（付けた「買った」は残ります）。
           </p>
           <p>
             <strong className="text-steam-text">提案は提案した人ごとに区画が分かれます。</strong>
@@ -373,8 +381,8 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           </p>
           <ul className="ml-4 list-disc space-y-1">
             <li>
-              <strong className="text-steam-text">ゲームが提案されたとき</strong>
-              ：ゲーム名・提案した人・採用に必要な「やりたい」の数が届きます
+              <strong className="text-steam-text">ゲームの提案と、全員が買ったとき</strong>
+              ：提案されたときはゲーム名と提案した人、やりたい人が全員買ってプレイ予定に入ったときはゲーム名と買った人が届きます
             </li>
             <li>
               <strong className="text-steam-text">ウィッシュリストが最安値を更新したとき</strong>
@@ -395,7 +403,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           </p>
           <p>
             価格の通知は、「みんなのゲーム」で「プレイ予定」ステータスのゲームと、
-            <strong className="text-steam-text">ウィッシュリストのゲーム</strong>
+            <strong className="text-steam-text">ウィッシュリストと「みんなでやりたい」のゲーム</strong>
             を毎日調べて、
             <strong className="text-steam-text">過去の最安値を更新したときだけ</strong>
             送ります。値下げのたびに鳴るわけではありません。同じゲームが両方に入っていても通知は1通です。
@@ -473,7 +481,8 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
                 {[
                   ["写真を見る・投稿する", "閲覧者"],
                   ["❤️を付ける・説明を書く", "閲覧者"],
-                  ["ウィッシュリストに追加する・投票する・「ねらってる」を付ける", "閲覧者"],
+                  ["ウィッシュリストに追加する・投票する・「買った」を付ける・「ねらってる」を付ける", "閲覧者"],
+                  ["他の人の「買った」を付け外しする", "グループのオーナー"],
                   ["ゲームリストへの追加・ステータス変更・削除", "編集者"],
                   ["アルバムを作る", "グループの編集者"],
                   ["アルバム名を変える", "アルバムのオーナー、またはアルバムの編集者"],

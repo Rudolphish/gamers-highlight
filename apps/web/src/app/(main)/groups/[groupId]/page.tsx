@@ -24,6 +24,7 @@ import { GroupSections } from "@/components/group/GroupSections";
 import { MemberFaces } from "@/components/group/MemberFaces";
 import { addButton, iconButton, primaryButton } from "@/components/ui/buttonStyles";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { agreeThreshold, requiredPurchasers } from "@/lib/proposalPromotion";
 
 // サーバーから取る上限。**ここを超えた分はグループ画面から辿れなくなる**ので、
 // 数十件規模なら全部載る値にしておく（ゲーム1本につきアルバム1つ作られるため、
@@ -60,7 +61,7 @@ export default async function GroupDetailPage(props: { params: Promise<{ groupId
   const canOpenSettings = isOwner || isAdminEmail(currentUser.email);
   const currentMembership = group.members.find((m) => m.userId === currentUser?.id);
   const canEditGames = isOwner || currentMembership?.role === "EDITOR";
-  const likeThreshold = Math.floor((1 + group.members.length) / 2) + 1;
+  const likeThreshold = agreeThreshold(group.ownerId, group.members.map((m) => m.userId));
 
   // 提案のcoverUrlは、以前は固定パスの組み立てをそのまま保存していたため新しめのタイトルで404になる。
   // appdetails由来の確実なURLがキャッシュにあればそちらを優先する（古い提案の救済）。
@@ -71,7 +72,7 @@ export default async function GroupDetailPage(props: { params: Promise<{ groupId
     ])
   );
 
-  const proposalCards = group.proposals.map((p) => ({
+  const proposalCards = group.proposals.filter((p) => p.status === "PENDING").map((p) => ({
     id: p.id,
     steamAppId: p.steamAppId,
     title: p.title,
@@ -86,6 +87,31 @@ export default async function GroupDetailPage(props: { params: Promise<{ groupId
     createdAt: new Date(p.createdAt).getTime(),
     reactions: p.reactions.map((r) => ({ userId: r.userId, type: r.type })),
   }));
+
+  // 「みんなでやりたい」（lib/proposalPromotion.ts）。買う必要があるのは「やりたい」を押した人のうち、今もグループにいる人
+  const memberNames = new Map([
+    [group.owner.id, group.owner.name ?? group.owner.email ?? "メンバー"],
+    ...group.members.map((m) => [m.user.id, m.user.name ?? m.user.email ?? "メンバー"] as const),
+  ]);
+  const memberIds = new Set(memberNames.keys());
+  const agreedCards = group.proposals
+    .filter((p) => p.status === "AGREED")
+    .map((p) => {
+      const bought = new Set(p.purchases.map((x) => x.userId));
+      return {
+        id: p.id,
+        steamAppId: p.steamAppId,
+        title: p.title,
+        coverUrl: proposalHeaderImages.get(p.steamAppId) ?? p.coverUrl,
+        // createdAt と同じく、キャッシュヒットの回は文字列で来るので数値に揃える
+        agreedAt: p.agreedAt ? new Date(p.agreedAt).getTime() : 0,
+        people: requiredPurchasers(p.reactions, memberIds).map((userId) => ({
+          userId,
+          name: memberNames.get(userId) ?? "メンバー",
+          purchased: bought.has(userId),
+        })),
+      };
+    });
 
   // グループで遊んだ時間（帯とゲーム一覧）。**キャッシュに載せず毎回読む**（docs/play-log.md §13）。
   // 取れなくてもページは出す（帯と時間が出ないだけ）
@@ -261,9 +287,11 @@ export default async function GroupDetailPage(props: { params: Promise<{ groupId
     <GameProposals
       groupId={group.id}
       proposals={proposalCards}
+      agreed={agreedCards}
       currentUserId={currentUser.id}
       likeThreshold={likeThreshold}
       canManage={canEditGames}
+      isOwner={isOwner}
     />
   );
 

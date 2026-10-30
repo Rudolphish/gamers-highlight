@@ -6,7 +6,7 @@ import { hasGroupPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activityLog";
 import { getOrFetchExternalGameData } from "@/lib/externalGameCache";
 import { postDiscordMessage } from "@/lib/discord";
-import { promotionThreshold } from "@/lib/proposalPromotion";
+import { OPEN_PROPOSAL_STATUSES, agreeThreshold } from "@/lib/proposalPromotion";
 import { getNotificationChannel } from "@/lib/notificationTargets";
 import { z } from "zod";
 
@@ -16,7 +16,7 @@ const proposeGameSchema = z.object({
   coverUrl: z.string().trim().url().optional(),
 });
 
-// GET /api/groups/:id/proposals … 未決着（PENDING）の提案一覧
+// GET /api/groups/:id/proposals … まだゲームリストに入っていない提案（ウィッシュリストと「みんなでやりたい」）
 export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const user = await getCurrentUser();
@@ -26,8 +26,8 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const proposals = await db.groupGameProposal.findMany({
-    where: { groupId: params.id, status: "PENDING" },
-    include: { proposedBy: true, reactions: { include: { user: true } } },
+    where: { groupId: params.id, status: { in: OPEN_PROPOSAL_STATUSES } },
+    include: { proposedBy: true, reactions: { include: { user: true } }, purchases: true },
     orderBy: { createdAt: "desc" },
   });
 
@@ -57,7 +57,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
   }
 
   const alreadyProposed = await db.groupGameProposal.findFirst({
-    where: { groupId: params.id, steamAppId: parsed.data.steamAppId, status: "PENDING" },
+    where: { groupId: params.id, steamAppId: parsed.data.steamAppId, status: { in: OPEN_PROPOSAL_STATUSES } },
   });
   if (alreadyProposed) {
     return NextResponse.json({ error: "このゲームは既に提案されています" }, { status: 409 });
@@ -114,7 +114,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
 /**
  * 提案されたことをグループの通知先（Discord）へ知らせる。
  *
- * **提案は画面を開かないと気づけない。** 投票が集まらないと採用されない仕組みなので、
+ * **提案は画面を開かないと気づけない。** 全員の「やりたい」が集まらないと先へ進まない仕組みなので、
  * 気づかれないまま流れると提案そのものが機能しない（「提案しても誰も反応しない」という
  * 報告があった）。**この種類の通知先が設定されていなければ何もしない**
  * （送り先は種類ごとに決める。`lib/notificationTargets.ts`）。
@@ -130,13 +130,13 @@ async function notifyProposal(groupId: string, title: string, proposerName: stri
 
   const group = await db.group.findUnique({
     where: { id: groupId },
-    select: { _count: { select: { members: true } } },
+    select: { ownerId: true, members: { select: { userId: true } } },
   });
   if (!group) return;
 
-  // 昇格の条件は投票API（reactions）と同じ関数から取る。
+  // 条件は投票API（reactions）と同じ関数から取る。
   // ここで式を書き写すと、片方だけ変わったときに通知の文面だけが嘘になる
-  const threshold = promotionThreshold(group._count.members);
+  const threshold = agreeThreshold(group.ownerId, group.members.map((m) => m.userId));
 
   // 表示名が無くてもメールアドレスにはフォールバックしない。
   // Discordチャンネルにメールアドレスを流さないため（価格通知と同じ方針）。
@@ -145,7 +145,7 @@ async function notifyProposal(groupId: string, title: string, proposerName: stri
   const message = [
     `💡 **${title}** が提案されました`,
     `提案者: ${who}`,
-    `👍「やりたい」が ${threshold} 人集まるとゲームリストに入ります`,
+    `👍 全員（${threshold}人）が「やりたい」を押すと「みんなでやりたい」に上がり、やりたい人が全員買うとゲームリストに入ります`,
   ].join("\n");
 
   const ok = await postDiscordMessage(channelId, message);

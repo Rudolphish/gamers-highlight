@@ -5,6 +5,7 @@ import { getItadSummary } from "@/lib/itad";
 import { postDiscordMessage } from "@/lib/discord";
 import { listNotificationTargets } from "@/lib/notificationTargets";
 import { logActivity } from "@/lib/activityLog";
+import { OPEN_PROPOSAL_STATUSES } from "@/lib/proposalPromotion";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -53,7 +54,8 @@ export async function GET(req: Request) {
         },
       },
       proposals: {
-        where: { status: "PENDING" },
+        // 「みんなでやりたい」（買う段階）も見張る。値段がいちばん効くのはここ
+        where: { status: { in: OPEN_PROPOSAL_STATUSES } },
         select: {
           id: true,
           steamAppId: true,

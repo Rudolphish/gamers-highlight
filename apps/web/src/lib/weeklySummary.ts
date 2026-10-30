@@ -77,6 +77,8 @@ export type WeeklySummary = {
   topPosters: { name: string; count: number }[];
   /** 期間ではなく「いま」の残高。放置されている提案を掘り起こすため */
   pendingProposals: number;
+  /** 「みんなでやりたい」で購入待ちの数 */
+  agreedProposals: number;
 };
 
 export async function getWeeklySummary(
@@ -120,10 +122,12 @@ export async function getWeeklySummary(
     select: { targetName: true },
   });
 
-  const [topPhoto, topPosters, pendingProposals] = await Promise.all([
+  const [topPhoto, topPosters, pendingProposals, agreedProposals] = await Promise.all([
     findTopPhoto(groupId, period),
     findTopPosters(groupId, period),
     db.groupGameProposal.count({ where: { groupId, status: "PENDING" } }),
+    // 「みんなでやりたい」で、まだ誰かが買っていないもの（AGREED は全員そろった時点で ACCEPTED へ移る）
+    db.groupGameProposal.count({ where: { groupId, status: "AGREED" } }),
   ]);
 
   return {
@@ -136,6 +140,7 @@ export async function getWeeklySummary(
     topPhoto,
     topPosters,
     pendingProposals,
+    agreedProposals,
   };
 }
 
@@ -226,8 +231,12 @@ export function formatWeeklySummaryText(summary: WeeklySummary): string {
     const what = summary.topPhoto.title ?? "写真";
     lines.push("", `❤️ いちばん反応があったのは「${what}」（${summary.topPhoto.reactions}件）`);
   }
+  if (summary.pendingProposals > 0 || summary.agreedProposals > 0) lines.push("");
   if (summary.pendingProposals > 0) {
-    lines.push("", `💡 投票待ちの提案が ${summary.pendingProposals} 件あります`);
+    lines.push(`💡 投票待ちの提案が ${summary.pendingProposals} 件あります`);
+  }
+  if (summary.agreedProposals > 0) {
+    lines.push(`🛒 みんなでやりたいゲームが ${summary.agreedProposals} 件、購入待ちです`);
   }
 
   return lines.join("\n");

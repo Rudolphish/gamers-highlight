@@ -5,6 +5,7 @@ import { hasGroupPermission } from "@/lib/permissions";
 import { getSteamPriceInfo } from "@/lib/steam";
 import { getSteamStoreLow } from "@/lib/itad";
 import { toWishlistPrice, type WishlistPrice } from "@/lib/wishlistPrice";
+import { OPEN_PROPOSAL_STATUSES } from "@/lib/proposalPromotion";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const proposals = await db.groupGameProposal.findMany({
-    where: { groupId: params.id, status: "PENDING" },
+    where: { groupId: params.id, status: { in: OPEN_PROPOSAL_STATUSES } },
     select: { steamAppId: true },
     distinct: ["steamAppId"],
   });
