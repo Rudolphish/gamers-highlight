@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Meh, Minus, ThumbsUp, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { PROPOSAL_REACTION_LABELS } from "@/lib/gameLabels";
-import { chipButton, textButton } from "@/components/ui/buttonStyles";
+import { chipButton, dangerButton } from "@/components/ui/buttonStyles";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 export type ReactionType = "LIKE" | "MAYBE" | "PASS";
 
@@ -49,6 +50,8 @@ export function ProposalVotePanel({
   const [localVoters, setLocalVoters] = useState(voters);
   const [pending, setPending] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
+  // 取り下げの確認。ボタンを押しただけでは消さない（押し間違えた報告があった）
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // サーバーから最新データが届いたら（router.refresh()完了時など）楽観的な値を正に置き換える
@@ -102,6 +105,7 @@ export function ProposalVotePanel({
     } catch (e) {
       setError(e instanceof Error ? e.message : "取り下げに失敗しました");
       setWithdrawing(false);
+      setConfirming(false);
     }
   }
 
@@ -156,13 +160,23 @@ export function ProposalVotePanel({
 
       {canWithdraw && (
         <button
-          onClick={withdraw}
+          onClick={() => setConfirming(true)}
           disabled={withdrawing}
-          className={`${textButton} mt-2 -ml-2 hover:text-danger`}
+          className={`${dangerButton} mt-3`}
         >
           {withdrawing ? <Spinner size={16} /> : <Trash2 size={16} aria-hidden="true" />}
           この提案を取り下げる
         </button>
+      )}
+      {confirming && (
+        <ConfirmDialog
+          title="提案を取り下げますか？"
+          message="ウィッシュリストから外します。付いている投票も消え、元に戻せません。"
+          confirmLabel="取り下げる"
+          pending={withdrawing}
+          onCancel={() => setConfirming(false)}
+          onConfirm={withdraw}
+        />
       )}
 
       {error && <p className="mt-2 text-3xs text-danger">{error}</p>}

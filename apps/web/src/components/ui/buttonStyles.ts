@@ -25,6 +25,12 @@ export const dangerButton = `${BASE} ${BUTTON_HEIGHT} bg-danger/10 px-4 text-dan
 export const iconButton = `${BASE} ${ICON_BUTTON_SIZE} bg-steam-panel text-steam-text hover:bg-steam-border`;
 /** 枠も背景も無い、アイコンだけの控えめなボタン（カードの中のゴミ箱など） */
 export const ghostIconButton = `${BASE} ${ICON_BUTTON_SIZE} text-steam-muted hover:bg-steam-panel hover:text-steam-text`;
+/**
+ * アイコンだけの取り返しのつかない操作（ウィッシュリストのカードの取り下げなど）。最初から赤で出す。
+ * 灰色の `ghostIconButton` だと隣のリアクションの札と同じ色に見えて押し間違えた（2026-10-31 ユーザー報告）。
+ * 押したら `ConfirmDialog` で確かめる
+ */
+export const dangerIconButton = `${BASE} ${ICON_BUTTON_SIZE} text-danger hover:bg-danger/10`;
 
 /** 切り替えの札の形と高さだけ。押されたときの色を部品ごとに変えたいとき（ゲームの状態の色など）に使う */
 export const chipBase = `${BASE} ${BUTTON_HEIGHT} border px-3`;
