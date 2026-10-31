@@ -7,7 +7,8 @@ import Image from "next/image";
 import { Bookmark, Plus, X, Search, ThumbsUp, Meh, Minus, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/Spinner";
 import { PROPOSAL_REACTION_LABELS } from "@/lib/gameLabels";
-import { addButton, chipButton, fieldClass, ghostIconButton, secondaryButton } from "@/components/ui/buttonStyles";
+import { addButton, chipButton, dangerIconButton, fieldClass, ghostIconButton, secondaryButton } from "@/components/ui/buttonStyles";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { modalOverlay, modalPanel } from "@/components/ui/modalStyles";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { PROPOSALS_PER_PROPOSER, groupProposalsByProposer } from "@/lib/proposalRanking";
@@ -80,6 +81,8 @@ export function GameProposals({
   const [searched, setSearched] = useState(false);
   const [reactingId, setReactingId] = useState<string | null>(null);
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+  // 取り下げの確認を出している提案。ゴミ箱を押しただけでは消さない（押し間違えた報告があった）
+  const [confirming, setConfirming] = useState<{ id: string; title: string } | null>(null);
   const [rankingId, setRankingId] = useState<string | null>(null);
   // 「他N件を表示」を押した区画。提案者IDで持つ
   const [expanded, setExpanded] = useState<string[]>([]);
@@ -355,11 +358,11 @@ export function GameProposals({
                           </div>
                           {canWithdraw && (
                             <button
-                              onClick={() => withdraw(p.id)}
+                              onClick={() => setConfirming({ id: p.id, title: p.title })}
                               disabled={withdrawingId === p.id}
                               title="取り下げる"
                               aria-label="取り下げる"
-                              className={`${ghostIconButton} -mr-1 -mt-1`}
+                              className={`${dangerIconButton} -mr-1 -mt-1`}
                             >
                               {withdrawingId === p.id ? <Spinner size={16} /> : <Trash2 size={16} aria-hidden="true" />}
                             </button>
@@ -422,6 +425,21 @@ export function GameProposals({
 
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
       </CollapsibleSection>
+
+      {confirming && (
+        <ConfirmDialog
+          title="提案を取り下げますか？"
+          message={`「${confirming.title}」をウィッシュリストから外します。付いている投票も消え、元に戻せません。`}
+          confirmLabel="取り下げる"
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => {
+            // 一覧からはすぐ消える（楽観的に外す）ので、確認は待たずに閉じる
+            const id = confirming.id;
+            setConfirming(null);
+            withdraw(id);
+          }}
+        />
+      )}
 
       {open && (
         <div className={modalOverlay}>
