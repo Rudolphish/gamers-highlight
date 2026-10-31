@@ -4853,6 +4853,121 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
   }
 }
 
+// B157: 提案の取り下げ（2026-10-31。同じ色のボタンで押し間違えるという報告から）。ウィッシュリストのカードのゴミ箱は最初から赤で、
+// 押すと確認のダイアログが出る（「やめる」・Esc では消えない）。「取り下げる」で消える。提案の詳細ページの「この提案を取り下げる」も同じ。
+// ダイアログの2つのボタンはスマホで44px以上。**提案は自分で作り**、残ったものは同じ経路（API）で取り下げる
+{
+  const bad = [];
+  const seen = [];
+  // **題名はお互いを含まないようにする。** 「…テスト1」と「…テスト1（詳細）」にしていたら、カードを題名で探したときに
+  // 詳細ページ用のカードにも当たり、そちらを取り下げていた（hasText は部分一致）
+  const stamp = Date.now() % 100000;
+  const TITLE = `取り下げ確認カード${stamp}`;
+  const PAGE_TITLE = `取り下げ確認詳細${stamp}`;
+  const page = await context.newPage();
+  const created = [];
+  const dialog = () => page.getByRole("alertdialog");
+  try {
+    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "domcontentloaded" });
+    const make = (title) =>
+      page.evaluate(
+        async ([gid, t]) => {
+          const res = await fetch(`/api/groups/${gid}/proposals`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ steamAppId: 7800000 + Math.floor(Math.random() * 90000), title: t }),
+          });
+          return (await res.json().catch(() => null))?.proposal?.id ?? null;
+        },
+        [ids.groupId, title]
+      );
+    const listed = (id) =>
+      page.evaluate(
+        async ([gid, pid]) => ((await (await fetch(`/api/groups/${gid}/proposals`)).json())?.proposals ?? []).some((p) => p.id === pid),
+        [ids.groupId, id]
+      );
+    const cardId = await make(TITLE);
+    const pageId = await make(PAGE_TITLE);
+    created.push(cardId, pageId);
+    if (!cardId || !pageId) throw new Error("提案を作れなかった");
+
+    // カードのゴミ箱
+    await page.goto(`${BASE}/groups/${ids.groupId}?tab=wishlist`, { waitUntil: "networkidle" });
+    const card = page.locator('[data-testid="proposer-section"] .rounded-xl', { hasText: TITLE }).first();
+    const trash = card.getByRole("button", { name: "取り下げる" });
+    const colors = await trash.evaluate((el) => {
+      const probe = document.createElement("span");
+      probe.className = "text-danger";
+      document.body.appendChild(probe);
+      const danger = getComputedStyle(probe).color;
+      probe.remove();
+      return { trash: getComputedStyle(el).color, danger };
+    });
+    seen.push(`ゴミ箱の色 ${colors.trash}`);
+    if (colors.trash !== colors.danger) bad.push(`ゴミ箱が赤くない（${colors.trash} / 赤は ${colors.danger}）`);
+
+    await trash.click();
+    await dialog().waitFor({ timeout: 5000 });
+    const text = (await dialog().textContent()) ?? "";
+    if (!text.includes(TITLE)) bad.push("ダイアログにゲーム名が出ていない");
+    for (const name of ["やめる", "取り下げる"]) {
+      const h = (await dialog().getByRole("button", { name, exact: true }).boundingBox())?.height ?? 0;
+      if (h < 44) bad.push(`ダイアログの「${name}」の高さ ${h}px`);
+    }
+    await dialog().getByRole("button", { name: "やめる", exact: true }).click();
+    await page.waitForTimeout(500);
+    if ((await dialog().count()) > 0) bad.push("「やめる」で閉じない");
+    if (!(await listed(cardId))) bad.push("「やめる」なのに取り下げられた");
+
+    await trash.click();
+    await dialog().waitFor({ timeout: 5000 });
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(500);
+    if ((await dialog().count()) > 0) bad.push("Esc で閉じない");
+    if (!(await listed(cardId))) bad.push("Esc なのに取り下げられた");
+
+    await trash.click();
+    await dialog().getByRole("button", { name: "取り下げる", exact: true }).click();
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(500);
+    const goneFromCard = !(await listed(cardId));
+    seen.push(`カード: 取り下げ後に一覧から ${goneFromCard ? "消えた" : "残った"}`);
+    if (!goneFromCard) bad.push("「取り下げる」でも消えない（カード）");
+
+    // 詳細ページの「この提案を取り下げる」
+    await page.goto(`${BASE}/groups/${ids.groupId}/proposals/${pageId}`, { waitUntil: "networkidle" });
+    const pageBtn = page.getByRole("button", { name: "この提案を取り下げる" });
+    await pageBtn.click();
+    await dialog().waitFor({ timeout: 5000 });
+    await dialog().getByRole("button", { name: "やめる", exact: true }).click();
+    await page.waitForTimeout(500);
+    if (!(await listed(pageId)) || !page.url().includes(`/proposals/${pageId}`)) bad.push("詳細ページで「やめる」なのに取り下げられた・移動した");
+    await pageBtn.click();
+    await dialog().getByRole("button", { name: "取り下げる", exact: true }).click();
+    await page.waitForURL((u) => !u.pathname.includes("/proposals/"), { timeout: 10000 }).catch(() => bad.push("詳細ページで取り下げてもグループ画面へ戻らない"));
+    const goneFromPage = !(await listed(pageId));
+    seen.push(`詳細: 取り下げ後に一覧から ${goneFromPage ? "消えた" : "残った"}`);
+    if (!goneFromPage) bad.push("「取り下げる」でも消えない（詳細ページ）");
+
+    rows.push({
+      id: "B157",
+      item: "提案の取り下げ: カードのゴミ箱は最初から赤。カードでも詳細ページでも押すと確認のダイアログ（ゲーム名入り・ボタンはスマホで44px以上）が出て、「やめる」・Esc では消えず、「取り下げる」で消える",
+      expected: "崩れ 0件",
+      actual: `${bad.length ? bad.join(" / ") : "崩れなし"}（${seen.join(" ／ ")}）`,
+      ok: bad.length === 0,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B157", item: "提案の取り下げの確認", expected: "-", actual: "未確認", ok: false, note: `途中で中断（${seen.join(" ／ ")}）: ${String(e.message ?? e).slice(0, 120)}` });
+  } finally {
+    // 残った提案は同じ経路（API）で取り下げる（DB直で消すとキャッシュに残る）
+    for (const id of created.filter(Boolean)) {
+      await page.evaluate(([gid, pid]) => fetch(`/api/groups/${gid}/proposals/${pid}`, { method: "DELETE" }), [ids.groupId, id]).catch(() => {});
+    }
+    await page.close();
+  }
+}
+
 await browser.close();
 // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
 // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）
