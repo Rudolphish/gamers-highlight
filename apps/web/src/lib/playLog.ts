@@ -244,8 +244,8 @@ export async function applySnapshot(snapshot: PlaySnapshot, now = new Date()) {
           where: { id: session.id },
           // `estimated` は触らない。Botの停止で閉じた行（estimated）をつないだ場合は、
           // 落ちていた間を「遊んでいた」と推定しているので、印は残したままにする
-          // 終了の通知は閉じてから10分後なので普段は未送信のまま。送った後につながったとき
-          // （Botの再起動の直後に送信が遅れた等）は外して、本当に終わったときにもう一度送る
+          // 終了の通知は閉じた時点で送っている（推定で閉じた行だけ10分後）。つながったら印を外して、
+          // 本当に終わったときにもう一度送る（一瞬切れて戻った回は「終わった」が2回出る。2026-11-02 ユーザー判断）
           data: { endedAt: null, voiceChannelId: a.voiceChannelId, endNotifiedAt: null },
         }),
         ...syncParticipants(session.id, session.participants, a.participants, now),

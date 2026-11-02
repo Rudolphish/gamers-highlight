@@ -3614,7 +3614,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
 }
 
 // ── プレイ記録の通知（種類 PLAY_LOG） ──
-// 開始は行を作った瞬間、終了は閉じて10分戻らなかったら（生存報告のついでに拾う）。
+// 開始は行を作った瞬間、終了はBotが閉じた瞬間（推定で閉じた行だけ10分待つ）。送れなかった分は生存報告のついでに拾う。
 // Discordへの投稿はスタブが /tmp/stub-discord.log に本文ごと残すので、それで見る
 {
   const fs = await import("node:fs");
@@ -3676,49 +3676,54 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       JSON.stringify({ silent, started })
     );
 
-    // 閉じた直後は送らない → 10分戻らなかったら、生存報告のついでに終了を送る
+    // Botが「プレイが止まった」を見て閉じた行は、すぐ終了を送る（2026-11-02。以前は閉じて10分戻らなかったら）。
+    // 遊び終わってすぐBotのPCを落とすと、10分待つ間にBotが止まって終了が届かなかった
     mark = posts().length;
-    await snapshot([]);
-    await heartbeat();
-    const tooEarly = postsSince(mark).filter((c) => c.includes("遊びました"));
     let [row] = await rows();
-    await backdate(row.id, 71, 11);
+    await db.groupPlaySession.update({ where: { id: row.id }, data: { startedAt: new Date(Date.now() - 71 * 60000) } });
+    await snapshot([]);
+    const endedNow = postsSince(mark).filter((c) => c.includes("遊びました"));
     await heartbeat();
-    await heartbeat(); // 2回目で二重に送らないこと
+    await heartbeat(); // 生存報告を重ねても二重に送らないこと
     const ended = postsSince(mark).filter((c) => c.includes("遊びました"));
     [row] = await rows();
     check(
-      "F271 終了は閉じてすぐには出さず、10分戻らなかったら遊んだ時間つきで1回だけ出る",
-      tooEarly.length === 0 &&
+      "F271 Botがプレイの止まりを見て閉じた終了は、すぐ遊んだ時間つきで1回だけ出る（生存報告を重ねても二重に出ない）",
+      endedNow.length === 1 &&
         ended.length === 1 &&
         ended[0].includes("通知テストのゲーム") &&
         ended[0].includes("1時間") &&
+        !ended[0].includes("遅れて送りました") &&
         row.endNotifiedAt !== null,
-      JSON.stringify({ tooEarly, ended, endNotifiedAt: row.endNotifiedAt })
+      JSON.stringify({ endedNow, ended, endNotifiedAt: row.endNotifiedAt })
     );
 
-    // 途切れて10分以内に戻った回は、終了も2回目の開始も出さない（同じ1回として続く）
+    // 途切れて10分以内に戻った回は、2回目の開始は出さず行も1つのまま。終了は閉じるたびに出る（ユーザーが選んだ割り切り）
     await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
     mark = posts().length;
     await snapshot([ADMIN, MEMBER]);
     await snapshot([]);
     await snapshot([ADMIN, MEMBER]);
     await heartbeat();
-    const resumed = postsSince(mark).filter((c) => c.includes("通知テストのゲーム"));
-    check(
-      "F272 途切れて10分以内に戻った回は、終了も2回目の開始も出さない",
-      resumed.length === 1 && resumed[0].includes("記録を始めました") && (await rows()).length === 1,
-      JSON.stringify(resumed)
-    );
+    const midway = postsSince(mark).filter((c) => c.includes("通知テストのゲーム"));
     await snapshot([]);
+    const finished = postsSince(mark).filter((c) => c.includes("遊びました"));
+    check(
+      "F272 途切れて10分以内に戻った回は、2回目の開始を出さず行も1つのまま（終了は閉じるたびに出る）",
+      midway.filter((c) => c.includes("記録を始めました")).length === 1 &&
+        midway.filter((c) => c.includes("遊びました")).length === 1 &&
+        finished.length === 2 &&
+        (await rows()).length === 1,
+      JSON.stringify({ midway, finished })
+    );
 
     // Discordへの投稿に失敗したら「送った」にせず、次の生存報告で送り直す
-    [row] = await rows();
-    await backdate(row.id, 30, 12);
+    await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+    await snapshot([ADMIN, MEMBER]);
     mark = posts().length;
     fs.writeFileSync("/tmp/stub-fail", "discord.com");
     try {
-      await heartbeat();
+      await snapshot([]);
     } finally {
       fs.rmSync("/tmp/stub-fail", { force: true });
     }
@@ -3731,12 +3736,20 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       JSON.stringify({ afterFail: afterFail.endNotifiedAt, retried })
     );
 
-    // 長く落ちていた後の最初の生存報告では終了を送らない（直後の起動処理でつなぎ直されうる）。2回目からは送る
+    // 送れないまま残った終了（閉じた直後にBotのPCが落ちた等）は、次にBotが動いたときに「いつ遊んだ分か」を添えて送る。
+    // 長く落ちていた後の最初の生存報告では送らず（直後の起動処理でつなぎ直されうる）、次の報告で送る
+    const leftover = async (startMinAgo, endMinAgo) => {
+      await snapshot([ADMIN, MEMBER]);
+      await snapshot([]);
+      const [r] = await rows();
+      await db.groupPlaySession.update({
+        where: { id: r.id },
+        data: { startedAt: new Date(Date.now() - startMinAgo * 60000), endedAt: new Date(Date.now() - endMinAgo * 60000), endNotifiedAt: null },
+      });
+      return r.id;
+    };
     await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
-    await snapshot([ADMIN, MEMBER]);
-    await snapshot([]);
-    [row] = await rows();
-    await backdate(row.id, 40, 15);
+    const lateId = await leftover(23 * 60, 20 * 60);
     await db.botHeartbeat.update({ where: { id: "bot" }, data: { lastSeenAt: new Date(Date.now() - 60 * 60000) } });
     mark = posts().length;
     await heartbeat();
@@ -3747,6 +3760,47 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       "F274 Botが長く落ちていた後の最初の生存報告では終了を送らず、次の報告で送る",
       afterDown.length === 0 && afterUp.length === 1,
       JSON.stringify({ afterDown, afterUp })
+    );
+    check(
+      "F331 送れていなかった終了（20時間前に終わった分）は、次にBotが動いたときに「いつ遊んだ分か」を添えて送る",
+      afterUp.length === 1 && afterUp[0].includes("に遊んだ分です") && afterUp[0].includes("遅れて送りました") &&
+        (await db.groupPlaySession.findUnique({ where: { id: lateId } }))?.endNotifiedAt !== null,
+      JSON.stringify(afterUp)
+    );
+
+    // 2日より前に終わった分は送らない（長く送れなかった行をまとめて流さない）
+    await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+    const tooOldId = await leftover(3 * 24 * 60 + 60, 3 * 24 * 60);
+    mark = posts().length;
+    await heartbeat();
+    const tooOld = postsSince(mark).filter((c) => c.includes("遊びました"));
+    check(
+      "F332 2日より前に終わった分の終了は、送れていなくても送らない",
+      tooOld.length === 0 && (await db.groupPlaySession.findUnique({ where: { id: tooOldId } }))?.endNotifiedAt === null,
+      JSON.stringify(tooOld)
+    );
+
+    // Botの起動時に「落ちていた間に終わった」として推定で閉じた行は、閉じてから10分待つ
+    // （直後のスナップショットで続きとしてつなぎ直されうる）。10分たったら推定の印つきで送る
+    await db.groupPlaySession.deleteMany({ where: { groupId: group.id } });
+    await snapshot([ADMIN, MEMBER]);
+    mark = posts().length;
+    await api("/api/internal/play-log/bot-started", {
+      method: "POST",
+      headers: internal,
+      body: { previousSeenAt: new Date(Date.now() - 5 * 60000).toISOString() },
+    });
+    await heartbeat();
+    await snapshot([]); // つなぎ直しの無いスナップショット（推定の行はもう閉じているので動かない）
+    const estimatedEarly = postsSince(mark).filter((c) => c.includes("遊びました"));
+    const [est] = await rows();
+    await db.groupPlaySession.update({ where: { id: est.id }, data: { updatedAt: new Date(Date.now() - 11 * 60000) } });
+    await heartbeat();
+    const estimatedLater = postsSince(mark).filter((c) => c.includes("遊びました"));
+    check(
+      "F333 Botの起動時に推定で閉じた行は、閉じてから10分たつまで終了を出さず、たったら推定の印つきで出す",
+      est.estimated === true && estimatedEarly.length === 0 && estimatedLater.length === 1 && estimatedLater[0].includes("推定"),
+      JSON.stringify({ estimated: est.estimated, estimatedEarly, estimatedLater })
     );
   } catch (e) {
     check("F270x プレイ記録の通知の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
@@ -4072,7 +4126,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   let openId = null;
   try {
     // 終了の通知の送り先を置いておく。**手で足した回に今さら「遊びました」が飛ばないこと**を見るため
-    // （閉じてから10分〜6時間のまだ送っていない行は、次の生存報告で終了の通知が飛ぶ）
+    // （閉じてから2日以内のまだ送っていない行は、次の生存報告で終了の通知が飛ぶ）
     await api(`/api/groups/${group.id}/notifications`, { method: "PATCH", cookie: adminCookie, body: { kind: "PLAY_LOG", channelId: "900000000000000011" } });
     const created = await call("POST", "/api/admin/play-sessions", {
       groupId: group.id,

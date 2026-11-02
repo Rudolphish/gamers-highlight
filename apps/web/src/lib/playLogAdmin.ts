@@ -11,7 +11,7 @@ import { db } from "./db";
 // - 進行中の行（endedAt が null）は直させない。Bot がまだ開け閉めしている
 // - 手動で足した行の gameKey は `manual:<UUID>`、voiceChannelId は `manual`。Bot の gameKey
 //   （`app:…` / `name:…`）と重ならないので、10分以内の再開や起動直後のつなぎ直しで Bot に拾われない
-// - 終了の通知（lib/playLogNotify.ts）は「閉じてから10分〜6時間で、まだ送っていない行」に送る。
+// - 終了の通知（lib/playLogNotify.ts）は「閉じてから2日以内で、まだ送っていない行」に送る。
 //   手で足した行・直した行に今さら「遊びました」が飛ばないよう、送った印（endNotifiedAt）を付けておく
 
 /** 1回の長さの上限。これを超えるのは入力の間違い（日付の取り違えなど）とみなす */
