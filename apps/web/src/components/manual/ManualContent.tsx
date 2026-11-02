@@ -394,7 +394,8 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
             <li>
               <strong className="text-steam-text">プレイ記録の開始と終了</strong>
               ：VCで一緒に遊び始めたときと、遊び終わったときに、ゲーム名と参加者が届きます。
-              終わりの通知は、抜けてから10分戻らなかったときに送るので、実際に届くのは終わってから10〜25分後です
+              終わりの通知は、Botがプレイの終わりを見た時点で送ります。途中で一瞬切れて戻った回は、終わりの通知が2回届くことがあります。
+              遊び終わってすぐBotのPCを落としたなどで送れなかった分は、次にBotが動いたとき（2日以内）に「いつ遊んだ分か」を添えて届きます
             </li>
           </ul>
           <p>

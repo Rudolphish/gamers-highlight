@@ -39,7 +39,7 @@ export const NOTIFICATION_KINDS: {
   {
     kind: "PLAY_LOG",
     label: "プレイ記録の開始と終了",
-    description: "VCで一緒に遊び始めたときと、遊び終わったとき（10分戻らなかったら）に、ゲーム名と参加者を送ります",
+    description: "VCで一緒に遊び始めたときと、遊び終わったときに、ゲーム名と参加者を送ります",
   },
 ];
 

@@ -41,7 +41,7 @@ export async function POST(req: Request) {
   });
 
   // 遊び終わってから次のスナップショットが来ないことは普通にある（変化が無ければBotは送らない）。
-  // 終了の通知（閉じて10分後）を拾うのは、定期的に必ず来るこの報告
+  // 送れなかった終了の通知（閉じた直後にBotが落ちた・推定で閉じて10分たった）を拾うのは、定期的に必ず来るこの報告
   if (previous && Date.now() - previous.lastSeenAt.getTime() < CONTINUOUS_MS) {
     await notifyFinishedPlays().catch((err) => console.error("[playlog] 終了の通知の処理に失敗", err));
   }

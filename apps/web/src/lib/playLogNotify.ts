@@ -7,13 +7,33 @@ import { formatPlayDuration } from "./playDuration";
 // プレイ記録の開始・終了をグループの通知チャンネル（種類 PLAY_LOG）へ送る。設計は docs/play-log.md。
 //
 // - **開始**は行を作った瞬間に送る。つなぎ直し（10分以内に戻った・Botの再起動）では送らない
-// - **終了**は閉じてから `MERGE_GAP_MS`（10分）戻らなかったものだけ送る。閉じた直後に送ると、
-//   誰かが一瞬落ちて戻っただけの回にも「終わった」が出て、続きの「開始」は出ない（つなぎ直しなので）
+// - **終了**は、Botが「プレイが止まった」を見て閉じた行なら**すぐ**送る（2026-11-02 ユーザー判断）。
+//   以前は閉じてから10分戻らなかったものだけ送っていたが、遊び終わってすぐBotのPCを落とすと
+//   その10分の間にBotが止まり、終了が届かなかった（11/2 の回。最後の生存報告まで54秒足りなかった）。
+//   代わりに、誰かが一瞬落ちて10分以内に戻った回は「終わった」が2回出る（行は1つのまま。ユーザーが選んだ）
+// - **推定で閉じた行**（Botが落ちていた間に終わったものとして起動時に閉じた行）は、閉じてから10分待つ。
+//   直後のスナップショットで「続き」としてつなぎ直されうるので、先に「終わった」を出すと嘘になる
+// - 送れていない終了は、次にBotが動いたとき（生存報告・スナップショットのついで）に送る。遊んだ時間から
+//   遅れて送るときは「いつ遊んだ分か」を添える
 //
 // どちらも**送れなくても記録は止めない**（`postDiscordMessage` は例外を投げず false を返す）。
 
-/** これより前に終わった行は通知しない。列を足した時点の過去の行や、長く送れなかった行をまとめて流さないため */
-const END_NOTIFY_WINDOW_MS = 6 * 60 * 60 * 1000;
+/**
+ * これより前に終わった行は通知しない。長く送れなかった行をまとめて流さないため。
+ * 遊び終わってすぐBotのPCを落とし、次に点けるのが翌日になっても届くよう2日にしてある（以前は6時間）
+ */
+const END_NOTIFY_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+
+/** 終わってからこれより後に送るときは、いつ遊んだ分かを添える */
+const LATE_NOTICE_MS = 30 * 60 * 1000;
+
+/** 「11/2 22:12〜0:59」。日本時間で出す（Vercel のサーバーは UTC） */
+function jstRange(start: Date, end: Date): string {
+  const day = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" }).format(start);
+  const time = (d: Date) =>
+    new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "numeric", minute: "2-digit" }).format(d);
+  return `${day} ${time(start)}〜${time(end)}`;
+}
 
 type SessionForNotify = {
   activityName: string;
@@ -53,7 +73,8 @@ export async function notifyPlayStarted(sessionId: string): Promise<void> {
 }
 
 /**
- * 閉じてから10分戻らなかった行の終了を送る。何度呼んでもよい（送った行には印を付ける）。
+ * 閉じた行の終了を送る。何度呼んでもよい（送った行には印を付ける）。
+ * Botが閉じた行はすぐ、推定で閉じた行は閉じてから10分たってから（上のコメント）。
  *
  * 同時に2回呼ばれても二重に送らないよう、**先に印を付けてから送る**（付けられた方だけが送る）。
  * 送れなかったら印を外して、次の呼び出しで送り直す。送り先が無いグループの行は印だけ付ける。
@@ -62,7 +83,10 @@ export async function notifyFinishedPlays(now = new Date()) {
   const candidates = await db.groupPlaySession.findMany({
     where: {
       endNotifiedAt: null,
-      endedAt: { lte: new Date(now.getTime() - MERGE_GAP_MS), gte: new Date(now.getTime() - END_NOTIFY_WINDOW_MS) },
+      endedAt: { lte: now, gte: new Date(now.getTime() - END_NOTIFY_WINDOW_MS) },
+      // 推定の行は、終わりの時刻（＝Botが最後に生きていた時刻）ではなく**閉じた時刻**から10分待つ。
+      // 終わりの時刻は落ちていた分だけ昔なので、そちらで見ると起動した瞬間に送ってしまう
+      OR: [{ estimated: false }, { updatedAt: { lte: new Date(now.getTime() - MERGE_GAP_MS) } }],
     },
     include: sessionInclude,
     orderBy: { endedAt: "asc" },
@@ -91,6 +115,9 @@ export async function notifyFinishedPlays(now = new Date()) {
       `参加: ${membersOf(s)}`,
     ];
     if (s.estimated) lines.push("（Botが止まっていたため、終わりの時刻は推定です）");
+    if (now.getTime() - s.endedAt!.getTime() > LATE_NOTICE_MS) {
+      lines.push(`（${jstRange(s.startedAt, s.endedAt!)} に遊んだ分です。Botが止まっていたため遅れて送りました）`);
+    }
 
     if (await postDiscordMessage(channelId, lines.join("\n"))) {
       sent++;
