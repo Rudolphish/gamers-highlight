@@ -408,10 +408,15 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
               終わりの通知は、Botがプレイの終わりを見た時点で送ります。途中で一瞬切れて戻った回は、終わりの通知が2回届くことがあります。
               遊び終わってすぐBotのPCを落としたなどで送れなかった分は、次にBotが動いたとき（2日以内）に「いつ遊んだ分か」を添えて届きます
             </li>
+            <li>
+              <strong className="text-steam-text">アプリの更新のお知らせ</strong>
+              ：ShareStaq に新しい機能や直しが入ったときに、更新の内容（パッチノート）が届きます。
+              これまでの更新は、ページのいちばん下の「更新履歴」（スマホは「自分」ページにも）で見られます
+            </li>
           </ul>
           <p>
             <strong className="text-steam-text">「送らない」を選べばその種類は届きません。</strong>
-            既定は4種類とも「送らない」なので、設定するまで通知は一切飛びません。
+            既定はどの種類も「送らない」なので、設定するまで通知は一切飛びません。
           </p>
           <p>
             価格の通知は、「みんなのゲーム」で「プレイ予定」ステータスのゲームと、
@@ -764,6 +769,10 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
                   <li><strong className="text-steam-text">使用量</strong>：ストレージ・DB・YouTube検索の使用量と、参照されないファイル（孤児ファイル）の数</li>
                   <li><strong className="text-steam-text">ユーザー</strong>：誰がどのグループにいて、どれだけ投稿しているか</li>
                   <li><strong className="text-steam-text">週次まとめ</strong>：Discordへ送る週次まとめの文面を、送る前に期間を選んで確かめる</li>
+                  <li>
+                    <strong className="text-steam-text">更新のお知らせ</strong>：今の版のパッチノートを確かめて、まだ送っていないグループへ送る
+                    （送り先は各グループの「アプリの更新のお知らせ」）。送れなかったグループは、もう一度押すとそこだけ送り直します
+                  </li>
                   <li><strong className="text-steam-text">活動カレンダー</strong>：全グループの活動を切り替えて見る（取り消し・削除系の出来事も出る）</li>
                   <li>
                     <strong className="text-steam-text">プレイ記録</strong>：記録の時間・ゲーム・参加者の修正、削除、記録されなかった回の追加。

@@ -232,6 +232,14 @@ function discordChannels() {
 }
 
 function discord(url, init) {
+  // 送信の失敗を確かめる回だけ、この印のファイルを置く（パッチノートの送り直しの確認。F347）。中身は落とすチャンネル ID
+  try {
+    const fs = require("node:fs");
+    const failing = fs.existsSync("/tmp/stub-discord-fail") ? fs.readFileSync("/tmp/stub-discord-fail", "utf8").trim() : "";
+    if (failing && url.includes(`/channels/${failing}/messages`)) {
+      return new Response(JSON.stringify({ message: "stub failure" }), { status: 500, headers: { "content-type": "application/json" } });
+    }
+  } catch {}
   // **本文まで残す。** ホスト名だけだと「送ったこと」は分かっても
   // 「何を送ったか」が確認できない（週次まとめの文面の確認に要る）。
   try {
