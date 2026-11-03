@@ -124,7 +124,19 @@ function appreviews() {
   });
 }
 
-function steamNews() {
+// アプデ待ちの見張り（lib/gameUpdates.ts）が引く公式のお知らせ（feeds=steam_community_announcements）。
+// テストが /tmp/stub-steam-news.json に { "<appid>": [newsitems...] } を書いたら、その appid にはそれを返す
+// （本物の応答の形は本番でしか確かめられない。CLAUDE.md「Steam のお知らせの『パッチノート』の印は…」）
+function steamNews(url) {
+  if (url.includes("feeds=steam_community_announcements")) {
+    const fs = require("node:fs");
+    const appid = new URL(url).searchParams.get("appid");
+    if (fs.existsSync("/tmp/stub-steam-news.json")) {
+      const table = JSON.parse(fs.readFileSync("/tmp/stub-steam-news.json", "utf8"));
+      if (table[appid]) return json({ appnews: { appid: Number(appid), newsitems: table[appid] } });
+    }
+    return json({ appnews: { appid: Number(appid), newsitems: [] } });
+  }
   return json({
     appnews: {
       newsitems: [
@@ -291,7 +303,7 @@ globalThis.fetch = async function stubbedFetch(input, init) {
       if (url.includes("/api/storesearch")) return storesearch(url);
       if (url.includes("/appreviews/")) return appreviews();
     }
-    if (host === "api.steampowered.com") return steamNews();
+    if (host === "api.steampowered.com") return steamNews(url);
     if (host === "api.isthereanydeal.com") return itad(url);
     if (host === "www.googleapis.com") return youtube();
     if (host === "howlongtobeat.com") return hltb(url, init);

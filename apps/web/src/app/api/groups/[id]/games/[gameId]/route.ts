@@ -7,7 +7,7 @@ import { logActivity } from "@/lib/activityLog";
 import { z } from "zod";
 
 const updateGameSchema = z.object({
-  status: z.enum(["WISHLIST", "PLAYING", "BACKLOG", "COMPLETED"]),
+  status: z.enum(["WISHLIST", "PLAYING", "BACKLOG", "COMPLETED", "WAITING_UPDATE"]),
 });
 
 // PATCH /api/groups/:id/games/:gameId … ステータス変更
@@ -36,9 +36,18 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string;
     select: { status: true },
   });
 
+  // アプデ待ちの見張り（lib/gameUpdates.ts）。**状態が変わったときだけ**触る（同じ状態で保存し直しても見張りの起点を動かさない）。
+  // アプデ待ちにした時刻より後のパッチノートだけを数えるので、入ったら起点を今にし、出たら見張りも「更新あり」も消す
+  const changed = before !== null && before.status !== parsed.data.status;
+  const watch = !changed
+    ? {}
+    : parsed.data.status === "WAITING_UPDATE"
+      ? { updateWatchSince: new Date(), updateFoundAt: null, updateNewsTitle: null, updateNewsUrl: null }
+      : { updateWatchSince: null, updateFoundAt: null, updateNewsTitle: null, updateNewsUrl: null };
+
   const game = await db.groupGame.update({
     where: { id: params.gameId, groupId: params.id },
-    data: { status: parsed.data.status },
+    data: { status: parsed.data.status, ...watch },
     include: { addedBy: true },
   });
 

@@ -39,6 +39,8 @@ module.exports = {
         positive: "#7cc96b",
         danger: "#ef6461",
         warning: "#e3a83a",
+        // アプデ待ち（ゲームの状態）。待っている・止めている、の意味だけに使う（2026-11-03）
+        update: "#a78bfa",
       },
       // text-[10px] のような px 直書きはルート font-size のスケールに追従しないため、
       // xs より小さいサイズも rem ベースのトークンとして定義しておく。

@@ -6,6 +6,7 @@ import { postDiscordMessage } from "@/lib/discord";
 import { listNotificationTargets } from "@/lib/notificationTargets";
 import { logActivity } from "@/lib/activityLog";
 import { OPEN_PROPOSAL_STATUSES } from "@/lib/proposalPromotion";
+import { checkGameUpdates } from "@/lib/gameUpdates";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -183,5 +184,12 @@ export async function GET(req: Request) {
     if (result.value === "notified") notified++;
   }
 
-  return NextResponse.json({ checked, notified, failed, total: watches.length });
+  // アプデ待ちのゲームの更新も、ここに相乗りして1日1回調べる（Hobby プランの cron は1日1回まで・枠は2つとも使用中。lib/gameUpdates.ts）。
+  // **最安値の結果は先に確定させてから**呼ぶ。こちらで落ちても最安値の通知は済んでいる
+  const updates = await checkGameUpdates().catch((e) => {
+    console.error("[update] アプデ待ちの確認に失敗しました", e);
+    return null;
+  });
+
+  return NextResponse.json({ checked, notified, failed, total: watches.length, updates });
 }

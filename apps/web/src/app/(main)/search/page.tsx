@@ -27,7 +27,7 @@ type GroupGameResult = {
   groupName: string;
   title: string;
   coverUrl: string | null;
-  status?: "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
+  status?: "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED" | "WAITING_UPDATE";
 };
 
 const STATUS_LABEL: Record<string, string> = GAME_STATUS_LABELS;
