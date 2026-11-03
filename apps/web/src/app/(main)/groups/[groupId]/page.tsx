@@ -25,6 +25,7 @@ import { MemberFaces } from "@/components/group/MemberFaces";
 import { addButton, iconButton, primaryButton } from "@/components/ui/buttonStyles";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { agreeThreshold, requiredPurchasers } from "@/lib/proposalPromotion";
+import { updateFoundLabel } from "@/lib/gameUpdates";
 
 // サーバーから取る上限。**ここを超えた分はグループ画面から辿れなくなる**ので、
 // 数十件規模なら全部載る値にしておく（ゲーム1本につきアルバム1つ作られるため、
@@ -140,6 +141,11 @@ export default async function GroupDetailPage(props: { params: Promise<{ groupId
       id: i.userId,
       name: i.user.name ?? i.user.email ?? "メンバー",
     })),
+    // アプデ待ちに見つかった更新（lib/gameUpdates.ts）。文字はサーバーで作る（日本時間。キャッシュヒットの回は日時が文字列で来る）
+    update:
+      g.status === "WAITING_UPDATE" && g.updateFoundAt
+        ? { label: updateFoundLabel(g.updateFoundAt), title: g.updateNewsTitle, url: g.updateNewsUrl }
+        : null,
   }));
 
   const shareMembers = [

@@ -37,6 +37,11 @@ export const NOTIFICATION_KINDS: {
     description: "先週の投稿・クリア・提案などをまとめて送ります（動きが無かった週は送りません）",
   },
   {
+    kind: "GAME_UPDATE",
+    label: "アプデ待ちのゲームに更新が来たとき",
+    description: "「アプデ待ち」にしたゲームに Steam の公式のパッチノートが出たら、題名とリンクを送ります（毎朝9時ごろに確認）",
+  },
+  {
     kind: "PLAY_LOG",
     label: "プレイ記録の開始と終了",
     description: "VCで一緒に遊び始めたときと、遊び終わったときに、ゲーム名と参加者を送ります",

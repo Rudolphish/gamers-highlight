@@ -126,6 +126,7 @@ IDしか無いと対象が消えた瞬間に何のことか分からなくなる
 | `game.removed` | 削除時刻 | — |
 | `game.interest_added` / `game.interest_removed` | その時刻 | — |
 | `game.price_dropped` | 最安値の通知を送った時刻（cron） | `{price, shop}`。人の操作ではないので `actorId` は無い。通知先（最安値の更新）を設定したグループだけ |
+| `game.update_found` | アプデ待ちのゲームのパッチノートの日時（cron が見つけた。2026-11-03〜） | `{title}`（お知らせの題名）。`actorId` は無い。通知先の有無にかかわらず記録する（送れなかった日は記録しない） |
 | `proposal.created` | 作成時刻 | — |
 | `proposal.voted` | 投票時刻 | `{type: LIKE/MAYBE/PASS}` |
 | `proposal.vote_removed` | 取り消した時刻 | `{type}` |

@@ -238,6 +238,7 @@ const TIMELINE_LABELS: Record<ActivityKind, string> = {
   "game.interest_added": "ねらってるを付けた",
   "game.interest_removed": "ねらってるを外した",
   "game.price_dropped": "最安値を更新",
+  "game.update_found": "アプデ待ちに更新が来た",
   // グループ画面では「ゲーム提案」を「ウィッシュリスト」と呼ぶ（2026-10-18 ユーザー判断）。投票・採用は仕組みの言い方なので「提案」のまま
   "proposal.created": "ウィッシュリストに追加",
   "proposal.voted": "提案に投票",
@@ -272,6 +273,9 @@ function noteOf(kind: string, detail: unknown): string | null {
   }
   if ((kind === "proposal.accepted" || kind === "proposal.agreed") && typeof d.likeCount === "number") {
     return `${PROPOSAL_REACTION_LABELS.LIKE} ${d.likeCount}人`;
+  }
+  if (kind === "game.update_found" && typeof d.title === "string") {
+    return d.title;
   }
   if (kind === "game.price_dropped" && typeof d.price === "number") {
     return `¥${d.price.toLocaleString("ja-JP")}${typeof d.shop === "string" ? `（${d.shop}）` : ""}`;
@@ -510,7 +514,8 @@ export async function getRecentActivityForGroups(
         actorName: l.actorId ? (actor ? (actor.name ?? "メンバー") : "（退会）") : null,
         targetName: l.targetName,
         // 値が要るのは最安値の更新だけ（どの値段になったか）。ほかの種類はグループ画面では補足を出してこなかった
-        note: l.kind === "game.price_dropped" ? noteOf(l.kind, l.detail) : null,
+        // アプデ待ちの更新は、お知らせの題名（どんな更新か）を添える
+        note: l.kind === "game.price_dropped" || l.kind === "game.update_found" ? noteOf(l.kind, l.detail) : null,
         href: null,
         groupName: l.groupId ? (nameOf.get(l.groupId) ?? null) : null,
         actorId: l.actorId,

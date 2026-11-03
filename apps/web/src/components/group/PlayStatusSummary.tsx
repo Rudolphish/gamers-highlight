@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 
-type GameStatus = "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
+type GameStatus = "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED" | "WAITING_UPDATE";
 
 type Game = {
   id: string;
