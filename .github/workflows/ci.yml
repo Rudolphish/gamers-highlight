@@ -127,9 +127,6 @@ jobs:
       DATABASE_DIRECT_CONNECT: postgresql://postgres:postgres@127.0.0.1:5432/gh
 
     steps:
-      - name: 壊し確認（2/2 だけわざと落とす。次のコミットで戻す）
-        if: matrix.shard == 2
-        run: exit 1
       - uses: actions/checkout@v4
         # 文書だけの変更かを調べるのに、比べる相手のコミットが要る
         with:
