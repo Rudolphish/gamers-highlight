@@ -40,6 +40,26 @@ export async function listGuildTextChannels(guildId: string): Promise<DiscordCha
  * （このヘルパーからの通知でメンションを飛ばしたいケースは今のところ無い）。
  */
 export async function postDiscordMessage(channelId: string, content: string): Promise<boolean> {
+  return postDiscordPayload(channelId, { content });
+}
+
+/** Discord の埋め込み（色付きの枠）。使う項目だけ。上限は https://discord.com/developers/docs/resources/message#embed-object-embed-limits */
+export type DiscordEmbed = {
+  title: string;
+  url?: string;
+  description?: string;
+  /** 0xRRGGBB */
+  color?: number;
+  fields?: { name: string; value: string }[];
+  footer?: { text: string };
+};
+
+/** 埋め込みで投稿する（パッチノート）。失敗時は false（例外は投げない）。メンションは postDiscordMessage と同じく封じる */
+export async function postDiscordEmbed(channelId: string, embed: DiscordEmbed): Promise<boolean> {
+  return postDiscordPayload(channelId, { embeds: [embed] });
+}
+
+async function postDiscordPayload(channelId: string, payload: { content?: string; embeds?: DiscordEmbed[] }): Promise<boolean> {
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) return false;
 
@@ -50,7 +70,7 @@ export async function postDiscordMessage(channelId: string, content: string): Pr
         Authorization: `Bot ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+      body: JSON.stringify({ ...payload, allowed_mentions: { parse: [] } }),
     });
     return res.ok;
   } catch {

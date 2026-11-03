@@ -46,6 +46,11 @@ export const NOTIFICATION_KINDS: {
     label: "プレイ記録の開始と終了",
     description: "VCで一緒に遊び始めたときと、遊び終わったときに、ゲーム名と参加者を送ります",
   },
+  {
+    kind: "RELEASE_NOTES",
+    label: "アプリの更新のお知らせ",
+    description: "ShareStaq に新しい機能や直しが入ったときに、更新の内容（パッチノート）を送ります",
+  },
 ];
 
 /** そのグループ・その種類の送り先。設定が無ければ null（＝送らない） */
