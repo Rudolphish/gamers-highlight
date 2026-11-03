@@ -136,6 +136,27 @@ async function gotoSettled(page, url, { timeout = 30000, ...opts } = {}) {
   await settle(page, { timeout });
   return res;
 }
+/**
+ * 画面ごとに独立した確認（文字の濃さ・はみ出し・部品の高さなど、開いて測るだけのもの）を、ページを n 枚使って並べて流す（段階B）。
+ * 1画面ずつ順に開くと、14〜24画面で10〜30秒かかっていた。**終わる順番は決まらない**ので、結果を位置で見る確認には使わない。
+ * データを書き換える操作・ほかの画面の状態に頼る操作にも使わない
+ */
+async function forEachPage(ctx, paths, fn, n = 3) {
+  const queue = [...paths];
+  const pages = await Promise.all(Array.from({ length: Math.min(n, queue.length) }, () => ctx.newPage()));
+  try {
+    // 1つが落ちても残りの終わりを待ってから閉じる（走っている途中で閉じると、別の例外が後から出て紛れる）
+    const results = await Promise.allSettled(
+      pages.map(async (p) => {
+        for (let path = queue.shift(); path !== undefined; path = queue.shift()) await fn(p, path);
+      }),
+    );
+    const failed = results.find((r) => r.status === "rejected");
+    if (failed) throw failed.reason;
+  } finally {
+    await Promise.all(pages.map((p) => p.close().catch(() => {})));
+  }
+}
 /** `page.reload({ waitUntil: "networkidle" })` の代わり */
 async function reloadSettled(page) {
   trackRequests(page);
@@ -3348,12 +3369,11 @@ if (block()) {
 // 管理画面（/admin）は刷新の対象外なので見ない
 if (block()) {
   const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
-  const page = await context.newPage();
   const small = [];
   const low = [];
   let checked = 0;
   try {
-    for (const path of PAGES) {
+    await forEachPage(context, PAGES, async (page, path) => {
       await gotoSettled(page, BASE + path);
       await page.waitForTimeout(300);
       const r = await page.evaluate(() => {
@@ -3424,7 +3444,7 @@ if (block()) {
       checked += r.checked;
       small.push(...r.small.map((x) => `${path} ${x}`));
       low.push(...r.low.map((x) => `${path} ${x}`));
-    }
+    });
     rows.push({
       id: "B123",
       item: "主な画面に12px未満の文字が無い（管理画面は除く）",
@@ -3445,8 +3465,6 @@ if (block()) {
     for (const id of ["B123", "B124"]) {
       rows.push({ id, item: "文字の大きさと濃さ", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
     }
-  } finally {
-    await page.close();
   }
 }
 
@@ -3457,12 +3475,11 @@ if (block()) {
 // 使い方の説明ページは文章の中で絵文字に触れるので、絵文字の数からは外す（等幅は見る）
 if (block()) {
   const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
-  const page = await context.newPage();
   const monoJa = [];
   const emoji = [];
   let checked = 0;
   try {
-    for (const path of PAGES) {
+    await forEachPage(context, PAGES, async (page, path) => {
       await gotoSettled(page, BASE + path);
       await page.waitForTimeout(300);
       const r = await page.evaluate((skipEmoji) => {
@@ -3486,7 +3503,7 @@ if (block()) {
       checked += r.checked;
       monoJa.push(...r.monoJa.map((x) => `${path} ${x}`));
       emoji.push(...r.emoji.map((x) => `${path} ${x}`));
-    }
+    });
     rows.push({
       id: "B125",
       item: "主な画面で、日本語の文が等幅フォントで描かれておらず、本文に絵文字が出ていない（使い方の説明ページの絵文字は除く）",
@@ -3497,8 +3514,6 @@ if (block()) {
     });
   } catch (e) {
     rows.push({ id: "B125", item: "等幅フォントと絵文字", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
-  } finally {
-    await page.close();
   }
 }
 
@@ -3933,13 +3948,13 @@ if (block()) {
             return (await res.json().catch(() => null))?.proposal?.id ?? null;
           }, ids.groupId);
         }
-        for (const raw of PAGES) {
+        await forEachPage(ctx, PAGES, async (pp, raw) => {
           const path = raw === "{proposal}" ? `/groups/${ids.groupId}/proposals/${proposalId}` : raw;
-          await gotoSettled(p, BASE + path);
-          const r = await measure(p, min, "main");
+          await gotoSettled(pp, BASE + path);
+          const r = await measure(pp, min, "main");
           measured += r.count;
           short.push(...r.bad.map((x) => `${w}px ${path.replace(/[a-z0-9]{20,}/g, "…")} ${x}`));
-        }
+        });
         for (const [path, opener] of MODALS) {
           await gotoSettled(p, BASE + path);
           await p.locator("main").getByRole("button", { name: opener }).first().click();
@@ -3990,10 +4005,9 @@ if (block()) {
   const PAGES = ["/", "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/groups", "/me",
     // 段階6b
     `/groups/${ids.groupId}/activity`, "/upload", "/settings/profile", "/settings/allowlist", "/settings/channel-mapping", "/groups/new", "/albums/new", "/albums/unclassified", "/search"];
-  const page = await context.newPage();
   const over = [];
   try {
-    for (const path of PAGES) {
+    await forEachPage(context, PAGES, async (page, path) => {
       await gotoSettled(page, BASE + path);
       const r = await page.evaluate(() => {
         const main = document.querySelector("main");
@@ -4015,7 +4029,7 @@ if (block()) {
         return out;
       });
       over.push(...r.slice(0, 3).map((x) => `${path.replace(/[a-z0-9]{20,}/g, "…")} ${x}`));
-    }
+    });
     rows.push({
       id: "B140",
       item: "スマホ幅の主な画面で、部品が画面の右へはみ出していない（横に送る作りの箱の中は除く）",
@@ -4026,8 +4040,6 @@ if (block()) {
     });
   } catch (e) {
     rows.push({ id: "B140", item: "スマホ幅のはみ出し", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
-  } finally {
-    await page.close();
   }
 }
 
