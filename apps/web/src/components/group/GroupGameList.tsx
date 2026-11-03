@@ -14,7 +14,7 @@ import { GAME_STATUS_LABELS } from "@/lib/gameLabels";
 import { BUTTON_HEIGHT, ICON_BUTTON_SIZE, chipBase, chipButton, ghostIconButton, textButton } from "@/components/ui/buttonStyles";
 import { modalOverlay, modalPanel } from "@/components/ui/modalStyles";
 
-type GameStatus = "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED";
+type GameStatus = "WISHLIST" | "PLAYING" | "BACKLOG" | "COMPLETED" | "WAITING_UPDATE";
 
 type GroupGameItem = {
   id: string;
@@ -27,6 +27,8 @@ type GroupGameItem = {
   /** グループで遊んだ時間（ミリ秒）。0 なら出さない。数え方は lib/playLog.ts の getGroupPlayTotals */
   playMs?: number;
   interestedUsers: InterestUser[];
+  /** アプデ待ちのゲームに見つかった更新（lib/gameUpdates.ts）。状態を変えると消える */
+  update?: { label: string; title: string | null; url: string | null } | null;
 };
 
 type SteamResult = { appId: number; name: string; thumbnail: string };
@@ -38,6 +40,7 @@ const STATUS_BADGE_CLASS: Record<GameStatus, string> = {
   PLAYING: "border-positive/50 text-positive",
   BACKLOG: "border-warning/50 text-warning",
   COMPLETED: "border-steam-muted/50 text-steam-muted",
+  WAITING_UPDATE: "border-update/50 text-update",
 };
 
 // 絞り込みの札を押したときの色。**押す前（枠線は灰・文字は薄い灰）と面の色で区別する。**
@@ -48,9 +51,10 @@ const STATUS_FILTER_ACTIVE_CLASS: Record<GameStatus, string> = {
   PLAYING: "border-positive bg-positive/15 font-bold text-positive",
   BACKLOG: "border-warning bg-warning/15 font-bold text-warning",
   COMPLETED: "border-steam-text bg-steam-text/15 font-bold text-steam-text",
+  WAITING_UPDATE: "border-update bg-update/15 font-bold text-update",
 };
 
-const STATUS_ORDER: GameStatus[] = ["PLAYING", "WISHLIST", "BACKLOG", "COMPLETED"];
+const STATUS_ORDER: GameStatus[] = ["PLAYING", "WISHLIST", "WAITING_UPDATE", "BACKLOG", "COMPLETED"];
 
 /** 画面を開いた直後に選ばれているステータス（いま話題になるものだけ出す） */
 const DEFAULT_STATUS_FILTER: GameStatus[] = ["PLAYING", "WISHLIST"];
@@ -164,9 +168,11 @@ export function GroupGameList({
 
   const allGenres = Array.from(new Set(items.flatMap((g) => g.genres))).sort();
 
+  // アプデ待ちに「更新あり」が付いたゲームは、ステータスの絞り込みに関係なく出す。開いた直後の絞り込み（プレイ中・プレイ予定）では
+  // アプデ待ちが隠れるので、そのままだと印が付いても気づけない（2026-11-03）。ジャンルの絞り込みは効かせる
   const filteredGames = items.filter(
     (g) =>
-      (statusFilter.size === 0 || statusFilter.has(g.status)) &&
+      (statusFilter.size === 0 || statusFilter.has(g.status) || !!g.update) &&
       (genreFilter.size === 0 || g.genres.some((genre) => genreFilter.has(genre)))
   );
 
@@ -381,6 +387,13 @@ export function GroupGameList({
                     <p className="mt-0.5 flex items-center gap-1 truncate text-3xs text-steam-blue" data-play-ms={game.playMs}>
                       <ActivityIcon kind="play.session" size={12} className="shrink-0" />
                       <span className="font-num">{formatPlayDuration(game.playMs)}</span>
+                    </p>
+                  )}
+                  {/* アプデ待ちに更新が見つかった印。お知らせへのリンクはカードのリンク（ゲーム詳細）と入れ子にできないので、
+                      ここは文字だけにして、お知らせはゲーム詳細の「最新ニュース」から開く */}
+                  {game.update && (
+                    <p data-testid="game-update-found" className="mt-0.5 truncate text-3xs font-bold text-update" title={game.update.title ?? undefined}>
+                      {game.update.label}
                     </p>
                   )}
                   {game.genres.length > 0 && (

@@ -1018,22 +1018,23 @@ for (const [id, label, path] of targets) {
   await page.waitForTimeout(800);
   const counter = () => page.getByTestId("notification-counter").textContent().then((t) => (t ?? "").trim());
 
-  // 文言の正本は apps/web/src/lib/notificationTargets.ts の NOTIFICATION_KINDS。種類の数（B61・B62 の「1/4」）もここから取る。
+  // 文言の正本は apps/web/src/lib/notificationTargets.ts の NOTIFICATION_KINDS。種類の数（B59 の件数・B61・B62 の「1/5」）もここから取る。
   // ここはブラウザ側のスクリプトでTSを読めないので書き写している
   // （種類を入れ替えたときにここだけ古くなり、実際に1件落ちて気づいた）
   const labels = [
     "ゲームの提案と、全員が買ったとき",
     "ウィッシュリストが最安値を更新したとき",
     "週に一度のまとめ",
+    "アプデ待ちのゲームに更新が来たとき",
     "プレイ記録の開始と終了",
   ];
   const shown = [];
   for (const l of labels) shown.push(await page.getByText(l, { exact: true }).count());
   rows.push({
     id: "B59",
-    item: "通知の設定に4種類が並ぶ",
-    expected: "4種類とも出る",
-    actual: `${shown.filter((n) => n > 0).length}/4`,
+    item: `通知の設定に${labels.length}種類が並ぶ`,
+    expected: `${labels.length}種類とも出る`,
+    actual: `${shown.filter((n) => n > 0).length}/${labels.length}`,
     ok: shown.every((n) => n > 0),
     note: "",
   });

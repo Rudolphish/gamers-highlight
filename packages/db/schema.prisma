@@ -48,6 +48,9 @@ enum GroupGameStatus {
   PLAYING
   BACKLOG
   COMPLETED
+  /// アプデ待ち。アーリーアクセスなどで「出ているところまで遊んだ。更新が来たら再開する」ゲーム（2026-11-03）。
+  /// 日次cronが Steam の公式のお知らせのパッチノートを見張る（lib/gameUpdates.ts）
+  WAITING_UPDATE
 }
 
 enum ProposalStatus {
@@ -195,6 +198,8 @@ enum GroupNotificationKind {
   WEEKLY_SUMMARY
   /// プレイ記録の開始と終了（docs/play-log.md）
   PLAY_LOG
+  /// アプデ待ちのゲームに更新（パッチノート）が来た（lib/gameUpdates.ts）
+  GAME_UPDATE
 }
 
 // Steam/YouTube/HowLongToBeatへの外部問い合わせ結果をsteamAppId単位でキャッシュする。
@@ -246,6 +251,14 @@ model GroupGame {
   lastKnownLowPrice  Float?
   lastKnownLowShop   String?
   lastPriceCheckedAt DateTime?
+
+  /// アプデ待ち（WAITING_UPDATE）の見張り（lib/gameUpdates.ts）。これより後に出たパッチノートだけを「更新」と数える。
+  /// アプデ待ちにした時刻を入れ、更新を見つけたらそのお知らせの日時へ進める。アプデ待ちから外したら null
+  updateWatchSince DateTime?
+  /// 見つけた更新（カードの「更新あり」）。状態を変えたら消す
+  updateFoundAt    DateTime?
+  updateNewsTitle  String?
+  updateNewsUrl    String?
 
   group        Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
   album        Album?              @relation(fields: [albumId], references: [id], onDelete: SetNull)

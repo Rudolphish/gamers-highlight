@@ -3811,6 +3811,158 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── アプデ待ち（2026-11-03。lib/gameUpdates.ts） ──
+// アプデ待ちにしたゲームに Steam の公式のパッチノートが出たら、日次cron（check-wishlist-prices に相乗り）が見つけて
+// カードに「更新あり」を出し、通知先（種類 GAME_UPDATE）へ送る。お知らせはスタブが /tmp/stub-steam-news.json から返す
+{
+  const fs = await import("node:fs");
+  const DISCORD_LOG = "/tmp/stub-discord.log";
+  const NEWS = "/tmp/stub-steam-news.json";
+  const APP = 7900101;
+  const posts = () =>
+    (fs.existsSync(DISCORD_LOG) ? fs.readFileSync(DISCORD_LOG, "utf8").split("\n").filter(Boolean) : []).map(
+      (l) => JSON.parse(JSON.parse(l).body ?? "{}").content ?? ""
+    );
+  const cron = () => api("/api/cron/check-wishlist-prices", { headers: { authorization: `Bearer ${CRON_SECRET}` } });
+  const setTarget = (channelId) =>
+    api(`/api/groups/${group.id}/notifications`, { method: "PATCH", cookie: adminCookie, body: { kind: "GAME_UPDATE", channelId } });
+  const setStatus = (id, status) =>
+    api(`/api/groups/${group.id}/games/${id}`, { method: "PATCH", cookie: adminCookie, body: { status } });
+  const news = (items) => fs.writeFileSync(NEWS, JSON.stringify({ [APP]: items }));
+  const item = (gid, title, date, tags) => ({
+    gid,
+    title,
+    url: `https://store.steampowered.com/news/app/${APP}/view/${gid}`,
+    date: Math.floor(date / 1000),
+    feedname: "steam_community_announcements",
+    ...(tags ? { tags } : {}),
+  });
+  const updatePosts = (mark) => posts().slice(mark).filter((c) => c.includes("更新が来ました"));
+  let gameId = null;
+  try {
+    const added = await api(`/api/groups/${group.id}/games`, {
+      method: "POST",
+      cookie: adminCookie,
+      body: { steamAppId: APP, title: "アプデ待ちテストのゲーム" },
+    });
+    gameId = added.json?.game?.id ?? null;
+    if (!gameId) throw new Error(`ゲームを足せなかった ${added.status} ${added.text}`);
+    await setTarget("900000000000000011");
+
+    const setW = await setStatus(gameId, "WAITING_UPDATE");
+    const watching = await db.groupGame.findUnique({ where: { id: gameId } });
+    const since = watching.updateWatchSince?.getTime() ?? 0;
+    const page = await api(`/groups/${group.id}?tab=games`, { cookie: adminCookie });
+    check(
+      "F334 ステータスに「アプデ待ち」を選べて、選ぶと見張りの起点（選んだ時刻）が入る",
+      setW.status === 200 && watching.status === "WAITING_UPDATE" && since > Date.now() - 60000 && page.text.includes("アプデ待ち"),
+      `${setW.status} ${setW.text.slice(0, 120)} since=${watching.updateWatchSince}`
+    );
+
+    // 起点より後のパッチノート（P1）・起点より後のイベント告知（印なし）・起点より前のパッチノート
+    news([
+      item("e1", "ハロウィンイベント開催", since + 120000, null),
+      item("p1", "アップデート 0.5 配信", since + 60000, ["patchnotes"]),
+      item("p0", "アップデート 0.4 配信", since - 86400000, ["patchnotes"]),
+    ]);
+    let mark = posts().length;
+    const run1 = await cron();
+    const found = await db.groupGame.findUnique({ where: { id: gameId } });
+    const sent1 = updatePosts(mark);
+    const logged1 = await db.activityLog.count({ where: { kind: "game.update_found", targetId: gameId } });
+    check(
+      "F335 起点より後のパッチノートだけを更新と数え（印の無い告知・起点より前のものは数えない）、題名とリンクを1通送って「更新あり」と活動の記録を残す",
+      run1.status === 200 &&
+        sent1.length === 1 &&
+        sent1[0].includes("アプデ待ちテストのゲーム") &&
+        sent1[0].includes("アップデート 0.5 配信") &&
+        sent1[0].includes("/view/p1") &&
+        !sent1[0].includes("ハロウィン") &&
+        found.updateNewsTitle === "アップデート 0.5 配信" &&
+        found.updateFoundAt?.getTime() === since + 60000 - ((since + 60000) % 1000) &&
+        logged1 === 1,
+      JSON.stringify({ status: run1.status, sent1, title: found.updateNewsTitle, foundAt: found.updateFoundAt, logged1, updates: run1.json?.updates })
+    );
+
+    const record = JSON.parse((await db.appSetting.findUnique({ where: { key: "gameUpdateLastCheck" } }))?.value ?? "{}");
+    check(
+      "F336 毎回の確認の件数（取れたお知らせ・印付き・パッチノート）を AppSetting に残す（本番で応答の形を確かめるため）",
+      record.officialItems >= 3 && record.taggedItems >= 2 && record.patchNotes >= 2 && record.found >= 1 && typeof record.at === "string",
+      JSON.stringify(record)
+    );
+
+    // 同じ日にもう一度走っても二重に送らない
+    mark = posts().length;
+    await cron();
+    const logged2 = await db.activityLog.count({ where: { kind: "game.update_found", targetId: gameId } });
+    check("F337 同じ更新では二度送らず、記録も増えない", updatePosts(mark).length === 0 && logged2 === 1, JSON.stringify({ again: updatePosts(mark), logged2 }));
+
+    // カードとゲーム詳細に「更新あり」が出る（グループ画面のキャッシュも作り直されている）
+    const groupPage = await api(`/groups/${group.id}?tab=games`, { cookie: adminCookie });
+    const detail = await api(`/groups/${group.id}/games/${gameId}`, { cookie: adminCookie });
+    check(
+      "F338 グループ画面のカードとゲーム詳細に「更新あり（日付）」が出て、ゲーム詳細からお知らせを開ける",
+      groupPage.text.includes("game-update-found") &&
+        groupPage.text.includes("更新あり（") &&
+        detail.text.includes("game-update-found") &&
+        detail.text.includes("/view/p1"),
+      `group=${groupPage.text.includes("game-update-found")} detail=${detail.text.includes("game-update-found")}`
+    );
+
+    // Discord に送れなかったら何も進めない。次の確認で送り、そこで記録する
+    news([item("p2", "アップデート 0.6 配信", since + 3600000, ["patchnotes"]), item("p1", "アップデート 0.5 配信", since + 60000, ["patchnotes"])]);
+    mark = posts().length;
+    fs.writeFileSync("/tmp/stub-fail", "discord.com");
+    try {
+      await cron();
+    } finally {
+      fs.rmSync("/tmp/stub-fail", { force: true });
+    }
+    const afterFail = await db.groupGame.findUnique({ where: { id: gameId } });
+    await cron();
+    const afterRetry = await db.groupGame.findUnique({ where: { id: gameId } });
+    const logged3 = await db.activityLog.count({ where: { kind: "game.update_found", targetId: gameId } });
+    check(
+      "F339 Discordに送れなかった日は「更新あり」も起点も進めず、次の確認で送ってから進める",
+      afterFail.updateNewsTitle === "アップデート 0.5 配信" &&
+        afterRetry.updateNewsTitle === "アップデート 0.6 配信" &&
+        updatePosts(mark).some((c) => c.includes("アップデート 0.6 配信")) &&
+        logged3 === 2,
+      JSON.stringify({ afterFail: afterFail.updateNewsTitle, afterRetry: afterRetry.updateNewsTitle, posts: updatePosts(mark), logged3 })
+    );
+
+    // 状態を変えると見張りも「更新あり」も消える
+    await setStatus(gameId, "WISHLIST");
+    const left = await db.groupGame.findUnique({ where: { id: gameId } });
+    const groupPage2 = await api(`/groups/${group.id}?tab=games`, { cookie: adminCookie });
+    check(
+      "F340 アプデ待ちから外すと、見張りの起点も「更新あり」も消える",
+      left.updateWatchSince === null && left.updateFoundAt === null && left.updateNewsTitle === null && !groupPage2.text.includes("game-update-found"),
+      JSON.stringify({ since: left.updateWatchSince, foundAt: left.updateFoundAt })
+    );
+
+    // 起点が無いアプデ待ち（直接書き換えた等）は、今を起点にするだけで、古いお知らせでは鳴らさない
+    await setStatus(gameId, "WAITING_UPDATE");
+    await db.groupGame.update({ where: { id: gameId }, data: { updateWatchSince: null } });
+    mark = posts().length;
+    await cron();
+    const legacy = await db.groupGame.findUnique({ where: { id: gameId } });
+    check(
+      "F341 起点の無いアプデ待ちは、今を起点にするだけで通知しない",
+      legacy.updateWatchSince !== null && legacy.updateFoundAt === null && updatePosts(mark).length === 0,
+      JSON.stringify({ since: legacy.updateWatchSince, foundAt: legacy.updateFoundAt, posts: updatePosts(mark) })
+    );
+  } catch (e) {
+    check("F334x アプデ待ちの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    fs.rmSync(NEWS, { force: true });
+    fs.rmSync("/tmp/stub-fail", { force: true });
+    await setTarget("");
+    // 作ったゲームは同じ経路（API）で消す
+    if (gameId) await api(`/api/groups/${group.id}/games/${gameId}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
 // ── プレイ記録の最少人数（管理者だけがテスト用に1人へ切り替えられる） ──
 {
   const internal = { "x-internal-secret": INTERNAL_SECRET };

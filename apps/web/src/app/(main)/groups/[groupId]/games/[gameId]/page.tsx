@@ -19,6 +19,7 @@ import { REFRESH_INTERVAL_MS } from "@/lib/externalGameCache";
 import { getGamePlaySummary } from "@/lib/playLog";
 import { GroupPlayLogPanel } from "@/components/game/GroupPlayLogPanel";
 import { GAME_STATUS_LABELS } from "@/lib/gameLabels";
+import { updateFoundLabel } from "@/lib/gameUpdates";
 import { badge, secondaryButton } from "@/components/ui/buttonStyles";
 
 const STATUS_LABEL = GAME_STATUS_LABELS;
@@ -98,6 +99,21 @@ export default async function GroupGameDetailPage(
               </span>
               <GameStoreBadges reviews={reviews} price={price} />
             </div>
+
+            {/* アプデ待ちに見つかった更新（lib/gameUpdates.ts）。状態を変えると消える */}
+            {game.status === "WAITING_UPDATE" && game.updateFoundAt && (
+              <p data-testid="game-update-found" className="mt-2 text-sm text-update">
+                <span className="font-bold">{updateFoundLabel(game.updateFoundAt)}</span>
+                {game.updateNewsTitle && "："}
+                {game.updateNewsUrl ? (
+                  <a href={game.updateNewsUrl} target="_blank" rel="noreferrer" className="underline hover:brightness-110">
+                    {game.updateNewsTitle ?? "お知らせを開く"}
+                  </a>
+                ) : (
+                  game.updateNewsTitle
+                )}
+              </p>
+            )}
 
             <h1 className="mt-2 font-display text-2xl font-bold text-steam-text sm:text-3xl">
               {game.title}

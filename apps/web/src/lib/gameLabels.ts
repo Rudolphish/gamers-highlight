@@ -8,6 +8,8 @@ export const GAME_STATUS_LABELS = {
   PLAYING: "プレイ中",
   BACKLOG: "積みゲー",
   COMPLETED: "クリア済み",
+  // アーリーアクセスなどで「出ているところまで遊んだ。更新が来たら再開する」（2026-11-03。lib/gameUpdates.ts が更新を見張る）
+  WAITING_UPDATE: "アプデ待ち",
 } as const;
 export type GameStatusValue = keyof typeof GAME_STATUS_LABELS;
 
