@@ -89,6 +89,81 @@ const targets = [
   ["B19b", "管理・活動カレンダー", "/admin/activity"],
 ];
 
+// ── ページを開いて、操作してよい状態まで待つ（2026-11-03 テストの時間の見直し・段階B） ──
+// 以前は goto の `waitUntil: "networkidle"`（通信が 500ms 途切れるまで待つ）で、1ページ平均 0.75 秒かかっていた。
+// load で止めると 0.15 秒だが、それだと「画面が React に引き継がれる前（ハイドレーション前）に押してしまう」
+// 「部品が後から取りに行くデータ（価格など）が出る前に測ってしまう」ことがある。そこで次の2つを待つ（平均 0.36 秒）:
+//   1. main（無ければ body）が React に引き継がれた印（`__reactFiber…` のキー）が付く
+//   2. そのページから出た通信が 150ms 途切れる（networkidle と同じ考えで、窓を 500ms → 150ms に縮めた）
+// 通信は page ごとに数える（`trackRequests`）。最初に呼んだ goto より前の通信は数えないが、そこで初めて開くので問題ない
+const inflightOf = new WeakMap();
+function trackRequests(page) {
+  let inflight = inflightOf.get(page);
+  if (inflight) return inflight;
+  inflight = new Set();
+  inflightOf.set(page, inflight);
+  page.on("request", (r) => inflight.add(r));
+  page.on("requestfinished", (r) => inflight.delete(r));
+  page.on("requestfailed", (r) => inflight.delete(r));
+  // 遷移すると前のページの通信は終わりの知らせが来ないことがあるので、数え直す
+  page.on("framenavigated", (f) => {
+    if (f === page.mainFrame()) inflight.clear();
+  });
+  return inflight;
+}
+async function settle(page, { quietMs = 150, timeout = 30000 } = {}) {
+  const inflight = trackRequests(page);
+  const deadline = Date.now() + timeout;
+  await page.waitForFunction(
+    () => {
+      const el = document.querySelector("main") ?? document.body;
+      return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber"));
+    },
+    null,
+    { timeout },
+  );
+  let quietSince = Date.now();
+  while (Date.now() - quietSince < quietMs) {
+    if (inflight.size > 0) quietSince = Date.now();
+    if (Date.now() > deadline) throw new Error(`settle: ${timeout}ms 待っても通信が途切れない（${[...inflight].map((r) => r.url()).slice(0, 2).join(" ")}）`);
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+/** `page.goto(url, { waitUntil: "networkidle" })` の代わり。goto の戻り値（レスポンス）をそのまま返す */
+async function gotoSettled(page, url, { timeout = 30000, ...opts } = {}) {
+  trackRequests(page);
+  const res = await page.goto(url, { ...opts, waitUntil: "load", timeout });
+  await settle(page, { timeout });
+  return res;
+}
+/**
+ * 画面ごとに独立した確認（文字の濃さ・はみ出し・部品の高さなど、開いて測るだけのもの）を、ページを n 枚使って並べて流す（段階B）。
+ * 1画面ずつ順に開くと、14〜24画面で10〜30秒かかっていた。**終わる順番は決まらない**ので、結果を位置で見る確認には使わない。
+ * データを書き換える操作・ほかの画面の状態に頼る操作にも使わない
+ */
+async function forEachPage(ctx, paths, fn, n = 3) {
+  const queue = [...paths];
+  const pages = await Promise.all(Array.from({ length: Math.min(n, queue.length) }, () => ctx.newPage()));
+  try {
+    // 1つが落ちても残りの終わりを待ってから閉じる（走っている途中で閉じると、別の例外が後から出て紛れる）
+    const results = await Promise.allSettled(
+      pages.map(async (p) => {
+        for (let path = queue.shift(); path !== undefined; path = queue.shift()) await fn(p, path);
+      }),
+    );
+    const failed = results.find((r) => r.status === "rejected");
+    if (failed) throw failed.reason;
+  } finally {
+    await Promise.all(pages.map((p) => p.close().catch(() => {})));
+  }
+}
+/** `page.reload({ waitUntil: "networkidle" })` の代わり */
+async function reloadSettled(page) {
+  trackRequests(page);
+  await page.reload({ waitUntil: "load" });
+  await settle(page);
+}
+
 // `--no-sandbox` を付けている。開くのは自分のローカルサーバーだけで外部のページは
 // 一切踏まないため、サンドボックスで守る対象が無い。逆に付けないと環境側の都合で
 // 起動できないことがある（rootで動くコンテナ、Ubuntu 24.04 の
@@ -128,8 +203,7 @@ for (const [id, label, path] of targets.filter(([id]) => wanted(id))) {
     problems.push(text.slice(0, 140));
   });
 
-  const res = await page
-    .goto(BASE + path, { waitUntil: "networkidle", timeout: 30000 })
+  const res = await gotoSettled(page, BASE + path, { timeout: 30000 })
     .catch((e) => (problems.push(`遷移失敗: ${e.message}`.slice(0, 120)), null));
 
   // 遅れて出るエラー（ハイドレーション後の例外など）も拾えるよう、判定の前に少し待つ
@@ -160,7 +234,7 @@ if (block()) {
   };
   const before = rows.length;
   try {
-    await page.goto(`${BASE}/groups/${ids.groupId}?tab=games`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${ids.groupId}?tab=games`);
     await page.waitForTimeout(500);
 
     const visible = await page.evaluate(() =>
@@ -235,7 +309,7 @@ if (block()) {
       if (/hydrat|did not match|Text content does not match/i.test(t)) hydrationErrors.push(t.slice(0, 140));
     });
 
-    await page.goto(url, { waitUntil: "networkidle" });
+    await gotoSettled(page, url);
     await page.waitForTimeout(500);
 
     // 「すべて」を押して既定と違う状態にする
@@ -253,7 +327,7 @@ if (block()) {
     });
 
     // リロードしても「すべて」のまま（既定に戻らない）
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadSettled(page);
     await page.waitForTimeout(700);
     const afterReload = await page.evaluate(() =>
       [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "").join(" ")
@@ -269,7 +343,7 @@ if (block()) {
 
     // 保存を消せば既定に戻る
     await page.evaluate((gid) => localStorage.removeItem(`gh:game-filter:v1:${gid}`), ids.groupId);
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadSettled(page);
     await page.waitForTimeout(700);
     const afterClear = await page.evaluate(() =>
       [...document.querySelectorAll('a[href*="/games/"]')].map((a) => a.textContent ?? "").join(" ")
@@ -312,7 +386,7 @@ if (block()) {
 // run-all 経由のときだけ落ちた。seedで仕込んだ3件の**相対順序**だけを見る。
 if (block()) {
   const page = await context.newPage();
-  await page.goto(`${BASE}/groups/${ids.groupId}?tab=albums`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${BASE}/groups/${ids.groupId}?tab=albums`);
   await page.waitForTimeout(500);
 
   // 既定では4件までしか出ないので、全部出してから並びを見る
@@ -442,7 +516,7 @@ if (block()) {
 // 押した瞬間の表示更新も、Lightboxを開いたときのボタンも、クライアント側でしか動かない。
 if (block()) {
   const page = await context.newPage();
-  await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${BASE}/albums/${ids.albumId}`);
   await page.waitForTimeout(500);
 
   // グリッド上の❤️（サムネイルの左上）。押す前は0件なので数字は出ない
@@ -577,7 +651,7 @@ if (block()) {
     await page.waitForTimeout(900);
   };
 
-  await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${BASE}/albums/${ids.albumId}`);
   await page.waitForTimeout(500);
 
   await page.locator("div.aspect-square").first().click();
@@ -638,7 +712,7 @@ if (block()) {
   //
   // 判定は**書いた本文そのもの**で見る。「印が1つ以上あるか」だと、
   // 別の写真に残っている説明で通ってしまい、無効化を外しても落ちなかった（実際に踏んだ）。
-  await page.reload({ waitUntil: "networkidle" });
+  await reloadSettled(page);
   await page.waitForTimeout(600);
   await page.locator("div.aspect-square").first().click();
   await page.waitForTimeout(700);
@@ -674,7 +748,7 @@ if (block()) {
 
   // 書いた説明を消して、始める前の状態に戻す（上の clearDescription のコメント参照）
   await page.keyboard.press("Escape");
-  await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${BASE}/albums/${ids.albumId}`);
   await page.waitForTimeout(500);
   await page.locator("div.aspect-square").first().click();
   await page.waitForTimeout(700);
@@ -690,7 +764,7 @@ if (block()) {
 // **1つだけだと自動選択されてしまい、この経路を通らない**）。
 if (block()) {
   const page = await context.newPage();
-  await page.goto(`${BASE}/albums/unclassified`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${BASE}/albums/unclassified`);
 
   /** ブラウザのセッションでAPIを叩く（テスト用のデータを作る／片付ける） */
   const callApi = (path, method, body) =>
@@ -716,7 +790,7 @@ if (block()) {
     : null;
 
   if (groupB && albumA && albumB) {
-    await page.goto(`${BASE}/albums/unclassified`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/albums/unclassified`);
     await page.waitForTimeout(300);
 
     const groupSelect = page.locator("select").first();
@@ -801,7 +875,7 @@ if (block()) {
 // 開いた状態を実際に見る（描画で落ちると、閉じている限り気づけない）。
 if (block()) {
   const page = await context.newPage();
-  await page.goto(`${BASE}/manual`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${BASE}/manual`);
 
   await page.getByRole("button", { name: /権限（オーナー／編集者／閲覧者）/ }).click();
   await page.waitForTimeout(200);
@@ -835,7 +909,7 @@ if (block()) {
 // 「権限が無い人に入口を出さない」はページ側の判断なので、実際に描かせないと分からない。
 if (block()) {
   const page = await context.newPage();
-  await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${BASE}/albums/${ids.albumId}`);
 
   const pencil = page.getByRole("button", { name: "アルバム名を変更" });
   rows.push({
@@ -921,7 +995,7 @@ if (block()) {
     },
   ]);
   const memberPage = await memberContext.newPage();
-  await memberPage.goto(`${BASE}/albums/${ids.adminOnlyAlbumId}`, { waitUntil: "networkidle" });
+  await gotoSettled(memberPage, `${BASE}/albums/${ids.adminOnlyAlbumId}`);
   const memberPencil = await memberPage.getByRole("button", { name: "アルバム名を変更" }).count();
   const memberSeesAlbum = (await memberPage.getByRole("heading", { level: 1 }).count()) > 0;
   rows.push({
@@ -954,14 +1028,14 @@ if (block()) {
       [path, method, body ?? null]
     );
 
-  await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${BASE}/albums/${ids.albumId}`);
   const created = await callApi("/api/photos", "POST", {
     youtubeUrl: "https://www.youtube.com/watch?v=bbbbbbbbbbb",
     albumId: ids.albumId,
   });
   const youtubePhotoId = created.json?.photo?.id ?? null;
 
-  await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${BASE}/albums/${ids.albumId}`);
   await page.waitForTimeout(300);
 
   const badge = await page.getByText("YouTube", { exact: false }).count();
@@ -1019,7 +1093,7 @@ if (block()) {
 if (block()) {
   // 通知の設定はグループの設定画面（歯車の先）にある。最初から開いた形（デザイン刷新の段階5で見出しの下から移した）
   const page = await context.newPage();
-  await page.goto(`${BASE}/groups/${ids.groupId}/settings`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${BASE}/groups/${ids.groupId}/settings`);
   await page.waitForTimeout(800);
   const counter = () => page.getByTestId("notification-counter").textContent().then((t) => (t ?? "").trim());
 
@@ -1059,7 +1133,7 @@ if (block()) {
   // 選んで保存し、開き直しても残っていること
   await select.selectOption("900000000000000012");
   await page.waitForTimeout(1200);
-  await page.reload({ waitUntil: "networkidle" });
+  await reloadSettled(page);
   await page.waitForTimeout(400);
   await page.waitForTimeout(400);
   const counterText = await counter();
@@ -1123,7 +1197,7 @@ if (block()) {
       [path, method, body ?? null]
     );
 
-  await page.goto(`${BASE}/upload`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${BASE}/upload`);
   const before = (await callApi(`/api/albums/${ids.albumId}/photos`, "GET")).json?.photos ?? [];
 
   // 1x1の透過PNG。中身は何でもよいが、実際にバイト列がR2へ飛ぶことに意味がある
@@ -1248,7 +1322,7 @@ if (block()) {
     );
 
   const albumId = ids.adminOnlyAlbumId;
-  await page.goto(`${BASE}/albums/${albumId}`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${BASE}/albums/${albumId}`);
 
   const tiles = () => page.locator("div.grid > div.aspect-square").count();
   const tilesBefore = await tiles();
@@ -1380,7 +1454,7 @@ if (block()) {
       [path, method, body ?? null]
     );
 
-  await page.goto(`${BASE}/groups/${ids.groupId}?tab=wishlist`, { waitUntil: "networkidle" });
+  await gotoSettled(page, `${BASE}/groups/${ids.groupId}?tab=wishlist`);
 
   // **他人の提案も自分で用意する。** seedの提案（member の GTA V）は、通しで流すと
   // flows が過半数まで投票して昇格させるのでPENDINGから外れ、区画が1つになる。
@@ -1433,7 +1507,7 @@ if (block()) {
     if (res.json?.proposal?.id) created.push({ id: res.json.proposal.id, title: titles[i] });
   }
 
-  await page.reload({ waitUntil: "networkidle" });
+  await reloadSettled(page);
 
   /** 自分の区画に出ている順位の選択欄のラベル（＝可視カードのタイトル順） */
   const myVisibleTitles = () =>
@@ -1563,7 +1637,7 @@ if (block()) {
 
   try {
     // seedの「エルデンリング」アルバムは ELDEN RING（1245620）と連携済み
-    await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/albums/${ids.albumId}`);
     await page.getByRole("button", { name: "Steam連携" }).click();
     await page.waitForTimeout(300);
 
@@ -1649,7 +1723,7 @@ if (block()) {
     });
 
     // 解除すると「ゲーム詳細を見る」が消える
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadSettled(page);
     await page.getByRole("button", { name: "Steam連携" }).click();
     await page.waitForTimeout(300);
     await page.getByRole("button", { name: /ゲームとの連携を解除する/ }).click();
@@ -1760,7 +1834,7 @@ if (block()) {
   });
 
   try {
-    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/`);
 
     const rail = page.locator("aside");
     const railVisible = (await rail.count()) > 0 && (await rail.first().isVisible());
@@ -1808,14 +1882,14 @@ if (block()) {
     // 「自分」から開いた先でもタブの印が消えないこと（どこにも印が無いと、今どこにいるのか分からない）
     const subCurrent = [];
     for (const path of ["/settings/discord", "/manual"]) {
-      await page.goto(BASE + path, { waitUntil: "networkidle" });
+      await gotoSettled(page, BASE + path);
       subCurrent.push(`${path}=${(await currentTabs(page)).join("・") || "なし"}`);
     }
     rec("B89", "どちらも 自分", subCurrent.join(" / "), subCurrent.every((s) => s.endsWith("=自分")));
 
     // **いちばん下まで送ったとき、フッターがタブの裏に隠れていないこと。** 本文の下を空けていないと、
     // ページの最後のボタンが押せなくなる。矩形の比較に加え、その位置で実際に一番上にいるのがフッターかを見る
-    await page.goto(`${BASE}/manual`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/manual`);
     const footerState = await page.evaluate(async () => {
       window.scrollTo(0, document.documentElement.scrollHeight);
       await new Promise((r) => setTimeout(r, 300));
@@ -1871,7 +1945,7 @@ if (block()) {
     // `overflow-x` も `auto` にする）。そこを外すとページ全体が横に流れる
     const widths = [];
     for (const path of ["/", "/admin/users", "/me"]) {
-      await page.goto(BASE + path, { waitUntil: "networkidle" });
+      await gotoSettled(page, BASE + path);
       widths.push(
         await page.evaluate((p) => {
           const el = document.documentElement;
@@ -1894,7 +1968,7 @@ if (block()) {
     // 入れると本物のスクローラになり、`window.scrollY` が動かなくなる——スマホでURLバーが
     // 引っ込まず、縦を常時損する。`min-h` だけなら中身に合わせて伸びるので起きない
     // （この項目は `h-screen overflow-y-auto` に変えると実際に落ちることを確認済み）
-    await page.goto(`${BASE}/manual`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/manual`);
     const scrollState = await page.evaluate(async () => {
       window.scrollTo(0, 0);
       const el = document.documentElement;
@@ -1975,7 +2049,7 @@ if (block()) {
   const pcPage = await pcContext.newPage();
   const phonePage = await context.newPage();
   try {
-    await pcPage.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    await gotoSettled(pcPage, `${BASE}/`);
 
     // **名前が「文字として読める」ことまで見る。** 以前はアイコンだけのレールで、名前はホバーのツールチップにしか無かった。
     // リンクの数だけを見ると、アイコンだけに戻っても通ってしまう。admin なので 5 + 2 + 管理 = 8項目（navItems.ts）
@@ -2036,7 +2110,7 @@ if (block()) {
       const accountText = async () => (await pcPage.locator('[data-testid="sidebar-account"]').innerText()).replace(/\s+/g, " ");
       const original = await pcPage.evaluate(async () => (await (await fetch("/api/users/me")).json())?.user?.name ?? null);
       try {
-        await pcPage.goto(`${BASE}/settings/profile`, { waitUntil: "networkidle" });
+        await gotoSettled(pcPage, `${BASE}/settings/profile`);
         await pcPage.getByPlaceholder("表示名を入力").fill(NEW_NAME);
         await pcPage.getByRole("button", { name: "変更を保存" }).click();
         await pcPage.getByText("プロフィールを更新しました").waitFor({ timeout: 10000 });
@@ -2051,7 +2125,7 @@ if (block()) {
             body: JSON.stringify({ csrfToken, data: { name: forged } }),
           });
         }, FORGED);
-        await pcPage.reload({ waitUntil: "networkidle" });
+        await reloadSettled(pcPage);
         const afterForged = await accountText();
         rec(
           "B129",
@@ -2074,9 +2148,9 @@ if (block()) {
 
     // **PCで行ける場所はスマホでも全部行けること。** タブは5つしか無いので、残りは「自分」ページが拾う。
     // 片方だけに項目を足すと、画面幅で行ける場所が変わる（CLAUDE.md「ナビの項目は navItems.ts が正本」）
-    await pcPage.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    await gotoSettled(pcPage, `${BASE}/`);
     const pcHrefs = await pcPage.evaluate(() => [...new Set([...document.querySelectorAll("aside a")].map((a) => a.getAttribute("href")))]);
-    await phonePage.goto(`${BASE}/me`, { waitUntil: "networkidle" });
+    await gotoSettled(phonePage, `${BASE}/me`);
     const phoneHrefs = await phonePage.evaluate(() => [
       ...new Set(
         [...document.querySelectorAll('[data-testid="bottom-tabs"] a, main a')]
@@ -2096,7 +2170,7 @@ if (block()) {
 
     // **長いページでメニューが流れていかないこと。** `sticky top-0 h-[100dvh]` で画面に残す。
     // これが無いと親のフレックスに引き伸ばされ、スクロールすると上に抜けていく（PCでだけ起きる）
-    await pcPage.goto(`${BASE}/manual`, { waitUntil: "networkidle" });
+    await gotoSettled(pcPage, `${BASE}/manual`);
     await pcPage.evaluate(() => window.scrollTo(0, 900));
     await pcPage.waitForTimeout(300);
     // **`isVisible()` では測れない。** Playwright の可視判定はビューポート内かを見ないので、
@@ -2113,7 +2187,7 @@ if (block()) {
       navStays && scrolled > 0
     );
 
-    await pcPage.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    await gotoSettled(pcPage, `${BASE}/`);
     const pcWidth = await pcPage.evaluate(() => {
       const el = document.documentElement;
       return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
@@ -2136,7 +2210,7 @@ if (block()) {
       });
       const asideWidth = () => pcPage.locator("aside").evaluate((el) => Math.round(el.getBoundingClientRect().width));
       try {
-        await pcPage.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+        await gotoSettled(pcPage, `${BASE}/groups/${ids.groupId}`);
         await pcPage.getByRole("button", { name: "メニューをたたむ" }).click();
         await pcPage.waitForTimeout(400);
         const collapsedWidth = await asideWidth();
@@ -2165,7 +2239,7 @@ if (block()) {
         const html = await (await pcContext.request.get(`${BASE}/groups/${ids.groupId}`)).text();
         const ssrCollapsed = /<aside[^>]*data-collapsed="true"/.test(html);
         hydration.length = 0;
-        await pcPage.reload({ waitUntil: "networkidle" });
+        await reloadSettled(pcPage);
         await pcPage.waitForTimeout(300);
         const afterReload = await asideWidth();
         rec(
@@ -2179,7 +2253,7 @@ if (block()) {
         await pcPage.getByRole("button", { name: "メニューを広げる" }).click();
         await pcPage.waitForTimeout(400);
         const expandedWidth = await asideWidth();
-        await pcPage.reload({ waitUntil: "networkidle" });
+        await reloadSettled(pcPage);
         await pcPage.waitForTimeout(300);
         const expandedAfterReload = await asideWidth();
         const labelVisible = await pcPage.locator("aside nav").getByText("アルバム", { exact: true }).isVisible();
@@ -2297,7 +2371,7 @@ if (block()) {
         [path, method, body ?? null]
       );
 
-    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/`);
 
     // **要るデータは自分で作る。** seedのアルバムは前のスイートが写真を足したり消したり
     // するので、枚数も並びも当てにできない（docs/lessons.md）
@@ -2337,7 +2411,7 @@ if (block()) {
       Boolean(swipeAlbumId) && createdPhotoIds.length === 3
     );
 
-    await page.goto(`${BASE}/albums/${swipeAlbumId}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/albums/${swipeAlbumId}`);
     await page.locator("main img").first().click();
     await page.waitForSelector("div.fixed.inset-0.z-50", { timeout: 10000 });
 
@@ -2499,7 +2573,7 @@ if (block()) {
     // **待ち時間で解決しようとして2回失敗した。** 900msに延ばしても、CIの Chrome 154 では
     // まだ落ちた（手元は Playwright の Chromium で版が違う）。**時間に頼らず、前の
     // ジェスチャが残っていない状態を作り直してから**タップする
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadSettled(page);
     await page.locator("main img").first().click();
     await page.waitForSelector("div.fixed.inset-0.z-50", { timeout: 10000 });
     const tapY = await page.evaluate(() => {
@@ -2596,7 +2670,7 @@ if (block()) {
       [path, method, body ?? null]
     );
   try {
-    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/`);
     albumId = (await callApi("/api/albums", "POST", { title: "振り分け確認用アルバム", groupId: ids.groupId })).json?.album?.id;
     for (const label of ["甲", "乙"]) {
       const bytes = Buffer.from(`assign-browser-${label}-0123456789`);
@@ -2610,7 +2684,7 @@ if (block()) {
       if (p.json?.photo?.id) made.push(p.json.photo.id);
     }
 
-    await page.goto(`${BASE}/admin/media?album=none`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/admin/media?album=none`);
     const rowOf = (label) => page.locator("tr", { hasText: `画面振り分け${label}` });
 
     // 1件だけの「振り分け」はモーダルを開き、Escで閉じる（ページは離れない）
@@ -2642,7 +2716,7 @@ if (block()) {
     await rowOf("甲").waitFor({ state: "detached", timeout: 10000 }).catch(() => {});
     const gone = (await rowOf("甲").count()) === 0 && (await rowOf("乙").count()) === 0;
 
-    await page.goto(`${BASE}/admin/media`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/admin/media`);
     const inAlbum = ((await rowOf("甲").textContent()) ?? "").includes("振り分け確認用アルバム");
     rows.push({
       id: "B110",
@@ -2678,7 +2752,7 @@ if (block()) {
   const page = await anon.newPage();
   const DEV_WORDS = /NEXTAUTH|DISCORD_CLIENT|Vercel|環境変数|YOUR_DOMAIN|リダイレクト URI|prisma|invocation/i;
   const alertText = async (code) => {
-    await page.goto(`${BASE}/login?error=${encodeURIComponent(code)}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/login?error=${encodeURIComponent(code)}`);
     const alert = page.getByRole("alert");
     return (await alert.count()) > 0 ? ((await alert.first().textContent()) ?? "") : "";
   };
@@ -2721,7 +2795,7 @@ if (block()) {
   const rowOf = () => page.locator("li[data-play-session]", { hasText: `${mm}/${dd}(` }).filter({ hasText: "20:00" });
   let stage = "開く";
   try {
-    await page.goto(`${BASE}/admin/play-log?group=${ids.groupId}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/admin/play-log?group=${ids.groupId}`);
     stage = "追加";
     await page.getByRole("button", { name: "記録を追加" }).click();
     const dialog = page.getByRole("dialog");
@@ -2764,12 +2838,12 @@ if (block()) {
   } finally {
     // 残っていたら画面の削除ボタンで消す（作ったのと同じ経路。docs/lessons.md）
     try {
-      await page.goto(`${BASE}/admin/play-log?group=${ids.groupId}`, { waitUntil: "networkidle" });
+      await gotoSettled(page, `${BASE}/admin/play-log?group=${ids.groupId}`);
       for (let i = 0; i < 5 && (await rowOf().count()) > 0; i++) {
         page.once("dialog", (d) => d.accept());
         await rowOf().first().getByRole("button", { name: /記録を削除/ }).click();
         await page.waitForTimeout(1500);
-        await page.reload({ waitUntil: "networkidle" });
+        await reloadSettled(page);
       }
     } catch {
       // 片付けに失敗しても結果の表は残す
@@ -2786,7 +2860,7 @@ if (block()) {
   let sessionId = null;
   let visibleCards = [];
   try {
-    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${ids.groupId}`);
     // **一覧に今見えているカードから選ぶ。** 特定のゲーム（seed の ELDEN RING）を決め打ちにすると、
     // それまでのスイートがステータスを変えた・キャッシュに古いステータスが残った、で一覧の初期の絞り込みから外れ、
     // カードが見つからずに落ちる（CIで1回そうなった。手元では再現しなかった）
@@ -2808,7 +2882,7 @@ if (block()) {
       return res.ok ? (await res.json()).id : null;
     }, [ids.groupId, gameId, ids.adminId, start.toISOString(), new Date(start.getTime() + 100 * 60000).toISOString()]);
     sessionId = created;
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadSettled(page);
     const banner = page.getByTestId("play-total-banner");
     const bannerText = (await banner.count()) > 0 ? ((await banner.textContent()) ?? "") : "";
     const bannerBox = (await banner.count()) > 0 ? await banner.boundingBox() : null;
@@ -2856,7 +2930,7 @@ if (block()) {
   try {
     const startJstDay = new Date(Date.now() + 9 * 3600000 - 4 * 86400000).toISOString().slice(0, 10);
     const start = new Date(`${startJstDay}T21:00:00.000+09:00`);
-    await page.goto(`${BASE}/admin/activity?group=${ids.groupId}&month=${startJstDay.slice(0, 7)}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/admin/activity?group=${ids.groupId}&month=${startJstDay.slice(0, 7)}`);
     // 管理者のAPIで記録を足す（作ったのと同じ経路で消す。docs/lessons.md）
     sessionId = await page.evaluate(async ([groupId, gameId, adminId, startIso, endIso]) => {
       const res = await fetch("/api/admin/play-sessions", {
@@ -2866,7 +2940,7 @@ if (block()) {
       });
       return res.ok ? (await res.json()).id : null;
     }, [ids.groupId, ids.gameId, ids.adminId, start.toISOString(), new Date(start.getTime() + 164 * 60000).toISOString()]);
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadSettled(page);
     const fit = await page.evaluate((day) => {
       const cell = [...document.querySelectorAll("a")].find((a) => (a.getAttribute("href") ?? "").endsWith(`date=${day}`));
       const play = cell?.querySelector("[data-play-ms]");
@@ -2915,7 +2989,7 @@ if (block()) {
   let sessionId = null;
   try {
     // 前のスイートが出来事を残している前提にしない。遊んだ記録を1件、管理者のAPIで足す（同じ経路で消す。docs/lessons.md）
-    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${ids.groupId}`);
     const start = new Date(Date.now() - 2 * 3600000);
     sessionId = await page.evaluate(async ([groupId, gameId, adminId, startIso, endIso]) => {
       const res = await fetch("/api/admin/play-sessions", {
@@ -2925,7 +2999,7 @@ if (block()) {
       });
       return res.ok ? (await res.json()).id : null;
     }, [ids.groupId, ids.gameId, ids.adminId, start.toISOString(), new Date(start.getTime() + 40 * 60000).toISOString()]);
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadSettled(page);
     const section = page.getByTestId("recent-activity");
     const present = (await section.count()) > 0;
     const box = present ? await section.boundingBox() : null;
@@ -2970,7 +3044,7 @@ if (block()) {
   let sessionId = null;
   try {
     // 「最近の動き」が必ず出るように、遊んだ記録を1件足す（作ったのと同じ経路で消す。docs/lessons.md）
-    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${ids.groupId}`);
     const start = new Date(Date.now() - 2 * 3600000);
     sessionId = await page.evaluate(async ([groupId, gameId, adminId, startIso, endIso]) => {
       const res = await fetch("/api/admin/play-sessions", {
@@ -2980,7 +3054,7 @@ if (block()) {
       });
       return res.ok ? (await res.json()).id : null;
     }, [ids.groupId, ids.gameId, ids.adminId, start.toISOString(), new Date(start.getTime() + 40 * 60000).toISOString()]);
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadSettled(page);
     const sizes = await page.evaluate(() => {
       const size = (el) => (el ? getComputedStyle(el).fontSize : null);
       const heads = [...document.querySelectorAll("main h2")];
@@ -3020,7 +3094,7 @@ if (block()) {
   const page = await context.newPage();
   const made = [];
   try {
-    await page.goto(`${BASE}/groups/${ids.groupId}/games/${ids.gameId}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${ids.groupId}/games/${ids.gameId}`);
     for (let i = 0; i < 8; i++) {
       const start = new Date(Date.now() - (30 + i) * 86400000);
       const id = await page.evaluate(async ([groupId, gameId, adminId, startIso, endIso]) => {
@@ -3033,7 +3107,7 @@ if (block()) {
       }, [ids.groupId, ids.gameId, ids.adminId, start.toISOString(), new Date(start.getTime() + 60 * 60000).toISOString()]);
       if (id) made.push(id);
     }
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadSettled(page);
     const list = page.getByTestId("group-play-sessions");
     const m = (await list.count()) > 0
       ? await list.evaluate((el) => {
@@ -3068,7 +3142,7 @@ if (block()) {
 if (block()) {
   const page = await context.newPage();
   try {
-    await page.goto(`${BASE}/groups/${ids.groupId}?tab=games`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${ids.groupId}?tab=games`);
     const head = page.locator("main h2").filter({ hasText: /^みんなのゲーム$/ }).first();
     const addButton = page.getByRole("button", { name: "ゲームを追加" });
     const count = await addButton.count();
@@ -3110,7 +3184,7 @@ if (block()) {
   const page = await context.newPage();
   let priceGroupId = null;
   try {
-    await page.goto(`${BASE}/groups/${ids.groupId}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${ids.groupId}`);
     priceGroupId = await page.evaluate(async (name) => {
       const res = await fetch("/api/groups", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
       const group = res.ok ? (await res.json()).group : null;
@@ -3153,10 +3227,10 @@ if (block()) {
       m
         ? `${m.now?.parts.map((x) => x.t).join("|")} ／ ${m.low?.parts.map((x) => x.t).join("|")}（幅${m.width}px・取り消し線=${m.now?.parts[1]?.tag === "S"}・切れ=${[...(m.now?.parts ?? []), ...(m.low?.parts ?? [])].filter((x) => x.cut).map((x) => x.t).join(",") || "なし"}・横はみ出し=${m.pageWide}）`
         : "価格が出ない";
-    await page.goto(`${BASE}/groups/${priceGroupId}?tab=wishlist`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${priceGroupId}?tab=wishlist`);
     const phone = await measure();
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto(`${BASE}/groups/${priceGroupId}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${priceGroupId}`);
     const pc = await measure();
     const ok = !!priceGroupId && judge(phone) && judge(pc);
     rows.push({
@@ -3198,7 +3272,7 @@ if (block()) {
     const seen = [];
     // グループ画面のアルバムはスマホではタブの中なので、アルバムのタブを開く（デザイン刷新の段階5）
     for (const path of ["/albums", `/groups/${ids.groupId}?tab=albums`]) {
-      await page.goto(BASE + path, { waitUntil: "networkidle" });
+      await gotoSettled(page, BASE + path);
       // カードが出ていないと何も確かめていないことになるので、「〜前」が描かれていることも見る
       const labels = await page.evaluate(() => (document.querySelector("main")?.innerText.match(/(たった今|\d+(分|時間|日|ヶ月|年)前)/g) ?? []).length);
       seen.push(`${path.startsWith("/groups") ? "グループ" : "/albums"}=${labels}件`);
@@ -3230,7 +3304,7 @@ if (block()) {
   const prep = await context.newPage();
   let prepared = "未実行";
   try {
-    await prep.goto(BASE + gamePath, { waitUntil: "networkidle" });
+    await gotoSettled(prep, BASE + gamePath);
     // 429（直近に更新済み）でも「まだ更新できない」状態になっているので、どちらでもよい
     prepared = String(await prep.evaluate((u) => fetch(u, { method: "POST" }).then((r) => r.status), `/api/groups/${ids.groupId}/games/${ids.gameId}/refresh`));
   } catch (e) {
@@ -3262,7 +3336,7 @@ if (block()) {
       // なのでサーバーが返した HTML の時刻と、ブラウザで描かれた時刻を直接比べる
       const serverHtml = await (await ctx.request.get(BASE + gamePath)).text();
       const serverWhen = (serverHtml.replace(/<!-- -->/g, "").match(/最終更新: ([^<]+)</) ?? [])[1] ?? null;
-      await page.goto(BASE + gamePath, { waitUntil: "networkidle" });
+      await gotoSettled(page, BASE + gamePath);
       await page.waitForTimeout(500);
       // 何も描かれていないのに通る、を防ぐ。ボタンと最終更新の時刻が出ていること
       const shown = await page.evaluate(() => ({
@@ -3295,13 +3369,12 @@ if (block()) {
 // 管理画面（/admin）は刷新の対象外なので見ない
 if (block()) {
   const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
-  const page = await context.newPage();
   const small = [];
   const low = [];
   let checked = 0;
   try {
-    for (const path of PAGES) {
-      await page.goto(BASE + path, { waitUntil: "networkidle" });
+    await forEachPage(context, PAGES, async (page, path) => {
+      await gotoSettled(page, BASE + path);
       await page.waitForTimeout(300);
       const r = await page.evaluate(() => {
         const parse = (c) => {
@@ -3371,7 +3444,7 @@ if (block()) {
       checked += r.checked;
       small.push(...r.small.map((x) => `${path} ${x}`));
       low.push(...r.low.map((x) => `${path} ${x}`));
-    }
+    });
     rows.push({
       id: "B123",
       item: "主な画面に12px未満の文字が無い（管理画面は除く）",
@@ -3392,8 +3465,6 @@ if (block()) {
     for (const id of ["B123", "B124"]) {
       rows.push({ id, item: "文字の大きさと濃さ", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
     }
-  } finally {
-    await page.close();
   }
 }
 
@@ -3404,13 +3475,12 @@ if (block()) {
 // 使い方の説明ページは文章の中で絵文字に触れるので、絵文字の数からは外す（等幅は見る）
 if (block()) {
   const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
-  const page = await context.newPage();
   const monoJa = [];
   const emoji = [];
   let checked = 0;
   try {
-    for (const path of PAGES) {
-      await page.goto(BASE + path, { waitUntil: "networkidle" });
+    await forEachPage(context, PAGES, async (page, path) => {
+      await gotoSettled(page, BASE + path);
       await page.waitForTimeout(300);
       const r = await page.evaluate((skipEmoji) => {
         const ja = /[\u3040-\u30ff\u4e00-\u9fff]/g;
@@ -3433,7 +3503,7 @@ if (block()) {
       checked += r.checked;
       monoJa.push(...r.monoJa.map((x) => `${path} ${x}`));
       emoji.push(...r.emoji.map((x) => `${path} ${x}`));
-    }
+    });
     rows.push({
       id: "B125",
       item: "主な画面で、日本語の文が等幅フォントで描かれておらず、本文に絵文字が出ていない（使い方の説明ページの絵文字は除く）",
@@ -3444,8 +3514,6 @@ if (block()) {
     });
   } catch (e) {
     rows.push({ id: "B125", item: "等幅フォントと絵文字", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
-  } finally {
-    await page.close();
   }
 }
 
@@ -3485,7 +3553,7 @@ if (block()) {
     // グループ画面はスマホでは区画がタブに分かれ、隠れた区画の文字は innerText に入らないので、タブごとに開く
     const PAGES = [`/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/games/${ids.gameId}`, `/groups/${ids.groupId}/proposals/${proposalId}`, `/groups/${ids.groupId}/activity`];
     for (const path of PAGES) {
-      await page.goto(BASE + path, { waitUntil: "networkidle" });
+      await gotoSettled(page, BASE + path);
       await page.waitForTimeout(300);
       const text = await page.evaluate(() =>
         [
@@ -3524,7 +3592,7 @@ if (block()) {
 if (block()) {
   const page = await context.newPage();
   try {
-    await page.goto(`${BASE}/groups/${ids.groupId}?tab=games`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${ids.groupId}?tab=games`);
     await page.waitForTimeout(300);
     const r = await page.evaluate(() => {
       const out = { cards: 0, parts: 0, over: [] };
@@ -3606,7 +3674,7 @@ if (block()) {
   });
   let proposalId = null;
   try {
-    await page.goto(GROUP, { waitUntil: "networkidle" });
+    await gotoSettled(page, GROUP);
     proposalId = await page.evaluate(async (gid) => {
       const res = await fetch(`/api/groups/${gid}/proposals`, {
         method: "POST",
@@ -3615,7 +3683,7 @@ if (block()) {
       });
       return (await res.json().catch(() => null))?.proposal?.id ?? null;
     }, ids.groupId);
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadSettled(page);
 
     // B133: タブ
     const tabLabels = (await page.getByRole("tab").allInnerTexts()).map((t) => t.trim());
@@ -3646,7 +3714,7 @@ if (block()) {
     const ssr = [...html.matchAll(/<section[^>]*data-tab="(\w+)"[^>]*class="([^"]*)"/g)].map(([, tab, cls]) => [tab, !/(^|\s)hidden(\s|$)/.test(cls)]);
     const ssrShown = ssr.filter(([, shown]) => shown).map(([tab]) => tab);
     hydration.length = 0;
-    await page.goto(`${GROUP}?tab=albums`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${GROUP}?tab=albums`);
     const direct = await visibleTabs(page);
     rec(
       "B134",
@@ -3661,7 +3729,7 @@ if (block()) {
     // B135: 高さ（スマホは4つのタブ、PCは全体）
     const shortPhone = [];
     for (const t of ["", "albums", "games", "wishlist"]) {
-      await page.goto(`${GROUP}${t ? `?tab=${t}` : ""}`, { waitUntil: "networkidle" });
+      await gotoSettled(page, `${GROUP}${t ? `?tab=${t}` : ""}`);
       shortPhone.push(...(await shortControls(page, 44)).map((x) => `${t || "overview"}:${x}`));
     }
     const pc = await newCtx(1440, 900);
@@ -3669,7 +3737,7 @@ if (block()) {
     let shortPc = [];
     let layout = { wide: null, narrow: null };
     try {
-      await pcPage.goto(GROUP, { waitUntil: "networkidle" });
+      await gotoSettled(pcPage, GROUP);
       shortPc = await shortControls(pcPage, 36);
       const cardControls = await pcPage.locator('section[data-tab="wishlist"] button, section[data-tab="wishlist"] select').count();
       rec(
@@ -3735,7 +3803,7 @@ if (block()) {
           );
         made.push(...(await propose(pcPage, 7700140)).map((id) => ({ id, page: pcPage })));
         made.push(...(await propose(memberPcPage, 7700150)).map((id) => ({ id, page: memberPcPage })));
-        await pcPage.goto(GROUP, { waitUntil: "networkidle" });
+        await gotoSettled(pcPage, GROUP);
         const cols = await pcPage.evaluate(() =>
           [...document.querySelectorAll('section[data-tab="wishlist"] [data-testid="proposer-section"]')].map((el) => {
             const r = el.getBoundingClientRect();
@@ -3760,12 +3828,12 @@ if (block()) {
 
       // B137: 写真を投稿と歯車
       await pcPage.setViewportSize({ width: 1440, height: 900 });
-      await pcPage.goto(GROUP, { waitUntil: "networkidle" });
+      await gotoSettled(pcPage, GROUP);
       await pcPage.locator("main").getByRole("link", { name: "写真を投稿" }).click();
       await pcPage.waitForURL("**/upload?group=**", { timeout: 15000 });
       await pcPage.waitForTimeout(1200);
       const selectedGroup = await pcPage.locator(`select:has(option[value="${ids.groupId}"])`).inputValue().catch(() => "");
-      await pcPage.goto(GROUP, { waitUntil: "networkidle" });
+      await gotoSettled(pcPage, GROUP);
       await pcPage.getByRole("link", { name: "グループの設定" }).click();
       await pcPage.waitForURL("**/settings", { timeout: 15000 });
       // 遷移の直後は読み込み中の骨格が出ている。設定画面の見出しが出るまで待ってから読む（待たずに読んで空だった）
@@ -3786,9 +3854,9 @@ if (block()) {
     const member = await newCtx(390, 844, "member");
     try {
       const mp = await member.newPage();
-      await mp.goto(GROUP, { waitUntil: "networkidle" });
+      await gotoSettled(mp, GROUP);
       const gear = await mp.getByRole("link", { name: "グループの設定" }).count();
-      await mp.goto(`${GROUP}/settings`, { waitUntil: "networkidle" });
+      await gotoSettled(mp, `${GROUP}/settings`);
       const body = await mp.locator("body").innerText();
       const blocked = !body.includes("Discordへの通知") && !body.includes("グループの削除");
       rec("B138", "歯車0個 / 設定画面の中身が出ない", `歯車${gear}個 / 設定画面=${blocked ? "出ない" : "出ている"}`, gear === 0 && blocked);
@@ -3880,15 +3948,15 @@ if (block()) {
             return (await res.json().catch(() => null))?.proposal?.id ?? null;
           }, ids.groupId);
         }
-        for (const raw of PAGES) {
+        await forEachPage(ctx, PAGES, async (pp, raw) => {
           const path = raw === "{proposal}" ? `/groups/${ids.groupId}/proposals/${proposalId}` : raw;
-          await p.goto(BASE + path, { waitUntil: "networkidle" });
-          const r = await measure(p, min, "main");
+          await gotoSettled(pp, BASE + path);
+          const r = await measure(pp, min, "main");
           measured += r.count;
           short.push(...r.bad.map((x) => `${w}px ${path.replace(/[a-z0-9]{20,}/g, "…")} ${x}`));
-        }
+        });
         for (const [path, opener] of MODALS) {
-          await p.goto(BASE + path, { waitUntil: "networkidle" });
+          await gotoSettled(p, BASE + path);
           await p.locator("main").getByRole("button", { name: opener }).first().click();
           await p.locator("div.fixed.inset-0.z-50").last().waitFor({ timeout: 10000 });
           await p.waitForTimeout(300);
@@ -3897,7 +3965,7 @@ if (block()) {
           short.push(...r.bad.map((x) => `${w}px 「${opener}」の箱 ${x}`));
         }
         // 写真を開いた表示（ライトボックス）
-        await p.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+        await gotoSettled(p, `${BASE}/albums/${ids.albumId}`);
         // ライトボックスは role を持たないので、ほかのテスト（B36 など）と同じく写真の枠を押して開き、重ねた箱の中を測る
         await p.locator("main div.aspect-square").first().click();
         await p.locator("div.fixed.inset-0.z-50").first().waitFor({ timeout: 10000 });
@@ -3937,11 +4005,10 @@ if (block()) {
   const PAGES = ["/", "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/groups", "/me",
     // 段階6b
     `/groups/${ids.groupId}/activity`, "/upload", "/settings/profile", "/settings/allowlist", "/settings/channel-mapping", "/groups/new", "/albums/new", "/albums/unclassified", "/search"];
-  const page = await context.newPage();
   const over = [];
   try {
-    for (const path of PAGES) {
-      await page.goto(BASE + path, { waitUntil: "networkidle" });
+    await forEachPage(context, PAGES, async (page, path) => {
+      await gotoSettled(page, BASE + path);
       const r = await page.evaluate(() => {
         const main = document.querySelector("main");
         if (!main) return [];
@@ -3962,7 +4029,7 @@ if (block()) {
         return out;
       });
       over.push(...r.slice(0, 3).map((x) => `${path.replace(/[a-z0-9]{20,}/g, "…")} ${x}`));
-    }
+    });
     rows.push({
       id: "B140",
       item: "スマホ幅の主な画面で、部品が画面の右へはみ出していない（横に送る作りの箱の中は除く）",
@@ -3973,8 +4040,6 @@ if (block()) {
     });
   } catch (e) {
     rows.push({ id: "B140", item: "スマホ幅のはみ出し", expected: "-", actual: "未確認", ok: false, note: `途中で中断: ${String(e.message ?? e).slice(0, 80)}` });
-  } finally {
-    await page.close();
   }
 }
 
@@ -3994,7 +4059,7 @@ if (block()) {
     if (!groupId) throw new Error("グループを作れなかった");
     const seen = [];
     for (const tab of ["albums", "wishlist"]) {
-      await page.goto(`${BASE}/groups/${groupId}?tab=${tab}`, { waitUntil: "networkidle" });
+      await gotoSettled(page, `${BASE}/groups/${groupId}?tab=${tab}`);
       const box = page.locator(`section[data-tab="${tab}"] [data-testid="empty-state"]`);
       const visible = (await box.count()) > 0 && (await box.first().isVisible());
       const title = visible ? ((await box.first().locator("p").first().textContent()) ?? "").trim() : "";
@@ -4038,7 +4103,7 @@ if (block()) {
   const sessionIds = [];
   try {
     // B143
-    await page.goto(GROUP + "?tab=games", { waitUntil: "networkidle" });
+    await gotoSettled(page, GROUP + "?tab=games");
     const gameId = await page.evaluate((gid) =>
       [...document.querySelectorAll(`a[href^="/groups/${gid}/games/"]`)].find((a) => (a.textContent ?? "").includes("が追加"))?.getAttribute("href")?.split("/").pop() ?? null,
     ids.groupId);
@@ -4074,10 +4139,10 @@ if (block()) {
           width: Math.round(b.width),
         };
       });
-    await page.goto(GROUP, { waitUntil: "networkidle" });
+    await gotoSettled(page, GROUP);
     const phone = await measureBanner();
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(GROUP, { waitUntil: "networkidle" });
+    await gotoSettled(page, GROUP);
     const pc = await measureBanner();
     const bannerOk = (m) => !!m && m.heading === "グループで遊んだ時間" && m.hours.length >= 3 && m.oneLine && m.inside;
     const showBanner = (m) => (m ? `見出し「${m.heading}」・${m.label}・1行=${m.oneLine}・枠内=${m.inside}・帯の幅${m.width}px` : "帯が出ない");
@@ -4112,7 +4177,7 @@ if (block()) {
 
     // B145（スマホ幅のゲームのタブ）
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(GROUP + "?tab=games", { waitUntil: "networkidle" });
+    await gotoSettled(page, GROUP + "?tab=games");
     const chip = page.locator('section[data-tab="games"] button', { hasText: /^クリア済み$/ }).first();
     const chipStyle = () => chip.evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color, pressed: el.getAttribute("aria-pressed") }));
     const before = await chipStyle();
@@ -4156,10 +4221,10 @@ if (block()) {
         const box = (el) => (el ? (({ x, y, width }) => ({ x: Math.round(x), y: Math.round(y + window.scrollY), w: Math.round(width) }))(el.getBoundingClientRect()) : null);
         return { act: box(act), photos: box(photos), wide: document.documentElement.scrollWidth > window.innerWidth };
       });
-    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/`);
     const phone = await boxes();
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/`);
     const pc = await boxes();
     const phoneOk = !!phone.act && !!phone.photos && phone.act.y < phone.photos.y && phone.act.x === phone.photos.x && !phone.wide;
     const pcOk = !!pc.act && !!pc.photos && pc.act.x < pc.photos.x && Math.abs(pc.act.y - pc.photos.y) <= 2 && pc.act.w <= 360 && !pc.wide;
@@ -4215,7 +4280,7 @@ if (block()) {
       }
       return group.id;
     }, [`顔の表示-${tag}`, [okMail, brokenMail]]);
-    await page.goto(`${BASE}/groups/${groupId}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${groupId}`);
     await page.waitForTimeout(800);
     const faces = await page.evaluate(() =>
       [...document.querySelectorAll("[data-face]")].map((el) => {
@@ -4307,7 +4372,7 @@ if (block()) {
     for (let i = 0; i < 12; i++) {
       const page = await ctx.newPage();
       try {
-        await page.goto(BASE + paths[i % paths.length], { waitUntil: "networkidle" });
+        await gotoSettled(page, BASE + paths[i % paths.length]);
         const before = await page.evaluate(() => window.__commits);
         await page.evaluate(() => window.next.router.refresh());
         const moved = await page
@@ -4344,7 +4409,7 @@ if (block()) {
   await delayNavigations(ctx, 2500);
   const page = await ctx.newPage();
   try {
-    await page.goto(`${BASE}/me`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/me`);
     await page.locator('[data-testid="bottom-tabs"] a[href="/groups"]').click();
     const overlay = page.locator('[data-testid="route-loading"]');
     await overlay.waitFor({ state: "visible", timeout: 5000 });
@@ -4416,7 +4481,7 @@ if (block()) {
     return g;
   };
   try {
-    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/`);
     const open = await measure("/groups");
     await page.getByRole("button", { name: "メニューをたたむ" }).click();
     await page.waitForTimeout(400);
@@ -4447,7 +4512,7 @@ if (block()) {
   await delayNavigations(ctx, 2500);
   const page = await ctx.newPage();
   try {
-    await page.goto(`${BASE}/me`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/me`);
     await page.locator('[data-testid="bottom-tabs"] a[href="/albums"]').click();
     await page.locator('[data-testid="route-loading"]').waitFor({ state: "visible", timeout: 5000 });
     const anim = await page.evaluate(() => {
@@ -4515,7 +4580,7 @@ if (block()) {
   const seen = [];
   try {
     for (const [path, opener] of MODAL_CASES) {
-      await page.goto(BASE + path, { waitUntil: "networkidle" });
+      await gotoSettled(page, BASE + path);
       await page.locator("main").getByRole("button", { name: opener }).first().click();
       await page.locator("div.fixed.inset-0.z-50").last().waitFor({ timeout: 10000 });
       await page.waitForTimeout(300);
@@ -4598,7 +4663,7 @@ if (block()) {
       await fetch("/api/auth/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ csrfToken, data }) });
     }, data);
   try {
-    await page.goto(`${BASE}/settings/profile`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/settings/profile`);
     const before = await paint();
     await page.locator('[data-theme-option="red"]').click();
     // レイアウトが描き直されて、サーバーが書き出す色が赤になるまで待つ（画面だけ先に変える仮の色ではなく）
@@ -4606,12 +4671,12 @@ if (block()) {
     const picked = await paint();
     const checked = await page.locator('[data-theme-option="red"]').getAttribute("aria-checked");
     // 別の画面を開き直す。サーバーが返した HTML の時点で赤になっている（最初の描画から色が合っている）
-    const res = await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    const res = await gotoSettled(page, `${BASE}/`);
     const serverTheme = (await res.text()).match(/<style id="theme-color" data-theme="([a-z]+)"/)?.[1] ?? null;
     const home = await paint();
     // 偽の更新: update() と同じ要求に色を載せて直接送る
     await setSession({ themeColor: "green" });
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadSettled(page);
     const forged = await paint();
     rows.push({
       id: "B154",
@@ -4652,7 +4717,7 @@ if (block()) {
       return { x: Math.round(r.x), y: Math.round(r.y), r: Math.round(r.right), b: Math.round(r.bottom), w: Math.round(r.width), h: Math.round(r.height) };
     }, sel);
   const open = async (page) => {
-    await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/albums/${ids.albumId}`);
     await page.locator("main div.aspect-square").first().click();
     await page.locator(LB).waitFor({ timeout: 10000 });
     await page.waitForTimeout(300);
@@ -4791,7 +4856,7 @@ if (block()) {
     );
     seen.push(`2人目の「やりたい」→ ${stage}`);
 
-    await page.goto(`${BASE}/groups/${ids.groupId}?tab=wishlist`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${ids.groupId}?tab=wishlist`);
     const card = page.locator('[data-testid="agreed-proposal"]', { hasText: TITLE });
     await card.waitFor({ timeout: 10000 });
     const countText = async () => (await card.innerText()).match(/買った (\d+)\/(\d+)人/)?.[0] ?? "";
@@ -4828,7 +4893,7 @@ if (block()) {
       { timeout: 10000 }
     ).catch(() => bad.push("全員そろっても「みんなでやりたい」から消えない"));
 
-    await page.goto(`${BASE}/groups/${ids.groupId}?tab=games`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${ids.groupId}?tab=games`);
     const inGames = await page.locator("main").innerText();
     if (!inGames.includes(TITLE)) bad.push("ゲームのタブに出ない（プレイ予定・プレイ中だけの初期表示で）");
     gameId = await page.evaluate(
@@ -4898,7 +4963,7 @@ if (block()) {
     if (!cardId || !pageId) throw new Error("提案を作れなかった");
 
     // カードのゴミ箱
-    await page.goto(`${BASE}/groups/${ids.groupId}?tab=wishlist`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${ids.groupId}?tab=wishlist`);
     const card = page.locator('[data-testid="proposer-section"] .rounded-xl', { hasText: TITLE }).first();
     const trash = card.getByRole("button", { name: "取り下げる" });
     const colors = await trash.evaluate((el) => {
@@ -4941,7 +5006,7 @@ if (block()) {
     if (!goneFromCard) bad.push("「取り下げる」でも消えない（カード）");
 
     // 詳細ページの「この提案を取り下げる」
-    await page.goto(`${BASE}/groups/${ids.groupId}/proposals/${pageId}`, { waitUntil: "networkidle" });
+    await gotoSettled(page, `${BASE}/groups/${ids.groupId}/proposals/${pageId}`);
     const pageBtn = page.getByRole("button", { name: "この提案を取り下げる" });
     await pageBtn.click();
     await dialog().waitFor({ timeout: 5000 });
