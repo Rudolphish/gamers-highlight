@@ -83,6 +83,25 @@ node tools/local-test/audit-media-limits.mjs # メディア上限値の食い違
 node tools/local-test/audit-cover-policy.mjs # アルバムカバー方針の静的チェック（サーバー不要）
 ```
 
+### 改修中は、ブラウザを変えた所だけ流す（`BROWSER_ONLY`）
+
+**手元の通しは全部で6分前後かかり、そのうち5分強がブラウザ（B）。** 同じものを CI がもう一度まるごと流すので、
+改修中の手元ではブラウザだけを変えた所に絞る（2026-11-03。全部を手元で2回流していた頃は、改修1回のテストに25分前後かかっていた）。
+
+```bash
+BROWSER_ONLY=B157 node tools/local-test/run-all.mjs            # 約40秒
+BROWSER_ONLY=B133-B142,B153 node tools/local-test/run-all.mjs  # 範囲とカンマ区切り
+```
+
+- **絞るのはブラウザだけ。** シードと P・R・F・X・Q は毎回全部流す（合わせて40秒弱。B が前のスイートのデータに頼っているので、ここを省くと単体で流したときと同じ落ち方をする）
+- 選ばれるのは `browser.mjs` の**区画ごと**（行頭の `if (block()) {` 〜 行頭の `}`）。区画の中の ID は `_only.mjs` が文面から読むので、一覧を別に持たない。
+  **新しい区画も `if (block()) {` で始める**（素の `{` だと絞り込みに関係なく毎回流れる）
+- 打ち間違いで1区画も当たらなければ落ちる。絞ったときは `results/browser.json` と `docs/test-results.md` を書かない（一部だけの結果で全件の表を作り直さないため）
+- **どの B を流すか**: 足した・変えたテストの ID と、触った画面を見ているテスト（`docs/test-results.md` を画面の名前で引く）。
+  **画面全体に効くもの**（`layout.tsx`・`globals.css`・`buttonStyles.ts`・`modalStyles.ts`・`navItems.ts`・テーマの色・Next.js の版）を触ったときは、絞らずに全部流す
+- 全件は CI が流す。**CI の結果を見てからマージする**ことは変わらない
+- データを書き換えるテストを足した・変えた回の「同じ DB に2回連続」（`docs/lessons.md`）も、この絞り込みで2回流せばよい
+
 **キャッシュ（`unstable_cache`）を触ったら `audit-invalidation.mjs` を流すこと。**
 書き込みハンドラの無効化の呼び忘れと、GETへの混入（読むたびにキャッシュを捨てる）を見る。
 どちらも実際にやって、目視では見落とした。

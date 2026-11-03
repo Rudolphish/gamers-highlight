@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { encode } from "next-auth/jwt";
 import { writeResults } from "./_results.mjs";
 import { watchPageErrors, writePageErrors } from "./_pageerrors.mjs";
+import { fileURLToPath } from "node:url";
+import { FILTERED, wanted, makeBlockGate } from "./_only.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3000";
 const SECRET = process.env.NEXTAUTH_SECRET ?? "local-integration-test-secret";
@@ -111,8 +113,11 @@ await context.addCookies([
   },
 ]);
 
+// 絞り込み（BROWSER_ONLY。_only.mjs）。区画は行頭の `if (block()) {` 〜 行頭の `}`
+const block = makeBlockGate(fileURLToPath(import.meta.url), targets.map(([id]) => id));
+
 const rows = [];
-for (const [id, label, path] of targets) {
+for (const [id, label, path] of targets.filter(([id]) => wanted(id))) {
   const page = await context.newPage();
   const problems = [];
   watchPageErrors(page, problems);
@@ -144,7 +149,7 @@ for (const [id, label, path] of targets) {
 // ── ゲーム一覧のフィルタ初期状態 ──
 // サーバーは全件を描画し、絞り込みはハイドレーション後にクライアントで効く。
 // curlでは確認できないのでここで見る。
-{
+if (block()) {
   const page = await context.newPage();
   // **ブロックごと try/catch で包む。** 途中のクリックで止まると、以降のスイートが1件も走らずに落ちる
   // （デザイン刷新の段階5の壊し確認で、ゲームのタブが出ない版を流したら実際にそうなった。docs/lessons.md）
@@ -211,7 +216,7 @@ for (const [id, label, path] of targets) {
 }
 
 // ── 絞り込みの保存（localStorage） ──
-{
+if (block()) {
   const page = await context.newPage();
   // **ブロックごと try/catch で包む。** 途中のクリックで止まると、以降のスイートが1件も走らずに落ちる
   // （デザイン刷新の段階5の壊し確認で、ゲームのタブが出ない版を流したら実際にそうなった。docs/lessons.md）
@@ -305,7 +310,7 @@ for (const [id, label, path] of targets) {
 // **他のスイートが同じグループにアルバムを足す**（flowsがDiscordタグ経由で
 // "eldenring" を作る）ので、**位置で判定してはいけない**。最初これで書いたら
 // run-all 経由のときだけ落ちた。seedで仕込んだ3件の**相対順序**だけを見る。
-{
+if (block()) {
   const page = await context.newPage();
   await page.goto(`${BASE}/groups/${ids.groupId}?tab=albums`, { waitUntil: "networkidle" });
   await page.waitForTimeout(500);
@@ -435,7 +440,7 @@ for (const [id, label, path] of targets) {
 
 // ── 写真へのリアクション（❤️） ──
 // 押した瞬間の表示更新も、Lightboxを開いたときのボタンも、クライアント側でしか動かない。
-{
+if (block()) {
   const page = await context.newPage();
   await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
   await page.waitForTimeout(500);
@@ -552,7 +557,7 @@ for (const [id, label, path] of targets) {
 // 表示・編集・グリッドの印はすべてクライアント側なのでここでしか見えない。
 // **seedのデータには依存しない**（flowsが説明を書いて消すので、通しで流すと状態が変わる）。
 // 自分で書いてから確認する形にしてある。
-{
+if (block()) {
   const page = await context.newPage();
   const LIGHTBOX = "div.fixed.inset-0.z-50";
 
@@ -683,7 +688,7 @@ for (const [id, label, path] of targets) {
 // 「グループを選ぶまでアルバムを選べない」「選んだグループのアルバムだけが出る」を、
 // 実際に2つのグループを持つ状態を作って確かめる（seedのadminは1グループなので、
 // **1つだけだと自動選択されてしまい、この経路を通らない**）。
-{
+if (block()) {
   const page = await context.newPage();
   await page.goto(`${BASE}/albums/unclassified`, { waitUntil: "networkidle" });
 
@@ -794,7 +799,7 @@ for (const [id, label, path] of targets) {
 // ── マニュアルの節が開けること ──
 // 権限の節には表を入れてある。アコーディオンを開くまで描画されないので、
 // 開いた状態を実際に見る（描画で落ちると、閉じている限り気づけない）。
-{
+if (block()) {
   const page = await context.newPage();
   await page.goto(`${BASE}/manual`, { waitUntil: "networkidle" });
 
@@ -828,7 +833,7 @@ for (const [id, label, path] of targets) {
 // ── アルバム名の変更（鉛筆アイコン） ──
 // **入口の出し分けまで見る。** サーバー側の権限（F153）は別に確認しているが、
 // 「権限が無い人に入口を出さない」はページ側の判断なので、実際に描かせないと分からない。
-{
+if (block()) {
   const page = await context.newPage();
   await page.goto(`${BASE}/albums/${ids.albumId}`, { waitUntil: "networkidle" });
 
@@ -934,7 +939,7 @@ for (const [id, label, path] of targets) {
 // ── YouTube動画の表示 ──
 // **iframeのsrcまで見る。** ここが間違っていても画面には枠が出るだけなので、
 // 目視では気づけない（サンドボックスからは再生できず、本番でしか動かないぶん余計に）。
-{
+if (block()) {
   const page = await context.newPage();
   const callApi = (path, method, body) =>
     page.evaluate(
@@ -1011,7 +1016,7 @@ for (const [id, label, path] of targets) {
 // ── 通知の設定（種類ごとの送り先） ──
 // **プルダウンの中身と、保存が残ることまで見る。** 以前は通知先が1つで、
 // 選ぶ経路（Discordのチャンネル一覧）はテストを一度も通っていなかった。
-{
+if (block()) {
   // 通知の設定はグループの設定画面（歯車の先）にある。最初から開いた形（デザイン刷新の段階5で見出しの下から移した）
   const page = await context.newPage();
   await page.goto(`${BASE}/groups/${ids.groupId}/settings`, { waitUntil: "networkidle" });
@@ -1092,7 +1097,7 @@ for (const [id, label, path] of targets) {
 // ファイル選択 → 署名の取得 → R2へPUT → レコード作成、という配線そのものは
 // ブラウザから一度も通っていない（API単体は F が見ているが、繋がりは誰も見ていない）。
 // この経路のコードをこれから共通化するので、先に落ちる状態を作れるようにしておく。
-{
+if (block()) {
   const page = await context.newPage();
   const problems = [];
   watchPageErrors(page, problems);
@@ -1204,7 +1209,7 @@ for (const [id, label, path] of targets) {
 // **閲覧だけの人で試す。** このアルバムに投稿できる条件は「見られること」（VIEWER）で、
 // member はグループの編集者だがこのアルバムには招待されていない（=VIEWER止まり）。
 // アルバム名の変更は出ないが追加はできる、という組み合わせをここで踏む。
-{
+if (block()) {
   const memberContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await memberContext.addCookies([
     {
@@ -1357,7 +1362,7 @@ for (const [id, label, path] of targets) {
 // ── 提案の区画分けと順位 ──
 // **件数が増えたときに読めること**がこの機能の目的なので、
 // 「区画が人ごとに分かれる」「1区画は5件まで」「6件目は展開で出る」を画面から見る。
-{
+if (block()) {
   const page = await context.newPage();
   const problems = [];
   watchPageErrors(page, problems);
@@ -1529,7 +1534,7 @@ for (const [id, label, path] of targets) {
 // 出ない壊れ方をすると locator が30秒待って例外になり、**スイート全体が止まって
 // 結果表がまるごと消える**（docs/lessons.md）。壊して確認するたびにそれを踏んだので、
 // 残りの項目を「未確認」として埋める形にした。
-{
+if (block()) {
   const page = await context.newPage();
   const problems = [];
   watchPageErrors(page, problems);
@@ -1710,7 +1715,7 @@ for (const [id, label, path] of targets) {
 //
 // ブロックごと try/catch で包んである。**入口ごとにガードを置くのでは足りない**
 // （クリックの連鎖はどこで止まっても以降が全部消える。docs/lessons.md）
-{
+if (block()) {
   // 項目名はIDで引く（添字で引くと、順番を入れ替えた瞬間に別の項目名が入る）
   const EXPECTED = {
     B84: "スマホ幅では左のメニューが出ない",
@@ -1925,7 +1930,7 @@ for (const [id, label, path] of targets) {
 }
 
 // PC幅（1280px）の骨組み。**390pxだけ見ていると768px以上を壊しても気づけない。**
-{
+if (block()) {
   // 他の2ブロックと同じ形に揃える。**項目名を記録側と catch 側の2箇所に書いていたのが
   // 欠陥の温床だった**（`localRows` に移したのに catch の判定は `rows` のままで、
   // 途中で落ちると記録済みの行まで「未確認」で二重に積まれる形になっていた）
@@ -2218,7 +2223,7 @@ for (const [id, label, path] of targets) {
 // `Input.dispatchTouchEvent` でブラウザ層の本物のタッチを送る。**自分で
 // `dispatchEvent` した合成イベントでは、自分のハンドラを呼んだだけになり
 // 「ジェスチャが効く」ことの確認にならない。**
-{
+if (block()) {
   // **項目名は配列の添字で引かない。** 以前そうしていて、途中で項目を1つ挟んだときに
   // B106 に B108 の名前が入った（表に同じ名前の行が2つ並ぶ）。IDで引けばずれない
   const EXPECTED = {
@@ -2576,7 +2581,7 @@ for (const [id, label, path] of targets) {
 // ── 管理者のメディア一覧から未分類を振り分ける（チェック → まとめて振り分け → モーダル） ──
 // 他の人の投稿を移せる権限は flows（F277・F278）で見ている。ここは画面の配線
 // （チェック・下の操作バー・モーダル・移した後に一覧から消える）を見る
-{
+if (block()) {
   const page = await context.newPage();
   const problems = [];
   watchPageErrors(page, problems);
@@ -2668,7 +2673,7 @@ for (const [id, label, path] of targets) {
 // 以前は環境変数名や設定手順（`NEXTAUTH_URL` を設定し…）を、ログインしようとしている友人に出していた。
 // signIn が例外を投げると NextAuth はその例外メッセージを `?error=` に入れてくるので、
 // 知らないコードの中身を画面に出さないことも見る。ログイン画面は描画がクライアント側なので実ブラウザで見る
-{
+if (block()) {
   const anon = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await anon.newPage();
   const DEV_WORDS = /NEXTAUTH|DISCORD_CLIENT|Vercel|環境変数|YOUR_DOMAIN|リダイレクト URI|prisma|invocation/i;
@@ -2708,7 +2713,7 @@ for (const [id, label, path] of targets) {
 
 // ── 管理者のプレイ記録の画面：追加 → 修正 → 削除がモーダルから通る ──
 // API の中身は flows の F293〜F296 で見ている。ここは画面の配線（モーダルの入力が API に渡り、一覧に反映されるか）だけ
-{
+if (block()) {
   const page = await context.newPage();
   // 3日前の 20:00〜21:30（JST）。他の記録と取り違えないよう日時で行を探す
   const day = new Date(Date.now() + 9 * 3600000 - 3 * 86400000).toISOString().slice(0, 10);
@@ -2776,7 +2781,7 @@ for (const [id, label, path] of targets) {
 // ── グループ画面の帯（合計プレイ時間）とゲーム一覧の時間（docs/play-log.md §13） ──
 // 数え方は lib-checks の F298、HTMLの値は flows の F297。ここは実際の描画：帯がアルバムより上に出て、
 // いちばん遊んだゲームへのリンクがあり、ゲーム一覧のカードに時間が出ること
-{
+if (block()) {
   const page = await context.newPage();
   let sessionId = null;
   let visibleCards = [];
@@ -2845,7 +2850,7 @@ for (const [id, label, path] of targets) {
 // ── 活動カレンダーのプレイ記録（docs/play-log.md §11 の段階1） ──
 // 中身は lib-checks の F299・flows の F300。ここは実際の描画：スマホ幅（このコンテキストは390px）で
 // 日のマスの「🎮2h44m」が切れずに読めること。1行に入らず「🎮2h44…」になっていた（2026-10-18）
-{
+if (block()) {
   const page = await context.newPage();
   let sessionId = null;
   try {
@@ -2905,7 +2910,7 @@ for (const [id, label, path] of targets) {
 // ── グループ画面の「最近の動き」（docs/play-log.md §11 の段階2） ──
 // 中身は lib-checks の F301・flows の F302。ここは実際の描画：スマホ幅（390px）で欄がアルバムより上に出て、
 // 横にはみ出さず、「カレンダーで見る」でグループの活動カレンダーに移れること
-{
+if (block()) {
   const page = await context.newPage();
   let sessionId = null;
   try {
@@ -2960,7 +2965,7 @@ for (const [id, label, path] of targets) {
 }
 
 // ── グループ画面の見出しの大きさを「最近の動き」に揃える／「ゲーム提案」→「ウィッシュリスト」（2026-10-18 ユーザー判断） ──
-{
+if (block()) {
   const page = await context.newPage();
   let sessionId = null;
   try {
@@ -3011,7 +3016,7 @@ for (const [id, label, path] of targets) {
 
 // ── ゲーム詳細のプレイ履歴は枠の中でスクロールする（2026-10-18 ユーザー判断） ──
 // 記録を8回ぶん足して、一覧が縦に伸びず（枠の高さで止まり）、中身は枠の中でスクロールできること
-{
+if (block()) {
   const page = await context.newPage();
   const made = [];
   try {
@@ -3060,7 +3065,7 @@ for (const [id, label, path] of targets) {
 
 // ── 「ゲームを追加」を「みんなのゲーム」の見出しの横に置く（2026-10-18 ユーザー判断） ──
 // アルバムの「新規アルバム」と同じ並び（見出しと同じ行）にあり、区画を畳んでいても押せば開いて検索モーダルが出ること
-{
+if (block()) {
   const page = await context.newPage();
   try {
     await page.goto(`${BASE}/groups/${ids.groupId}?tab=games`, { waitUntil: "networkidle" });
@@ -3101,7 +3106,7 @@ for (const [id, label, path] of targets) {
 // 価格はカードが出てからあとで読み込む。スマホ幅（390px）と、列がいちばん狭くなる PC 幅（1280px・列300px台）の両方で、
 // どの部分も切れず、割引前の値段に取り消し線が付いていること。
 // seed の提案は前のスイートで決着しうるので、自分でグループと提案を作る（stub: 定価 ¥8,600・¥4,730・-45%・Steamの最安値 ¥4,730）
-{
+if (block()) {
   const page = await context.newPage();
   let priceGroupId = null;
   try {
@@ -3179,7 +3184,7 @@ for (const [id, label, path] of targets) {
 // そこで Date.now() から「N分前」を計算していたため、サーバーとブラウザの間で分や時間の境目を
 // またいだ回だけ文字が食い違い、React #425/#422 が出ていた（B93 の「ナビの開閉で例外が出ない」で /albums を開いたとき）。
 // 境目は偶然にしかまたがないので、**ブラウザの時計だけを40日進めて**必ずまたがせる。直す前のビルドでは毎回落ちる
-{
+if (block()) {
   const shifted = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await shifted.addCookies(await context.cookies());
   await shifted.addInitScript(() => {
@@ -3220,7 +3225,7 @@ for (const [id, label, path] of targets) {
 // 時計がずれていると「次に更新できるのは…」の行の有無が食い違っていた（#418）。どちらも #422 を伴う。
 // このテスト環境はサーバーもブラウザも UTC なので、**ブラウザだけを日本時間にする／時計だけをずらす**ことで起こす。
 // 直前に「情報を更新」を押して、最終更新の時刻がある・まだ更新できない状態を作ってから開く
-{
+if (block()) {
   const gamePath = `/groups/${ids.groupId}/games/${ids.gameId}`;
   const prep = await context.newPage();
   let prepared = "未実行";
@@ -3288,7 +3293,7 @@ for (const [id, label, path] of targets) {
 // 主な画面で実際に描かれた文字を全部見て、12px未満と、背景との差が 4.5:1 未満のものを数える。
 // 除くもの: 写真・グラデーションの上の文字（背景の色を測れない）、押せない状態（半透明）の部品、見えない文字。
 // 管理画面（/admin）は刷新の対象外なので見ない
-{
+if (block()) {
   const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
   const page = await context.newPage();
   const small = [];
@@ -3397,7 +3402,7 @@ for (const [id, label, path] of targets) {
 // 等幅は数字が並ぶ所（font-num）だけ、種類の印は線のアイコン（ActivityIcon）に揃えた。
 // 実際に描かれた文字で、「日本語の文が等幅で描かれている所」と「本文に出ている絵文字」を数える。
 // 使い方の説明ページは文章の中で絵文字に触れるので、絵文字の数からは外す（等幅は見る）
-{
+if (block()) {
   const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
   const page = await context.newPage();
   const monoJa = [];
@@ -3451,7 +3456,7 @@ for (const [id, label, path] of targets) {
 // **提案は自分で作る。** seed の提案は前のスイートで採用済みになっていて、リアクションの欄が出ない（通しで1回落ちた）。
 // 活動の記録は補足にDBの値をそのまま出していた（「WISHLIST → PLAYING」「LIKE」「👍 2」）ので、英字の値も古い呼び方として数える。
 // 「様子見」で投票しておくと、活動の画面に投票の記録が必ず1件並ぶ
-{
+if (block()) {
   const OLD = /気になる|気になって|興味なし|\b(WISHLIST|PLAYING|BACKLOG|COMPLETED|LIKE|MAYBE|PASS)\b/;
   const NEW = ["プレイ予定", "ねらってる", "様子見", "パス"];
   const page = await context.newPage();
@@ -3516,7 +3521,7 @@ for (const [id, label, path] of targets) {
 // ── ゲームカードの部品がカードからはみ出さない（デザイン刷新の段階3） ──
 // 「ねらってる」のボタンに文字を足したら、スマホの2列のカードで右端が切れ、削除ボタンが見えなくなった。
 // カードは overflow-hidden なのでページの横スクロール（B91）には出ない。カードの箱と中の部品の箱を比べる
-{
+if (block()) {
   const page = await context.newPage();
   try {
     await page.goto(`${BASE}/groups/${ids.groupId}?tab=games`, { waitUntil: "networkidle" });
@@ -3555,7 +3560,7 @@ for (const [id, label, path] of targets) {
 // スマホは「ようす・アルバム・ゲーム・ウィッシュ」のタブ（URL の ?tab= に持たせる）、PC（1280px以上）は2列。
 // 見出しに「写真を投稿」「メンバー」「歯車（グループの設定）」。ボタンの高さはスマホ44px・PC36px。
 // 提案のカードの部品も測るので、未採用の提案を1件作り、最後に同じ経路（API）で取り下げる
-{
+if (block()) {
   const EXPECTED = {
     B133: "スマホ幅でタブ4つ（ようす・アルバム・ゲーム・ウィッシュ）が出て、押すとその区画だけが見え、URLに ?tab= が付く",
     B134: "戻るボタンで前のタブに戻り、?tab= 付きのURLを直接開くとサーバーのHTMLの時点でそのタブになっている（画面の食い違いが出ない）",
@@ -3808,7 +3813,7 @@ for (const [id, label, path] of targets) {
 // ── グループ画面以外のボタンの高さ（デザイン刷新の段階6） ──
 // 段階5でグループ画面に入れた決まり（スマホ44px・PC36px）を他の画面にも広げた。画面を足したらここの一覧にも足す。
 // 提案の詳細はリアクションの欄が出るよう提案を自分で作り、写真を開いた表示（ライトボックス）は main の外なので別に開いて測る
-{
+if (block()) {
   const PAGES = [
     "/",
     "/albums",
@@ -3928,7 +3933,7 @@ for (const [id, label, path] of targets) {
 // ボタンを44pxの丸にしたら、アルバム詳細の見出しのボタン4つが1行に収まらず「削除」が画面の外に切れた。
 // ページ全体の横スクロール（B91）には出ない——レイアウトの内側の箱が横のはみ出しを抑えているため。
 // main の中の要素の右端が画面の幅を超えていないかを見る。横に送る作りの箱（overflow-x が auto など）の中は、意図したものなので除く
-{
+if (block()) {
   const PAGES = ["/", "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/groups", "/me",
     // 段階6b
     `/groups/${ids.groupId}/activity`, "/upload", "/settings/profile", "/settings/allowlist", "/settings/channel-mapping", "/groups/new", "/albums/new", "/albums/unclassified", "/search"];
@@ -3977,7 +3982,7 @@ for (const [id, label, path] of targets) {
 // 以前は画面ごとに1行の灰色の文だけだった。共通の部品（components/ui/EmptyState.tsx）に揃えたので、
 // 作ったばかりのグループで、アルバムとウィッシュリストのタブにその部品（見出し付き）が出ることを見る。
 // 前のスイートのデータに頼らないよう、グループは自分で作り、最後に同じ経路（API）で消す
-{
+if (block()) {
   const page = await context.newPage();
   let groupId = null;
   try {
@@ -4016,7 +4021,7 @@ for (const [id, label, path] of targets) {
 //       数字が折り返さず枠からはみ出さない。記録は管理者のAPIで足し、同じ経路で消す（1回は24時間まで → 5回で約120時間）
 // B144: 「新規アルバム」「ゲームを追加」「追加する」が同じ見た目（薄い青）で、「写真を投稿」（青の塗り）とも「メンバー」（灰）とも違う
 // B145: 「クリア済み」の絞り込みの札が、押す前と押した後で面の色も文字の色も変わる（以前は灰色のまま枠線が少し濃くなるだけだった）
-{
+if (block()) {
   const EXPECTED = {
     B143: "グループで遊んだ時間の帯の見出しが「グループで遊んだ時間」だけで、3桁時間でもスマホ幅・PC幅とも数字が1行に収まり枠からはみ出さない",
     B144: "グループ画面の「新規アルバム」「ゲームを追加」「追加する」が同じ薄い青の見た目で、「写真を投稿」とも「メンバー」とも違う",
@@ -4141,7 +4146,7 @@ for (const [id, label, path] of targets) {
 // ── ホームの「みんなの動き」の置き場所（2026-10-21 ユーザー判断: 最近の投稿の上、PCは左右に並べる） ──
 // 中身（自分のグループだけ・グループ名つき）は flows の F311。ここは並び：1440px で左が「みんなの動き」・右が「最近の投稿」で
 // 上端が揃い、390px では「みんなの動き」が上。どちらの幅でも横にはみ出さない
-{
+if (block()) {
   const page = await context.newPage();
   try {
     const boxes = () =>
@@ -4177,7 +4182,7 @@ for (const [id, label, path] of targets) {
 // アイコンのURLはDBにしか入れる口が無い（ログインの時に保存する）ので、ここだけ Prisma で用意して同じ経路で消す。
 // 画像は next/image の最適化（/_next/image）を通るので、そこを横取りして「読める」「404」を決め打ちにする
 // （手元は外へ出られず、CIは出られる。どちらでも同じ結果になるように）
-{
+if (block()) {
   const { PrismaClient } = await import("@prisma/client");
   const prisma = new PrismaClient();
   const page = await context.newPage();
@@ -4279,7 +4284,7 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
 
 // B148: refresh が毎回反映される。React の devtools の差し込み口で commit を数え、refresh のあと増えない回を数える。
 // 不具合は「数回に1回」なので12回流す（loading.tsx を戻したビルドでは 12回中2〜8回止まった）
-{
+if (block()) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.addCookies(await context.cookies());
   await ctx.addInitScript(() => {
@@ -4332,7 +4337,7 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
 
 // B149・B150: スマホで、待ち時間ごとに出し分ける。0.3秒までは何も出さず、0.3秒を超えたら進行バーとマーク、
 // 1秒を超えたら本文の場所に重ねて中央にマーク＋ロゴ。下のタブには重ねない。移り終えたら全部消える
-{
+if (block()) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.addCookies(await context.cookies());
   await ctx.addInitScript(NAV_RECORDER);
@@ -4393,7 +4398,7 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
 }
 
 // B151: PC では、中央の表示は左メニューの右から始まる（左メニューは押せるまま）。畳んだとき（幅72px）も合わせる
-{
+if (block()) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   await ctx.addCookies(await context.cookies());
   await delayNavigations(ctx, 2500);
@@ -4436,7 +4441,7 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
 }
 
 // B152: 動きを減らす設定の人には、板を動かさず光の明滅だけにする（候補 C に寄せる）
-{
+if (block()) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
   await ctx.addCookies(await context.cookies());
   await delayNavigations(ctx, 2500);
@@ -4473,7 +4478,7 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
 //
 // 縦の短い画面（390×480）で開き、パネルの上でホイールを回して下端・上端まで送り、そこにある部品が
 // **その位置に本当に居るか**（elementFromPoint）で見る。ほかの箱は今は短いが、メンバーや検索結果が増えれば同じことになるので全部見る
-{
+if (block()) {
   const MODAL_CASES = [
     [`/groups/${ids.groupId}`, "メンバー"],
     [`/albums/${ids.albumId}`, "メンバー"],
@@ -4551,7 +4556,7 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
 // 読み直す（lib/auth.ts）。**update() にはブラウザが好きな値を載せられる**ので、偽の色を送っても変わらないことも見る（B129 と同じ形）。
 // 色は CSS 変数なので、変数の値ではなく**実際に塗られた色**（「Staq」の文字・ロゴの板）で見る。
 // 他のテストの色を変えないよう一般メンバーで行い、最後にブルーへ戻す
-{
+if (block()) {
   const RED = "rgb(255, 122, 122)";
   const BLUE = "rgb(90, 176, 234)";
   // 背景（地の色）もテーマで色味が変わる（#144）。レッドは明るさそのままの暗い赤茶、ブルーは今のネイビー
@@ -4635,7 +4640,7 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
 // 上に見出し（閉じる・ゲーム名かアルバム名・何枚目か）、❤️・説明・撮影情報はスマホでは写真の下のシート、PC では写真の右の列。
 // **重ならないこと**を位置で見る（以前は❤️と説明の箱が写真の下側に重なっていた）。スマホの撮影情報はつまみで広げたときだけ出る。
 // PC の右の列は畳めて、畳んだ状態は開き直しても残る（最後に出す側へ戻して、ほかのテストに残さない）
-{
+if (block()) {
   const bad = [];
   const seen = [];
   const LB = '[data-testid="lightbox"]';
@@ -4731,7 +4736,7 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
 // B156: 「みんなでやりたい」（2026-10-30）。全員が「やりたい」を押したゲームはウィッシュリストのタブの上の「みんなでやりたい」に出て、
 // 「買った」を押すと数が進み、オーナーは押し忘れている人の分も付けられる。全員そろうと区画から消えて、ゲームのタブに「プレイ予定」で出る。
 // **提案は自分で作る**（seed の提案は flows が先に通している）。「買った」の札はスマホで 44px あるかも見る
-{
+if (block()) {
   const bad = [];
   const seen = [];
   const TITLE = `みんなでやりたいテスト${Date.now() % 100000}`;
@@ -4857,7 +4862,7 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
 // B157: 提案の取り下げ（2026-10-31。同じ色のボタンで押し間違えるという報告から）。ウィッシュリストのカードのゴミ箱は最初から赤で、
 // 押すと確認のダイアログが出る（「やめる」・Esc では消えない）。「取り下げる」で消える。提案の詳細ページの「この提案を取り下げる」も同じ。
 // ダイアログの2つのボタンはスマホで44px以上。**提案は自分で作り**、残ったものは同じ経路（API）で取り下げる
-{
+if (block()) {
   const bad = [];
   const seen = [];
   // **題名はお互いを含まないようにする。** 「…テスト1」と「…テスト1（詳細）」にしていたら、カードを題名で探したときに
@@ -4970,9 +4975,18 @@ const navLog = (events) => events.map((e) => `${e.key}${e.on ? "↑" : "↓"}${e
 }
 
 await browser.close();
-// **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
-// 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）
-writePageErrors("browser");
-const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
-console.table(rows.filter((r) => !r.ok));
-process.exitCode = summary.failed > 0 ? 1 : 0;
+block.done();
+if (FILTERED) {
+  // 一部だけの結果で全件の表を作り直さない（_only.mjs）
+  const failed = rows.filter((r) => !r.ok);
+  console.log(`\n[browser] 絞り込み: ${rows.length} 件 / NG ${failed.length} 件（results/browser.json は書かない）`);
+  console.table(failed);
+  process.exitCode = failed.length > 0 || rows.length === 0 ? 1 : 0;
+} else {
+  // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
+  // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）
+  writePageErrors("browser");
+  const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
+  console.table(rows.filter((r) => !r.ok));
+  process.exitCode = summary.failed > 0 ? 1 : 0;
+}

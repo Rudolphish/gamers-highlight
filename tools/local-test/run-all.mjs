@@ -44,8 +44,14 @@ const outcomes = {
   browser: run("browser.mjs", env),
 };
 
-// 4) 表を作り直す
-run("build-report.mjs");
+// 4) 表を作り直す。ブラウザを絞り込んだとき（BROWSER_ONLY。_only.mjs）は作り直さない
+//    （一部だけの結果や前回の結果が混ざった表をコミットしないため）
+const filtered = (process.env.BROWSER_ONLY ?? "").trim() !== "";
+if (filtered) {
+  console.log(`\nBROWSER_ONLY=${process.env.BROWSER_ONLY} で絞り込んだので docs/test-results.md は作り直さない`);
+} else {
+  run("build-report.mjs");
+}
 
 const failed = Object.entries(outcomes).filter(([, ok]) => !ok);
 console.log("\n══════ まとめ ══════");
@@ -53,6 +59,6 @@ for (const [name, ok] of Object.entries(outcomes)) {
   console.log(`  ${ok ? "OK" : "NG"}  ${name}`);
 }
 if (failed.length > 0) {
-  console.log("\nNGの詳細は docs/test-results.md を見る");
+  console.log(filtered ? "\nNGの詳細は上の各スイートの出力を見る" : "\nNGの詳細は docs/test-results.md を見る");
   process.exitCode = 1;
 }
