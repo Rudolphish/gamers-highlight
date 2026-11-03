@@ -13,7 +13,10 @@ Vercelにも本番にも一切影響しない。外部サービスをスタブ�
 
 - `checks` … 型チェックと `audit-invalidation.mjs` / `audit-activity-log.mjs` / `audit-media-limits.mjs` / `audit-cover-policy.mjs`。サーバー不要なので数分で終わる
 - `integration` … Postgres 16 を立てて本番ビルドを起動し、
-  `sweep` / `api-sweep` / `flows` / `external-failure` / `browser`（**5スイート全部**）
+  `sweep` / `api-sweep` / `flows` / `external-failure` / `query-budget` / `browser` を流す。
+  **2本（`（1/2）`・`（2/2）`）に分けて並べて流す。** 分けるのはブラウザの区画だけ（`BROWSER_SHARD`、`_only.mjs`）で、
+  ほかのスイートは両方で全部流す。成果物も `test-results-1` / `test-results-2` に分かれる
+- `integration-result` … 2本とも通ったかをまとめる。確認の名前「ローカル総合テスト」はこちらに残してある
 
 **`run-all.mjs` はCIでは使っていない**が、理由は「まとめて流すと落ちた場所が分かりにくい」だけで、
 スイートごとにステップを分けてある（Actionsの画面でどれがNGかを一目で見るため）。

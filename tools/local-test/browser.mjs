@@ -4,7 +4,7 @@ import { encode } from "next-auth/jwt";
 import { writeResults } from "./_results.mjs";
 import { watchPageErrors, writePageErrors } from "./_pageerrors.mjs";
 import { fileURLToPath } from "node:url";
-import { FILTERED, wanted, makeBlockGate } from "./_only.mjs";
+import { FILTERED, SHARD, makeBlockGate } from "./_only.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3000";
 const SECRET = process.env.NEXTAUTH_SECRET ?? "local-integration-test-secret";
@@ -192,7 +192,7 @@ await context.addCookies([
 const block = makeBlockGate(fileURLToPath(import.meta.url), targets.map(([id]) => id));
 
 const rows = [];
-for (const [id, label, path] of targets.filter(([id]) => wanted(id))) {
+for (const [id, label, path] of targets.filter(([id]) => block.outside(id))) {
   const page = await context.newPage();
   const problems = [];
   watchPageErrors(page, problems);
@@ -5051,7 +5051,9 @@ if (FILTERED) {
   // **スタックは表に入らないので別ファイルに残す。** 間欠的に出る例外は、
   // 次に出たときの材料が無いと追えない（`_pageerrors.mjs` のコメント参照）
   writePageErrors("browser");
-  const summary = writeResults("browser", "B: 実ブラウザでの描画", rows);
+  // CI で分けて流したときは、その分だけの結果になる（成果物が分かれているので混ざらない）
+  const summary = writeResults("browser", SHARD ? `B: 実ブラウザでの描画（${SHARD.index + 1}/${SHARD.total}）` : "B: 実ブラウザでの描画", rows);
   console.table(rows.filter((r) => !r.ok));
-  process.exitCode = summary.failed > 0 ? 1 : 0;
+  // 分けて流したのに1件も無いのは、振り分けがずれている（「0件・NG 0」で通さない）
+  process.exitCode = summary.failed > 0 || (SHARD && rows.length === 0) ? 1 : 0;
 }

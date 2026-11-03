@@ -14,12 +14,32 @@
 // - **1つも当たらなければ落とす**（打ち間違いで「0件・NG 0」になるのを防ぐ）
 // - 絞ったときは results/browser.json を書かない。全件の表（docs/test-results.md）が
 //   一部だけの結果で作り直されないように
+//
+// **CI はこれを使って2本に分けて流す（`BROWSER_SHARD=1/2`・`2/2`。2026-11-03 段階C）。**
+// 主要ページの確認（B01〜B19b）を1つ目、区画を2つ目以降として、順に交互に割り振る
+// （測った時間で 130秒 / 121秒 に分かれた）。分けた結果は CI の成果物ごとに results/browser.json に入る。
+// 各区画は単体で流しても通ることを確かめてある（区画ごとに1回ずつ、50回）
 import { readFileSync } from "node:fs";
 
 const RAW = (process.env.BROWSER_ONLY ?? "").trim();
+const SHARD_RAW = (process.env.BROWSER_SHARD ?? "").trim();
 
-/** 絞り込み中か */
+/** 絞り込み中か（BROWSER_ONLY） */
 export const FILTERED = RAW !== "";
+
+/** CI で分けて流しているとき { index: 0始まり, total }。分けていなければ null */
+export const SHARD = (() => {
+  if (!SHARD_RAW) return null;
+  const m = /^(\d+)\/(\d+)$/.exec(SHARD_RAW);
+  if (!m || Number(m[1]) < 1 || Number(m[1]) > Number(m[2])) {
+    throw new Error(`BROWSER_SHARD の書き方が違います: ${SHARD_RAW}（例: 1/2）`);
+  }
+  if (FILTERED) throw new Error("BROWSER_ONLY と BROWSER_SHARD は一緒に使えません");
+  return { index: Number(m[1]) - 1, total: Number(m[2]) };
+})();
+
+/** 区画の外（主要ページの確認）を「0番目」、区画 i を「i+1 番目」として、この分け方で流すか */
+const inShard = (unit) => !SHARD || unit % SHARD.total === SHARD.index;
 
 /** "B157" → [157, ""]、"B19b" → [19, "b"] */
 function parseId(id) {
@@ -83,12 +103,19 @@ export function makeBlockGate(sourcePath, outsideIds = []) {
     }
     console.log(`[browser] 絞り込み ${RAW}: ${blocks.length} 区画のうち ${hit.length} 区画を流す（${hit.map((b) => b.ids.join("/")).join("、")}）`);
   }
+  if (SHARD) {
+    const mine = blocks.filter((_, i) => inShard(i + 1)).length;
+    console.log(`[browser] 分割 ${SHARD.index + 1}/${SHARD.total}: ${blocks.length} 区画のうち ${mine} 区画${inShard(0) ? "と主要ページ" : ""}を流す`);
+  }
   let index = 0;
   const gate = () => {
-    const b = blocks[index++];
+    const i = index++;
+    const b = blocks[i];
     if (!b) throw new Error("block() の呼び出しが区画の数より多い（行頭の `if (block()) {` 以外で呼んでいないか）");
-    return !FILTERED || b.ids.some(wanted);
+    return inShard(i + 1) && (!FILTERED || b.ids.some(wanted));
   };
+  /** 区画の外の ID（主要ページの確認）を流すか */
+  gate.outside = (id) => inShard(0) && wanted(id);
   gate.done = () => {
     if (index !== blocks.length) throw new Error(`block() が ${index} 回しか呼ばれていない（区画は ${blocks.length}）`);
   };

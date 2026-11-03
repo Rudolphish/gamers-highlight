@@ -89,9 +89,18 @@ jobs:
         run: node tools/local-test/audit-activity-log.mjs
 
   # ── 本番ビルドを立てて通しで確認する ──
+  # **ブラウザ（B）は2本に分けて並べて流す**（2026-11-03 テストの時間の見直し・段階C）。ジョブ全体の8割がブラウザで、
+  # 1本だと5分前後かかっていた。分けるのはブラウザの区画だけで、P・R・F・X・Q は両方で全部流す
+  # （B がそれらの作ったデータに頼っているため）。分け方は tools/local-test/_only.mjs の BROWSER_SHARD。
+  # 公開リポジトリなので、ジョブを増やしても Actions の費用はかからない
   integration:
-    name: ローカル総合テスト
+    name: ローカル総合テスト（${{ matrix.shard }}/2）
     runs-on: ubuntu-latest
+    strategy:
+      # 片方が落ちても、もう片方は最後まで流す（どこが落ちたかを1回で全部見るため）
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
 
     services:
       postgres:
@@ -305,6 +314,8 @@ jobs:
       # localStorageへの保存など——は素通りする）。
       - name: B 実ブラウザでの描画
         if: steps.changes.outputs.code == 'true'
+        env:
+          BROWSER_SHARD: ${{ matrix.shard }}/2
         run: node tools/local-test/browser.mjs
 
       # 落ちたときに「どの項目がどうNGだったか」を持ち帰れるようにする。
@@ -317,9 +328,24 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-${{ matrix.shard }}
           path: |
             tools/local-test/results/
             ci-logs/
           if-no-files-found: warn
           retention-days: 7
+
+  # ── 2本の結果を1つの確認にまとめる ──
+  # 分ける前の確認の名前（「ローカル総合テスト」）をここで残す。分けたジョブの名前は「（1/2）」付きになるので、
+  # この名前を必須の確認に指定していると、分けたジョブだけでは「待ち」のまま止まる
+  integration-result:
+    name: ローカル総合テスト
+    needs: integration
+    # 片方が落ちても走らせる（落ちたことをこの名前で出すため）。新しい push で打ち切られた回は走らせない
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 2本とも通ったか
+        run: |
+          echo "分けたジョブの結果: ${{ needs.integration.result }}"
+          [ "${{ needs.integration.result }}" = "success" ]
