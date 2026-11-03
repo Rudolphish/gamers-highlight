@@ -341,7 +341,8 @@ jobs:
   integration-result:
     name: ローカル総合テスト
     needs: integration
-    if: always()
+    # 片方が落ちても走らせる（落ちたことをこの名前で出すため）。新しい push で打ち切られた回は走らせない
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: 2本とも通ったか

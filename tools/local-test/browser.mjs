@@ -5054,5 +5054,6 @@ if (FILTERED) {
   // CI で分けて流したときは、その分だけの結果になる（成果物が分かれているので混ざらない）
   const summary = writeResults("browser", SHARD ? `B: 実ブラウザでの描画（${SHARD.index + 1}/${SHARD.total}）` : "B: 実ブラウザでの描画", rows);
   console.table(rows.filter((r) => !r.ok));
-  process.exitCode = summary.failed > 0 ? 1 : 0;
+  // 分けて流したのに1件も無いのは、振り分けがずれている（「0件・NG 0」で通さない）
+  process.exitCode = summary.failed > 0 || (SHARD && rows.length === 0) ? 1 : 0;
 }
