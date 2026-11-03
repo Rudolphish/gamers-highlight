@@ -46,9 +46,10 @@ const outcomes = {
 
 // 4) 表を作り直す。ブラウザを絞り込んだとき（BROWSER_ONLY。_only.mjs）は作り直さない
 //    （一部だけの結果や前回の結果が混ざった表をコミットしないため）
-const filtered = (process.env.BROWSER_ONLY ?? "").trim() !== "";
+//    CI と同じく分けて流したとき（BROWSER_SHARD）も同じ
+const filtered = (process.env.BROWSER_ONLY ?? "").trim() !== "" || (process.env.BROWSER_SHARD ?? "").trim() !== "";
 if (filtered) {
-  console.log(`\nBROWSER_ONLY=${process.env.BROWSER_ONLY} で絞り込んだので docs/test-results.md は作り直さない`);
+  console.log(`\nブラウザを絞り込んだ・分けたので docs/test-results.md は作り直さない`);
 } else {
   run("build-report.mjs");
 }
