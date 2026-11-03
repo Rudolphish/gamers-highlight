@@ -835,7 +835,12 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
   for (const n of PATCH_NOTES) {
     const embed = buildReleaseEmbed(n, "https://example.com/");
     try {
-      const json = new EmbedBuilder(embed).toJSON();
+      // **検査は設定の関数（setTitle・addFields など）の中で走る。** `new EmbedBuilder(embed)` とまとめて渡すと何も検査されず、
+      // 1欄を1100字にしても通った（壊し確認で分かった）ので、1項目ずつ設定し直す
+      const b = new EmbedBuilder().setTitle(embed.title).setColor(embed.color ?? null).addFields(...(embed.fields ?? []));
+      if (embed.url) b.setURL(embed.url);
+      if (embed.footer) b.setFooter(embed.footer);
+      const json = b.toJSON();
       if (embedLength(json) > 6000) over.push(`v${n.version}: 合計 ${embedLength(json)} 文字`);
     } catch (e) {
       over.push(`v${n.version}: ${String((e as Error)?.message ?? e).slice(0, 120)}`);
