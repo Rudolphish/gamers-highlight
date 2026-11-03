@@ -87,6 +87,8 @@ const targets = [
   ["B18", "管理・メディア一覧", "/admin/media"],
   ["B19", "管理・エラー", "/admin/errors"],
   ["B19b", "管理・活動カレンダー", "/admin/activity"],
+  ["B19c", "更新履歴", "/updates"],
+  ["B19d", "管理・更新のお知らせ", "/admin/release-notes"],
 ];
 
 // ── ページを開いて、操作してよい状態まで待つ（2026-11-03 テストの時間の見直し・段階B） ──
@@ -1106,6 +1108,7 @@ if (block()) {
     "週に一度のまとめ",
     "アプデ待ちのゲームに更新が来たとき",
     "プレイ記録の開始と終了",
+    "アプリの更新のお知らせ",
   ];
   const shown = [];
   for (const l of labels) shown.push(await page.getByText(l, { exact: true }).count());
@@ -3368,7 +3371,7 @@ if (block()) {
 // 除くもの: 写真・グラデーションの上の文字（背景の色を測れない）、押せない状態（半透明）の部品、見えない文字。
 // 管理画面（/admin）は刷新の対象外なので見ない
 if (block()) {
-  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
+  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/updates", "/upload", "/settings/profile", "/me"];
   const small = [];
   const low = [];
   let checked = 0;
@@ -3474,7 +3477,7 @@ if (block()) {
 // 実際に描かれた文字で、「日本語の文が等幅で描かれている所」と「本文に出ている絵文字」を数える。
 // 使い方の説明ページは文章の中で絵文字に触れるので、絵文字の数からは外す（等幅は見る）
 if (block()) {
-  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/upload", "/settings/profile", "/me"];
+  const PAGES = ["/", `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}/activity`, "/manual", "/updates", "/upload", "/settings/profile", "/me"];
   const monoJa = [];
   const emoji = [];
   let checked = 0;
@@ -3901,6 +3904,8 @@ if (block()) {
     `/groups/${ids.groupId}/albums/new`,
     "/albums/unclassified",
     "/search",
+    "/updates",
+    "/admin/release-notes",
   ];
   // 重ねて出す箱。開くボタンを押してから、箱（div.fixed.inset-0.z-50）の中を測る
   const MODALS = [
@@ -3979,7 +3984,7 @@ if (block()) {
     }
     rows.push({
       id: "B139",
-      item: "グループ画面以外の主な画面（17画面）と重ねて出す箱（6種類・写真を開いたところ）のボタンと入力欄が、スマホ幅で44px以上・PC幅で36px以上ある",
+      item: `グループ画面以外の主な画面（${PAGES.length}画面）と重ねて出す箱（6種類・写真を開いたところ）のボタンと入力欄が、スマホ幅で44px以上・PC幅で36px以上ある`,
       expected: "足りない部品 0件",
       actual: `${short.length}件 / 測った部品 ${measured}個`,
       ok: short.length === 0 && measured > 40,
@@ -4004,7 +4009,7 @@ if (block()) {
 if (block()) {
   const PAGES = ["/", "/albums", `/albums/${ids.albumId}`, `/groups/${ids.groupId}`, `/groups/${ids.groupId}?tab=albums`, `/groups/${ids.groupId}?tab=games`, `/groups/${ids.groupId}?tab=wishlist`, `/groups/${ids.groupId}/settings`, `/groups/${ids.groupId}/games/${ids.gameId}`, "/groups", "/me",
     // 段階6b
-    `/groups/${ids.groupId}/activity`, "/upload", "/settings/profile", "/settings/allowlist", "/settings/channel-mapping", "/groups/new", "/albums/new", "/albums/unclassified", "/search"];
+    `/groups/${ids.groupId}/activity`, "/upload", "/settings/profile", "/settings/allowlist", "/settings/channel-mapping", "/groups/new", "/albums/new", "/albums/unclassified", "/search", "/updates"];
   const over = [];
   try {
     await forEachPage(context, PAGES, async (page, path) => {

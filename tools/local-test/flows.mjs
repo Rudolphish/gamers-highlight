@@ -3963,6 +3963,95 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── パッチノート（2026-11-03。content/patchNotes.ts・lib/releaseNotes.ts） ──
+// 「更新履歴」のページに全部の版が出る。管理画面から、通知の種類 RELEASE_NOTES の送り先があるグループへ埋め込みで送る。
+// 送れたグループだけを記録するので、二度押しても二重に送らず、失敗したグループはもう一度押すとそこだけ送る
+{
+  const fs = await import("node:fs");
+  const DISCORD_LOG = "/tmp/stub-discord.log";
+  const FAIL = "/tmp/stub-discord-fail";
+  const lines = () => (fs.existsSync(DISCORD_LOG) ? fs.readFileSync(DISCORD_LOG, "utf8").split("\n").filter(Boolean) : []);
+  const embedsSince = (mark) =>
+    lines()
+      .slice(mark)
+      .map((l) => JSON.parse(l))
+      .filter((l) => l.method === "POST" && /\/messages$/.test(l.url))
+      .map((l) => ({ url: l.url, embed: JSON.parse(l.body ?? "{}").embeds?.[0] ?? null }))
+      .filter((p) => p.embed);
+  const setTarget = (channelId) =>
+    api(`/api/groups/${group.id}/notifications`, { method: "PATCH", cookie: adminCookie, body: { kind: "RELEASE_NOTES", channelId } });
+  const send = (cookie, version) => api("/api/admin/release-notes", { method: "POST", cookie, body: { version } });
+  // 前の回の送った記録を消してから始める（AppSetting はキャッシュを通らないので DB で消してよい）
+  // 今の版はページから読む（flows は素の node なので content/patchNotes.ts を読めない）
+  const version = (await api("/updates", { cookie: memberCookie })).text.match(/いまの版は v([\d.]+)/)?.[1] ?? "unknown";
+  await db.appSetting.deleteMany({ where: { key: `releaseNoteSent:${version}` } });
+  try {
+    const page = await api("/updates", { cookie: memberCookie });
+    const shown = (page.text.match(/data-testid="patch-note"/g) ?? []).length;
+    const anon = await api("/updates");
+    check(
+      "F344 「更新履歴」のページに今の版から v1.0.0 まで全部が出て、ログインしていないと見られない",
+      page.status === 200 && page.text.includes(`v${version}`) && page.text.includes("v1.0.0") && shown >= 17 && anon.status !== 200,
+      `${page.status} 版=${version} 件数=${shown} 未ログイン=${anon.status}`
+    );
+
+    const byMember = await send(memberCookie, version);
+    const adminPageByMember = await api("/admin/release-notes", { cookie: memberCookie });
+    const unknown = await send(adminCookie, "0.0.0");
+    check(
+      "F345 パッチノートを送れるのは管理者だけで、無い版は 400",
+      byMember.status === 403 && unknown.status === 400 && !adminPageByMember.text.includes("グループごとの送り先"),
+      `member=${byMember.status} 無い版=${unknown.status}`
+    );
+
+    // 送り先が無いと送らない
+    await setTarget("");
+    let mark = lines().length;
+    const none = await send(adminCookie, version);
+    const noneSent = embedsSince(mark).length;
+
+    // 送り先を決めて送る → 埋め込みで1回だけ。もう一度押しても送らない
+    await setTarget("900000000000000011");
+    mark = lines().length;
+    const first = await send(adminCookie, version);
+    const posted = embedsSince(mark);
+    const embed = posted[0]?.embed;
+    const second = await send(adminCookie, version);
+    const afterSecond = embedsSince(mark).length;
+    const adminPage = await api("/admin/release-notes", { cookie: adminCookie });
+    check(
+      "F346 送り先が無いグループには送らず、あるグループへは埋め込み（題名に版・区分ごとの欄・更新履歴へのリンク）で1回だけ送る。二度押しても二重に送らない",
+      none.status === 200 && noneSent === 0 && first.json?.sent >= 1 && posted.length === 1 &&
+        posted[0].url.includes("/channels/900000000000000011/") &&
+        embed?.title?.includes(`v${version}`) && (embed?.fields?.length ?? 0) >= 1 && /\/updates$/.test(embed?.url ?? "") &&
+        second.json?.sent === 0 && second.json?.already >= 1 && afterSecond === 1 && adminPage.text.includes("送信済み"),
+      { none: none.json, noneSent, first: first.json, posted: posted.length, title: embed?.title, url: embed?.url, second: second.json, afterSecond }
+    );
+
+    // 送れなかったグループは記録せず、もう一度押すとそこだけ送る
+    await db.appSetting.deleteMany({ where: { key: `releaseNoteSent:${version}` } });
+    fs.writeFileSync(FAIL, "900000000000000011");
+    mark = lines().length;
+    const failed = await send(adminCookie, version);
+    const failPage = await api("/admin/release-notes", { cookie: adminCookie });
+    fs.rmSync(FAIL, { force: true });
+    const retry = await send(adminCookie, version);
+    const retried = embedsSince(mark).length;
+    check(
+      "F347 Discord への送信に失敗したグループは送信済みにならず、もう一度押すとそこだけ送り直す",
+      failed.status === 200 && failed.json?.failed >= 1 && failed.json?.sent === 0 && failPage.text.includes("未送信") &&
+        retry.json?.sent >= 1 && retry.json?.failed === 0 && retried === 1,
+      { failed: failed.json, retry: retry.json, retried }
+    );
+  } catch (e) {
+    check("F344x パッチノートの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    fs.rmSync(FAIL, { force: true });
+    await setTarget("").catch(() => {});
+    await db.appSetting.deleteMany({ where: { key: `releaseNoteSent:${version}` } }).catch(() => {});
+  }
+}
+
 // ── プレイ記録の最少人数（管理者だけがテスト用に1人へ切り替えられる） ──
 {
   const internal = { "x-internal-secret": INTERNAL_SECRET };

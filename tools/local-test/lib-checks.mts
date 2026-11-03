@@ -23,6 +23,9 @@ import { parseSteamStoreLow } from "../../apps/web/src/lib/itad";
 import { THEME_COLORS, backgroundShades, themeCssDeclarations, themeShades } from "../../apps/web/src/lib/themeColors";
 import { readFileSync } from "node:fs";
 import { nodeVersionStatus } from "../../apps/web/src/lib/nodeRuntime";
+import { PATCH_NOTES, CURRENT_VERSION } from "../../apps/web/src/content/patchNotes";
+import { buildReleaseEmbed } from "../../apps/web/src/lib/releaseNotes";
+import { EmbedBuilder, embedLength } from "@discordjs/builders";
 
 type Row = { id: string; item: string; ok: boolean; detail: string };
 const rows: Row[] = [];
@@ -795,6 +798,51 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
   ];
   const wrong = cases.map(([v, want]) => [v, want, nodeVersionStatus(v).state]).filter(([, want, got]) => want !== got);
   check("F316", "Node.js の版の判定: 系統ごとの修正版より古ければ「修正前」、同じか新しければ「修正済み」、表に無い系統や読めない版は「判定できない」", wrong.length === 0, wrong);
+}
+
+// ── パッチノート（content/patchNotes.ts）の形と、Discord の埋め込みの上限 ──
+// 書き足すのは手作業なので、版の並び・package.json との食い違い・埋め込みの上限超えをここで止める。
+// 上限は Discord の資料を開けなかったため（開発環境から繋がらない）、Bot が使っている @discordjs/builders の
+// 検査（題名・欄の名前 256・欄の中身 1024・欄 25 個・色 0〜16777215）にそのまま通す。合計 6000 はその embedLength で数える
+{
+  const semver = (v: string) => v.split(".").map(Number);
+  const cmp = (a: string, b: string) => {
+    const [x, y] = [semver(a), semver(b)];
+    for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i];
+    return 0;
+  };
+  const bad: string[] = [];
+  PATCH_NOTES.forEach((n, i) => {
+    if (!/^\d+\.\d+\.\d+$/.test(n.version)) bad.push(`${n.version}: 版の書き方`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(n.date)) bad.push(`${n.version}: 日付の書き方`);
+    if (n.added.length + n.changed.length + n.fixed.length === 0) bad.push(`${n.version}: 中身が空`);
+    const next = PATCH_NOTES[i + 1];
+    if (next && cmp(n.version, next.version) <= 0) bad.push(`${n.version} の次が ${next.version}（新しい順になっていない）`);
+    if (next && n.date < next.date) bad.push(`${n.version} の日付 ${n.date} が次の ${next.date} より古い`);
+  });
+  const pkgs = ["package.json", "apps/web/package.json", "apps/bot/package.json", "packages/db/package.json"].map(
+    (f) => [f, JSON.parse(readFileSync(f, "utf8")).version] as const
+  );
+  for (const [f, v] of pkgs) if (v !== CURRENT_VERSION) bad.push(`${f} の version が ${v}（パッチノートの先頭は ${CURRENT_VERSION}）`);
+  check(
+    "F342",
+    "パッチノートが新しい順に並び、版と日付の書き方が揃い、中身が空でなく、package.json（4つ）の version が先頭の版と同じ",
+    bad.length === 0,
+    bad
+  );
+
+  const over: string[] = [];
+  for (const n of PATCH_NOTES) {
+    const embed = buildReleaseEmbed(n, "https://example.com/");
+    try {
+      const json = new EmbedBuilder(embed).toJSON();
+      if (embedLength(json) > 6000) over.push(`v${n.version}: 合計 ${embedLength(json)} 文字`);
+    } catch (e) {
+      over.push(`v${n.version}: ${String((e as Error)?.message ?? e).slice(0, 120)}`);
+    }
+    if (embed.url !== "https://example.com/updates") over.push(`v${n.version}: リンクが ${embed.url}`);
+  }
+  check("F343", "どの版のパッチノートも、Discord の埋め込みの上限に収まり、題名が「更新履歴」のページへのリンクになる", over.length === 0, over);
 }
 
 await db.$disconnect();

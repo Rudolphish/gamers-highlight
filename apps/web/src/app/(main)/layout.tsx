@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { BottomTabs } from "@/components/layout/BottomTabs";
 import { RouteLoading } from "@/components/layout/RouteLoading";
 import { LiveBrandMark } from "@/components/brand/BrandMark";
+import { CURRENT_VERSION } from "@/content/patchNotes";
 import { SIDEBAR_COLLAPSED, SIDEBAR_COOKIE } from "@/components/layout/sidebarState";
 
 // 骨組み（2026-10 のデザイン刷新）: PC（768px以上）は左の名前付きメニュー、スマホは下のタブ。上のヘッダーは無い。
@@ -63,7 +64,8 @@ export default async function MainLayout({ children }: { children: React.ReactNo
         </div>
         <div className="flex-1">{children}</div>
         <footer className="border-t border-steam-border px-4 py-3 text-center text-3xs text-steam-muted sm:px-6">
-          © {new Date().getFullYear()} ShareStaq
+          © {new Date().getFullYear()} ShareStaq ·{" "}
+          <Link href="/updates" className="hover:text-steam-text">{`v${CURRENT_VERSION} 更新履歴`}</Link>
         </footer>
       </div>
       <BottomTabs />

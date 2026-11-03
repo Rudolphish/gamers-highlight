@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  History,
   Film,
   Home,
   Link2,
@@ -73,6 +74,7 @@ export function getMeSections(isAdmin: boolean | undefined): MeSection[] {
       items: [
         { href: "/search", label: "写真を探す", icon: Search },
         { href: "/manual", label: "使い方", icon: BookOpen },
+        { href: "/updates", label: "更新履歴", icon: History },
       ],
     },
   ];

@@ -200,6 +200,8 @@ enum GroupNotificationKind {
   PLAY_LOG
   /// アプデ待ちのゲームに更新（パッチノート）が来た（lib/gameUpdates.ts）
   GAME_UPDATE
+  /// ShareStaq 自体の更新のお知らせ（パッチノート。content/patchNotes.ts・lib/releaseNotes.ts）
+  RELEASE_NOTES
 }
 
 // Steam/YouTube/HowLongToBeatへの外部問い合わせ結果をsteamAppId単位でキャッシュする。
