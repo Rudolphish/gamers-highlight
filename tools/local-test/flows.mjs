@@ -4025,7 +4025,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
         posted[0].url.includes("/channels/900000000000000011/") &&
         embed?.title?.includes(`v${version}`) && (embed?.fields?.length ?? 0) >= 1 && /\/updates$/.test(embed?.url ?? "") &&
         second.json?.sent === 0 && second.json?.already >= 1 && afterSecond === 1 && adminPage.text.includes("送信済み"),
-      { none: none.json, noneSent, first: first.json, posted: posted.length, title: embed?.title, url: embed?.url, second: second.json, afterSecond }
+JSON.stringify({ none: none.json, noneSent, first: first.json, posted: posted.length, title: embed?.title, url: embed?.url, second: second.json, afterSecond })
     );
 
     // 送れなかったグループは記録せず、もう一度押すとそこだけ送る
@@ -4041,7 +4041,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       "F347 Discord への送信に失敗したグループは送信済みにならず、もう一度押すとそこだけ送り直す",
       failed.status === 200 && failed.json?.failed >= 1 && failed.json?.sent === 0 && failPage.text.includes("未送信") &&
         retry.json?.sent >= 1 && retry.json?.failed === 0 && retried === 1,
-      { failed: failed.json, retry: retry.json, retried }
+JSON.stringify({ failed: failed.json, retry: retry.json, retried })
     );
   } catch (e) {
     check("F344x パッチノートの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
