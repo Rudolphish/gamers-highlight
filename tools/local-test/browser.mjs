@@ -1106,7 +1106,7 @@ if (block()) {
     "ゲームの提案と、全員が買ったとき",
     "ウィッシュリストが最安値を更新したとき",
     "週に一度のまとめ",
-    "アプデ待ちのゲームに更新が来たとき",
+    "ゲームに更新が来たとき",
     "プレイ記録の開始と終了",
     "アプリの更新のお知らせ",
   ];
@@ -5041,6 +5041,64 @@ if (block()) {
       await page.evaluate(([gid, pid]) => fetch(`/api/groups/${gid}/proposals/${pid}`, { method: "DELETE" }), [ids.groupId, id]).catch(() => {});
     }
     await page.close();
+  }
+}
+
+// ── グループ画面の「アプデ情報」は、スマホは「ようす」タブ、PC（1280px以上）は右の列に出る（2026-11-04 ユーザー判断） ──
+// パッチノートは毎朝の確認でしか入らないので、ここだけ Prisma でクリア済み以外のゲームの分を1件入れて、終わったら消す
+// （GamePatchNote はキャッシュを通らない。ページは毎回読む）
+if (block()) {
+  const { PrismaClient } = await import("@prisma/client");
+  const prisma = new PrismaClient();
+  const tag = randomUUID().slice(0, 6);
+  const title = `ブラウザ確認のパッチ ${tag}`;
+  let noteId = null;
+  const seen = [];
+  const bad = [];
+  try {
+    const game = await prisma.groupGame.findFirst({ where: { groupId: ids.groupId, status: { not: "COMPLETED" } }, select: { steamAppId: true } });
+    if (!game) throw new Error("クリア済み以外のゲームがシードに無い");
+    noteId = (
+      await prisma.gamePatchNote.create({
+        data: { steamAppId: game.steamAppId, gid: `b158-${tag}`, title, url: "https://store.steampowered.com/news/app/1/view/b158", publishedAt: new Date() },
+      })
+    ).id;
+    for (const [w, h] of [[390, 844], [1280, 800]]) {
+      const ctx = await browser.newContext({ viewport: { width: w, height: h } });
+      await ctx.addCookies(await context.cookies());
+      const p = await ctx.newPage();
+      try {
+        await gotoSettled(p, `${BASE}/groups/${ids.groupId}`);
+        const feed = p.locator('[data-testid="game-update-feed"]');
+        const visible = await feed.isVisible();
+        const box = await feed.boundingBox();
+        const hasItem = (await feed.getByText(title).count()) === 1;
+        seen.push(`${w}px: ${visible ? "見える" : "見えない"} x=${Math.round(box?.x ?? -1)} 項目=${hasItem}`);
+        if (!visible || !hasItem) bad.push(`${w}px で出ていない`);
+        // PC は右の列（幅340px）。左端が画面の半分より右にあること
+        if (w === 1280 && !(box && box.x > w / 2)) bad.push("PC で右の列に無い");
+        // スマホは「ようす」タブ。ほかのタブでは隠れる
+        if (w === 390) {
+          await gotoSettled(p, `${BASE}/groups/${ids.groupId}?tab=games`);
+          if (await p.locator('[data-testid="game-update-feed"]').isVisible()) bad.push("スマホのゲームタブでも見えている");
+        }
+      } finally {
+        await ctx.close();
+      }
+    }
+    rows.push({
+      id: "B158",
+      item: "グループ画面の「アプデ情報」が、スマホは「ようす」タブに、PC（1280px）は右の列に出る",
+      expected: "崩れ 0件",
+      actual: `${bad.length ? bad.join(" / ") : "崩れなし"}（${seen.join(" ／ ")}）`,
+      ok: bad.length === 0,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B158", item: "アプデ情報の置き場所", expected: "-", actual: "未確認", ok: false, note: `途中で中断（${seen.join(" ／ ")}）: ${String(e.message ?? e).slice(0, 120)}` });
+  } finally {
+    if (noteId) await prisma.gamePatchNote.delete({ where: { id: noteId } }).catch(() => {});
+    await prisma.$disconnect();
   }
 }
 
