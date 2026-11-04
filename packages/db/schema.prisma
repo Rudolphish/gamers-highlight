@@ -204,6 +204,24 @@ enum GroupNotificationKind {
   RELEASE_NOTES
 }
 
+/// Steam の公式のパッチノート（お知らせのうち patchnotes の印が付いたもの）。毎朝の確認（lib/gameUpdates.ts）で、
+/// 「クリア済み」以外のゲームについて拾ってためる。グループ画面の「アプデ情報」に出す（2026-11-04）。
+/// ゲーム（steamAppId）単位で持つので、同じゲームを複数のグループが持っていても1回分。90日より古いものは消す
+model GamePatchNote {
+  id          String   @id @default(cuid())
+  steamAppId  Int
+  /// Steam のお知らせの gid
+  gid         String
+  title       String
+  url         String?
+  publishedAt DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([steamAppId, gid])
+  @@index([steamAppId, publishedAt])
+  @@map("game_patch_notes")
+}
+
 // Steam/YouTube/HowLongToBeatへの外部問い合わせ結果をsteamAppId単位でキャッシュする。
 // GroupGameは元々グループ単位のレコードのため、複数グループが同じゲームを追加すると
 // これらの外部APIに毎回問い合わせが発生していた（特にYouTube search.listはクォータが厳しい）。
@@ -254,10 +272,11 @@ model GroupGame {
   lastKnownLowShop   String?
   lastPriceCheckedAt DateTime?
 
-  /// アプデ待ち（WAITING_UPDATE）の見張り（lib/gameUpdates.ts）。これより後に出たパッチノートだけを「更新」と数える。
-  /// アプデ待ちにした時刻を入れ、更新を見つけたらそのお知らせの日時へ進める。アプデ待ちから外したら null
+  /// 更新の見張り（lib/gameUpdates.ts）。これより後に出たパッチノートだけを「更新」と数えて通知する。
+  /// 2026-11-04 から「クリア済み」以外の全部を見張る（それまではアプデ待ちだけ）。見張り始めた時刻を入れ、
+  /// 更新を見つけたらそのお知らせの日時へ進める。クリア済みにしたら null
   updateWatchSince DateTime?
-  /// 見つけた更新（カードの「更新あり」）。状態を変えたら消す
+  /// 見つけた更新（カードの「更新あり」）。**アプデ待ちのゲームだけ**に入れる。状態を変えたら消す
   updateFoundAt    DateTime?
   updateNewsTitle  String?
   updateNewsUrl    String?

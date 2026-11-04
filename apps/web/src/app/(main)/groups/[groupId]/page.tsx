@@ -25,7 +25,8 @@ import { MemberFaces } from "@/components/group/MemberFaces";
 import { addButton, iconButton, primaryButton } from "@/components/ui/buttonStyles";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { agreeThreshold, requiredPurchasers } from "@/lib/proposalPromotion";
-import { updateFoundLabel } from "@/lib/gameUpdates";
+import { listRecentPatchNotes, updateFoundLabel } from "@/lib/gameUpdates";
+import { GameUpdateFeed } from "@/components/group/GameUpdateFeed";
 
 // サーバーから取る上限。**ここを超えた分はグループ画面から辿れなくなる**ので、
 // 数十件規模なら全部載る値にしておく（ゲーム1本につきアルバム1つ作られるため、
@@ -117,13 +118,18 @@ export default async function GroupDetailPage(props: { params: Promise<{ groupId
   // グループで遊んだ時間（帯とゲーム一覧）。**キャッシュに載せず毎回読む**（docs/play-log.md §13）。
   // 取れなくてもページは出す（帯と時間が出ないだけ）
   // 「最近の動き」（docs/play-log.md §11 の段階2）も同じく毎回読む。帯と並べて同時に引き、待ち時間を足さない
-  const [playTotals, recentDays] = await Promise.all([
+  // 「アプデ情報」（lib/gameUpdates.ts。毎朝ためるので、これも毎回読む）も一緒に引く
+  const [playTotals, recentDays, patchNotes] = await Promise.all([
     getGroupPlayTotals(group.id).catch((e) => {
       console.error("[group] プレイ時間の取得に失敗", e);
       return null;
     }),
     getRecentActivity(group.id).catch((e) => {
       console.error("[group] 最近の動きの取得に失敗", e);
+      return [];
+    }),
+    listRecentPatchNotes(group.games).catch((e) => {
+      console.error("[group] アプデ情報の取得に失敗", e);
       return [];
     }),
   ]);
@@ -246,6 +252,7 @@ export default async function GroupDetailPage(props: { params: Promise<{ groupId
           <EmptyState icon={Activity} title="まだ動きはありません" description="写真を投稿したり、みんなでゲームを遊んだりすると、ここに出ます。" />
         )
       )}
+      <GameUpdateFeed groupId={group.id} items={patchNotes} />
     </div>
   );
 

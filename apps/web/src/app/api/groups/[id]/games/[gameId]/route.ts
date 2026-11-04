@@ -36,14 +36,21 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string;
     select: { status: true },
   });
 
-  // アプデ待ちの見張り（lib/gameUpdates.ts）。**状態が変わったときだけ**触る（同じ状態で保存し直しても見張りの起点を動かさない）。
-  // アプデ待ちにした時刻より後のパッチノートだけを数えるので、入ったら起点を今にし、出たら見張りも「更新あり」も消す
+  // 更新の見張り（lib/gameUpdates.ts）。**状態が変わったときだけ**触る（同じ状態で保存し直しても見張りの起点を動かさない）。
+  // 2026-11-04 から「クリア済み」以外は全部見張る：
+  // - クリア済みにしたら見張りをやめる（起点も「更新あり」も消す）
+  // - アプデ待ちにしたら起点を今にする（アプデ待ちにした後のパッチノートで「更新あり」を出すため）
+  // - クリア済みから戻したら起点を今にする（クリア済みの間に出た古いお知らせで鳴らさない）
+  // - それ以外の付け替えは起点をそのままにする。「更新あり」はアプデ待ちだけのものなので消す
   const changed = before !== null && before.status !== parsed.data.status;
+  const clearFound = { updateFoundAt: null, updateNewsTitle: null, updateNewsUrl: null };
   const watch = !changed
     ? {}
-    : parsed.data.status === "WAITING_UPDATE"
-      ? { updateWatchSince: new Date(), updateFoundAt: null, updateNewsTitle: null, updateNewsUrl: null }
-      : { updateWatchSince: null, updateFoundAt: null, updateNewsTitle: null, updateNewsUrl: null };
+    : parsed.data.status === "COMPLETED"
+      ? { updateWatchSince: null, ...clearFound }
+      : parsed.data.status === "WAITING_UPDATE" || before.status === "COMPLETED"
+        ? { updateWatchSince: new Date(), ...clearFound }
+        : clearFound;
 
   const game = await db.groupGame.update({
     where: { id: params.gameId, groupId: params.id },
