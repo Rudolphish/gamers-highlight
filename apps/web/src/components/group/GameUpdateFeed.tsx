@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ExternalLink, Sparkles } from "lucide-react";
 import type { RecentPatchNote } from "@/lib/gameUpdates";
 
-/** 最初に出す件数。「もっと見る」で全部（2026-11-04 ユーザー判断） */
+/** 最初に出す件数。「もっと見る」で残り（最大50件。listRecentPatchNotes）も出す（2026-11-04 ユーザー判断） */
 const INITIAL = 5;
 
 /**

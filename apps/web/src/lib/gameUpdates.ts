@@ -196,19 +196,24 @@ export async function checkGameUpdates(now = new Date()): Promise<GameUpdateChec
     const patches = news.filter(isPatchNotes);
     result.patchNotes += patches.length;
     newsByApp.set(appId, news);
-    // 「アプデ情報」のためにためる。既にあるもの（gid が同じ）は飛ばす
+    // 「アプデ情報」のためにためる。既にあるもの（gid が同じ）は飛ばす。
+    // ためるのに失敗しても、通知の確認は続ける（1つのゲームの書き込みの失敗で、その日の確認全体を止めない）
     if (patches.length > 0) {
-      const { count } = await db.gamePatchNote.createMany({
-        data: patches.map((p) => ({
-          steamAppId: appId,
-          gid: p.gid,
-          title: p.title.slice(0, 300),
-          url: p.url || null,
-          publishedAt: new Date(p.date * 1000),
-        })),
-        skipDuplicates: true,
-      });
-      result.stored += count;
+      try {
+        const { count } = await db.gamePatchNote.createMany({
+          data: patches.map((p) => ({
+            steamAppId: appId,
+            gid: p.gid,
+            title: p.title.slice(0, 300),
+            url: p.url || null,
+            publishedAt: new Date(p.date * 1000),
+          })),
+          skipDuplicates: true,
+        });
+        result.stored += count;
+      } catch (e) {
+        console.error(`[update] app=${appId} のパッチノートをためられませんでした`, e);
+      }
     }
   });
   await db.gamePatchNote.deleteMany({ where: { publishedAt: { lt: new Date(now.getTime() - KEEP_MS) } } });
@@ -250,9 +255,10 @@ export async function checkGameUpdates(now = new Date()): Promise<GameUpdateChec
     for (const f of items) {
       const foundAt = new Date(f.latest.date * 1000);
       const waiting = f.status === "WAITING_UPDATE";
-      // 起点を条件に付けて書く（同じ日に2回走っても二重に記録しない）。その間にクリア済みにされていたら書かない
+      // 起点を条件に付けて書く（同じ日に2回走っても二重に記録しない）。その間にクリア済みにされていたら書かない。
+      // 「更新あり」を付けるのはアプデ待ちのままのときだけ（確認の間にプレイ中などへ変えられていたら書かない）
       const { count } = await db.groupGame.updateMany({
-        where: { id: f.id, status: WATCHED, updateWatchSince: f.since },
+        where: { id: f.id, status: waiting ? "WAITING_UPDATE" : WATCHED, updateWatchSince: f.since },
         data: {
           updateWatchSince: foundAt,
           ...(waiting
@@ -313,6 +319,7 @@ export async function listRecentPatchNotes(
   const notes = await db.gamePatchNote.findMany({
     where: { steamAppId: { in: [...gameOf.keys()] }, publishedAt: { gte: new Date(now.getTime() - days * 24 * 60 * 60 * 1000) } },
     orderBy: { publishedAt: "desc" },
+    // 「もっと見る」で出すのもここまで（30日で50件を超えることは今のグループでは無い）
     take: 50,
     select: { id: true, steamAppId: true, title: true, url: true, publishedAt: true },
   });
