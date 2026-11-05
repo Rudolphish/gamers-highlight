@@ -4091,7 +4091,8 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     );
 
     // Discord に送れなかった日も、積みゲーは送らないので進める。プレイ中は進めずに次の日に送る
-    const nowNews = Date.now();
+    // （プレイ中の起点は t0＝最初の起点の60秒後なので、それより後の日付にする。前なら数えられず、送る処理まで行かない）
+    const nowNews = Math.max(Date.now(), t0) + 10000;
     fs.writeFileSync(
       NEWS,
       JSON.stringify({
@@ -4109,12 +4110,26 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     const failRows = await db.groupGame.findMany({ where: { id: { in: [playingId, backlogId] } } });
     const failPlaying = failRows.find((g) => g.id === playingId);
     const failBacklog = failRows.find((g) => g.id === backlogId);
+    const failPosts = updatePosts(mark);
+    // 次の確認で、プレイ中の分だけを送って進める（プレイ中の更新が本当に数えられていたことの確かめにもなる）
+    mark = posts().length;
+    await cron();
+    const retryPosts = updatePosts(mark);
+    const retryPlaying = await db.groupGame.findUnique({ where: { id: playingId } });
     check(
-      "F355 Discordに送れなかった日も、積みゲーの「更新あり」と起点は進め、プレイ中は進めない",
+      "F355 Discordに送れなかった日も、積みゲーの「更新あり」と起点は進め、プレイ中は進めずに次の確認で送る",
       failPlaying.updateNewsTitle === "プレイ中のパッチ 1" && failPlaying.updateWatchSince?.getTime() === sec(t0) &&
         failBacklog.updateNewsTitle === "積みゲーのパッチ 9" && failBacklog.updateWatchSince?.getTime() === sec(nowNews) &&
-        updatePosts(mark).length === 0,
-      JSON.stringify({ playing: [failPlaying.updateNewsTitle, failPlaying.updateWatchSince], backlog: [failBacklog.updateNewsTitle, failBacklog.updateWatchSince], posts: updatePosts(mark) })
+        failPosts.length === 0 &&
+        retryPosts.length === 1 && retryPosts[0].includes("プレイ中のパッチ 7") && !retryPosts[0].includes("積みゲー") &&
+        retryPlaying.updateNewsTitle === "プレイ中のパッチ 7",
+      JSON.stringify({
+        playing: [failPlaying.updateNewsTitle, failPlaying.updateWatchSince],
+        backlog: [failBacklog.updateNewsTitle, failBacklog.updateWatchSince],
+        failPosts,
+        retryPosts,
+        retry: retryPlaying.updateNewsTitle,
+      })
     );
   } catch (e) {
     check("F334x アプデ待ちの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
