@@ -3811,9 +3811,10 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
-// ── アプデ待ちと更新の見張り（2026-11-03 アプデ待ち、2026-11-04 クリア済み以外へ。lib/gameUpdates.ts） ──
+// ── アプデ待ちと更新の見張り（2026-11-03 アプデ待ち、2026-11-04 クリア済み以外へ、11-05 ステータスで分けた。lib/gameUpdates.ts） ──
 // クリア済み以外のゲームに Steam の公式のパッチノートが出たら、日次cron（check-wishlist-prices に相乗り）が見つけて
-// 通知先（種類 GAME_UPDATE）へグループごとに1通で送り、「アプデ情報」にためる。カードの「更新あり」はアプデ待ちだけ。
+// 「アプデ情報」にためて、カードに「更新あり」（アプデ待ち以外は7日）を付ける。通知先（種類 GAME_UPDATE）へは
+// 積みゲーを除いてグループごとに1通で送る。
 // お知らせはスタブが /tmp/stub-steam-news.json から返す
 {
   const fs = await import("node:fs");
@@ -3831,7 +3832,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     api(`/api/groups/${group.id}/games/${id}`, { method: "PATCH", cookie: adminCookie, body: { status } });
   const news = (items) => fs.writeFileSync(NEWS, JSON.stringify({ [APP]: items }));
   // 前の回にためたパッチノートを消してから始める（GamePatchNote はキャッシュを通らないので DB で消してよい）
-  const TEST_APPS = [APP, 7900102, 7900103];
+  const TEST_APPS = [APP, 7900102, 7900103, 7900104];
   await db.gamePatchNote.deleteMany({ where: { steamAppId: { in: TEST_APPS } } });
   const item = (gid, title, date, tags) => ({
     gid,
@@ -3845,6 +3846,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   let gameId = null;
   let playingId = null;
   let completedId = null;
+  let backlogId = null;
   try {
     // 何もためていないうちは「最近のアプデはありません」
     const empty = await api(`/groups/${group.id}`, { cookie: adminCookie });
@@ -3944,7 +3946,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       JSON.stringify({ afterFail: afterFail.updateNewsTitle, afterRetry: afterRetry.updateNewsTitle, posts: updatePosts(mark), logged3 })
     );
 
-    // アプデ待ちから外すと「更新あり」は消えるが、クリア済み以外なら見張りは続く。クリア済みにすると見張りもやめる
+    // ステータスを変えると「更新あり」は消えるが、クリア済み以外なら見張りは続く。クリア済みにすると見張りもやめる
     const sinceBefore = (await db.groupGame.findUnique({ where: { id: gameId } })).updateWatchSince?.getTime();
     await setStatus(gameId, "WISHLIST");
     const left = await db.groupGame.findUnique({ where: { id: gameId } });
@@ -3952,7 +3954,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     await setStatus(gameId, "COMPLETED");
     const done = await db.groupGame.findUnique({ where: { id: gameId } });
     check(
-      "F340 アプデ待ちから外すと「更新あり」は消えるが見張りの起点は残り、クリア済みにすると起点も消える",
+      "F340 ステータスを変えると「更新あり」は消えるが見張りの起点は残り、クリア済みにすると起点も消える",
       left.updateWatchSince?.getTime() === sinceBefore && left.updateFoundAt === null && left.updateNewsTitle === null &&
         !groupPage2.text.includes("game-update-found") && done.updateWatchSince === null,
       JSON.stringify({ sinceBefore, since: left.updateWatchSince, foundAt: left.updateFoundAt, done: done.updateWatchSince })
@@ -3971,22 +3973,24 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     );
 
     // ── 2026-11-04：クリア済み以外の全部を見張り、グループごとに1通にまとめる ──
-    // 2本目（プレイ中）と3本目（クリア済み）を足し、1回走らせて起点を入れる
+    // 2本目（プレイ中）・3本目（クリア済み）・4本目（積みゲー）を足し、1回走らせて起点を入れる
     const addGame = async (app, title) =>
       (await api(`/api/groups/${group.id}/games`, { method: "POST", cookie: adminCookie, body: { steamAppId: app, title } })).json?.game?.id ?? null;
     playingId = await addGame(7900102, "更新見張りテスト（プレイ中）");
     completedId = await addGame(7900103, "更新見張りテスト（クリア済み）");
-    if (!playingId || !completedId) throw new Error("見張りのテスト用のゲームを足せなかった");
+    backlogId = await addGame(7900104, "更新見張りテスト（積みゲー）");
+    if (!playingId || !completedId || !backlogId) throw new Error("見張りのテスト用のゲームを足せなかった");
     await setStatus(playingId, "PLAYING");
     await setStatus(completedId, "COMPLETED");
+    await setStatus(backlogId, "BACKLOG");
     fs.writeFileSync(NEWS, JSON.stringify({}));
     await cron();
     const base = await db.groupGame.findMany({ where: { id: { in: [gameId, playingId, completedId] } } });
     const sinceOf = (id) => base.find((g) => g.id === id)?.updateWatchSince?.getTime() ?? 0;
-    const t0 = Math.max(sinceOf(gameId), sinceOf(playingId)) + 60000;
+    const t0 = Math.max(sinceOf(gameId), sinceOf(playingId), sinceOf(backlogId)) + 60000;
     const DAY = 86400000;
     const at = (app, gid, title, date) => ({ ...item(gid, title, date, ["patchnotes"]), url: `https://store.steampowered.com/news/app/${app}/view/${gid}` });
-    // アプデ待ち：1件、プレイ中：6件＋40日前＋100日前、クリア済み：1件
+    // アプデ待ち：1件、プレイ中：6件＋40日前＋100日前、クリア済み：1件、積みゲー：1件
     fs.writeFileSync(
       NEWS,
       JSON.stringify({
@@ -3997,23 +4001,34 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
           at(7900102, "old100", "100日前のパッチ", Date.now() - 100 * DAY),
         ],
         7900103: [at(7900103, "c1", "クリア済みのパッチ", t0)],
+        7900104: [at(7900104, "b1", "積みゲーのパッチ", t0 + 2000)],
       })
     );
     mark = posts().length;
     const runAll = await cron();
     const sentAll = updatePosts(mark);
-    const after = await db.groupGame.findMany({ where: { id: { in: [gameId, playingId] } } });
+    const after = await db.groupGame.findMany({ where: { id: { in: [gameId, playingId, backlogId] } } });
     const playingRow = after.find((g) => g.id === playingId);
     const waitingRow = after.find((g) => g.id === gameId);
-    const playingLogged = await db.activityLog.count({ where: { kind: "game.update_found", targetId: playingId } });
+    const backlogRow = after.find((g) => g.id === backlogId);
+    const loggedOf = (id) => db.activityLog.count({ where: { kind: "game.update_found", targetId: id } });
+    const playingLogged = await loggedOf(playingId);
+    const backlogLogged = await loggedOf(backlogId);
+    const sec = (t) => t - (t % 1000);
     check(
-      "F348 クリア済み以外は全部見張り、同じグループの更新は1通（本数・各ゲームの最新の題名・ほか何件・プレビューを出さないリンク）にまとめる。「更新あり」と活動の記録はアプデ待ちだけ",
+      "F348 クリア済み以外は全部見張り、同じグループの更新は1通（本数・各ゲームの最新の題名・ほか何件・プレビューを出さないリンク）にまとめる。「更新あり」と活動の記録もプレイ中に付く",
       runAll.status === 200 && sentAll.length === 1 &&
         sentAll[0].includes("（2本）") && sentAll[0].includes("更新見張りテスト（プレイ中）") && sentAll[0].includes("プレイ中のパッチ 1（ほか5件）") &&
         sentAll[0].includes("アプデ待ちの新しいパッチ") && sentAll[0].includes("<https://store.steampowered.com/news/app/7900102/view/g1>") &&
-        playingRow.updateFoundAt === null && playingRow.updateWatchSince?.getTime() === t0 - (t0 % 1000) &&
-        waitingRow.updateNewsTitle === "アプデ待ちの新しいパッチ" && playingLogged === 0,
-      JSON.stringify({ status: runAll.status, sentAll, playing: { found: playingRow.updateFoundAt, since: playingRow.updateWatchSince }, waiting: waitingRow.updateNewsTitle, playingLogged })
+        playingRow.updateNewsTitle === "プレイ中のパッチ 1" && playingRow.updateFoundAt?.getTime() === sec(t0) &&
+        playingRow.updateWatchSince?.getTime() === sec(t0) && waitingRow.updateNewsTitle === "アプデ待ちの新しいパッチ" && playingLogged === 1,
+      JSON.stringify({ status: runAll.status, sentAll, playing: { title: playingRow.updateNewsTitle, found: playingRow.updateFoundAt, since: playingRow.updateWatchSince }, waiting: waitingRow.updateNewsTitle, playingLogged })
+    );
+    check(
+      "F353 積みゲーの更新は Discord にも「最近の動き」にも出さないが、「更新あり」は付けて起点も進める",
+      sentAll.length === 1 && !sentAll[0].includes("積みゲー") &&
+        backlogRow.updateNewsTitle === "積みゲーのパッチ" && backlogRow.updateWatchSince?.getTime() === sec(t0 + 2000) && backlogLogged === 0,
+      JSON.stringify({ sentAll, backlog: { title: backlogRow.updateNewsTitle, since: backlogRow.updateWatchSince }, backlogLogged })
     );
     check(
       "F349 クリア済みのゲームは見張らない（通知にも出ない）",
@@ -4021,13 +4036,13 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       JSON.stringify(sentAll)
     );
 
-    // アプデ待ちのゲームには前半の p0・p1・p2 もたまっている（30日以内）。30日以内は 4＋6＝10件
+    // アプデ待ちのゲームには前半の p0・p1・p2 もたまっている（30日以内）。30日以内は 4＋6＋積みゲー1＝11件
     const overview = await api(`/groups/${group.id}`, { cookie: adminCookie });
     const feed = overview.text.slice(overview.text.indexOf('data-testid="game-update-feed"'));
     const itemsShown = (feed.match(/data-testid="game-update-item"/g) ?? []).length;
     check(
       "F350 「ようす」の「アプデ情報」に、クリア済み以外のゲームの直近30日のパッチノートが新しい順に5件まで（ゲーム名・日本時間の日時・題名のリンク）出て、「もっと見る」が付く。30日より前とクリア済みは出ない",
-      overview.status === 200 && itemsShown === 5 && feed.includes("もっと見る（あと5件）") &&
+      overview.status === 200 && itemsShown === 5 && feed.includes("もっと見る（あと6件）") &&
         feed.indexOf("アプデ待ちの新しいパッチ") < feed.indexOf("プレイ中のパッチ 1") &&
         feed.includes("/view/g1") && !overview.text.includes("40日前のパッチ") && !overview.text.includes("クリア済みのパッチ") &&
         /\d{1,2}\/\d{1,2} \d{2}:\d{2}/.test(feed),
@@ -4039,6 +4054,68 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       stored.length === 7 && !stored.some((n) => n.gid === "old100") && stored.some((n) => n.gid === "old40"),
       JSON.stringify(stored.map((n) => n.gid))
     );
+
+    // 「更新あり」は、アプデ待ちはステータスを変えるまで、ほかはパッチノートの日から7日で出さなくなる。
+    // いまは3本とも新しい「更新あり」が付いている。アプデ待ちと積みゲーの更新を8〜9日前のものにする
+    const badges = (text) => (text.match(/data-testid="game-update-found"/g) ?? []).length;
+    const fresh3 = badges((await api(`/groups/${group.id}?tab=games`, { cookie: adminCookie })).text);
+    const tenDaysAgo = new Date(Date.now() - 10 * DAY);
+    await db.groupGame.updateMany({ where: { id: { in: [gameId, backlogId] } }, data: { updateWatchSince: tenDaysAgo } });
+    fs.writeFileSync(
+      NEWS,
+      JSON.stringify({
+        [APP]: [at(APP, "w9", "9日前のアプデ待ちのパッチ", Date.now() - 9 * DAY)],
+        7900104: [at(7900104, "b8", "8日前の積みゲーのパッチ", Date.now() - 8 * DAY)],
+      })
+    );
+    await cron();
+    const oldRows = await db.groupGame.findMany({ where: { id: { in: [gameId, backlogId] } } });
+    const listPage = await api(`/groups/${group.id}?tab=games`, { cookie: adminCookie });
+    const detailOf = async (id) => (await api(`/groups/${group.id}/games/${id}`, { cookie: adminCookie })).text;
+    const [waitingDetail, backlogDetail, playingDetail] = await Promise.all([detailOf(gameId), detailOf(backlogId), detailOf(playingId)]);
+    const left2 = badges(listPage.text);
+    check(
+      "F354 「更新あり」は、アプデ待ちは古くても出し続け、ほかのステータスはパッチノートの日から7日を過ぎたら出さない（カードもゲーム詳細も）",
+      oldRows.every((g) => g.updateFoundAt !== null && g.updateFoundAt.getTime() < Date.now() - 7 * DAY) &&
+        fresh3 > 0 && left2 > 0 && left2 * 3 === fresh3 * 2 &&
+        waitingDetail.includes("game-update-found") && waitingDetail.includes("9日前のアプデ待ちのパッチ") &&
+        !backlogDetail.includes("game-update-found") && playingDetail.includes("game-update-found"),
+      JSON.stringify({
+        found: oldRows.map((g) => g.updateFoundAt),
+        fresh3,
+        left2,
+        waiting: waitingDetail.includes("game-update-found"),
+        backlog: backlogDetail.includes("game-update-found"),
+        playing: playingDetail.includes("game-update-found"),
+      })
+    );
+
+    // Discord に送れなかった日も、積みゲーは送らないので進める。プレイ中は進めずに次の日に送る
+    const nowNews = Date.now();
+    fs.writeFileSync(
+      NEWS,
+      JSON.stringify({
+        7900102: [at(7900102, "g7", "プレイ中のパッチ 7", nowNews)],
+        7900104: [at(7900104, "b9", "積みゲーのパッチ 9", nowNews)],
+      })
+    );
+    mark = posts().length;
+    fs.writeFileSync("/tmp/stub-fail", "discord.com");
+    try {
+      await cron();
+    } finally {
+      fs.rmSync("/tmp/stub-fail", { force: true });
+    }
+    const failRows = await db.groupGame.findMany({ where: { id: { in: [playingId, backlogId] } } });
+    const failPlaying = failRows.find((g) => g.id === playingId);
+    const failBacklog = failRows.find((g) => g.id === backlogId);
+    check(
+      "F355 Discordに送れなかった日も、積みゲーの「更新あり」と起点は進め、プレイ中は進めない",
+      failPlaying.updateNewsTitle === "プレイ中のパッチ 1" && failPlaying.updateWatchSince?.getTime() === sec(t0) &&
+        failBacklog.updateNewsTitle === "積みゲーのパッチ 9" && failBacklog.updateWatchSince?.getTime() === sec(nowNews) &&
+        updatePosts(mark).length === 0,
+      JSON.stringify({ playing: [failPlaying.updateNewsTitle, failPlaying.updateWatchSince], backlog: [failBacklog.updateNewsTitle, failBacklog.updateWatchSince], posts: updatePosts(mark) })
+    );
   } catch (e) {
     check("F334x アプデ待ちの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
   } finally {
@@ -4046,7 +4123,7 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     fs.rmSync("/tmp/stub-fail", { force: true });
     await setTarget("");
     // 作ったゲームは同じ経路（API）で消す
-    for (const id of [gameId, playingId, completedId].filter(Boolean)) {
+    for (const id of [gameId, playingId, completedId, backlogId].filter(Boolean)) {
       await api(`/api/groups/${group.id}/games/${id}`, { method: "DELETE", cookie: adminCookie });
     }
     await db.gamePatchNote.deleteMany({ where: { steamAppId: { in: TEST_APPS } } });

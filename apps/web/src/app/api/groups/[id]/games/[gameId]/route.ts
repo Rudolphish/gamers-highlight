@@ -41,7 +41,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string;
   // - クリア済みにしたら見張りをやめる（起点も「更新あり」も消す）
   // - アプデ待ちにしたら起点を今にする（アプデ待ちにした後のパッチノートで「更新あり」を出すため）
   // - クリア済みから戻したら起点を今にする（クリア済みの間に出た古いお知らせで鳴らさない）
-  // - それ以外の付け替えは起点をそのままにする。「更新あり」はアプデ待ちだけのものなので消す
+  // - それ以外の付け替えは起点をそのままにする。「更新あり」は消す（付け替えた＝見た、とみなす）
   const changed = before !== null && before.status !== parsed.data.status;
   const clearFound = { updateFoundAt: null, updateNewsTitle: null, updateNewsUrl: null };
   const watch = !changed
