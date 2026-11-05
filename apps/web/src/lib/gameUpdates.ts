@@ -1,6 +1,14 @@
 // ゲームに更新（Steam の公式のパッチノート）が来たかを見張る。
 //
 // 2026-11-03 に「アプデ待ち」のゲームだけで始め、2026-11-04 に「クリア済み」以外の全部へ広げた（ユーザー判断）。
+// 2026-11-05 に、知らせる範囲と「更新あり」を分けた（ユーザー判断）：
+//
+// | ステータス | 見張る・アプデ情報 | 「更新あり」 | Discord・最近の動き |
+// |---|---|---|---|
+// | プレイ予定・プレイ中 | する | 7日で消える | する |
+// | アプデ待ち | する | ステータスを変えるまで | する |
+// | 積みゲー | する | 7日で消える | **しない** |
+// | クリア済み | しない | 出さない | しない |
 //
 // - **見るのは Steam の公式のお知らせのうち「パッチノート」の印が付いたものだけ**（ユーザーが選んだ）。
 //   セール・イベント・ロードマップの告知では鳴らない。印を付けない開発元だと取りこぼす
@@ -14,10 +22,12 @@
 // - 見張り始めた時刻（`updateWatchSince`）より後に出たものだけを「更新」と数えて知らせる。知らせたら起点をそのお知らせの日時へ進める。
 //   起点が無いゲーム（新しく足した・クリア済みから戻した直後の確認より前）は、今を起点にするだけで知らせない（古いお知らせで鳴らさない）
 // - **通知はグループごとに1日1通にまとめる**（運営型のゲームはパッチノートが週に何度も出るため）。送り先は種類 GAME_UPDATE
-// - **送れなかったグループは何も進めない**（起点も「更新あり」も）。次の日にもう一度見つけて送る
-//   （CLAUDE.md「取りこぼさないための記録は、失敗したら進めてはいけない」）。送り先が無いグループは送らずに進める
-// - カードの「更新あり」と活動の記録（game.update_found）は**アプデ待ちのゲームだけ**（「再開してよい」の合図なので）
+// - **送れなかったグループは、知らせる側のゲームを何も進めない**（起点も「更新あり」も）。次の日にもう一度見つけて送る
+//   （CLAUDE.md「取りこぼさないための記録は、失敗したら進めてはいけない」）。送り先が無いグループは送らずに進める。
+//   積みゲーは送らないので、送れたかどうかに関係なく進める
+// - 「更新あり」の7日は、パッチノートが出た日から数える（showUpdateBadge）。表示のときに判定するので、DB の値は消さない
 // - 呼ぶのは日次cron（check-wishlist-prices に相乗り。Hobby プランの cron は1日1回までで、枠も2つとも使っている）
+import type { GroupGameStatus } from "@prisma/client";
 import { db } from "./db";
 import { logActivity } from "./activityLog";
 import { getNotificationChannel } from "./notificationTargets";
@@ -91,6 +101,17 @@ export function patchNoteTimeLabel(at: Date | string): string {
 
 /** 見張る対象（「クリア済み」以外） */
 const WATCHED = { not: "COMPLETED" } as const;
+/** Discord と「最近の動き」で知らせないステータス（見張りと「更新あり」はする。2026-11-05 ユーザー判断） */
+const QUIET_STATUSES: readonly GroupGameStatus[] = ["BACKLOG"];
+/** 「更新あり」を出しておく日数（アプデ待ちはステータスを変えるまで出す） */
+export const UPDATE_BADGE_DAYS = 7;
+
+/** カードとゲーム詳細に「更新あり」を出すか。描くたびにサーバーで判定する（キャッシュヒットの回は日時が文字列で来る） */
+export function showUpdateBadge(status: string, foundAt: Date | string | null, now = new Date()): boolean {
+  if (!foundAt || status === "COMPLETED") return false;
+  if (status === "WAITING_UPDATE") return true;
+  return now.getTime() - new Date(foundAt).getTime() < UPDATE_BADGE_DAYS * 24 * 60 * 60 * 1000;
+}
 
 /** 1通に並べる更新の上限（Discord の本文は 2000 文字まで。超えた分は「ほか N 件」にする） */
 const DIGEST_MAX_ITEMS = 10;
@@ -104,7 +125,7 @@ type Found = {
   id: string;
   groupId: string;
   title: string;
-  status: string;
+  status: GroupGameStatus;
   since: Date;
   latest: UpdateNews;
   /** 起点より後に出たパッチノートの数（1通の中で「ほか N 件」と書く） */
@@ -237,37 +258,41 @@ export async function checkGameUpdates(now = new Date()): Promise<GameUpdateChec
   const byGroup = new Map<string, Found[]>();
   for (const f of found) byGroup.set(f.groupId, [...(byGroup.get(f.groupId) ?? []), f]);
 
-  for (const [groupId, items] of byGroup) {
+  for (const [groupId, all] of byGroup) {
     // 新しい順に並べる
-    items.sort((a, b) => b.latest.date - a.latest.date);
-    const channelId = await getNotificationChannel(groupId, "GAME_UPDATE");
+    all.sort((a, b) => b.latest.date - a.latest.date);
+    const loud = all.filter((f) => !QUIET_STATUSES.includes(f.status));
+    let items = all;
+    const channelId = loud.length > 0 ? await getNotificationChannel(groupId, "GAME_UPDATE") : null;
     if (channelId) {
-      if (!(await postDiscordMessage(channelId, formatUpdateDigest(items)))) {
-        // 送れなかったら、このグループは何も進めない（上のコメント）。次の日にもう一度送る
+      if (!(await postDiscordMessage(channelId, formatUpdateDigest(loud)))) {
+        // 送れなかったら、知らせる側のゲームは何も進めない（上のコメント）。次の日にもう一度送る
         result.failed++;
         console.error(`[update] 通知に失敗しました groupId=${groupId} channelId=${channelId}`);
-        continue;
+        items = all.filter((f) => QUIET_STATUSES.includes(f.status));
+      } else {
+        result.notified++;
       }
-      result.notified++;
     }
 
     let badgeChanged = false;
     for (const f of items) {
       const foundAt = new Date(f.latest.date * 1000);
-      const waiting = f.status === "WAITING_UPDATE";
-      // 起点を条件に付けて書く（同じ日に2回走っても二重に記録しない）。その間にクリア済みにされていたら書かない。
-      // 「更新あり」を付けるのはアプデ待ちのままのときだけ（確認の間にプレイ中などへ変えられていたら書かない）
+      const quiet = QUIET_STATUSES.includes(f.status);
+      // 起点とステータスを条件に付けて書く（同じ日に2回走っても二重に記録しない。確認の間にステータスを変えられていたら、
+      // その付け替えで「更新あり」を消しているので書かない）
       const { count } = await db.groupGame.updateMany({
-        where: { id: f.id, status: waiting ? "WAITING_UPDATE" : WATCHED, updateWatchSince: f.since },
+        where: { id: f.id, status: f.status, updateWatchSince: f.since },
         data: {
           updateWatchSince: foundAt,
-          ...(waiting
-            ? { updateFoundAt: foundAt, updateNewsTitle: f.latest.title.slice(0, 300), updateNewsUrl: f.latest.url || null }
-            : {}),
+          updateFoundAt: foundAt,
+          updateNewsTitle: f.latest.title.slice(0, 300),
+          updateNewsUrl: f.latest.url || null,
         },
       });
-      if (count === 0 || !waiting) continue;
+      if (count === 0) continue;
       badgeChanged = true;
+      if (quiet) continue;
       await logActivity({
         kind: "game.update_found",
         targetId: f.id,
