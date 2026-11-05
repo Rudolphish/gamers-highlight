@@ -25,7 +25,7 @@ import { MemberFaces } from "@/components/group/MemberFaces";
 import { addButton, iconButton, primaryButton } from "@/components/ui/buttonStyles";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { agreeThreshold, requiredPurchasers } from "@/lib/proposalPromotion";
-import { listRecentPatchNotes, updateFoundLabel } from "@/lib/gameUpdates";
+import { listRecentPatchNotes, showUpdateBadge, updateFoundLabel } from "@/lib/gameUpdates";
 import { GameUpdateFeed } from "@/components/group/GameUpdateFeed";
 
 // サーバーから取る上限。**ここを超えた分はグループ画面から辿れなくなる**ので、
@@ -147,9 +147,10 @@ export default async function GroupDetailPage(props: { params: Promise<{ groupId
       id: i.userId,
       name: i.user.name ?? i.user.email ?? "メンバー",
     })),
-    // アプデ待ちに見つかった更新（lib/gameUpdates.ts）。文字はサーバーで作る（日本時間。キャッシュヒットの回は日時が文字列で来る）
+    // 見つかった更新（lib/gameUpdates.ts。アプデ待ちはステータスを変えるまで、ほかは7日）。
+    // 文字も出すかどうかもサーバーで決める（日本時間。キャッシュヒットの回は日時が文字列で来る）
     update:
-      g.status === "WAITING_UPDATE" && g.updateFoundAt
+      g.updateFoundAt && showUpdateBadge(g.status, g.updateFoundAt)
         ? { label: updateFoundLabel(g.updateFoundAt), title: g.updateNewsTitle, url: g.updateNewsUrl }
         : null,
   }));
