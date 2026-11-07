@@ -24,6 +24,15 @@ export type PatchNote = {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "2.7.0",
+    date: "2026-11-07",
+    added: [
+      "ゲーム詳細の「最新ニュース」に「Google翻訳で読む」ボタンを追加しました。英語などのお知らせを、Google 翻訳で日本語にして読めます。",
+    ],
+    changed: [],
+    fixed: [],
+  },
+  {
     version: "2.6.0",
     date: "2026-11-05",
     added: [],
