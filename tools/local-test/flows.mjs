@@ -4154,6 +4154,8 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const EN_APP = 7900105;
   const LONG_APP = 7900106;
   const JA_APP = 7900107;
+  const ZH_APP = 7900108;
+  const MIX_APP = 7900109;
   const ids = [];
   const addGame = async (app, title) => {
     const id = (await api(`/api/groups/${group.id}/games`, { method: "POST", cookie: adminCookie, body: { steamAppId: app, title } })).json?.game?.id ?? null;
@@ -4179,6 +4181,12 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
         [`game:${LONG_APP}`]: [
           { gid: "en2", title: "Big Patch", url: `https://store.steampowered.com/news/app/${LONG_APP}/view/en2`, date: 1762000000, contents: longBody },
         ],
+        [`game:${ZH_APP}`]: [
+          { gid: "zh1", title: "更新公告", url: `https://store.steampowered.com/news/app/${ZH_APP}/view/zh1`, date: 1762000000, contents: "修复了游戏崩溃的问题。".repeat(200) },
+        ],
+        [`game:${MIX_APP}`]: [
+          { gid: "mx1", title: "Patch notes for ドラゴンクエスト fans", url: `https://store.steampowered.com/news/app/${MIX_APP}/view/mx1`, date: 1762000000, contents: "We fixed many bugs in the boss fight and improved the loading time on every platform." },
+        ],
         [`game:${JA_APP}`]: [
           { gid: "ja1", title: "アップデートのお知らせ", url: `https://store.steampowered.com/news/app/${JA_APP}/view/ja1`, date: 1762000000, contents: "不具合を直しました。" },
         ],
@@ -4187,8 +4195,10 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     const enId = await addGame(EN_APP, "翻訳テスト（英語）");
     const longId = await addGame(LONG_APP, "翻訳テスト（長い英語）");
     const jaId = await addGame(JA_APP, "翻訳テスト（日本語）");
+    const zhId = await addGame(ZH_APP, "翻訳テスト（中国語）");
+    const mixId = await addGame(MIX_APP, "翻訳テスト（カタカナ混じりの英語）");
     const detail = async (id) => (await api(`/groups/${group.id}/games/${id}`, { cookie: adminCookie })).text;
-    const [enHtml, longHtml, jaHtml] = [await detail(enId), await detail(longId), await detail(jaId)];
+    const [enHtml, longHtml, jaHtml, zhHtml, mixHtml] = [await detail(enId), await detail(longId), await detail(jaId), await detail(zhId), await detail(mixId)];
 
     const en = translateLink(enHtml);
     check(
@@ -4214,6 +4224,20 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
       "F358 日本語（かなを含む）の最新ニュースには「Google翻訳で読む」を出さない",
       jaHtml.includes("アップデートのお知らせ") && !jaHtml.includes('data-testid="google-translate-link"'),
       `title=${jaHtml.includes("アップデートのお知らせ")} link=${jaHtml.includes('data-testid="google-translate-link"')}`
+    );
+    const zh = translateLink(zhHtml);
+    const zhParam = zh ? zh.href.slice(zh.href.indexOf("&text=") + 6, zh.href.indexOf("&op=translate")) : "";
+    check(
+      "F359 漢字だけの長い記事（中国語）にもボタンを出し、URL に入れた長さが8000文字を超えないところで切る",
+      zh !== null && zhParam.length <= 8000 && zhParam.length > 7000 && zh.text.startsWith("更新公告\n\n修复") &&
+        zhHtml.includes('data-testid="google-translate-truncated"'),
+      JSON.stringify({ encoded: zhParam.length, chars: zh ? Array.from(zh.text ?? "").length : null })
+    );
+    const mix = translateLink(mixHtml);
+    check(
+      "F360 英語の記事にカタカナが混じっていても（かなが20%未満なら）、ボタンを出す",
+      mix !== null && mix.text.startsWith("Patch notes for ドラゴンクエスト fans"),
+      JSON.stringify({ text: mix?.text })
     );
   } catch (e) {
     check("F356x Google翻訳のボタンの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);

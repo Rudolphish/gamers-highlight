@@ -1,6 +1,6 @@
 import { Languages, Newspaper } from "lucide-react";
 import { newsContentToParagraphs } from "@/lib/gameDetail";
-import { GOOGLE_TRANSLATE_MAX_CHARS, googleTranslateLink } from "@/lib/googleTranslate";
+import { googleTranslateLink } from "@/lib/googleTranslate";
 import { secondaryButton } from "@/components/ui/buttonStyles";
 import type { SteamNewsItem } from "@/lib/steam";
 
@@ -55,7 +55,7 @@ export function GameNewsPanel({ news }: { news: SteamNewsItem[] }) {
           </a>
           {translate.truncated && (
             <p data-testid="google-translate-truncated" className="mt-1 text-4xs text-steam-muted">
-              長い記事なので、最初の{GOOGLE_TRANSLATE_MAX_CHARS}文字だけを渡します。続きは Steam のページで読めます
+              長い記事なので、最初の部分だけを渡します。続きは Steam のページで読めます
             </p>
           )}
         </div>

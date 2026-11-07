@@ -283,7 +283,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           </p>
           <p>
             <strong className="text-steam-text">英語のニュースを読むとき</strong>
-            ：最新ニュースの下の「Google翻訳で読む」を押すと、Google 翻訳のページが記事を入れた状態で開き、日本語で読めます（長い記事は最初の3000文字まで）。日本語の記事にはボタンは出ません。
+            ：最新ニュースの下の「Google翻訳で読む」を押すと、Google 翻訳のページが記事を入れた状態で開き、日本語で読めます（長い記事は最初の部分まで）。日本語の記事にはボタンは出ません。
           </p>
           <p>
             <strong className="text-steam-text">情報が出ていない項目があるとき</strong>
