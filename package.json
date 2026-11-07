@@ -1,7 +1,7 @@
 {
   "name": "gamers-highlight",
   "private": true,
-  "version": "2.7.0",
+  "version": "2.6.0",
   "scripts": {
     "dev:web": "pnpm --filter web dev",
     "dev:bot": "pnpm --filter bot dev",
