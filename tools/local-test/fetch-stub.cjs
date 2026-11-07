@@ -137,6 +137,15 @@ function steamNews(url) {
     }
     return json({ appnews: { appid: Number(appid), newsitems: [] } });
   }
+  // ゲーム詳細の「最新ニュース」も、テストが同じファイルに "game:<appid>" で書いたらそれを返す（Google翻訳のボタン。F356〜F358）
+  {
+    const fs = require("node:fs");
+    const appid = new URL(url).searchParams.get("appid");
+    if (fs.existsSync("/tmp/stub-steam-news.json")) {
+      const table = JSON.parse(fs.readFileSync("/tmp/stub-steam-news.json", "utf8"));
+      if (table[`game:${appid}`]) return json({ appnews: { appid: Number(appid), newsitems: table[`game:${appid}`] } });
+    }
+  }
   return json({
     appnews: {
       newsitems: [

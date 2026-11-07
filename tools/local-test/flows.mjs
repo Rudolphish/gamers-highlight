@@ -4145,6 +4145,108 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── ゲーム詳細の「Google翻訳で読む」（2026-11-07。lib/googleTranslate.ts・components/game/GameNewsPanel.tsx） ──
+// 日本語でない最新ニュースに、本文を text= に入れた Google 翻訳のリンクを付ける。長い記事は 3000 文字で切る。
+// ニュースはスタブが /tmp/stub-steam-news.json の "game:<appid>" から返す（ゲーム詳細の取得は6時間取り置くので、毎回同じ中身にする）
+{
+  const fs = await import("node:fs");
+  const NEWS = "/tmp/stub-steam-news.json";
+  const EN_APP = 7900105;
+  const LONG_APP = 7900106;
+  const JA_APP = 7900107;
+  const ZH_APP = 7900108;
+  const MIX_APP = 7900109;
+  const ids = [];
+  const addGame = async (app, title) => {
+    const id = (await api(`/api/groups/${group.id}/games`, { method: "POST", cookie: adminCookie, body: { steamAppId: app, title } })).json?.game?.id ?? null;
+    if (!id) throw new Error(`翻訳のテスト用のゲームを足せなかった ${app}`);
+    ids.push(id);
+    return id;
+  };
+  // ゲーム詳細の HTML から翻訳のリンクの href を取り出す（&amp; を戻して、text= を読む）
+  const translateLink = (html) => {
+    const tag = (html.match(/<a[^>]*data-testid="google-translate-link"[^>]*>/) ?? [])[0];
+    if (!tag) return null;
+    const href = ((tag.match(/href="([^"]*)"/) ?? [])[1] ?? "").replace(/&amp;/g, "&");
+    return { tag, href, text: new URL(href).searchParams.get("text") };
+  };
+  try {
+    const longBody = Array.from({ length: 80 }, (_, i) => `Line ${i}: fixed a bug where the game crashed and lost your progress.`).join("\n");
+    fs.writeFileSync(
+      NEWS,
+      JSON.stringify({
+        [`game:${EN_APP}`]: [
+          { gid: "en1", title: "Update 1.2 & Hotfix #3", url: `https://store.steampowered.com/news/app/${EN_APP}/view/en1`, date: 1762000000, contents: "Fixed a crash.\n[b]Improved[/b] performance by 20%." },
+        ],
+        [`game:${LONG_APP}`]: [
+          { gid: "en2", title: "Big Patch", url: `https://store.steampowered.com/news/app/${LONG_APP}/view/en2`, date: 1762000000, contents: longBody },
+        ],
+        [`game:${ZH_APP}`]: [
+          { gid: "zh1", title: "更新公告", url: `https://store.steampowered.com/news/app/${ZH_APP}/view/zh1`, date: 1762000000, contents: "修复了游戏崩溃的问题。".repeat(200) },
+        ],
+        [`game:${MIX_APP}`]: [
+          { gid: "mx1", title: "Patch notes for ドラゴンクエスト fans", url: `https://store.steampowered.com/news/app/${MIX_APP}/view/mx1`, date: 1762000000, contents: "We fixed many bugs in the boss fight and improved the loading time on every platform." },
+        ],
+        [`game:${JA_APP}`]: [
+          { gid: "ja1", title: "アップデートのお知らせ", url: `https://store.steampowered.com/news/app/${JA_APP}/view/ja1`, date: 1762000000, contents: "不具合を直しました。" },
+        ],
+      })
+    );
+    const enId = await addGame(EN_APP, "翻訳テスト（英語）");
+    const longId = await addGame(LONG_APP, "翻訳テスト（長い英語）");
+    const jaId = await addGame(JA_APP, "翻訳テスト（日本語）");
+    const zhId = await addGame(ZH_APP, "翻訳テスト（中国語）");
+    const mixId = await addGame(MIX_APP, "翻訳テスト（カタカナ混じりの英語）");
+    const detail = async (id) => (await api(`/groups/${group.id}/games/${id}`, { cookie: adminCookie })).text;
+    const [enHtml, longHtml, jaHtml, zhHtml, mixHtml] = [await detail(enId), await detail(longId), await detail(jaId), await detail(zhId), await detail(mixId)];
+
+    const en = translateLink(enHtml);
+    check(
+      "F356 英語の最新ニュースに「Google翻訳で読む」が付き、題名と本文（BBCode を外した段落）を入れた Google 翻訳のページを新しいタブで開く",
+      en !== null &&
+        en.href.startsWith("https://translate.google.com/?sl=auto&tl=ja&text=") &&
+        en.href.endsWith("&op=translate") &&
+        en.text === "Update 1.2 & Hotfix #3\n\nFixed a crash.\n\nImproved performance by 20%." &&
+        en.tag.includes('target="_blank"') &&
+        en.tag.includes("noreferrer") &&
+        enHtml.includes("Google翻訳で読む") &&
+        !enHtml.includes('data-testid="google-translate-truncated"'),
+      JSON.stringify({ href: en?.href.slice(0, 200), text: en?.text, tag: en?.tag.slice(0, 200) })
+    );
+    const long = translateLink(longHtml);
+    check(
+      "F357 長い記事は最初の3000文字だけを渡し、切ったことを画面に出す",
+      long !== null && Array.from(long.text ?? "").length === 3000 && long.text.startsWith("Big Patch\n\nLine 0:") &&
+        longHtml.includes('data-testid="google-translate-truncated"'),
+      JSON.stringify({ length: long ? Array.from(long.text ?? "").length : null })
+    );
+    check(
+      "F358 日本語（かなを含む）の最新ニュースには「Google翻訳で読む」を出さない",
+      jaHtml.includes("アップデートのお知らせ") && !jaHtml.includes('data-testid="google-translate-link"'),
+      `title=${jaHtml.includes("アップデートのお知らせ")} link=${jaHtml.includes('data-testid="google-translate-link"')}`
+    );
+    const zh = translateLink(zhHtml);
+    const zhParam = zh ? zh.href.slice(zh.href.indexOf("&text=") + 6, zh.href.indexOf("&op=translate")) : "";
+    check(
+      "F359 漢字だけの長い記事（中国語）にもボタンを出し、URL に入れた長さが8000文字を超えないところで切る",
+      zh !== null && zhParam.length <= 8000 && zhParam.length > 7000 && zh.text.startsWith("更新公告\n\n修复") &&
+        zhHtml.includes('data-testid="google-translate-truncated"'),
+      JSON.stringify({ encoded: zhParam.length, chars: zh ? Array.from(zh.text ?? "").length : null })
+    );
+    const mix = translateLink(mixHtml);
+    check(
+      "F360 英語の記事にカタカナが混じっていても（かなが20%未満なら）、ボタンを出す",
+      mix !== null && mix.text.startsWith("Patch notes for ドラゴンクエスト fans"),
+      JSON.stringify({ text: mix?.text })
+    );
+  } catch (e) {
+    check("F356x Google翻訳のボタンの確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    fs.rmSync(NEWS, { force: true });
+    for (const id of ids) await api(`/api/groups/${group.id}/games/${id}`, { method: "DELETE", cookie: adminCookie });
+  }
+}
+
 // ── パッチノート（2026-11-03。content/patchNotes.ts・lib/releaseNotes.ts） ──
 // 「更新履歴」のページに全部の版が出る。管理画面から、通知の種類 RELEASE_NOTES の送り先があるグループへ埋め込みで送る。
 // 送れたグループだけを記録するので、二度押しても二重に送らず、失敗したグループはもう一度押すとそこだけ送る

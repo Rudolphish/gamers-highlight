@@ -1,14 +1,18 @@
-import { Newspaper } from "lucide-react";
+import { Languages, Newspaper } from "lucide-react";
 import { newsContentToParagraphs } from "@/lib/gameDetail";
+import { googleTranslateLink } from "@/lib/googleTranslate";
+import { secondaryButton } from "@/components/ui/buttonStyles";
 import type { SteamNewsItem } from "@/lib/steam";
 
 // 最新ニュース1件を全文表示し、残りはタイトルのリンクだけ並べる。
 // ゲーム詳細ページと提案の詳細ページで共通。
+// 日本語でない記事には「Google翻訳で読む」を付ける（lib/googleTranslate.ts）
 export function GameNewsPanel({ news }: { news: SteamNewsItem[] }) {
   const [latest, ...others] = news;
   if (!latest) return null;
 
   const paragraphs = newsContentToParagraphs(latest.contents);
+  const translate = googleTranslateLink(latest.title, paragraphs);
 
   return (
     <div className="rounded-xl bg-steam-surface p-4 sm:p-6">
@@ -37,6 +41,25 @@ export function GameNewsPanel({ news }: { news: SteamNewsItem[] }) {
           <p>本文はSteamストアページでご確認ください。</p>
         )}
       </div>
+      {translate && (
+        <div className="mt-3">
+          <a
+            href={translate.url}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="google-translate-link"
+            className={secondaryButton}
+          >
+            <Languages size={15} aria-hidden="true" />
+            Google翻訳で読む
+          </a>
+          {translate.truncated && (
+            <p data-testid="google-translate-truncated" className="mt-1 text-4xs text-steam-muted">
+              長い記事なので、最初の部分だけを渡します。続きは Steam のページで読めます
+            </p>
+          )}
+        </div>
+      )}
 
       {others.length > 0 && (
         <div className="mt-4 space-y-1.5 border-t border-steam-border pt-3">
