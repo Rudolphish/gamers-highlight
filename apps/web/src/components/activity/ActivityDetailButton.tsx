@@ -16,13 +16,18 @@ import { Spinner } from "@/components/ui/Spinner";
  * - 中身は**押したときに** GET /api/activity?ids=… で読む（lib/activityDetail.ts）。一度読んだら閉じても覚えておく
  * - 行の見た目（アイコン・文言・補足）はサーバーで描いて children で受け取る
  * - モーダルは modalStyles の枠とパネル（縦が短い画面でも上から下まで届く。CLAUDE.md）。body へ出す
- * - Esc・枠の外・「閉じる」で閉じる
+ * - Esc・枠の外・「閉じる」で閉じる。閉じたら押した行にフォーカスを戻す
  */
 export function ActivityDetailButton({ ids, label, children }: { ids: string[]; label: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<ActivityDetail | null>(null);
   const [failed, setFailed] = useState(false);
   const loading = useRef(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const onClose = useCallback(() => {
+    setOpen(false);
+    buttonRef.current?.focus();
+  }, []);
 
   const load = useCallback(async () => {
     if (loading.current) return;
@@ -47,6 +52,7 @@ export function ActivityDetailButton({ ids, label, children }: { ids: string[]; 
   return (
     <>
       <button
+        ref={buttonRef}
         type="button"
         onClick={onOpen}
         aria-haspopup="dialog"
@@ -58,7 +64,7 @@ export function ActivityDetailButton({ ids, label, children }: { ids: string[]; 
         <ChevronRight size={14} aria-hidden="true" className="mt-2.5 shrink-0 text-steam-muted" />
       </button>
       {open && (
-        <ActivityDetailModal detail={detail} failed={failed} label={label} onRetry={load} onClose={() => setOpen(false)} />
+        <ActivityDetailModal detail={detail} failed={failed} label={label} onRetry={load} onClose={onClose} />
       )}
     </>
   );

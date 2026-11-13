@@ -107,8 +107,10 @@ export async function getActivityDetail(userId: string, ids: string[]): Promise<
 async function photoDetail(base: ActivityDetail, logs: Log[]): Promise<ActivityDetail> {
   const first = logs[0];
   if (logs.length > 1) base.title = `写真を${logs.length}枚投稿`;
+  // **このグループのアルバムに今もある写真だけを出す。** 別のグループのアルバムへ移された写真は、
+  // 移した先のグループのものとして扱う（サムネイル・説明も出さない）。未分類に戻された写真も出さない
   const photos = await db.photo.findMany({
-    where: { id: { in: logs.map((l) => l.targetId) } },
+    where: { id: { in: logs.map((l) => l.targetId) }, album: { groupId: first.groupId! } },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -121,19 +123,18 @@ async function photoDetail(base: ActivityDetail, logs: Log[]): Promise<ActivityD
     },
   });
   if (photos.length === 0) {
-    base.gone = logs.length > 1 ? "写真はすべて削除されています" : "この写真は削除されています";
+    base.gone = logs.length > 1 ? "写真はすべて削除されたか、ほかのアルバムへ移されています" : "この写真は削除されたか、ほかのアルバムへ移されています";
     if (first.targetName) base.rows.push({ label: "ゲーム", value: first.targetName });
     return base;
   }
   base.photos = photos.slice(0, PHOTO_PREVIEW).map((p) => ({ id: p.id, url: thumbOf(p), video: p.mediaType !== "IMAGE" }));
   base.morePhotos = Math.max(0, photos.length - PHOTO_PREVIEW);
-  if (photos.length < logs.length) base.gone = `${logs.length - photos.length}枚は削除されています`;
+  if (photos.length < logs.length) base.gone = `${logs.length - photos.length}枚は削除されたか、ほかのアルバムへ移されています`;
 
   const games = [...new Set(photos.map((p) => p.gameTitle).filter((t): t is string => !!t))];
   if (games.length > 0) base.rows.push({ label: "ゲーム", value: games.join("・") });
-  // 別のグループのアルバムへ移された写真のリンクは出さない（見る権限が無いことがある）
   const albums = new Map<string, string>();
-  for (const p of photos) if (p.album && p.album.groupId === first.groupId) albums.set(p.album.id, p.album.title);
+  for (const p of photos) if (p.album) albums.set(p.album.id, p.album.title);
   if (albums.size > 0) base.rows.push({ label: "アルバム", value: [...albums.values()].join("・") });
   if (first.kind === "photo.description_set" && photos[0].description) {
     base.rows.push({ label: "説明", value: photos[0].description });

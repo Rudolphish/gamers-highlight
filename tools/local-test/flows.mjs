@@ -4154,6 +4154,8 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   const made = [];
   let patchId = null;
   let sessionId = null;
+  let movedAlbumId = null;
+  let movedPhotoId = null;
   const detailOf = async (ids, cookie = memberCookie) => {
     const r = await api(`/api/activity?ids=${ids.join(",")}`, cookie ? { cookie } : {});
     return { status: r.status, d: r.json?.detail ?? null };
@@ -4178,6 +4180,11 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     const updateLog = await mk({ kind: "game.update_found", targetId: game.id, targetName: game.title, actorId: null, detail: { title: patchTitle } }, -30);
     const goneLog = await mk({ kind: "photo.created", targetId: `gone-${randomUUID()}`, targetName: "消えた写真のゲーム" }, 20);
     const hiddenLog = await mk({ kind: "photo.deleted", targetId: photos[0].id }, 21);
+    // 別のグループのアルバムにある写真（このグループで投稿してから移した、という形）。誰も開かないうちに作って消すので、
+    // ページのキャッシュは通らない
+    movedAlbumId = (await db.album.create({ data: { title: "移した先のアルバム", ownerId: otherGroup.ownerId, groupId: otherGroup.id } })).id;
+    movedPhotoId = (await db.photo.create({ data: { mediaUrl: "https://example.invalid/moved.png", uploaderId: admin.id, albumId: movedAlbumId } })).id;
+    const movedLog = await mk({ kind: "photo.created", targetId: movedPhotoId }, 22);
     const otherLog = (await db.activityLog.create({ data: { groupId: otherGroup.id, kind: "photo.created", targetId: `other-${randomUUID()}`, occurredAt: new Date(now), createdAt: new Date(now) } })).id;
     made.push(otherLog);
     const session = await db.groupPlaySession.create({
@@ -4226,10 +4233,16 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     );
     const gone = await detailOf([goneLog]);
     check(
-      "F364 対象が消えた記録の詳細は「削除されています」と、控えておいた名前を返す（リンクは出さない）",
-      gone.status === 200 && gone.d.gone === "この写真は削除されています" && gone.d.links.length === 0 &&
+      "F364 対象が消えた記録の詳細は「削除されたか、ほかのアルバムへ移されています」と、控えておいた名前を返す（リンクは出さない）",
+      gone.status === 200 && gone.d.gone === "この写真は削除されたか、ほかのアルバムへ移されています" && gone.d.links.length === 0 &&
         gone.d.rows.some((r) => r.value === "消えた写真のゲーム"),
       JSON.stringify({ status: gone.status, d: gone.d })
+    );
+    const moved = movedLog ? await detailOf([movedLog]) : null;
+    check(
+      "F367 ほかのグループのアルバムへ移された写真は、元のグループの詳細ではサムネイルもリンクも出さない",
+      moved !== null && moved.status === 200 && moved.d.photos.length === 0 && moved.d.links.length === 0 && moved.d.gone !== null,
+      movedLog ? JSON.stringify({ status: moved?.status, d: moved?.d }) : "ほかのグループのアルバムに写真がシードに無い"
     );
     const play = await detailOf([`play:${session.id}`]);
     const playOutsider = await detailOf([`play:${session.id}`], outsiderCookie);
@@ -4259,6 +4272,8 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
     await db.activityLog.deleteMany({ where: { id: { in: made } } });
     if (patchId) await db.gamePatchNote.delete({ where: { id: patchId } }).catch(() => {});
     if (sessionId) await db.groupPlaySession.delete({ where: { id: sessionId } }).catch(() => {});
+    if (movedPhotoId) await db.photo.delete({ where: { id: movedPhotoId } }).catch(() => {});
+    if (movedAlbumId) await db.album.delete({ where: { id: movedAlbumId } }).catch(() => {});
   }
 }
 

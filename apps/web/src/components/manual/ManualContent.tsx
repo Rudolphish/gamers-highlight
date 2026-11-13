@@ -376,7 +376,7 @@ export function ManualContent({ inviteUrl, isAdmin = false }: { inviteUrl: strin
           <p>
             <strong className="text-steam-text">行を押すと詳細が開きます</strong>
             ：投稿した写真（6枚まで）・ゲーム名・アルバム名・パッチノートの題名・遊んだ時間などが出て、中のボタンからアルバムやゲーム詳細へ移れます。
-            消えた写真やゲームは「削除されています」と出ます。
+            消えた写真やゲーム、ほかのグループのアルバムへ移された写真は、そのことだけが出ます。
           </p>
           <p>
             右上の<strong className="text-steam-text">「カレンダーで見る」</strong>で、そのグループの活動カレンダーが開きます。
