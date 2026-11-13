@@ -14,6 +14,8 @@ import { GROUP_HIDDEN_KINDS, noteOf, timelineLabel } from "./activityFeed";
 import { patchNoteTimeLabel } from "./gameUpdates";
 import { gameStatusLabel, PROPOSAL_REACTION_LABELS } from "./gameLabels";
 import { formatPlayDuration } from "./playDuration";
+import { coverPhotoQuery } from "./albumCoverPolicy";
+import { getSteamCoverUrls } from "./albumCover";
 
 /** 1回に受け取る id の上限（まとめた写真の行でも、最近の動きが引く記録の数を超えない） */
 export const ACTIVITY_DETAIL_MAX_IDS = 60;
@@ -212,13 +214,10 @@ async function albumDetail(base: ActivityDetail, log: Log): Promise<ActivityDeta
       id: true,
       groupId: true,
       title: true,
+      steamAppId: true,
       _count: { select: { photos: true } },
-      photos: {
-        where: { mediaType: "IMAGE" },
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { mediaType: true, mediaUrl: true, thumbnailUrl: true },
-      },
+      // 表紙はアルバム一覧と同じ選び方（Steam 連携のヘッダー → 方針に合う最新の投稿。lib/albumCoverPolicy.ts）
+      photos: coverPhotoQuery,
     },
   });
   if (!album || album.groupId !== log.groupId) {
@@ -226,7 +225,8 @@ async function albumDetail(base: ActivityDetail, log: Log): Promise<ActivityDeta
     if (log.targetName) base.rows.push({ label: "アルバム", value: log.targetName });
     return base;
   }
-  const cover = album.photos[0] ? thumbOf(album.photos[0]) : null;
+  const steamCover = album.steamAppId ? ((await getSteamCoverUrls([album.steamAppId])).get(album.steamAppId) ?? null) : null;
+  const cover = steamCover ?? (album.photos[0] ? thumbOf(album.photos[0]) : null);
   if (cover) base.image = { url: cover, alt: album.title };
   base.rows.push({ label: "アルバム", value: album.title }, { label: "写真・動画", value: `${album._count.photos}件` });
   base.links.push({ href: `/albums/${album.id}`, label: "アルバムを開く", external: false });
