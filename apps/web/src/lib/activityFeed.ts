@@ -257,7 +257,7 @@ export function timelineLabel(kind: string): string {
 }
 
 /** detail から1行の補足を作る。**入っていない形は黙って捨てる**（表示のために例外を投げない） */
-function noteOf(kind: string, detail: unknown): string | null {
+export function noteOf(kind: string, detail: unknown): string | null {
   if (detail === null || typeof detail !== "object") return null;
   const d = detail as Record<string, unknown>;
   // 記録にはDBの値（WISHLIST・LIKE）が入っているので、画面の呼び方に直してから出す（以前はそのまま出ていた）
@@ -439,7 +439,15 @@ export async function loadActivityMonth(
 export type RecentEntry = TimelineEntry & {
   /** どのグループの出来事か。ホームの「みんなの動き」（複数のグループを混ぜる）でだけ入れる */
   groupName: string | null;
+  /**
+   * 押したときに詳細を読むための id（lib/activityDetail.ts。GET /api/activity?ids=…）。
+   * 記録の id（写真をまとめた行はまとめた全部）か、プレイ記録の `play:<セッションID>`。詳細を出さない行は null
+   */
+  detailIds: string[] | null;
 };
+
+/** 押しても詳細を出さない種類（見出しと日時のほかに見せるものが無い） */
+const NO_DETAIL_KINDS: readonly string[] = ["member.joined"];
 
 export type RecentDay = {
   /** JSTの `YYYY-MM-DD` */
@@ -518,6 +526,7 @@ export async function getRecentActivityForGroups(
         note: l.kind === "game.price_dropped" || l.kind === "game.update_found" ? noteOf(l.kind, l.detail) : null,
         href: null,
         groupName: l.groupId ? (nameOf.get(l.groupId) ?? null) : null,
+        detailIds: NO_DETAIL_KINDS.includes(l.kind) ? null : [l.id],
         actorId: l.actorId,
         groupId: l.groupId,
         photos: 1,
@@ -528,6 +537,7 @@ export async function getRecentActivityForGroups(
       playTimelineEntries(groupId, [entry]).map((e) => ({
         ...e,
         groupName: nameOf.get(groupId) ?? null,
+        detailIds: [e.id],
         actorId: null,
         groupId,
         photos: 0,
@@ -550,6 +560,7 @@ export async function getRecentActivityForGroups(
     ) {
       prev.photos += 1;
       prev.games.add(row.targetName);
+      prev.detailIds?.push(row.id);
       continue;
     }
     if (merged.length === limit) break;
