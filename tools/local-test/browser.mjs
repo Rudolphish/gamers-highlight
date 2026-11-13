@@ -5104,11 +5104,14 @@ if (block()) {
 
 // ── 「最近の動き」の行を押すと詳細のモーダルが開き、中のリンクで移れる（2026-11-13。components/activity/ActivityDetailButton.tsx） ──
 // 縦の短い画面（390×480）で開き、パネルを下まで送って「アルバムを開く」が本当にその位置に居るかを見る（B153 と同じ確かめ方）。
-// Esc で閉じ、もう一度開いてリンクを押すとアルバムに移る。記録は Prisma で1件入れて、終わったら消す（キャッシュを通らない）
+// Esc で閉じ、もう一度開いてリンクを押すとアルバムに移る。記録は Prisma で入れて、終わったら消す（キャッシュを通らない）
+// B160：同じ人が続けて投稿した写真は1行（「写真を2枚投稿」）にまとまり、押すとまとめた写真が全部出る
+// （行がまとめた記録の id を全部渡していないと1枚しか出ない。API だけを見る flows の F361 では捕まらない）
 if (block()) {
   const { PrismaClient } = await import("@prisma/client");
   const prisma = new PrismaClient();
   let logId = null;
+  const photoLogIds = [];
   const seen = [];
   const bad = [];
   const ctx = await browser.newContext({ viewport: { width: 390, height: 480 } });
@@ -5155,6 +5158,32 @@ if (block()) {
     await dialog.getByRole("link", { name: "アルバムを開く" }).click();
     await p.waitForURL(new RegExp(`/albums/${album.id}`), { timeout: 10000 }).catch(() => bad.push("リンクでアルバムに移らない"));
     seen.push(`移動先=${new URL(p.url()).pathname}`);
+    // B160：まとめた写真の行。アルバムの記録より新しい時刻に、同じ人の投稿を2件入れる
+    const photos = await prisma.photo.findMany({ where: { album: { groupId: ids.groupId } }, orderBy: { createdAt: "desc" }, take: 2, select: { id: true } });
+    let b160 = "写真が足りない";
+    if (photos.length === 2) {
+      for (const [i, ph] of photos.entries()) {
+        const at = new Date(Date.now() + 60000 - i * 1000);
+        photoLogIds.push((await prisma.activityLog.create({ data: { groupId: ids.groupId, actorId: ids.adminId, kind: "photo.created", targetId: ph.id, occurredAt: at, createdAt: at } })).id);
+      }
+      await gotoSettled(p, `${BASE}/groups/${ids.groupId}`);
+      // 直前にシードの同じ人の写真の記録があると3枚以上にまとまるので、枚数は行の見出しから読む
+      const merged = p.locator('[data-testid="recent-activity"]').getByRole("button", { name: /^写真を\d+枚投稿 の詳細を見る$/ }).first();
+      const n = Number(((await merged.getAttribute("aria-label")) ?? "").match(/写真を(\d+)枚/)?.[1] ?? 0);
+      await merged.click();
+      const grid = p.getByTestId("activity-detail-photos");
+      await grid.waitFor({ timeout: 10000 });
+      const shown = await grid.locator("li").count();
+      b160 = n >= 2 && shown === Math.min(n, 6) ? "" : `見出し ${n} 枚・出た写真 ${shown} 枚`;
+    }
+    rows.push({
+      id: "B160",
+      item: "同じ人が続けて投稿した写真は「最近の動き」で1行にまとまり、押すとまとめた写真が全部出る",
+      expected: "見出しの枚数（6枚まで）",
+      actual: b160 || "見出しの枚数どおり",
+      ok: b160 === "",
+      note: "",
+    });
     rows.push({
       id: "B159",
       item: "「最近の動き」の行を押すと詳細のモーダルが開き、縦の短い画面でも中のリンクに届いて、Esc で閉じ、リンクで該当のページに移れる",
@@ -5167,6 +5196,7 @@ if (block()) {
     rows.push({ id: "B159", item: "最近の動きの詳細のモーダル", expected: "-", actual: "未確認", ok: false, note: `途中で中断（${seen.join(" ／ ")}）: ${String(e.message ?? e).slice(0, 120)}` });
   } finally {
     if (logId) await prisma.activityLog.delete({ where: { id: logId } }).catch(() => {});
+    await prisma.activityLog.deleteMany({ where: { id: { in: photoLogIds } } }).catch(() => {});
     await prisma.$disconnect();
     await ctx.close();
   }
