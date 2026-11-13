@@ -4145,6 +4145,123 @@ const album = await db.album.findFirst({ where: { title: "エルデンリング"
   }
 }
 
+// ── 「最近の動き」「みんなの動き」の行を押したときの詳細（2026-11-13。lib/activityDetail.ts・GET /api/activity） ──
+// 押したときに1件ぶんを読む。権限はその記録のグループで見る（メンバー以外・混ぜた ids・出さない種類は 404）。
+// 写真をまとめた行は、まとめた記録の id を全部渡して写真を最大6枚返す。対象が消えていたら一言出す
+{
+  const admin = await db.user.findUnique({ where: { email: "admin@example.com" } });
+  const otherGroup = await db.group.findFirst({ where: { name: "部外者のグループ" } });
+  const made = [];
+  let patchId = null;
+  let sessionId = null;
+  const detailOf = async (ids, cookie = memberCookie) => {
+    const r = await api(`/api/activity?ids=${ids.join(",")}`, cookie ? { cookie } : {});
+    return { status: r.status, d: r.json?.detail ?? null };
+  };
+  try {
+    const now = Date.now();
+    const mk = async (data, i = 0) => {
+      const at = new Date(now - i * 1000);
+      const row = await db.activityLog.create({ data: { groupId: group.id, actorId: admin.id, occurredAt: at, createdAt: at, ...data } });
+      made.push(row.id);
+      return row.id;
+    };
+    const photos = await db.photo.findMany({ where: { album: { groupId: group.id } }, orderBy: { createdAt: "desc" }, take: 3, select: { id: true, albumId: true, gameTitle: true } });
+    if (photos.length < 3) throw new Error(`テストグループのアルバムに写真が3枚無い（${photos.length}）`);
+    const photoLogs = [];
+    for (const [i, p] of photos.entries()) photoLogs.push(await mk({ kind: "photo.created", targetId: p.id, targetName: p.gameTitle }, 10 + i));
+    const game = await db.groupGame.findFirst({ where: { groupId: group.id } });
+    if (!game) throw new Error("テストグループにゲームが無い");
+    const patchTitle = "Patch Notes - 活動の詳細の確認";
+    patchId = (await db.gamePatchNote.create({ data: { steamAppId: game.steamAppId, gid: `act-${randomUUID()}`, title: patchTitle, url: "https://store.steampowered.com/news/app/1/view/act-detail", publishedAt: new Date(now - 3600000) } })).id;
+    // 直前のテスト（更新の見張り）も同じ時刻に「ゲームに更新が来た」を何件も残すので、この行は少し先の時刻にして一番上に置く
+    const updateLog = await mk({ kind: "game.update_found", targetId: game.id, targetName: game.title, actorId: null, detail: { title: patchTitle } }, -30);
+    const goneLog = await mk({ kind: "photo.created", targetId: `gone-${randomUUID()}`, targetName: "消えた写真のゲーム" }, 20);
+    const hiddenLog = await mk({ kind: "photo.deleted", targetId: photos[0].id }, 21);
+    const otherLog = (await db.activityLog.create({ data: { groupId: otherGroup.id, kind: "photo.created", targetId: `other-${randomUUID()}`, occurredAt: new Date(now), createdAt: new Date(now) } })).id;
+    made.push(otherLog);
+    const session = await db.groupPlaySession.create({
+      data: {
+        groupId: group.id,
+        groupGameId: game.id,
+        gameKey: `activity-detail-${randomUUID()}`,
+        activityName: game.title,
+        voiceChannelId: "activity-detail-vc",
+        startedAt: new Date(now - 2 * 3600000),
+        endedAt: new Date(now - 3600000),
+        participants: { create: [{ userId: admin.id, joinedAt: new Date(now - 2 * 3600000) }] },
+      },
+    });
+    sessionId = session.id;
+
+    const merged = await detailOf(photoLogs);
+    const albumIds = [...new Set(photos.map((p) => p.albumId))];
+    check(
+      "F361 写真をまとめた行の詳細は「写真をN枚投稿」と写真のサムネイル・アルバムへのリンクを返す（メンバーが見られる）",
+      merged.status === 200 && merged.d.title === "写真を3枚投稿" && merged.d.photos.length === 3 &&
+        merged.d.rows.some((r) => r.label === "アルバム") && albumIds.every((id) => merged.d.links.some((l) => l.href === `/albums/${id}`)) &&
+        /^\d{1,2}\/\d{1,2} \d{2}:\d{2} · /.test(merged.d.meta),
+      JSON.stringify({ status: merged.status, title: merged.d?.title, photos: merged.d?.photos.length, links: merged.d?.links, meta: merged.d?.meta })
+    );
+    const upd = await detailOf([updateLog]);
+    check(
+      "F362 ゲームの更新の詳細は、ゲーム名・パッチノートの題名と、ゲーム詳細・Steam のお知らせ（新しいタブ）へのリンクを返す",
+      upd.status === 200 && upd.d.rows.some((r) => r.label === "ゲーム" && r.value === game.title) &&
+        upd.d.rows.some((r) => r.label === "パッチノート" && r.value === patchTitle) &&
+        upd.d.links[0]?.href === `/groups/${group.id}/games/${game.id}` &&
+        upd.d.links.some((l) => l.external && l.href.endsWith("/view/act-detail")),
+      JSON.stringify({ status: upd.status, rows: upd.d?.rows, links: upd.d?.links })
+    );
+    const [outsider, anon, mixed, hidden] = await Promise.all([
+      detailOf([updateLog], outsiderCookie),
+      detailOf([updateLog], null),
+      detailOf([photoLogs[0], otherLog]),
+      detailOf([hiddenLog]),
+    ]);
+    const outsiderOwn = await detailOf([otherLog], outsiderCookie);
+    check(
+      "F363 詳細はそのグループのメンバーにだけ返す（メンバー以外・別のグループの記録を混ぜた ids・メンバーに出さない種類は 404、未ログインは 401）",
+      outsider.status === 404 && anon.status === 401 && mixed.status === 404 && hidden.status === 404 && outsiderOwn.status === 200,
+      JSON.stringify({ outsider: outsider.status, anon: anon.status, mixed: mixed.status, hidden: hidden.status, outsiderOwn: outsiderOwn.status })
+    );
+    const gone = await detailOf([goneLog]);
+    check(
+      "F364 対象が消えた記録の詳細は「削除されています」と、控えておいた名前を返す（リンクは出さない）",
+      gone.status === 200 && gone.d.gone === "この写真は削除されています" && gone.d.links.length === 0 &&
+        gone.d.rows.some((r) => r.value === "消えた写真のゲーム"),
+      JSON.stringify({ status: gone.status, d: gone.d })
+    );
+    const play = await detailOf([`play:${session.id}`]);
+    const playOutsider = await detailOf([`play:${session.id}`], outsiderCookie);
+    check(
+      "F365 プレイ記録の詳細は、遊んだ時間（開始〜終了と長さ）・遊んだ人・ゲーム詳細へのリンクを返し、メンバー以外には 404",
+      play.status === 200 && play.d.title === `${game.title} を遊んだ` &&
+        play.d.rows.some((r) => r.label === "時間" && r.value.includes("〜") && r.value.includes("1時間")) &&
+        play.d.rows.some((r) => r.label === "遊んだ人" && r.value.length > 0) &&
+        play.d.links[0]?.href === `/groups/${group.id}/games/${game.id}` && playOutsider.status === 404,
+      JSON.stringify({ status: play.status, d: play.d, outsider: playOutsider.status })
+    );
+
+    // 画面：行が押せる形で出て、まとめた行は記録の id を全部持つ。補足はゲーム名がパッチノートの題名より前
+    const page = await api(`/groups/${group.id}`, { cookie: memberCookie });
+    const at = page.text.indexOf('data-testid="recent-activity"');
+    const section = at >= 0 ? page.text.slice(at, page.text.indexOf("</section>", at)) : "";
+    check(
+      "F366 「最近の動き」の行は押せるボタンで出て、ゲームの更新の行の補足はゲーム名がパッチノートの題名より前に来る",
+      page.status === 200 && section.includes('data-testid="activity-row-button"') && section.includes("の詳細を見る") &&
+        section.includes(`${game.title} · ${patchTitle}`),
+      `ボタン=${section.includes('data-testid="activity-row-button"')} / 並び=${section.includes(`${game.title} · ${patchTitle}`)}`
+    );
+  } catch (e) {
+    check("F361x 活動の詳細の確認が途中で例外になった（以降は未確認）", false, e?.stack ?? e);
+  } finally {
+    // 出来事の記録・パッチノート・プレイ記録はキャッシュに載せていないのでDBから直接消してよい
+    await db.activityLog.deleteMany({ where: { id: { in: made } } });
+    if (patchId) await db.gamePatchNote.delete({ where: { id: patchId } }).catch(() => {});
+    if (sessionId) await db.groupPlaySession.delete({ where: { id: sessionId } }).catch(() => {});
+  }
+}
+
 // ── ゲーム詳細の「Google翻訳で読む」（2026-11-07。lib/googleTranslate.ts・components/game/GameNewsPanel.tsx） ──
 // 日本語でない最新ニュースに、本文を text= に入れた Google 翻訳のリンクを付ける。長い記事は 3000 文字で切る。
 // ニュースはスタブが /tmp/stub-steam-news.json の "game:<appid>" から返す（ゲーム詳細の取得は6時間取り置くので、毎回同じ中身にする）

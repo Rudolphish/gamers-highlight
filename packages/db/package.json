@@ -1,6 +1,6 @@
 {
   "name": "@gamers-highlight/db",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "private": true,
   "main": "index.js",
   "types": "index.d.ts",

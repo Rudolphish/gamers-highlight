@@ -5102,6 +5102,76 @@ if (block()) {
   }
 }
 
+// ── 「最近の動き」の行を押すと詳細のモーダルが開き、中のリンクで移れる（2026-11-13。components/activity/ActivityDetailButton.tsx） ──
+// 縦の短い画面（390×480）で開き、パネルを下まで送って「アルバムを開く」が本当にその位置に居るかを見る（B153 と同じ確かめ方）。
+// Esc で閉じ、もう一度開いてリンクを押すとアルバムに移る。記録は Prisma で1件入れて、終わったら消す（キャッシュを通らない）
+if (block()) {
+  const { PrismaClient } = await import("@prisma/client");
+  const prisma = new PrismaClient();
+  let logId = null;
+  const seen = [];
+  const bad = [];
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 480 } });
+  await ctx.addCookies(await context.cookies());
+  const p = await ctx.newPage();
+  try {
+    const album = await prisma.album.findFirst({ where: { groupId: ids.groupId }, select: { id: true, title: true } });
+    if (!album) throw new Error("シードのグループにアルバムが無い");
+    logId = (
+      await prisma.activityLog.create({
+        data: { groupId: ids.groupId, kind: "album.created", targetId: album.id, targetName: album.title, occurredAt: new Date(), createdAt: new Date() },
+      })
+    ).id;
+    await gotoSettled(p, `${BASE}/groups/${ids.groupId}`);
+    const row = p.locator('[data-testid="recent-activity"]').getByRole("button", { name: "アルバムを作成 の詳細を見る" }).first();
+    await row.click();
+    const dialog = p.getByTestId("activity-detail");
+    await dialog.waitFor({ timeout: 10000 });
+    const link = dialog.getByRole("link", { name: "アルバムを開く" });
+    await link.waitFor({ timeout: 10000 });
+    const hasTitle = (await dialog.getByText(album.title, { exact: true }).count()) >= 1;
+    seen.push(`開いた・名前=${hasTitle}`);
+    if (!hasTitle) bad.push("アルバム名が出ていない");
+    // パネルの上でホイールを回して下端まで送り、リンクが画面の中でその位置に居るか
+    await p.mouse.move(195, 240);
+    for (let i = 0; i < 4; i++) {
+      await p.mouse.wheel(0, 1500);
+      await p.waitForTimeout(80);
+    }
+    const reach = await link.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2;
+      const y = r.top + r.height / 2;
+      const hit = y >= 0 && y <= innerHeight ? document.elementFromPoint(x, y) : null;
+      return { y: Math.round(y), h: Math.round(r.height), ok: !!hit && (hit === el || el.contains(hit)) };
+    });
+    seen.push(`リンク y=${reach.y} 高さ=${reach.h}`);
+    if (!reach.ok) bad.push("下まで送ってもリンクに届かない");
+    if (reach.h < 44) bad.push(`リンクの高さが ${reach.h}px（スマホは44px）`);
+    await p.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached", timeout: 5000 }).catch(() => bad.push("Esc で閉じない"));
+    // もう一度開くと、読み直さずにすぐ出る（一度読んだ中身を覚えている）
+    await row.click();
+    await dialog.getByRole("link", { name: "アルバムを開く" }).click();
+    await p.waitForURL(new RegExp(`/albums/${album.id}`), { timeout: 10000 }).catch(() => bad.push("リンクでアルバムに移らない"));
+    seen.push(`移動先=${new URL(p.url()).pathname}`);
+    rows.push({
+      id: "B159",
+      item: "「最近の動き」の行を押すと詳細のモーダルが開き、縦の短い画面でも中のリンクに届いて、Esc で閉じ、リンクで該当のページに移れる",
+      expected: "崩れ 0件",
+      actual: `${bad.length ? bad.join(" / ") : "崩れなし"}（${seen.join(" ／ ")}）`,
+      ok: bad.length === 0,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B159", item: "最近の動きの詳細のモーダル", expected: "-", actual: "未確認", ok: false, note: `途中で中断（${seen.join(" ／ ")}）: ${String(e.message ?? e).slice(0, 120)}` });
+  } finally {
+    if (logId) await prisma.activityLog.delete({ where: { id: logId } }).catch(() => {});
+    await prisma.$disconnect();
+    await ctx.close();
+  }
+}
+
 await browser.close();
 block.done();
 if (FILTERED) {

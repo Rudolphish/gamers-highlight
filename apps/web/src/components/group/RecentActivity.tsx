@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import type { RecentDay } from "@/lib/activityFeed";
 import { ActivityIcon } from "@/components/activity/ActivityIcon";
+import { ActivityDetailButton } from "@/components/activity/ActivityDetailButton";
 import { JST_OFFSET_MS } from "@/lib/jst";
 
 // グループ画面の「最近の動き」（docs/play-log.md §11 の段階2。見本4案から C をユーザーが選んだ）。
@@ -10,6 +11,10 @@ import { JST_OFFSET_MS } from "@/lib/jst";
 //
 // ホームの「みんなの動き」（所属グループすべて。getRecentActivityForGroups）にも同じ部品を使う。
 // そちらはカレンダーへのリンクを出さず（グループごとにあるため）、各行の補足にグループ名を添える
+//
+// 行を押すとモーダルで詳細を出す（2026-11-13。components/activity/ActivityDetailButton.tsx・lib/activityDetail.ts）。
+// 補足は「時刻・グループ・人・ゲーム名・題名など」の順。ゲーム名を題名より前にする（題名が長いとゲーム名が切れて、
+// 何のゲームの更新か分からなかった）
 
 /** JSTの時刻。サーバーのタイムゾーンに依存させない */
 function jstTime(date: Date): string {
@@ -47,20 +52,33 @@ export function RecentActivity({
               {day.entries.map((e) => {
                 const play = e.kind === "play.session";
                 // 補足は1つの文字列にする（JSXで並べると間にコメントが挟まり、見たままの文字列でHTMLを確かめられない）
-                const meta = [jstTime(e.occurredAt), e.groupName, e.actorName, e.note, play ? null : e.targetName].filter(Boolean).join(" · ");
-                return (
-                  <li key={e.id} data-kind={e.kind} className="flex items-start gap-2.5 border-t border-steam-border/50 py-2">
+                const meta = [jstTime(e.occurredAt), e.groupName, e.actorName, play ? null : e.targetName, e.note].filter(Boolean).join(" · ");
+                const content = (
+                  <>
                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-steam-panel text-steam-blue">
                       <ActivityIcon kind={e.kind} size={15} />
                     </span>
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-sm leading-5 ${play ? "font-medium text-steam-blue" : "text-steam-text"}`}>{e.label}</p>
-                      <p className="mt-0.5 truncate text-4xs text-steam-muted">{meta}</p>
-                    </div>
-                    {e.href && (
-                      <Link href={e.href} aria-label={`${e.label} を開く`} className="shrink-0 p-1 text-steam-muted hover:text-steam-blue">
-                        <ExternalLink size={12} />
-                      </Link>
+                    <span className="block min-w-0 flex-1">
+                      <span className={`block text-sm leading-5 ${play ? "font-medium text-steam-blue" : "text-steam-text"}`}>{e.label}</span>
+                      <span className="mt-0.5 block truncate text-4xs text-steam-muted">{meta}</span>
+                    </span>
+                  </>
+                );
+                return (
+                  <li key={e.id} data-kind={e.kind} className="border-t border-steam-border/50">
+                    {e.detailIds ? (
+                      <ActivityDetailButton ids={e.detailIds} label={e.label}>
+                        {content}
+                      </ActivityDetailButton>
+                    ) : (
+                      <div className="flex items-start gap-2.5 py-2">
+                        {content}
+                        {e.href && (
+                          <Link href={e.href} aria-label={`${e.label} を開く`} className="shrink-0 p-1 text-steam-muted hover:text-steam-blue">
+                            <ExternalLink size={12} />
+                          </Link>
+                        )}
+                      </div>
                     )}
                   </li>
                 );
