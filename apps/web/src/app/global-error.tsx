@@ -35,7 +35,9 @@ export default function GlobalError({
               エラーが発生しました
             </h1>
             <p className="mx-auto mt-1 max-w-md text-sm text-steam-muted">
-              アプリの読み込み中に問題が起きました。再試行してもうまくいかない場合は時間を置いて試してください。
+              {chunk
+                ? "画面の部品を読み込めませんでした（通信が途切れたときなどに起きます）。再読み込みしてください。"
+                : "アプリの読み込み中に問題が起きました。再試行してもうまくいかない場合は時間を置いて試してください。"}
             </p>
           </div>
           <button

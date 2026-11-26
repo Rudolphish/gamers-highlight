@@ -859,6 +859,8 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
     isChunkLoadError(chunkErr),
     isChunkLoadError(new Error("Loading chunk 9008 failed.")),
     isChunkLoadError(new Error("Loading CSS chunk app-layout failed.")),
+    // name が失われても、ファイル名に / ( [ が入るメッセージを見分ける
+    isChunkLoadError(new Error("Loading chunk app/(main)/groups/[groupId]/page failed.")),
     !isChunkLoadError(new Error("An error occurred in the Server Components render.")),
     !isChunkLoadError(new Error("Load failed")),
     !isChunkLoadError(null),

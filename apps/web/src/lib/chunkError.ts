@@ -19,7 +19,7 @@ export function isChunkLoadError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const e = error as { name?: unknown; message?: unknown };
   if (e.name === "ChunkLoadError") return true;
-  return typeof e.message === "string" && /Loading (CSS )?chunk [\w-]+ failed/i.test(e.message);
+  return typeof e.message === "string" && /Loading (CSS )?chunk \S+ failed/i.test(e.message);
 }
 
 type ReloadDeps = {
