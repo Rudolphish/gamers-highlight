@@ -2,11 +2,13 @@
 
 import { useEffect } from "react";
 import { reportClientError } from "@/lib/report-client-error";
+import { isChunkLoadError, reloadOnceForChunkError } from "@/lib/chunkError";
 import "./globals.css";
 import { primaryButton } from "@/components/ui/buttonStyles";
 
 // ルートレイアウト自体で例外が起きた場合の最終フォールバック（自前でhtml/bodyを持つ必要がある）。
 // (main)/error.tsxではカバーできない、レイアウトより上位で起きたエラー用。
+// 部品のファイルを読み込めなかったとき（lib/chunkError.ts）は、自動で1回読み直し、ボタンも読み直しにする
 export default function GlobalError({
   error,
   reset,
@@ -14,9 +16,11 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const chunk = isChunkLoadError(error);
   useEffect(() => {
     console.error("[GlobalError]", error);
     reportClientError(error);
+    if (isChunkLoadError(error)) reloadOnceForChunkError();
   }, [error]);
 
   return (
@@ -35,10 +39,10 @@ export default function GlobalError({
             </p>
           </div>
           <button
-            onClick={reset}
+            onClick={chunk ? () => window.location.reload() : reset}
             className={primaryButton}
           >
-            再試行
+            {chunk ? "再読み込み" : "再試行"}
           </button>
         </main>
       </body>
