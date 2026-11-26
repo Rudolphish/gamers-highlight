@@ -5202,6 +5202,78 @@ if (block()) {
   }
 }
 
+// ── 画面の部品のファイルを読み込めなかったとき（ChunkLoadError）は、自動で1回だけ読み直し、ボタンも読み直しにする（2026-11-26。lib/chunkError.ts） ──
+// 本番で「Loading chunk 9008 failed.」が5秒に3回記録された。エラー画面の「再試行」は描き直すだけで失敗したファイルを取り直さないので、
+// 押しても直らなかったと見ている。ここではグループ画面のファイルをわざと止めて、ホームからグループ画面へ移る
+if (block()) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addCookies(await context.cookies());
+  const p = await ctx.newPage();
+  const seen = [];
+  const bad = [];
+  let loads = 0;
+  p.on("load", () => loads++);
+  // グループ画面の本体のファイル（app/(main)/groups/[groupId]/page-….js）だけを止める
+  const blocked = (url) => decodeURIComponent(url).includes("/app/(main)/groups/[groupId]/page-");
+  let blockedCount = 0;
+  await p.route(blocked, (route) => {
+    blockedCount++;
+    return route.abort("failed");
+  });
+  try {
+    await gotoSettled(p, `${BASE}/`);
+    const before = loads;
+    // ホームの「マイグループ」からグループ画面へ（画面の中の移動。ファイルはここで取りに行く）
+    await p.locator(`a[href="/groups/${ids.groupId}"]`).first().click();
+    // 自動の読み直しが起きるのを待つ（読み直しは1回まで）
+    await p.waitForFunction(() => sessionStorage.getItem("ss-chunk-reload-at") !== null, null, { timeout: 15000 }).catch(() => {});
+    await p.waitForLoadState("load");
+    await p.waitForTimeout(3000);
+    const reloads = loads - before;
+    const stamped = await p.evaluate(() => sessionStorage.getItem("ss-chunk-reload-at"));
+    seen.push(`止めた=${blockedCount}回 / 読み直し=${reloads}回 / 印=${stamped ? "あり" : "なし"}`);
+    if (blockedCount === 0) bad.push("グループ画面のファイルを止められていない（確かめになっていない）");
+    if (!stamped) bad.push("自動で読み直していない");
+    if (reloads !== 1) bad.push(`自動の読み直しが ${reloads} 回（1回のはず）`);
+    // 読み直しのあともファイルは止めたままなので、ページ全体の読み込みで失敗し、エラー画面ではなくサーバーが描いた画面が出る。
+    // そこで読み直しが止まらなくならない（1分に1回まで）ことは、上の「読み直し=1回」で見ている。
+    // 1分以内にもう一度画面の中の移動で失敗したら、もう自動では読み直さず、エラー画面に「再読み込み」が出る。押すとページごと読み直す
+    await gotoSettled(p, `${BASE}/`);
+    const beforeSecond = loads;
+    await p.locator(`a[href="/groups/${ids.groupId}"]`).first().click();
+    const button = p.getByRole("button", { name: "再読み込み" });
+    await button.waitFor({ timeout: 15000 }).catch(() => {});
+    const shown = await button.isVisible().catch(() => false);
+    seen.push(`2回目: 自動の読み直し=${loads - beforeSecond}回 / 再読み込みのボタン=${shown}`);
+    if (loads - beforeSecond !== 0) bad.push("1分以内の2回目でも自動で読み直している");
+    if (!shown) bad.push("「再読み込み」のボタンが出ていない");
+    else {
+      // ファイルを通すようにしてから押すと、ページごと読み直してグループ画面が出る
+      await p.unroute(blocked);
+      const beforeClick = loads;
+      await button.click();
+      await p.waitForLoadState("load");
+      await p.getByTestId("recent-activity").waitFor({ timeout: 15000 }).catch(() => {});
+      const recovered = await p.getByTestId("recent-activity").isVisible().catch(() => false);
+      seen.push(`押した後の読み込み=${loads - beforeClick}回 / 画面=${recovered}`);
+      if (loads - beforeClick < 1) bad.push("「再読み込み」でページを読み直していない");
+      if (!recovered) bad.push("読み直したあとにグループ画面が出ない");
+    }
+    rows.push({
+      id: "B161",
+      item: "画面の部品のファイルを読み込めなかったときは、自動で1回だけ読み直し、それでもだめなら「再読み込み」のボタンでページごと読み直せる",
+      expected: "崩れ 0件",
+      actual: `${bad.length ? bad.join(" / ") : "崩れなし"}（${seen.join(" ／ ")}）`,
+      ok: bad.length === 0,
+      note: "",
+    });
+  } catch (e) {
+    rows.push({ id: "B161", item: "部品のファイルを読み込めなかったときの立て直し", expected: "-", actual: "未確認", ok: false, note: `途中で中断（${seen.join(" ／ ")}）: ${String(e.message ?? e).slice(0, 120)}` });
+  } finally {
+    await ctx.close();
+  }
+}
+
 await browser.close();
 block.done();
 if (FILTERED) {
