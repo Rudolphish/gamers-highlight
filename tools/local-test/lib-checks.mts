@@ -850,5 +850,42 @@ const check = (id: string, item: string, ok: boolean, detail: unknown = "") =>
   check("F343", "どの版のパッチノートも、Discord の埋め込みの上限に収まり、題名が「更新履歴」のページへのリンクになる", over.length === 0, over);
 }
 
+// ── 画面の部品のファイルを読み込めなかったときの立て直し（2026-11-26。lib/chunkError.ts） ──
+// ChunkLoadError だけを見分け、自動の読み直しは1分に1回まで（ファイルが本当に無いときに止まらなくならない）
+{
+  const { isChunkLoadError, reloadOnceForChunkError, CHUNK_RELOAD_KEY } = await import("../../apps/web/src/lib/chunkError");
+  const chunkErr = Object.assign(new Error("Loading chunk 9008 failed.\n(error: https://example.com/_next/static/chunks/9008-x.js)"), { name: "ChunkLoadError" });
+  const recognized = [
+    isChunkLoadError(chunkErr),
+    isChunkLoadError(new Error("Loading chunk 9008 failed.")),
+    isChunkLoadError(new Error("Loading CSS chunk app-layout failed.")),
+    // name が失われても、ファイル名に / ( [ が入るメッセージを見分ける
+    isChunkLoadError(new Error("Loading chunk app/(main)/groups/[groupId]/page failed.")),
+    !isChunkLoadError(new Error("An error occurred in the Server Components render.")),
+    !isChunkLoadError(new Error("Load failed")),
+    !isChunkLoadError(null),
+  ];
+  const store = new Map<string, string>();
+  const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+  let reloads = 0;
+  const reload = () => void reloads++;
+  const t0 = 1_700_000_000_000;
+  const first = reloadOnceForChunkError({ storage, reload, now: t0 });
+  const again = reloadOnceForChunkError({ storage, reload, now: t0 + 30_000 });
+  const later = reloadOnceForChunkError({ storage, reload, now: t0 + 61_000 });
+  const noStorage = reloadOnceForChunkError({ storage: null, reload, now: t0 + 200_000 });
+  const throwing = reloadOnceForChunkError({
+    storage: { getItem: () => { throw new Error("blocked"); }, setItem: () => {} },
+    reload,
+    now: t0 + 300_000,
+  });
+  check(
+    "F368",
+    "画面の部品のファイルを読み込めなかったエラー（ChunkLoadError）だけを見分け、自動の読み直しは1分に1回まで（保存できない環境では自動では読み直さない）",
+    recognized.every(Boolean) && first && !again && later && !noStorage && !throwing && reloads === 2 && store.get(CHUNK_RELOAD_KEY) === String(t0 + 61_000),
+    { recognized, first, again, later, noStorage, throwing, reloads }
+  );
+}
+
 await db.$disconnect();
 console.log(JSON.stringify(rows));
