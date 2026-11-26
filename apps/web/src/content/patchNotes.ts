@@ -24,6 +24,15 @@ export type PatchNote = {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "2.8.1",
+    date: "2026-11-26",
+    added: [],
+    changed: [],
+    fixed: [
+      "通信が途切れたときなどに「エラーが発生しました」と出て、「再試行」を押しても直らないことがあったのを直しました。画面の部品を読み込めなかったときは、自動でページを読み直します。",
+    ],
+  },
+  {
     version: "2.8.0",
     date: "2026-11-13",
     added: [
